@@ -25,44 +25,59 @@
 
 package java.lang.ref;
 
-import java.util.function.Consumer;
 import jdk.internal.misc.VM;
+
+import java.util.function.Consumer;
 
 /**
  * Reference queues, to which registered reference objects are appended by the
  * garbage collector after the appropriate reachability changes are detected.
  *
- * @author   Mark Reinhold
- * @since    1.2
+ * @author Mark Reinhold
+ * @since 1.2
  */
-
+// 存储GC之后报废的Reference（该引用指向的对象被回收），配合Reference类完成一些清理操作
 public class ReferenceQueue<T> {
-
+    
+    static final ReferenceQueue<Object> NULL = new Null();      // 此处代表Reference没有关联的ReferenceQueue，无法入队
+    static final ReferenceQueue<Object> ENQUEUED = new Null();  // 此处代表Reference已经在队列中，无法再入队
+    
+    private final Lock lock = new Lock();
+    
+    private volatile Reference<? extends T> head;
+    private long queueLength = 0;
+    
     /**
      * Constructs a new reference-object queue.
      */
-    public ReferenceQueue() { }
-
-    private static class Null extends ReferenceQueue<Object> {
-        boolean enqueue(Reference<?> r) {
-            return false;
+    public ReferenceQueue() {
+    }
+    
+    /**
+     * Polls this queue to see if a reference object is available.
+     * If one is available without further delay then it is removed from the queue and returned.
+     * Otherwise this method immediately returns {@code null}.
+     *
+     * @return A reference object, if one was immediately available, otherwise {@code null}
+     */
+    // 从ReferenceQueue中删除一个Reference并将其返回
+    public Reference<? extends T> poll() {
+        if(head == null) {
+            return null;
+        }
+        
+        synchronized(lock) {
+            return reallyPoll();
         }
     }
-
-    static final ReferenceQueue<Object> NULL = new Null();
-    static final ReferenceQueue<Object> ENQUEUED = new Null();
-
-    private static class Lock { };
-    private final Lock lock = new Lock();
-    private volatile Reference<? extends T> head;
-    private long queueLength = 0;
-
+    
+    
+    // 将“报废引用”入队
     boolean enqueue(Reference<? extends T> r) { /* Called only by Reference class */
-        synchronized (lock) {
-            // Check that since getting the lock this reference hasn't already been
-            // enqueued (and even then removed)
+        synchronized(lock) {
+            // Check that since getting the lock this reference hasn't already been enqueued (and even then removed)
             ReferenceQueue<?> queue = r.queue;
-            if ((queue == NULL) || (queue == ENQUEUED)) {
+            if((queue == NULL) || (queue == ENQUEUED)) {
                 return false;
             }
             assert queue == this;
@@ -70,25 +85,80 @@ public class ReferenceQueue<T> {
             r.next = (head == null) ? r : head;
             head = r;
             queueLength++;
-            // Update r.queue *after* adding to list, to avoid race
-            // with concurrent enqueued checks and fast-path poll().
+            // Update r.queue *after* adding to list, to avoid race with concurrent enqueued checks and fast-path poll().
             // Volatiles ensure ordering.
             r.queue = ENQUEUED;
-            if (r instanceof FinalReference) {
+            if(r instanceof FinalReference) {
                 VM.addFinalRefCount(1);
             }
             lock.notifyAll();
             return true;
         }
     }
-
+    
+    /**
+     * Removes the next reference object in this queue, blocking until one
+     * becomes available.
+     *
+     * @return A reference object, blocking until one becomes available
+     *
+     * @throws InterruptedException If the wait is interrupted
+     */
+    // 从ReferenceQueue中删除并返回一个Reference（如果没有就陷入阻塞，直到队列里有引用就取出）
+    public Reference<? extends T> remove() throws InterruptedException {
+        return remove(0);
+    }
+    
+    /**
+     * Removes the next reference object in this queue, blocking until either
+     * one becomes available or the given timeout period expires.
+     *
+     * <p> This method does not offer real-time guarantees: It schedules the
+     * timeout as if by invoking the {@link Object#wait(long)} method.
+     *
+     * @param timeout If positive, block for up to {@code timeout}
+     *                milliseconds while waiting for a reference to be
+     *                added to this queue.  If zero, block indefinitely.
+     *
+     * @return A reference object, if one was available within the specified
+     * timeout period, otherwise {@code null}
+     *
+     * @throws IllegalArgumentException If the value of the timeout argument is negative
+     * @throws InterruptedException     If the timeout wait is interrupted
+     */
+    // 轮询，在指定时间内，直到找到一个非空的Reference才返回
+    public Reference<? extends T> remove(long timeout) throws IllegalArgumentException, InterruptedException {
+        if(timeout < 0) {
+            throw new IllegalArgumentException("Negative timeout value");
+        }
+        synchronized(lock) {
+            Reference<? extends T> r = reallyPoll();
+            if(r != null)
+                return r;
+            long start = (timeout == 0) ? 0 : System.nanoTime();
+            for(; ; ) {
+                lock.wait(timeout);
+                r = reallyPoll();
+                if(r != null)
+                    return r;
+                if(timeout != 0) {
+                    long end = System.nanoTime();
+                    timeout -= (end - start) / 1000_000;
+                    if(timeout <= 0)
+                        return null;
+                    start = end;
+                }
+            }
+        }
+    }
+    
+    // 从ReferenceQueue中删除一个Reference并将其返回
     private Reference<? extends T> reallyPoll() {       /* Must hold lock */
         Reference<? extends T> r = head;
-        if (r != null) {
+        if(r != null) {
             r.queue = NULL;
-            // Update r.queue *before* removing from list, to avoid
-            // race with concurrent enqueued checks and fast-path
-            // poll().  Volatiles ensure ordering.
+            // Update r.queue *before* removing from list, to avoid race with concurrent enqueued checks and fast-path poll().
+            // Volatiles ensure ordering.
             @SuppressWarnings("unchecked")
             Reference<? extends T> rn = r.next;
             // Handle self-looped next as end of list designator.
@@ -97,85 +167,14 @@ public class ReferenceQueue<T> {
             // FinalReference it remains inactive.
             r.next = r;
             queueLength--;
-            if (r instanceof FinalReference) {
+            if(r instanceof FinalReference) {
                 VM.addFinalRefCount(-1);
             }
             return r;
         }
         return null;
     }
-
-    /**
-     * Polls this queue to see if a reference object is available.  If one is
-     * available without further delay then it is removed from the queue and
-     * returned.  Otherwise this method immediately returns {@code null}.
-     *
-     * @return  A reference object, if one was immediately available,
-     *          otherwise {@code null}
-     */
-    public Reference<? extends T> poll() {
-        if (head == null)
-            return null;
-        synchronized (lock) {
-            return reallyPoll();
-        }
-    }
-
-    /**
-     * Removes the next reference object in this queue, blocking until either
-     * one becomes available or the given timeout period expires.
-     *
-     * <p> This method does not offer real-time guarantees: It schedules the
-     * timeout as if by invoking the {@link Object#wait(long)} method.
-     *
-     * @param  timeout  If positive, block for up to {@code timeout}
-     *                  milliseconds while waiting for a reference to be
-     *                  added to this queue.  If zero, block indefinitely.
-     *
-     * @return  A reference object, if one was available within the specified
-     *          timeout period, otherwise {@code null}
-     *
-     * @throws  IllegalArgumentException
-     *          If the value of the timeout argument is negative
-     *
-     * @throws  InterruptedException
-     *          If the timeout wait is interrupted
-     */
-    public Reference<? extends T> remove(long timeout)
-        throws IllegalArgumentException, InterruptedException
-    {
-        if (timeout < 0) {
-            throw new IllegalArgumentException("Negative timeout value");
-        }
-        synchronized (lock) {
-            Reference<? extends T> r = reallyPoll();
-            if (r != null) return r;
-            long start = (timeout == 0) ? 0 : System.nanoTime();
-            for (;;) {
-                lock.wait(timeout);
-                r = reallyPoll();
-                if (r != null) return r;
-                if (timeout != 0) {
-                    long end = System.nanoTime();
-                    timeout -= (end - start) / 1000_000;
-                    if (timeout <= 0) return null;
-                    start = end;
-                }
-            }
-        }
-    }
-
-    /**
-     * Removes the next reference object in this queue, blocking until one
-     * becomes available.
-     *
-     * @return A reference object, blocking until one becomes available
-     * @throws  InterruptedException  If the wait is interrupted
-     */
-    public Reference<? extends T> remove() throws InterruptedException {
-        return remove(0);
-    }
-
+    
     /**
      * Iterate queue and invoke given action with each Reference.
      * Suitable for diagnostic purposes.
@@ -185,12 +184,12 @@ public class ReferenceQueue<T> {
      * than necessary.
      */
     void forEach(Consumer<? super Reference<? extends T>> action) {
-        for (Reference<? extends T> r = head; r != null;) {
+        for(Reference<? extends T> r = head; r != null; ) {
             action.accept(r);
             @SuppressWarnings("unchecked")
             Reference<? extends T> rn = r.next;
-            if (rn == r) {
-                if (r.queue == ENQUEUED) {
+            if(rn == r) {
+                if(r.queue == ENQUEUED) {
                     // still enqueued -> we reached end of chain
                     r = null;
                 } else {
@@ -203,5 +202,15 @@ public class ReferenceQueue<T> {
                 r = rn;
             }
         }
+    }
+    
+    
+    private static class Null extends ReferenceQueue<Object> {
+        boolean enqueue(Reference<?> r) {
+            return false;
+        }
+    }
+    
+    private static class Lock {
     }
 }
