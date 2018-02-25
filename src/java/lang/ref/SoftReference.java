@@ -25,7 +25,6 @@
 
 package java.lang.ref;
 
-
 /**
  * Soft reference objects, which are cleared at the discretion of the garbage
  * collector in response to memory demand.  Soft references are most often used
@@ -57,24 +56,29 @@ package java.lang.ref;
  * strong referents to those entries, leaving the remaining entries to be
  * discarded at the discretion of the garbage collector.
  *
- * @author   Mark Reinhold
- * @since    1.2
+ * @author Mark Reinhold
+ * @since 1.2
  */
-
+/*
+ * 软引用(Soft Reference)：
+ * 当一个对象只剩软引用，且堆内存不足时，垃圾回收器才会回收对应引用指向的对象
+ * JVM会在抛出OOME前清理所有弱引用指向的对象，如果清理完还是内存不足，才会抛出OOME。
+ * 所以软引用一般用于实现内存敏感缓存。
+ */
 public class SoftReference<T> extends Reference<T> {
-
+    
     /**
      * Timestamp clock, updated by the garbage collector
      */
     private static long clock;
-
+    
     /**
      * Timestamp updated by each invocation of the get method.  The VM may use
      * this field when selecting soft references to be cleared, but it is not
      * required to do so.
      */
     private long timestamp;
-
+    
     /**
      * Creates a new soft reference that refers to the given object.  The new
      * reference is not registered with any queue.
@@ -85,34 +89,32 @@ public class SoftReference<T> extends Reference<T> {
         super(referent);
         this.timestamp = clock;
     }
-
+    
     /**
      * Creates a new soft reference that refers to the given object and is
      * registered with the given queue.
      *
      * @param referent object the new soft reference will refer to
-     * @param q the queue with which the reference is to be registered,
-     *          or {@code null} if registration is not required
-     *
+     * @param q        the queue with which the reference is to be registered,
+     *                 or {@code null} if registration is not required
      */
     public SoftReference(T referent, ReferenceQueue<? super T> q) {
         super(referent, q);
         this.timestamp = clock;
     }
-
+    
     /**
      * Returns this reference object's referent.  If this reference object has
      * been cleared, either by the program or by the garbage collector, then
      * this method returns {@code null}.
      *
-     * @return   The object to which this reference refers, or
-     *           {@code null} if this reference object has been cleared
+     * @return The object to which this reference refers, or
+     * {@code null} if this reference object has been cleared
      */
     public T get() {
         T o = super.get();
-        if (o != null && this.timestamp != clock)
+        if(o != null && this.timestamp != clock)
             this.timestamp = clock;
         return o;
     }
-
 }
