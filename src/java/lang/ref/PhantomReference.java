@@ -43,23 +43,18 @@ package java.lang.ref;
  * a phantom reference may not be retrieved: The {@code get} method of a
  * phantom reference always returns {@code null}.
  *
- * @author   Mark Reinhold
- * @since    1.2
+ * @author Mark Reinhold
+ * @since 1.2
  */
-
+/*
+ * 虚引用(Phantom Reference)：
+ * 虚引用永远无法使用 get() 方法取得对象的强引用从而访问目标对象。
+ * （JDK9之前：）虚引用进入ReferenceQueue时，其包裹的对象不会被回收。
+ * （JDK9之后：）虚引用进入ReferenceQueue时，其包裹的对象同样会被回收，虚引用和弱引用行为一致了...
+ * 注意：PhantomReference必须要和ReferenceQueue联合使用，SoftReference和WeakReference可以选择和ReferenceQueue联合使用也可以不选择，这是它们的区别之一。
+ */
 public class PhantomReference<T> extends Reference<T> {
-
-    /**
-     * Returns this reference object's referent.  Because the referent of a
-     * phantom reference is always inaccessible, this method always returns
-     * {@code null}.
-     *
-     * @return {@code null}
-     */
-    public T get() {
-        return null;
-    }
-
+    
     /**
      * Creates a new phantom reference that refers to the given object and
      * is registered with the given queue.
@@ -70,11 +65,22 @@ public class PhantomReference<T> extends Reference<T> {
      * it will never be enqueued.
      *
      * @param referent the object the new phantom reference will refer to
-     * @param q the queue with which the reference is to be registered,
-     *          or {@code null} if registration is not required
+     * @param q        the queue with which the reference is to be registered,
+     *                 or {@code null} if registration is not required
      */
     public PhantomReference(T referent, ReferenceQueue<? super T> q) {
         super(referent, q);
     }
-
+    
+    /**
+     * Returns this reference object's referent.  Because the referent of a
+     * phantom reference is always inaccessible, this method always returns
+     * {@code null}.
+     *
+     * @return {@code null}
+     */
+    public T get() {
+        return null;
+    }
+    
 }
