@@ -28,7 +28,6 @@ package java.nio.charset.spi;
 import java.nio.charset.Charset;
 import java.util.Iterator;
 
-
 /**
  * Charset service-provider class.
  *
@@ -60,56 +59,60 @@ import java.util.Iterator;
  * class loader that was initially queried to locate the configuration file;
  * this is not necessarily the class loader that loaded the file. </p>
  *
- *
  * @author Mark Reinhold
  * @author JSR-51 Expert Group
- * @since 1.4
- *
  * @see java.nio.charset.Charset
+ * @since 1.4
  */
 
+/*
+ * 抽象"字符集"提供商，规定了检索字符集的接口方法。
+ *
+ * 在子类的实现中，可以封装多种字符集备用。
+ *
+ * 此外，使用字符集提供商时，需要在资源目录src/META-INF/services/java.nio.charset.spi.CharsetProvider中配置。
+ */
 public abstract class CharsetProvider {
-
-    private static Void checkPermission() {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null)
-            sm.checkPermission(new RuntimePermission("charsetProvider"));
-        return null;
-    }
-    private CharsetProvider(Void ignore) { }
-
+    
     /**
      * Initializes a new charset provider.
      *
-     * @throws  SecurityException
-     *          If a security manager has been installed and it denies
-     *          {@link RuntimePermission}{@code ("charsetProvider")}
+     * @throws SecurityException If a security manager has been installed and it denies {@link RuntimePermission}{@code ("charsetProvider")}
      */
+    // 初始化一个字符集提供商，可能需要通过安全检查
     protected CharsetProvider() {
         this(checkPermission());
     }
-
+    
+    private CharsetProvider(Void ignore) {
+    }
+    
     /**
      * Creates an iterator that iterates over the charsets supported by this
      * provider.  This method is used in the implementation of the {@link
      * java.nio.charset.Charset#availableCharsets Charset.availableCharsets}
      * method.
      *
-     * @return  The new iterator
+     * @return The new iterator
      */
+    // 返回用于遍历"字符集"的迭代器
     public abstract Iterator<Charset> charsets();
-
+    
     /**
      * Retrieves a charset for the given charset name.
      *
-     * @param  charsetName
-     *         The name of the requested charset; may be either
-     *         a canonical name or an alias
+     * @param charsetName The name of the requested charset; may be either a canonical name or an alias
      *
-     * @return  A charset object for the named charset,
-     *          or {@code null} if the named charset
-     *          is not supported by this provider
+     * @return A charset object for the named charset, or {@code null} if the named charset is not supported by this provider
      */
+    // 通过字符集名称检索相应的字符集，如果该提供商不支持此字符集，返回null
     public abstract Charset charsetForName(String charsetName);
-
+    
+    // 检查该字符集是否有权限被加载
+    private static Void checkPermission() {
+        SecurityManager sm = System.getSecurityManager();
+        if(sm != null)
+            sm.checkPermission(new RuntimePermission("charsetProvider"));
+        return null;
+    }
 }

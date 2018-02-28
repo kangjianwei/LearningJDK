@@ -34,36 +34,28 @@ import jdk.internal.misc.Unsafe;
  * @author JSR-51 Expert Group
  * @since 1.4
  */
-
+// 查看底层的字节存储顺序是大端还是小端
 public final class ByteOrder {
-
     private String name;
-
+    
+    /**
+     * Constant denoting big-endian byte order.
+     * In this order, the bytes of a multibyte value are ordered from most significant to least significant.
+     */
+    public static final ByteOrder BIG_ENDIAN = new ByteOrder("BIG_ENDIAN");
+    /**
+     * Constant denoting little-endian byte order.
+     * In this order, the bytes of a multibyte value are ordered from least significant to most significant.
+     */
+    public static final ByteOrder LITTLE_ENDIAN = new ByteOrder("LITTLE_ENDIAN");
+    
+    // Retrieve the native byte order. It's used early during bootstrap, and must be initialized after BIG_ENDIAN and LITTLE_ENDIAN.
+    private static final ByteOrder NATIVE_ORDER = Unsafe.getUnsafe().isBigEndian() ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN;
+    
     private ByteOrder(String name) {
         this.name = name;
     }
-
-    /**
-     * Constant denoting big-endian byte order.  In this order, the bytes of a
-     * multibyte value are ordered from most significant to least significant.
-     */
-    public static final ByteOrder BIG_ENDIAN
-        = new ByteOrder("BIG_ENDIAN");
-
-    /**
-     * Constant denoting little-endian byte order.  In this order, the bytes of
-     * a multibyte value are ordered from least significant to most
-     * significant.
-     */
-    public static final ByteOrder LITTLE_ENDIAN
-        = new ByteOrder("LITTLE_ENDIAN");
-
-    // Retrieve the native byte order. It's used early during bootstrap, and
-    // must be initialized after BIG_ENDIAN and LITTLE_ENDIAN.
-    private static final ByteOrder NATIVE_ORDER
-        = Unsafe.getUnsafe().isBigEndian()
-            ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN;
-
+    
     /**
      * Retrieves the native byte order of the underlying platform.
      *
@@ -72,24 +64,23 @@ public final class ByteOrder {
      * Native code libraries are often more efficient when such buffers are
      * used.  </p>
      *
-     * @return  The native byte order of the hardware upon which this Java
-     *          virtual machine is running
+     * @return The native byte order of the hardware upon which this Java
+     * virtual machine is running
      */
+    // 返回当前系统下底层字节的顺序
     public static ByteOrder nativeOrder() {
         return NATIVE_ORDER;
     }
-
+    
     /**
      * Constructs a string describing this object.
      *
-     * <p> This method returns the string
-     * {@code "BIG_ENDIAN"} for {@link #BIG_ENDIAN} and
-     * {@code "LITTLE_ENDIAN"} for {@link #LITTLE_ENDIAN}.
+     * <p> This method returns the string {@code "BIG_ENDIAN"} for {@link #BIG_ENDIAN} and {@code "LITTLE_ENDIAN"} for {@link #LITTLE_ENDIAN}.
      *
-     * @return  The specified string
+     * @return The specified string
      */
+    // 返回描述此对象的字符串"BIG_ENDIAN"或"LITTLE_ENDIAN"
     public String toString() {
         return name;
     }
-
 }
