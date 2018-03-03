@@ -25,10 +25,10 @@
 
 package jdk.internal.ref;
 
-import java.lang.ref.*;
+import java.lang.ref.PhantomReference;
+import java.lang.ref.ReferenceQueue;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-
 
 /**
  * General-purpose phantom-reference-based cleaners.
@@ -52,104 +52,114 @@ import java.security.PrivilegedAction;
  * Nontrivial cleaners are inadvisable since they risk blocking the
  * reference-handler thread and delaying further cleanup and finalization.
  *
- *
  * @author Mark Reinhold
  */
-
-public class Cleaner
-    extends PhantomReference<Object>
-{
-
-    // Dummy reference queue, needed because the PhantomReference constructor
-    // insists that we pass a queue.  Nothing will ever be placed on this queue
-    // since the reference handler invokes cleaners explicitly.
-    //
+/*
+ * 虚引用清理器(非公开)
+ *
+ * 虚引用的子类，用作清理器。当虚引用被回收时，在Reference中回调此类的清理功能。
+ * 一个程序可以有多个Cleaner。多个Cleaner组成了一个双向链表。
+ */
+public class Cleaner extends PhantomReference<Object> {
+    /*
+     * Dummy reference queue, needed because the PhantomReference constructor insists that we pass a queue.
+     * Nothing will ever be placed on this queue since the reference handler invokes cleaners explicitly.
+     *
+     * 声明此字段的原因是虚引用构造方法必须使用一个ReferenceQueue参数
+     * 实际上，被GC回收的对象，其相应的"虚引用清理器"不会被加入到此队列中。
+     * 可参见Reference类的processPendingReferences()方法。
+     */
     private static final ReferenceQueue<Object> dummyQueue = new ReferenceQueue<>();
-
-    // Doubly-linked list of live cleaners, which prevents the cleaners
-    // themselves from being GC'd before their referents
-    //
+    
+    // 清理动作
+    private final Runnable thunk;
+    
+    /* Doubly-linked list of live cleaners, which prevents the cleaners themselves from being GC'd before their referents */
+    
+    // 双向链表头部
     private static Cleaner first = null;
-
-    private Cleaner
-        next = null,
-        prev = null;
-
+    // 双向链表前驱和后继
+    private Cleaner next = null, prev = null;
+    
+    // 注册追踪的引用obj和清理动作thunk
+    private Cleaner(Object referent, Runnable thunk) {
+        super(referent, dummyQueue);
+        this.thunk = thunk;
+    }
+    
+    /**
+     * Creates a new cleaner.
+     *
+     * @param ob    the referent object to be cleaned
+     * @param thunk The cleanup code to be run when the cleaner is invoked.  The
+     *              cleanup code is run directly from the reference-handler thread,
+     *              so it should be as simple and straightforward as possible.
+     *
+     * @return The new cleaner
+     */
+    // 创建一个Cleaner，并将其添加到双向链表中
+    public static Cleaner create(Object ob, Runnable thunk) {
+        if(thunk == null)
+            return null;
+        return add(new Cleaner(ob, thunk));
+    }
+    
+    // 使用头插法将Cleaner添加到双向链表中
     private static synchronized Cleaner add(Cleaner cl) {
-        if (first != null) {
+        if(first != null) {
             cl.next = first;
             first.prev = cl;
         }
         first = cl;
         return cl;
     }
-
+    
+    // 移除一个Cleaner
     private static synchronized boolean remove(Cleaner cl) {
-
         // If already removed, do nothing
-        if (cl.next == cl)
+        if(cl.next == cl)
             return false;
-
+        
         // Update list
-        if (first == cl) {
-            if (cl.next != null)
+        if(first == cl) {
+            if(cl.next != null)
                 first = cl.next;
             else
                 first = cl.prev;
         }
-        if (cl.next != null)
+        if(cl.next != null)
             cl.next.prev = cl.prev;
-        if (cl.prev != null)
+        if(cl.prev != null)
             cl.prev.next = cl.next;
-
+        
         // Indicate removal by pointing the cleaner to itself
         cl.next = cl;
         cl.prev = cl;
         return true;
-
     }
-
-    private final Runnable thunk;
-
-    private Cleaner(Object referent, Runnable thunk) {
-        super(referent, dummyQueue);
-        this.thunk = thunk;
-    }
-
-    /**
-     * Creates a new cleaner.
-     *
-     * @param  ob the referent object to be cleaned
-     * @param  thunk
-     *         The cleanup code to be run when the cleaner is invoked.  The
-     *         cleanup code is run directly from the reference-handler thread,
-     *         so it should be as simple and straightforward as possible.
-     *
-     * @return  The new cleaner
-     */
-    public static Cleaner create(Object ob, Runnable thunk) {
-        if (thunk == null)
-            return null;
-        return add(new Cleaner(ob, thunk));
-    }
-
+    
     /**
      * Runs this cleaner, if it has not been run before.
      */
+    // 对追踪对象进行清理，在Reference类中完成
     public void clean() {
-        if (!remove(this))
+        // 已移除的不再执行其功能，保证每个Cleaner只发挥一次作用
+        if(!remove(this)) {
             return;
+        }
         try {
+            // 执行清理
             thunk.run();
-        } catch (final Throwable x) {
+        } catch(final Throwable x) {
             AccessController.doPrivileged(new PrivilegedAction<>() {
-                    public Void run() {
-                        if (System.err != null)
-                            new Error("Cleaner terminated abnormally", x)
-                                .printStackTrace();
-                        System.exit(1);
-                        return null;
-                    }});
+                public Void run() {
+                    if(System.err != null) {
+                        new Error("Cleaner terminated abnormally", x).printStackTrace();
+                    }
+                    System.exit(1);
+                    return null;
+                }
+            });
         }
     }
 }
