@@ -26,8 +26,8 @@
 package jdk.internal.ref;
 
 import java.lang.ref.Cleaner;
-import java.lang.ref.Reference;
 import java.lang.ref.PhantomReference;
+import java.lang.ref.Reference;
 import java.util.Objects;
 
 /**
@@ -40,19 +40,30 @@ import java.util.Objects;
  * The Cleaner invokes {@link Cleaner.Cleanable#clean() clean} after the
  * referent becomes phantom reachable.
  */
-public abstract class PhantomCleanable<T> extends PhantomReference<T>
-        implements Cleaner.Cleanable {
 
-    /**
-     * Links to previous and next in a doubly-linked list.
-     */
-    PhantomCleanable<?> prev = this, next = this;
-
+/*
+ * Reference
+ *     │
+ * PhantomReference        Cleanable
+ *     └──────────┬────────────┘
+ *         PhantomCleanable
+ *
+ * 抽象基类：可清理的虚引用，此类的属性既是虚引用，又是清理器。
+ */
+public abstract class PhantomCleanable<T> extends PhantomReference<T> implements Cleaner.Cleanable {
+    
     /**
      * The list of PhantomCleanable; synchronizes insert and remove.
      */
+    // 指向CleanerImpl内部维护的PhantomCleanableList，在这里完成插入和删除操作
     private final PhantomCleanable<?> list;
-
+    
+    /**
+     * Links to previous and next in a doubly-linked list.
+     */
+    // 前驱、后继
+    PhantomCleanable<?> prev = this, next = this;
+    
     /**
      * Constructs new {@code PhantomCleanable} with
      * {@code non-null referent} and {@code non-null cleaner}.
@@ -62,16 +73,22 @@ public abstract class PhantomCleanable<T> extends PhantomReference<T>
      * @param referent the referent to track
      * @param cleaner  the {@code Cleaner} to register with
      */
+    // 向cleaner注册跟踪的对象referent
     public PhantomCleanable(T referent, Cleaner cleaner) {
+        // 将跟踪的对象交给虚引用管理
         super(Objects.requireNonNull(referent), CleanerImpl.getCleanerImpl(cleaner).queue);
+        
         this.list = CleanerImpl.getCleanerImpl(cleaner).phantomCleanableList;
+    
+        // 将该虚引用（清理器）插入到PhantomCleanableList中
         insert();
-
+        
         // Ensure referent and cleaner remain accessible
+        // 确保被追踪对象referent和cleaner在此处是存活的，即还不能被GC回收
         Reference.reachabilityFence(referent);
         Reference.reachabilityFence(cleaner);
     }
-
+    
     /**
      * Construct a new root of the list; not inserted.
      */
@@ -79,28 +96,104 @@ public abstract class PhantomCleanable<T> extends PhantomReference<T>
         super(null, null);
         this.list = this;
     }
-
+    
+    /**
+     * The {@code performCleanup} abstract method is overridden
+     * to implement the cleaning logic.
+     * The {@code performCleanup} method should not be called except
+     * by the {@link #clean} method which ensures at most once semantics.
+     */
+    // 虚引用清理器的清理操作，被clean()方法调用，由子类完善
+    protected abstract void performCleanup();
+    
+    /**
+     * Unregister this PhantomCleanable and invoke {@link #performCleanup()}, ensuring at-most-once semantics.
+     */
+    /*
+     * CleanerImpl.run()==>清理器clean()-->清理器performCleanup()-->action.run()
+     * 可以等待清理清理服务自动调用，也可以手动执行清理操作
+     */
+    @Override
+    public final void clean() {
+        if(remove()) {
+            super.clear();
+            performCleanup();
+        }
+    }
+    
+    /**
+     * This method always throws {@link UnsupportedOperationException}.
+     * Enqueuing details of {@link Cleaner.Cleanable}
+     * are a private implementation detail.
+     *
+     * @throws UnsupportedOperationException always
+     */
+    // 禁止在此处执行
+    @Override
+    public final boolean isEnqueued() {
+        throw new UnsupportedOperationException("isEnqueued");
+    }
+    
+    /**
+     * This method always throws {@link UnsupportedOperationException}.
+     * Enqueuing details of {@link Cleaner.Cleanable}
+     * are a private implementation detail.
+     *
+     * @throws UnsupportedOperationException always
+     */
+    // 禁止在此处执行
+    @Override
+    public final boolean enqueue() {
+        throw new UnsupportedOperationException("enqueue");
+    }
+    
+    /**
+     * Unregister this PhantomCleanable and clear the reference.
+     * Due to inherent concurrency, {@link #performCleanup()} may still be invoked.
+     */
+    // 清理虚引用追踪的对象的引用
+    @Override
+    public void clear() {
+        if(remove()) {
+            super.clear();
+        }
+    }
+    
+    /**
+     * Returns true if the list's next reference refers to itself.
+     *
+     * @return true if the list is empty
+     */
+    // 判断PhantomCleanableList是否为空
+    boolean isListEmpty() {
+        synchronized(list) {
+            return list == list.next;
+        }
+    }
+    
     /**
      * Insert this PhantomCleanable after the list head.
      */
+    // 将该虚引用（清理器）插入到PhantomCleanableList中
     private void insert() {
-        synchronized (list) {
+        synchronized(list) {
             prev = list;
             next = list.next;
             next.prev = this;
             list.next = this;
         }
     }
-
+    
     /**
      * Remove this PhantomCleanable from the list.
      *
      * @return true if Cleanable was removed or false if not because
      * it had already been removed before
      */
+    // 将该虚引用（清理器）从PhantomCleanableList中移除。原因是ReferenceQueue中已记录到该引用属于"报废引用"了。
     private boolean remove() {
-        synchronized (list) {
-            if (next != this) {
+        synchronized(list) {
+            if(next != this) {
                 next.prev = prev;
                 prev.next = next;
                 prev = this;
@@ -109,71 +202,5 @@ public abstract class PhantomCleanable<T> extends PhantomReference<T>
             }
             return false;
         }
-    }
-
-    /**
-     * Returns true if the list's next reference refers to itself.
-     *
-     * @return true if the list is empty
-     */
-    boolean isListEmpty() {
-        synchronized (list) {
-            return list == list.next;
-        }
-    }
-
-    /**
-     * Unregister this PhantomCleanable and invoke {@link #performCleanup()},
-     * ensuring at-most-once semantics.
-     */
-    @Override
-    public final void clean() {
-        if (remove()) {
-            super.clear();
-            performCleanup();
-        }
-    }
-
-    /**
-     * Unregister this PhantomCleanable and clear the reference.
-     * Due to inherent concurrency, {@link #performCleanup()} may still be invoked.
-     */
-    @Override
-    public void clear() {
-        if (remove()) {
-            super.clear();
-        }
-    }
-
-    /**
-     * The {@code performCleanup} abstract method is overridden
-     * to implement the cleaning logic.
-     * The {@code performCleanup} method should not be called except
-     * by the {@link #clean} method which ensures at most once semantics.
-     */
-    protected abstract void performCleanup();
-
-    /**
-     * This method always throws {@link UnsupportedOperationException}.
-     * Enqueuing details of {@link Cleaner.Cleanable}
-     * are a private implementation detail.
-     *
-     * @throws UnsupportedOperationException always
-     */
-    @Override
-    public final boolean isEnqueued() {
-        throw new UnsupportedOperationException("isEnqueued");
-    }
-
-    /**
-     * This method always throws {@link UnsupportedOperationException}.
-     * Enqueuing details of {@link Cleaner.Cleanable}
-     * are a private implementation detail.
-     *
-     * @throws UnsupportedOperationException always
-     */
-    @Override
-    public final boolean enqueue() {
-        throw new UnsupportedOperationException("enqueue");
     }
 }
