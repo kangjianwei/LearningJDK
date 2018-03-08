@@ -40,19 +40,30 @@ import java.util.Objects;
  * The Cleaner invokes {@link Cleaner.Cleanable#clean() clean} after the
  * referent becomes weakly reachable.
  */
-public abstract class WeakCleanable<T> extends WeakReference<T>
-        implements Cleaner.Cleanable {
 
-    /**
-     * Links to previous and next in a doubly-linked list.
-     */
-    WeakCleanable<?> prev = this, next = this;
-
+/*
+ * Reference
+ *     │
+ * WeakReference   Cleanable
+ *     └──────┬────────┘
+ *         WeakCleanable
+ *
+ * 抽象基类：可清理的弱引用，此类的属性既是弱引用，又是清理器。
+ */
+public abstract class WeakCleanable<T> extends WeakReference<T> implements Cleaner.Cleanable {
+    
     /**
      * The list of WeakCleanable; synchronizes insert and remove.
      */
+    // 指向CleanerImpl内部维护的WeakCleanableList，在这里完成插入和删除操作
     private final WeakCleanable<?> list;
-
+    
+    /**
+     * Links to previous and next in a doubly-linked list.
+     */
+    // 前驱、后继
+    WeakCleanable<?> prev = this, next = this;
+    
     /**
      * Constructs new {@code WeakCleanableReference} with
      * {@code non-null referent} and {@code non-null cleaner}.
@@ -62,17 +73,18 @@ public abstract class WeakCleanable<T> extends WeakReference<T>
      * @param referent the referent to track
      * @param cleaner  the {@code Cleaner} to register new reference with
      */
+    // 向cleaner注册跟踪的对象referent
     public WeakCleanable(T referent, Cleaner cleaner) {
         super(Objects.requireNonNull(referent), CleanerImpl.getCleanerImpl(cleaner).queue);
         list = CleanerImpl.getCleanerImpl(cleaner).weakCleanableList;
         insert();
-
+        
         // Ensure referent and cleaner remain accessible
         Reference.reachabilityFence(referent);
         Reference.reachabilityFence(cleaner);
-
+        
     }
-
+    
     /**
      * Construct a new root of the list; not inserted.
      */
@@ -80,28 +92,105 @@ public abstract class WeakCleanable<T> extends WeakReference<T>
         super(null, null);
         this.list = this;
     }
-
+    
+    /**
+     * The {@code performCleanup} abstract method is overridden
+     * to implement the cleaning logic.
+     * The {@code performCleanup} method should not be called except
+     * by the {@link #clean} method which ensures at most once semantics.
+     */
+    // 弱引用清理器的清理操作，被clean()方法调用，由子类完善
+    protected abstract void performCleanup();
+    
+    /**
+     * Unregister this WeakCleanable reference and invoke {@link #performCleanup()},
+     * ensuring at-most-once semantics.
+     */
+    /*
+     * CleanerImpl.run()==>清理器clean()-->清理器performCleanup()-->action.run()
+     * 可以等待清理清理服务自动调用，也可以手动执行清理操作
+     */
+    @Override
+    public final void clean() {
+        if(remove()) {
+            super.clear();
+            performCleanup();
+        }
+    }
+    
+    /**
+     * This method always throws {@link UnsupportedOperationException}.
+     * Enqueuing details of {@link Cleaner.Cleanable}
+     * are a private implementation detail.
+     *
+     * @throws UnsupportedOperationException always
+     */
+    // 禁止在此处执行
+    @Override
+    public final boolean isEnqueued() {
+        throw new UnsupportedOperationException("isEnqueued");
+    }
+    
+    /**
+     * This method always throws {@link UnsupportedOperationException}.
+     * Enqueuing details of {@link Cleaner.Cleanable}
+     * are a private implementation detail.
+     *
+     * @throws UnsupportedOperationException always
+     */
+    // 禁止在此处执行
+    @Override
+    public final boolean enqueue() {
+        throw new UnsupportedOperationException("enqueue");
+    }
+    
+    /**
+     * Unregister this WeakCleanable and clear the reference.
+     * Due to inherent concurrency, {@link #performCleanup()} may still be invoked.
+     */
+    // 清理弱引用追踪的对象的引用
+    @Override
+    public void clear() {
+        if(remove()) {
+            super.clear();
+        }
+    }
+    
+    /**
+     * Returns true if the list's next reference refers to itself.
+     *
+     * @return true if the list is empty
+     */
+    // 判断WeakCleanableList是否为空
+    boolean isListEmpty() {
+        synchronized(list) {
+            return list == list.next;
+        }
+    }
+    
     /**
      * Insert this WeakCleanableReference after the list head.
      */
+    // 将该弱引用（清理器）插入到WeakCleanableList中
     private void insert() {
-        synchronized (list) {
+        synchronized(list) {
             prev = list;
             next = list.next;
             next.prev = this;
             list.next = this;
         }
     }
-
+    
     /**
      * Remove this WeakCleanableReference from the list.
      *
      * @return true if Cleanable was removed or false if not because
      * it had already been removed before
      */
+    // 将该弱引用（清理器）从WeakCleanableList中移除。原因是ReferenceQueue中已记录到该引用属于"报废引用"了。
     private boolean remove() {
-        synchronized (list) {
-            if (next != this) {
+        synchronized(list) {
+            if(next != this) {
                 next.prev = prev;
                 prev.next = next;
                 prev = this;
@@ -110,71 +199,5 @@ public abstract class WeakCleanable<T> extends WeakReference<T>
             }
             return false;
         }
-    }
-
-    /**
-     * Returns true if the list's next reference refers to itself.
-     *
-     * @return true if the list is empty
-     */
-    boolean isListEmpty() {
-        synchronized (list) {
-            return list == list.next;
-        }
-    }
-
-    /**
-     * Unregister this WeakCleanable reference and invoke {@link #performCleanup()},
-     * ensuring at-most-once semantics.
-     */
-    @Override
-    public final void clean() {
-        if (remove()) {
-            super.clear();
-            performCleanup();
-        }
-    }
-
-    /**
-     * Unregister this WeakCleanable and clear the reference.
-     * Due to inherent concurrency, {@link #performCleanup()} may still be invoked.
-     */
-    @Override
-    public void clear() {
-        if (remove()) {
-            super.clear();
-        }
-    }
-
-    /**
-     * The {@code performCleanup} abstract method is overridden
-     * to implement the cleaning logic.
-     * The {@code performCleanup} method should not be called except
-     * by the {@link #clean} method which ensures at most once semantics.
-     */
-    protected abstract void performCleanup();
-
-    /**
-     * This method always throws {@link UnsupportedOperationException}.
-     * Enqueuing details of {@link Cleaner.Cleanable}
-     * are a private implementation detail.
-     *
-     * @throws UnsupportedOperationException always
-     */
-    @Override
-    public final boolean isEnqueued() {
-        throw new UnsupportedOperationException("isEnqueued");
-    }
-
-    /**
-     * This method always throws {@link UnsupportedOperationException}.
-     * Enqueuing details of {@link Cleaner.Cleanable}
-     * are a private implementation detail.
-     *
-     * @throws UnsupportedOperationException always
-     */
-    @Override
-    public final boolean enqueue() {
-        throw new UnsupportedOperationException("enqueue");
     }
 }
