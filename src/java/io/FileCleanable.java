@@ -42,52 +42,26 @@ import java.lang.ref.Cleaner;
  * than calling {@link FileDescriptor#close}.
  * Otherwise, it might incorrectly close the handle after it has been reused.
  */
+
+/*
+ *    Reference
+ *        │
+ * PhantomReference   Cleanable
+ *        └──────┬────────┘
+ *        PhantomCleanable
+ *               │
+ *        FileCleanable
+ *
+ * 文件描述符（虚引用）清理器，此类的属性既是虚引用，又是清理器
+ */
 final class FileCleanable extends PhantomCleanable<FileDescriptor> {
-
-    // Access to FileDescriptor private fields;
-    // avoids making fd and handle package private
-    private static final JavaIOFileDescriptorAccess fdAccess =
-            SharedSecrets.getJavaIOFileDescriptorAccess();
-
-    /*
-     * Raw close of the file fd and/or handle.
-     * Used only for last chance cleanup.
-     */
-    private static native void cleanupClose0(int fd, long handle) throws IOException;
-
-    // The raw fd to close
+    // Access to FileDescriptor private fields; avoids making fd and handle package private
+    private static final JavaIOFileDescriptorAccess fdAccess = SharedSecrets.getJavaIOFileDescriptorAccess();
+    
+    // FileDescriptor的fd和handle
     private final int fd;
-
-    // The handle to close
     private final long handle;
-
-    /**
-     * Register a Cleanable with the FileDescriptor
-     * if the FileDescriptor is non-null and valid.
-     * @implNote
-     * A exception (OutOfMemoryException) will leave the FileDescriptor
-     * having allocated resources and leak the fd/handle.
-     *
-     * @param fdo the FileDescriptor; may be null
-     */
-    static void register(FileDescriptor fdo) {
-        if (fdo != null && fdo.valid()) {
-            int fd = fdAccess.get(fdo);
-            long handle = fdAccess.getHandle(fdo);
-            fdo.registerCleanup(new FileCleanable(fdo, CleanerFactory.cleaner(), fd, handle));
-        }
-    }
-
-    /**
-     * Unregister a Cleanable from the FileDescriptor.
-     * @param fdo the FileDescriptor; may be null
-     */
-    static void unregister(FileDescriptor fdo) {
-        if (fdo != null) {
-            fdo.unregisterCleanup();
-        }
-    }
-
+    
     /**
      * Constructor for a phantom cleanable reference.
      *
@@ -101,16 +75,59 @@ final class FileCleanable extends PhantomCleanable<FileDescriptor> {
         this.fd = fd;
         this.handle = handle;
     }
-
+    
+    /**
+     * Register a Cleanable with the FileDescriptor if the FileDescriptor is non-null and valid.
+     *
+     * @param fdo the FileDescriptor; may be null
+     *
+     * @implNote A exception (OutOfMemoryException) will leave the FileDescriptor having allocated resources and leak the fd/handle.
+     */
+    // 注册文件描述符fdo到清理器
+    static void register(FileDescriptor fdo) {
+        if(fdo != null && fdo.valid()) {
+            int fd = fdAccess.get(fdo);
+            long handle = fdAccess.getHandle(fdo);
+            /*
+             * 向文件描述符（虚引用）清理器注册一个追踪对象：文件描述符对象
+             * 当文件描述符对象被回收，可以在ReferenceQueue中收到通知
+             */
+            PhantomCleanable<FileDescriptor> cleanable = new FileCleanable(fdo, CleanerFactory.cleaner(), fd, handle);
+            
+            // 在文件描述符对象中关联此清理器
+            fdo.registerCleanup(cleanable);
+        }
+    }
+    
+    /**
+     * Unregister a Cleanable from the FileDescriptor.
+     *
+     * @param fdo the FileDescriptor; may be null
+     */
+    // 取消注册
+    static void unregister(FileDescriptor fdo) {
+        if(fdo != null) {
+            // 置空关联的文件描述符（虚引用）清理器
+            fdo.unregisterCleanup();
+        }
+    }
+    
     /**
      * Close the native handle or fd.
      */
+    // 关闭本地的handle和fd。CleanerImpl.run()==>清理器clean()-->清理器performCleanup()
     @Override
     protected void performCleanup() {
         try {
             cleanupClose0(fd, handle);
-        } catch (IOException ioe) {
+        } catch(IOException ioe) {
             throw new UncheckedIOException("close", ioe);
         }
     }
+    
+    /*
+     * Raw close of the file fd and/or handle.
+     * Used only for last chance cleanup.
+     */
+    private static native void cleanupClose0(int fd, long handle) throws IOException;
 }
