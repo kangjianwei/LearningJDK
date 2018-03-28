@@ -47,10 +47,25 @@ package java.lang;
  * unless the programmer intends on modifying or enhancing the fundamental
  * behavior of the class.
  *
- * @author  Arthur van Hoff
- * @see     java.lang.Thread
- * @see     java.util.concurrent.Callable
- * @since   1.0
+ * @author Arthur van Hoff
+ * @see java.lang.Thread
+ * @see java.util.concurrent.Callable
+ * @since 1.0
+ */
+
+/*
+ * 常用作线程的动作（行为）。
+ *
+ * Thread thread = new Thread(new Runnable() {
+ *     public void run() {
+ *         // 线程执行的动作
+ *     }
+ * });
+ *
+ * 该接口已函数化，上面的声明可以简写做：
+ * Thread thread = new Thread(() -> {
+ *     // 线程执行的动作
+ * });
  */
 @FunctionalInterface
 public interface Runnable {
@@ -63,7 +78,7 @@ public interface Runnable {
      * The general contract of the method <code>run</code> is that it may
      * take any action whatsoever.
      *
-     * @see     java.lang.Thread#run()
+     * @see java.lang.Thread#run()
      */
-    public abstract void run();
+    void run();
 }
