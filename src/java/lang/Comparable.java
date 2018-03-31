@@ -24,20 +24,21 @@
  */
 
 package java.lang;
-import java.util.*;
+
+import java.util.List;
 
 /**
  * This interface imposes a total ordering on the objects of each class that
  * implements it.  This ordering is referred to as the class's <i>natural
  * ordering</i>, and the class's {@code compareTo} method is referred to as
  * its <i>natural comparison method</i>.<p>
- *
+ * {@link java.util.Collections}
  * Lists (and arrays) of objects that implement this interface can be sorted
- * automatically by {@link Collections#sort(List) Collections.sort} (and
- * {@link Arrays#sort(Object[]) Arrays.sort}).  Objects that implement this
- * interface can be used as keys in a {@linkplain SortedMap sorted map} or as
- * elements in a {@linkplain SortedSet sorted set}, without the need to
- * specify a {@linkplain Comparator comparator}.<p>
+ * automatically by {@link java.util.Collections#sort(List) Collections.sort} (and
+ * {@link java.util.Arrays#sort(Object[]) Arrays.sort}).  Objects that implement this
+ * interface can be used as keys in a {@linkplain java.util.SortedMap sorted map} or as
+ * elements in a {@linkplain java.util.SortedSet sorted set}, without the need to
+ * specify a {@linkplain java.util.Comparator comparator}.<p>
  *
  * The natural ordering for a class {@code C} is said to be <i>consistent
  * with equals</i> if and only if {@code e1.compareTo(e2) == 0} has
@@ -89,9 +90,20 @@ import java.util.*;
  *
  * @param <T> the type of objects that this object may be compared to
  *
- * @author  Josh Bloch
+ * @author Josh Bloch
  * @see java.util.Comparator
  * @since 1.2
+ */
+
+/*
+ * 比较器，用作自然排序接口，需要实现内部的compareTo方法。
+ *
+ * 区别于Comparator，这是一个内部比较器，即比较方法往往实现在对象内部。
+ *
+ * 一个类实现了Comparable接口，就意味着“该类本身支持排序”，它可以直接通过Arrays.sort()或Collections.sort()进行排序。
+ *
+ * 一个类本身实现了Comparable比较器，就意味着它本身支持排序。
+ * 若它本身没实现Comparable，也可以通过外部比较器Comparator进行排序。
  */
 public interface Comparable<T> {
     /**
@@ -126,13 +138,19 @@ public interface Comparable<T> {
      * {@code 0}, or {@code 1} according to whether the value of
      * <i>expression</i> is negative, zero, or positive, respectively.
      *
-     * @param   o the object to be compared.
-     * @return  a negative integer, zero, or a positive integer as this object
-     *          is less than, equal to, or greater than the specified object.
+     * @param o the object to be compared.
+     *
+     * @return a negative integer, zero, or a positive integer as this object
+     * is less than, equal to, or greater than the specified object.
      *
      * @throws NullPointerException if the specified object is null
-     * @throws ClassCastException if the specified object's type prevents it
-     *         from being compared to this object.
+     * @throws ClassCastException   if the specified object's type prevents it from being compared to this object.
      */
-    public int compareTo(T o);
+    /*
+     * 通过 x.compareTo(y) 来“比较x和y的大小”：
+     * 返回“负数”，意味着“x<y”
+     * 返回“零”，意味着“x==y”
+     * 返回“正数”，意味着“x>y”
+     */
+    int compareTo(T o);
 }

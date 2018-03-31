@@ -52,18 +52,22 @@ package java.util.concurrent;
  * The {@link Executors#defaultThreadFactory} method provides a more
  * useful simple implementation, that sets the created thread context
  * to known values before returning it.
- * @since 1.5
+ *
  * @author Doug Lea
+ * @since 1.5
  */
+// 线程工厂。创建自定义的Thread，可以添加自定义的名称、数量、状态、线程组等信息。
 public interface ThreadFactory {
-
+    
     /**
      * Constructs a new {@code Thread}.  Implementations may also initialize
      * priority, name, daemon status, {@code ThreadGroup}, etc.
      *
      * @param r a runnable to be executed by new thread instance
+     *
      * @return constructed thread, or {@code null} if the request to
-     *         create a thread is rejected
+     * create a thread is rejected
      */
+    // 创建新线程，并为其绑定动作
     Thread newThread(Runnable r);
 }

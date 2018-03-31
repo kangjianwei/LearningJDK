@@ -36,8 +36,8 @@ import java.util.concurrent.ThreadFactory;
  * CleanerFactory provides a Cleaner for use within system modules.
  * The cleaner is created on the first reference to the CleanerFactory.
  */
+// 清理器工厂，返回一个公用的特殊清理器(Cleaner)，用于系统模块
 public final class CleanerFactory {
-
     /* The common Cleaner. */
     private final static Cleaner commonCleaner = Cleaner.create(new ThreadFactory() {
         @Override
@@ -52,15 +52,18 @@ public final class CleanerFactory {
             });
         }
     });
-
+    
     /**
      * Cleaner for use within system modules.
      *
-     * This Cleaner will run on a thread whose context class loader
-     * is {@code null}. The system cleaning action to perform in
-     * this Cleaner should handle a {@code null} context class loader.
+     * This Cleaner will run on a thread whose context class loader is {@code null}.
+     * The system cleaning action to perform in this Cleaner should handle a {@code null} context class loader.
      *
      * @return a Cleaner for use within system modules
+     */
+    /*
+     * 该清理器运行在一个没有类加载器（被设置为null）的线程中。
+     * 因为执行某些系统清理操作需要一个空的类加载器上下文。
      */
     public static Cleaner cleaner() {
         return commonCleaner;
