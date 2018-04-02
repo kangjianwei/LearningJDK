@@ -37,13 +37,22 @@ package java.util.function;
  * @see Function
  * @since 1.8
  */
+/*
+ * 函数式接口：IntFunction<R>
+ *
+ * 参数：int
+ * 返回：R
+ * 示例：将int型数据i转换为字符串
+ * IntFunction<String> f = i->Integer.toString(i);
+ */
 @FunctionalInterface
 public interface IntFunction<R> {
-
+    
     /**
      * Applies this function to the given argument.
      *
      * @param value the function argument
+     *
      * @return the function result
      */
     R apply(int value);
