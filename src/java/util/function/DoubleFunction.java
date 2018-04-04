@@ -37,13 +37,22 @@ package java.util.function;
  * @see Function
  * @since 1.8
  */
+/*
+ * 函数式接口：DoubleFunction<R>
+ *
+ * 参数：double
+ * 返回：R
+ * 示例：将double型数据d转换为字符串
+ * DoubleFunction<String> f = d->Double.toString(d);
+ */
 @FunctionalInterface
 public interface DoubleFunction<R> {
-
+    
     /**
      * Applies this function to the given argument.
      *
      * @param value the function argument
+     *
      * @return the function result
      */
     R apply(double value);
