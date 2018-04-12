@@ -36,13 +36,20 @@ package java.util.function;
  * @see Function
  * @since 1.8
  */
+/*
+ * 函数式接口：ToLongFunction<T>
+ *
+ * 参数：T
+ * 返回：long
+ */
 @FunctionalInterface
 public interface ToLongFunction<T> {
-
+    
     /**
      * Applies this function to the given argument.
      *
      * @param value the function argument
+     *
      * @return the function result
      */
     long applyAsLong(T value);
