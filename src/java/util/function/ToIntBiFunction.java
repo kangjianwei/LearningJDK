@@ -38,14 +38,21 @@ package java.util.function;
  * @see BiFunction
  * @since 1.8
  */
+/*
+ * 函数式接口：ToIntBiFunction<T, U>
+ *
+ * 参数：T, U
+ * 返回：int
+ */
 @FunctionalInterface
 public interface ToIntBiFunction<T, U> {
-
+    
     /**
      * Applies this function to the given arguments.
      *
      * @param t the first function argument
      * @param u the second function argument
+     *
      * @return the function result
      */
     int applyAsInt(T t, U u);
