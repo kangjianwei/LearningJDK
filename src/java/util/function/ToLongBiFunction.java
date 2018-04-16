@@ -38,14 +38,21 @@ package java.util.function;
  * @see BiFunction
  * @since 1.8
  */
+/*
+ * 函数式接口：ToLongBiFunction<T, U>
+ *
+ * 参数：T, U
+ * 返回：long
+ */
 @FunctionalInterface
 public interface ToLongBiFunction<T, U> {
-
+    
     /**
      * Applies this function to the given arguments.
      *
      * @param t the first function argument
      * @param u the second function argument
+     *
      * @return the function result
      */
     long applyAsLong(T t, U u);
