@@ -37,17 +37,36 @@ import java.util.Objects;
  * @see UnaryOperator
  * @since 1.8
  */
+/*
+ * 函数式接口：IntUnaryOperator
+ *
+ * int一元操作
+ *
+ * 参数：int
+ * 返回：int
+ */
 @FunctionalInterface
 public interface IntUnaryOperator {
-
+    
     /**
      * Applies this operator to the given operand.
      *
      * @param operand the operand
+     *
      * @return the operator result
      */
     int applyAsInt(int operand);
-
+    
+    /**
+     * Returns a unary operator that always returns its input argument.
+     *
+     * @return a unary operator that always returns its input argument
+     */
+    // 标识转换
+    static java.util.function.IntUnaryOperator identity() {
+        return t -> t;
+    }
+    
     /**
      * Returns a composed operator that first applies the {@code before}
      * operator to its input, and then applies this operator to the result.
@@ -55,17 +74,19 @@ public interface IntUnaryOperator {
      * the caller of the composed operator.
      *
      * @param before the operator to apply before this operator is applied
+     *
      * @return a composed operator that first applies the {@code before}
      * operator and then applies this operator
-     * @throws NullPointerException if before is null
      *
-     * @see #andThen(IntUnaryOperator)
+     * @throws NullPointerException if before is null
+     * @see #andThen(java.util.function.IntUnaryOperator)
      */
-    default IntUnaryOperator compose(IntUnaryOperator before) {
+    // f1.compose(f2)：先执行f2，再执行f1
+    default java.util.function.IntUnaryOperator compose(java.util.function.IntUnaryOperator before) {
         Objects.requireNonNull(before);
         return (int v) -> applyAsInt(before.applyAsInt(v));
     }
-
+    
     /**
      * Returns a composed operator that first applies this operator to
      * its input, and then applies the {@code after} operator to the result.
@@ -73,23 +94,16 @@ public interface IntUnaryOperator {
      * the caller of the composed operator.
      *
      * @param after the operator to apply after this operator is applied
+     *
      * @return a composed operator that first applies this operator and then
      * applies the {@code after} operator
-     * @throws NullPointerException if after is null
      *
-     * @see #compose(IntUnaryOperator)
+     * @throws NullPointerException if after is null
+     * @see #compose(java.util.function.IntUnaryOperator)
      */
-    default IntUnaryOperator andThen(IntUnaryOperator after) {
+    // f1.andThen(f2)：先执行f1，再执行f2
+    default java.util.function.IntUnaryOperator andThen(java.util.function.IntUnaryOperator after) {
         Objects.requireNonNull(after);
         return (int t) -> after.applyAsInt(applyAsInt(t));
-    }
-
-    /**
-     * Returns a unary operator that always returns its input argument.
-     *
-     * @return a unary operator that always returns its input argument
-     */
-    static IntUnaryOperator identity() {
-        return t -> t;
     }
 }
