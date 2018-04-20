@@ -37,17 +37,36 @@ import java.util.Objects;
  * @see UnaryOperator
  * @since 1.8
  */
+/*
+ * 函数式接口：LongUnaryOperator
+ *
+ * long一元操作
+ *
+ * 参数：long
+ * 返回：long
+ */
 @FunctionalInterface
 public interface LongUnaryOperator {
-
+    
     /**
      * Applies this operator to the given operand.
      *
      * @param operand the operand
+     *
      * @return the operator result
      */
     long applyAsLong(long operand);
-
+    
+    /**
+     * Returns a unary operator that always returns its input argument.
+     *
+     * @return a unary operator that always returns its input argument
+     */
+    // 标识转换
+    static java.util.function.LongUnaryOperator identity() {
+        return t -> t;
+    }
+    
     /**
      * Returns a composed operator that first applies the {@code before}
      * operator to its input, and then applies this operator to the result.
@@ -55,17 +74,19 @@ public interface LongUnaryOperator {
      * the caller of the composed operator.
      *
      * @param before the operator to apply before this operator is applied
+     *
      * @return a composed operator that first applies the {@code before}
      * operator and then applies this operator
-     * @throws NullPointerException if before is null
      *
-     * @see #andThen(LongUnaryOperator)
+     * @throws NullPointerException if before is null
+     * @see #andThen(java.util.function.LongUnaryOperator)
      */
-    default LongUnaryOperator compose(LongUnaryOperator before) {
+    // f1.compose(f2)：先执行f2，再执行f1
+    default java.util.function.LongUnaryOperator compose(java.util.function.LongUnaryOperator before) {
         Objects.requireNonNull(before);
         return (long v) -> applyAsLong(before.applyAsLong(v));
     }
-
+    
     /**
      * Returns a composed operator that first applies this operator to
      * its input, and then applies the {@code after} operator to the result.
@@ -73,23 +94,16 @@ public interface LongUnaryOperator {
      * the caller of the composed operator.
      *
      * @param after the operator to apply after this operator is applied
+     *
      * @return a composed operator that first applies this operator and then
      * applies the {@code after} operator
-     * @throws NullPointerException if after is null
      *
-     * @see #compose(LongUnaryOperator)
+     * @throws NullPointerException if after is null
+     * @see #compose(java.util.function.LongUnaryOperator)
      */
-    default LongUnaryOperator andThen(LongUnaryOperator after) {
+    // f1.andThen(f2)：先执行f1，再执行f2
+    default java.util.function.LongUnaryOperator andThen(java.util.function.LongUnaryOperator after) {
         Objects.requireNonNull(after);
         return (long t) -> after.applyAsLong(applyAsLong(t));
-    }
-
-    /**
-     * Returns a unary operator that always returns its input argument.
-     *
-     * @return a unary operator that always returns its input argument
-     */
-    static LongUnaryOperator identity() {
-        return t -> t;
     }
 }
