@@ -24,8 +24,8 @@
  */
 package java.util.function;
 
-import java.util.Objects;
 import java.util.Comparator;
+import java.util.Objects;
 
 /**
  * Represents an operation upon two operands of the same type, producing a result
@@ -42,34 +42,60 @@ import java.util.Comparator;
  * @see UnaryOperator
  * @since 1.8
  */
+/*
+ * 函数式接口：BinaryOperator<T>
+ *
+ * 二元操作，继承了BiFunction<T, T, T>
+ *
+ * 参数：T, T
+ * 返回：T
+ */
 @FunctionalInterface
-public interface BinaryOperator<T> extends BiFunction<T,T,T> {
+public interface BinaryOperator<T> extends BiFunction<T, T, T> {
     /**
-     * Returns a {@link BinaryOperator} which returns the lesser of two elements
+     * Returns a {@link java.util.function.BinaryOperator} which returns the lesser of two elements
      * according to the specified {@code Comparator}.
      *
-     * @param <T> the type of the input arguments of the comparator
+     * @param <T>        the type of the input arguments of the comparator
      * @param comparator a {@code Comparator} for comparing the two values
+     *
      * @return a {@code BinaryOperator} which returns the lesser of its operands,
-     *         according to the supplied {@code Comparator}
+     * according to the supplied {@code Comparator}
+     *
      * @throws NullPointerException if the argument is null
      */
-    public static <T> BinaryOperator<T> minBy(Comparator<? super T> comparator) {
+    /*
+     * 求最小值
+     *
+     * Comparator<Integer> cmp = (a, b) -> a - b;
+     * BinaryOperator<Integer> f = BinaryOperator.minBy(cmp);
+     * System.out.println(f.apply(3, 5));
+     */
+    static <T> java.util.function.BinaryOperator<T> minBy(Comparator<? super T> comparator) {
         Objects.requireNonNull(comparator);
         return (a, b) -> comparator.compare(a, b) <= 0 ? a : b;
     }
-
+    
     /**
-     * Returns a {@link BinaryOperator} which returns the greater of two elements
+     * Returns a {@link java.util.function.BinaryOperator} which returns the greater of two elements
      * according to the specified {@code Comparator}.
      *
-     * @param <T> the type of the input arguments of the comparator
+     * @param <T>        the type of the input arguments of the comparator
      * @param comparator a {@code Comparator} for comparing the two values
+     *
      * @return a {@code BinaryOperator} which returns the greater of its operands,
-     *         according to the supplied {@code Comparator}
+     * according to the supplied {@code Comparator}
+     *
      * @throws NullPointerException if the argument is null
      */
-    public static <T> BinaryOperator<T> maxBy(Comparator<? super T> comparator) {
+    /*
+     * 求最大值
+     *
+     * Comparator<Integer> cmp = (a, b) -> a - b;
+     * BinaryOperator<Integer> f = BinaryOperator.maxBy(cmp);
+     * System.out.println(f.apply(3, 5));
+     */
+    static <T> java.util.function.BinaryOperator<T> maxBy(Comparator<? super T> comparator) {
         Objects.requireNonNull(comparator);
         return (a, b) -> comparator.compare(a, b) >= 0 ? a : b;
     }
