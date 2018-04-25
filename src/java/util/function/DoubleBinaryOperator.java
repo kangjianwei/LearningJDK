@@ -36,13 +36,22 @@ package java.util.function;
  * @see DoubleUnaryOperator
  * @since 1.8
  */
+/*
+ * 函数式接口：DoubleBinaryOperator
+ *
+ * double二元操作
+ *
+ * 参数：double, double
+ * 返回：double
+ */
 @FunctionalInterface
 public interface DoubleBinaryOperator {
     /**
      * Applies this operator to the given operands.
      *
-     * @param left the first operand
+     * @param left  the first operand
      * @param right the second operand
+     *
      * @return the operator result
      */
     double applyAsDouble(double left, double right);
