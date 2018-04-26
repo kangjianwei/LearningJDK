@@ -38,16 +38,24 @@ import java.util.Objects;
  *
  * @since 1.8
  */
+/*
+ * 函数式接口：Consumer<T>
+ *
+ * 参数：T
+ * 返回：void
+ * 示例：打印字符串
+ *       Consumer<String> f = s->System.out.println(s);
+ */
 @FunctionalInterface
 public interface Consumer<T> {
-
+    
     /**
      * Performs this operation on the given argument.
      *
      * @param t the input argument
      */
     void accept(T t);
-
+    
     /**
      * Returns a composed {@code Consumer} that performs, in sequence, this
      * operation followed by the {@code after} operation. If performing either
@@ -56,12 +64,18 @@ public interface Consumer<T> {
      * the {@code after} operation will not be performed.
      *
      * @param after the operation to perform after this operation
+     *
      * @return a composed {@code Consumer} that performs in sequence this
      * operation followed by the {@code after} operation
+     *
      * @throws NullPointerException if {@code after} is null
      */
-    default Consumer<T> andThen(Consumer<? super T> after) {
+    // f1.andThen(f2)：先执行f1，再执行f2
+    default java.util.function.Consumer<T> andThen(java.util.function.Consumer<? super T> after) {
         Objects.requireNonNull(after);
-        return (T t) -> { accept(t); after.accept(t); };
+        return (T t) -> {
+            accept(t);
+            after.accept(t);
+        };
     }
 }
