@@ -41,9 +41,15 @@ import java.util.Objects;
  * @see Consumer
  * @since 1.8
  */
+/*
+ * 函数式接口：BiConsumer<T, U>
+ *
+ * 参数：T, U
+ * 返回：void
+ */
 @FunctionalInterface
 public interface BiConsumer<T, U> {
-
+    
     /**
      * Performs this operation on the given arguments.
      *
@@ -51,7 +57,7 @@ public interface BiConsumer<T, U> {
      * @param u the second input argument
      */
     void accept(T t, U u);
-
+    
     /**
      * Returns a composed {@code BiConsumer} that performs, in sequence, this
      * operation followed by the {@code after} operation. If performing either
@@ -60,13 +66,16 @@ public interface BiConsumer<T, U> {
      * the {@code after} operation will not be performed.
      *
      * @param after the operation to perform after this operation
+     *
      * @return a composed {@code BiConsumer} that performs in sequence this
      * operation followed by the {@code after} operation
+     *
      * @throws NullPointerException if {@code after} is null
      */
-    default BiConsumer<T, U> andThen(BiConsumer<? super T, ? super U> after) {
+    // f1.andThen(f2)：先执行f1，再执行f2
+    default java.util.function.BiConsumer<T, U> andThen(java.util.function.BiConsumer<? super T, ? super U> after) {
         Objects.requireNonNull(after);
-
+        
         return (l, r) -> {
             accept(l, r);
             after.accept(l, r);
