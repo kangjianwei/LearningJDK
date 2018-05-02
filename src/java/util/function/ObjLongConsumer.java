@@ -39,13 +39,19 @@ package java.util.function;
  * @see BiConsumer
  * @since 1.8
  */
+/*
+ * 函数式接口：ObjLongConsumer<T>
+ *
+ * 参数：T, long
+ * 返回：void
+ */
 @FunctionalInterface
 public interface ObjLongConsumer<T> {
-
+    
     /**
      * Performs this operation on the given arguments.
      *
-     * @param t the first input argument
+     * @param t     the first input argument
      * @param value the second input argument
      */
     void accept(T t, long value);
