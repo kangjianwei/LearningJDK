@@ -37,18 +37,25 @@ import java.util.Objects;
  * @see Predicate
  * @since 1.8
  */
+/*
+ * 函数式接口：LongPredicate
+ *
+ * 参数：long
+ * 返回：boolean
+ */
 @FunctionalInterface
 public interface LongPredicate {
-
+    
     /**
      * Evaluates this predicate on the given argument.
      *
      * @param value the input argument
+     *
      * @return {@code true} if the input argument matches the predicate,
      * otherwise {@code false}
      */
     boolean test(long value);
-
+    
     /**
      * Returns a composed predicate that represents a short-circuiting logical
      * AND of this predicate and another.  When evaluating the composed
@@ -61,26 +68,18 @@ public interface LongPredicate {
      *
      * @param other a predicate that will be logically-ANDed with this
      *              predicate
+     *
      * @return a composed predicate that represents the short-circuiting logical
      * AND of this predicate and the {@code other} predicate
+     *
      * @throws NullPointerException if other is null
      */
-    default LongPredicate and(LongPredicate other) {
+    // 逻辑与
+    default java.util.function.LongPredicate and(java.util.function.LongPredicate other) {
         Objects.requireNonNull(other);
         return (value) -> test(value) && other.test(value);
     }
-
-    /**
-     * Returns a predicate that represents the logical negation of this
-     * predicate.
-     *
-     * @return a predicate that represents the logical negation of this
-     * predicate
-     */
-    default LongPredicate negate() {
-        return (value) -> !test(value);
-    }
-
+    
     /**
      * Returns a composed predicate that represents a short-circuiting logical
      * OR of this predicate and another.  When evaluating the composed
@@ -93,12 +92,27 @@ public interface LongPredicate {
      *
      * @param other a predicate that will be logically-ORed with this
      *              predicate
+     *
      * @return a composed predicate that represents the short-circuiting logical
      * OR of this predicate and the {@code other} predicate
+     *
      * @throws NullPointerException if other is null
      */
-    default LongPredicate or(LongPredicate other) {
+    // 逻辑或
+    default java.util.function.LongPredicate or(java.util.function.LongPredicate other) {
         Objects.requireNonNull(other);
         return (value) -> test(value) || other.test(value);
+    }
+    
+    /**
+     * Returns a predicate that represents the logical negation of this
+     * predicate.
+     *
+     * @return a predicate that represents the logical negation of this
+     * predicate
+     */
+    // 逻辑非
+    default java.util.function.LongPredicate negate() {
+        return (value) -> !test(value);
     }
 }
