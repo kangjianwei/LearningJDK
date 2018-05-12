@@ -37,9 +37,15 @@ package java.util.function;
  * @see Supplier
  * @since 1.8
  */
+/*
+ * 函数式接口：DoubleSupplier
+ *
+ * 参数：无参数
+ * 返回：double
+ */
 @FunctionalInterface
 public interface DoubleSupplier {
-
+    
     /**
      * Gets a result.
      *
