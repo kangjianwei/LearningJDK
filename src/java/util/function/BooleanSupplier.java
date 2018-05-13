@@ -24,7 +24,6 @@
  */
 package java.util.function;
 
-
 /**
  * Represents a supplier of {@code boolean}-valued results.  This is the
  * {@code boolean}-producing primitive specialization of {@link Supplier}.
@@ -38,9 +37,15 @@ package java.util.function;
  * @see Supplier
  * @since 1.8
  */
+/*
+ * 函数式接口：BooleanSupplier
+ *
+ * 参数：无参数
+ * 返回：boolean
+ */
 @FunctionalInterface
 public interface BooleanSupplier {
-
+    
     /**
      * Gets a result.
      *
