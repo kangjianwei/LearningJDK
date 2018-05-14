@@ -36,14 +36,23 @@ package java.util.function;
  * @see LongUnaryOperator
  * @since 1.8
  */
+/*
+ * 函数式接口：LongBinaryOperator
+ *
+ * long二元操作
+ *
+ * 参数：long, long
+ * 返回：long
+ */
 @FunctionalInterface
 public interface LongBinaryOperator {
-
+    
     /**
      * Applies this operator to the given operands.
      *
-     * @param left the first operand
+     * @param left  the first operand
      * @param right the second operand
+     *
      * @return the operator result
      */
     long applyAsLong(long left, long right);

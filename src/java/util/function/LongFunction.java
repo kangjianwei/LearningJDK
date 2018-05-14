@@ -37,13 +37,22 @@ package java.util.function;
  * @see Function
  * @since 1.8
  */
+/*
+ * 函数式接口：LongFunction<R>
+ *
+ * 参数：long
+ * 返回：R
+ * 示例：将long型数据l转换为字符串
+ * LongFunction<String> f = l->Long.toString(l);
+ */
 @FunctionalInterface
 public interface LongFunction<R> {
-
+    
     /**
      * Applies this function to the given argument.
      *
      * @param value the function argument
+     *
      * @return the function result
      */
     R apply(long value);

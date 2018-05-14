@@ -39,13 +39,19 @@ package java.util.function;
  * @see BiConsumer
  * @since 1.8
  */
+/*
+ * 函数式接口：ObjIntConsumer<T>
+ *
+ * 参数：T, int
+ * 返回：void
+ */
 @FunctionalInterface
 public interface ObjIntConsumer<T> {
-
+    
     /**
      * Performs this operation on the given arguments.
      *
-     * @param t the first input argument
+     * @param t     the first input argument
      * @param value the second input argument
      */
     void accept(T t, int value);

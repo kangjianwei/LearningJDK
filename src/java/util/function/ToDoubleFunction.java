@@ -36,13 +36,20 @@ package java.util.function;
  * @see Function
  * @since 1.8
  */
+/*
+ * 函数式接口：ToDoubleFunction<T>
+ *
+ * 参数：T
+ * 返回：double
+ */
 @FunctionalInterface
 public interface ToDoubleFunction<T> {
-
+    
     /**
      * Applies this function to the given argument.
      *
      * @param value the function argument
+     *
      * @return the function result
      */
     double applyAsDouble(T value);

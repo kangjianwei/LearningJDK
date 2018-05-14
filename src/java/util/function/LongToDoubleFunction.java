@@ -35,13 +35,20 @@ package java.util.function;
  * @see Function
  * @since 1.8
  */
+/*
+ * 函数式接口：LongToDoubleFunction
+ *
+ * 参数：long
+ * 返回：double
+ */
 @FunctionalInterface
 public interface LongToDoubleFunction {
-
+    
     /**
      * Applies this function to the given argument.
      *
      * @param value the function argument
+     *
      * @return the function result
      */
     double applyAsDouble(long value);

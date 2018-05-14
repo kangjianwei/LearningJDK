@@ -37,9 +37,15 @@ package java.util.function;
  * @see Supplier
  * @since 1.8
  */
+/*
+ * 函数式接口：IntSupplier
+ *
+ * 参数：无参数
+ * 返回：int
+ */
 @FunctionalInterface
 public interface IntSupplier {
-
+    
     /**
      * Gets a result.
      *

@@ -38,16 +38,22 @@ import java.util.Objects;
  * @see Consumer
  * @since 1.8
  */
+/*
+ * 函数式接口：DoubleConsumer
+ *
+ * 参数：double
+ * 返回：void
+ */
 @FunctionalInterface
 public interface DoubleConsumer {
-
+    
     /**
      * Performs this operation on the given argument.
      *
      * @param value the input argument
      */
     void accept(double value);
-
+    
     /**
      * Returns a composed {@code DoubleConsumer} that performs, in sequence, this
      * operation followed by the {@code after} operation. If performing either
@@ -56,12 +62,18 @@ public interface DoubleConsumer {
      * the {@code after} operation will not be performed.
      *
      * @param after the operation to perform after this operation
+     *
      * @return a composed {@code DoubleConsumer} that performs in sequence this
      * operation followed by the {@code after} operation
+     *
      * @throws NullPointerException if {@code after} is null
      */
-    default DoubleConsumer andThen(DoubleConsumer after) {
+    // f1.andThen(f2)：先执行f1，再执行f2
+    default java.util.function.DoubleConsumer andThen(java.util.function.DoubleConsumer after) {
         Objects.requireNonNull(after);
-        return (double t) -> { accept(t); after.accept(t); };
+        return (double t) -> {
+            accept(t);
+            after.accept(t);
+        };
     }
 }

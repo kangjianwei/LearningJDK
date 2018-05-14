@@ -36,6 +36,14 @@ import java.util.Objects;
  *
  * @since 1.8
  */
+/*
+ * 函数式接口：Predicate<T>
+ *
+ * 参数：T
+ * 返回：boolean
+ * 示例：x是否为偶数
+ *       Predicate<Integer> f = x -> x%2==0;
+ */
 @FunctionalInterface
 public interface Predicate<T> {
 
@@ -64,22 +72,20 @@ public interface Predicate<T> {
      * AND of this predicate and the {@code other} predicate
      * @throws NullPointerException if other is null
      */
-    default Predicate<T> and(Predicate<? super T> other) {
+    /*
+     * f1.and(f2)，返回一个“逻辑与”表达式，执行f1&&f2的判断
+     *
+     * Predicate<Integer> p1 = x->x>10;
+     * Predicate<Integer> p2 = x->x%2==1;
+     * Predicate<Integer> p = p1.and(p2);
+     * // 判断15是否是大于10的奇数
+     * System.out.println(p.test(15));
+     */
+    default java.util.function.Predicate<T> and(java.util.function.Predicate<? super T> other) {
         Objects.requireNonNull(other);
         return (t) -> test(t) && other.test(t);
     }
-
-    /**
-     * Returns a predicate that represents the logical negation of this
-     * predicate.
-     *
-     * @return a predicate that represents the logical negation of this
-     * predicate
-     */
-    default Predicate<T> negate() {
-        return (t) -> !test(t);
-    }
-
+    
     /**
      * Returns a composed predicate that represents a short-circuiting logical
      * OR of this predicate and another.  When evaluating the composed
@@ -96,9 +102,36 @@ public interface Predicate<T> {
      * OR of this predicate and the {@code other} predicate
      * @throws NullPointerException if other is null
      */
-    default Predicate<T> or(Predicate<? super T> other) {
+    /*
+     * f1.or(f2)，返回一个“逻辑或”表达式，执行f1||f2的判断
+     *
+     * Predicate<Integer> p1 = x->x>5;
+     * Predicate<Integer> p2 = x->x%2==1;
+     * Predicate<Integer> p = p1.or(p2);
+     * // 判断3是否是大于5或者是一个奇数
+     * System.out.println(p.test(3));
+     */
+    default java.util.function.Predicate<T> or(java.util.function.Predicate<? super T> other) {
         Objects.requireNonNull(other);
         return (t) -> test(t) || other.test(t);
+    }
+
+    /**
+     * Returns a predicate that represents the logical negation of this
+     * predicate.
+     *
+     * @return a predicate that represents the logical negation of this
+     * predicate
+     */
+    /*
+     * f.negate()，返回一个“逻辑非”表达式，执行!f的判断
+     *
+     * Predicate<Integer> p = x->x%2==1;
+     * // 判断2是不是非奇数，即偶数
+     * System.out.println(p.negate().test(2));
+     */
+    default java.util.function.Predicate<T> negate() {
+        return (t) -> !test(t);
     }
 
     /**
@@ -111,7 +144,12 @@ public interface Predicate<T> {
      * @return a predicate that tests if two arguments are equal according
      * to {@link Objects#equals(Object, Object)}
      */
-    static <T> Predicate<T> isEqual(Object targetRef) {
+    /*
+     * Predicate.isEqual(obj)，返回一个“判等”表达式
+     * // 判断两个字符串是否相等
+     * System.out.println(Predicate.isEqual("abc").test("abc"));
+     */
+    static <T> java.util.function.Predicate<T> isEqual(Object targetRef) {
         return (null == targetRef)
                 ? Objects::isNull
                 : object -> targetRef.equals(object);
@@ -132,9 +170,14 @@ public interface Predicate<T> {
      *
      * @since 11
      */
+    /*
+     * Predicate.not()，返回一个“逻辑非”表达式，与negate()方法几乎一样
+     * // 判断3是不是“不是”偶数
+     * System.out.println(Predicate.<Integer>not(x->x%2==0).test(3));
+     */
     @SuppressWarnings("unchecked")
-    static <T> Predicate<T> not(Predicate<? super T> target) {
+    static <T> java.util.function.Predicate<T> not(java.util.function.Predicate<? super T> target) {
         Objects.requireNonNull(target);
-        return (Predicate<T>)target.negate();
+        return (java.util.function.Predicate<T>)target.negate();
     }
 }

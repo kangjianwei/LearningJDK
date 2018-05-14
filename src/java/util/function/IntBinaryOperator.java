@@ -36,14 +36,23 @@ package java.util.function;
  * @see IntUnaryOperator
  * @since 1.8
  */
+/*
+ * 函数式接口：IntBinaryOperator
+ *
+ * int二元操作
+ *
+ * 参数：int, int
+ * 返回：int
+ */
 @FunctionalInterface
 public interface IntBinaryOperator {
-
+    
     /**
      * Applies this operator to the given operands.
      *
-     * @param left the first operand
+     * @param left  the first operand
      * @param right the second operand
+     *
      * @return the operator result
      */
     int applyAsInt(int left, int right);

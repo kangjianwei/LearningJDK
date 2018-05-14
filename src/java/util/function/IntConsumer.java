@@ -38,16 +38,22 @@ import java.util.Objects;
  * @see Consumer
  * @since 1.8
  */
+/*
+ * 函数式接口：IntConsumer
+ *
+ * 参数：int
+ * 返回：void
+ */
 @FunctionalInterface
 public interface IntConsumer {
-
+    
     /**
      * Performs this operation on the given argument.
      *
      * @param value the input argument
      */
     void accept(int value);
-
+    
     /**
      * Returns a composed {@code IntConsumer} that performs, in sequence, this
      * operation followed by the {@code after} operation. If performing either
@@ -56,12 +62,18 @@ public interface IntConsumer {
      * the {@code after} operation will not be performed.
      *
      * @param after the operation to perform after this operation
+     *
      * @return a composed {@code IntConsumer} that performs in sequence this
      * operation followed by the {@code after} operation
+     *
      * @throws NullPointerException if {@code after} is null
      */
-    default IntConsumer andThen(IntConsumer after) {
+    // f1.andThen(f2)：先执行f1，再执行f2
+    default java.util.function.IntConsumer andThen(java.util.function.IntConsumer after) {
         Objects.requireNonNull(after);
-        return (int t) -> { accept(t); after.accept(t); };
+        return (int t) -> {
+            accept(t);
+            after.accept(t);
+        };
     }
 }

@@ -35,13 +35,20 @@ package java.util.function;
  * @see Function
  * @since 1.8
  */
+/*
+ * 函数式接口：IntToLongFunction
+ *
+ * 参数：int
+ * 返回：long
+ */
 @FunctionalInterface
 public interface IntToLongFunction {
-
+    
     /**
      * Applies this function to the given argument.
      *
      * @param value the function argument
+     *
      * @return the function result
      */
     long applyAsLong(int value);

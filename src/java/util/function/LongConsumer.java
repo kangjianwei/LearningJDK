@@ -38,16 +38,22 @@ import java.util.Objects;
  * @see Consumer
  * @since 1.8
  */
+/*
+ * 函数式接口：LongConsumer
+ *
+ * 参数：long
+ * 返回：void
+ */
 @FunctionalInterface
 public interface LongConsumer {
-
+    
     /**
      * Performs this operation on the given argument.
      *
      * @param value the input argument
      */
     void accept(long value);
-
+    
     /**
      * Returns a composed {@code LongConsumer} that performs, in sequence, this
      * operation followed by the {@code after} operation. If performing either
@@ -56,12 +62,18 @@ public interface LongConsumer {
      * the {@code after} operation will not be performed.
      *
      * @param after the operation to perform after this operation
+     *
      * @return a composed {@code LongConsumer} that performs in sequence this
      * operation followed by the {@code after} operation
+     *
      * @throws NullPointerException if {@code after} is null
      */
-    default LongConsumer andThen(LongConsumer after) {
+    // f1.andThen(f2)：先执行f1，再执行f2
+    default java.util.function.LongConsumer andThen(java.util.function.LongConsumer after) {
         Objects.requireNonNull(after);
-        return (long t) -> { accept(t); after.accept(t); };
+        return (long t) -> {
+            accept(t);
+            after.accept(t);
+        };
     }
 }
