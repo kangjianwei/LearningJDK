@@ -23,189 +23,41 @@
  * questions.
  */
 
-// -- This file was mechanically generated: Do not edit! -- //
-
 package java.nio;
 
-import java.io.FileDescriptor;
-import java.lang.ref.Reference;
-import jdk.internal.misc.VM;
-import jdk.internal.ref.Cleaner;
 import sun.nio.ch.DirectBuffer;
 
-
-class DirectCharBufferRU
-
-
-
-    extends DirectCharBufferU
-
-    implements DirectBuffer
-{
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// 只读、直接缓冲区，是DirectCharBufferU的只读版本
+class DirectCharBufferRU extends DirectCharBufferU implements DirectBuffer {
+    
+    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     // For duplicates and slices
-    //
-    DirectCharBufferRU(DirectBuffer db,         // package-private
-                               int mark, int pos, int lim, int cap,
-                               int off)
-    {
-
-
-
-
-
-
-
-
+    DirectCharBufferRU(DirectBuffer db, int mark, int pos, int lim, int cap, int off) {
         super(db, mark, pos, lim, cap, off);
         this.isReadOnly = true;
-
     }
-
-    @Override
-    Object base() {
-        return null;
+    
+    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 只读/直接 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    public boolean isReadOnly() {
+        return true;
     }
-
+    
+    public boolean isDirect() {
+        return true;
+    }
+    
+    /*▲ 只读/直接 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public CharBuffer slice() {
         int pos = this.position();
         int lim = this.limit();
@@ -215,263 +67,89 @@ class DirectCharBufferRU
         assert (off >= 0);
         return new DirectCharBufferRU(this, -1, 0, rem, rem, off);
     }
-
-
-
-
-
-
-
-
-
-
+    
     public CharBuffer duplicate() {
-        return new DirectCharBufferRU(this,
-                                              this.markValue(),
-                                              this.position(),
-                                              this.limit(),
-                                              this.capacity(),
-                                              0);
+        return new DirectCharBufferRU(this, this.markValue(), this.position(), this.limit(), this.capacity(), 0);
     }
-
+    
     public CharBuffer asReadOnlyBuffer() {
-
-
-
-
-
-
-
-
         return duplicate();
-
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
+    public CharBuffer subSequence(int start, int end) {
+        int pos = position();
+        int lim = limit();
+        assert (pos <= lim);
+        pos = (pos <= lim ? pos : lim);
+        int len = lim - pos;
+        
+        if((start < 0) || (end > len) || (start > end))
+            throw new IndexOutOfBoundsException();
+        return new DirectCharBufferRU(this, -1, pos + start, pos + end, capacity(), offset);
+    }
+    
+    /*▲ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 只读缓冲区，禁止写入 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public CharBuffer put(char x) {
-
-
-
-
-
-
-
-
         throw new ReadOnlyBufferException();
-
     }
-
+    
     public CharBuffer put(int i, char x) {
-
-
-
-
-
-
-
-
         throw new ReadOnlyBufferException();
-
     }
-
+    
     public CharBuffer put(CharBuffer src) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         throw new ReadOnlyBufferException();
-
     }
-
+    
     public CharBuffer put(char[] src, int offset, int length) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         throw new ReadOnlyBufferException();
-
     }
-
+    
+    /*▲ 只读缓冲区，禁止写入 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 禁止压缩，因为禁止写入，压缩没意义 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public CharBuffer compact() {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         throw new ReadOnlyBufferException();
-
     }
-
-    public boolean isDirect() {
-        return true;
+    
+    /*▲ 禁止压缩，因为禁止写入，压缩没意义 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 返回与平台字节顺序相同的字节序
+    public ByteOrder order() {
+        return ((ByteOrder.nativeOrder() != ByteOrder.BIG_ENDIAN) ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
     }
-
-    public boolean isReadOnly() {
-        return true;
+    
+    // 返回‘char’的字节序（此类中与平台字节序相同）
+    ByteOrder charRegionOrder() {
+        return order();
     }
-
-
-
-
+    
+    /*▲ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    
+    // 返回内部存储结构的引用（一般用于非直接缓存区）
+    @Override
+    Object base() {
+        return null;
+    }
+    
+    // 构造新的子串
     public String toString(int start, int end) {
-        if ((end > limit()) || (start > end))
+        if((end > limit()) || (start > end))
             throw new IndexOutOfBoundsException();
         try {
             int len = end - start;
@@ -482,63 +160,8 @@ class DirectCharBufferRU
             db.limit(end);
             cb.put(db);
             return new String(ca);
-        } catch (StringIndexOutOfBoundsException x) {
+        } catch(StringIndexOutOfBoundsException x) {
             throw new IndexOutOfBoundsException();
         }
     }
-
-
-    // --- Methods to support CharSequence ---
-
-    public CharBuffer subSequence(int start, int end) {
-        int pos = position();
-        int lim = limit();
-        assert (pos <= lim);
-        pos = (pos <= lim ? pos : lim);
-        int len = lim - pos;
-
-        if ((start < 0) || (end > len) || (start > end))
-            throw new IndexOutOfBoundsException();
-        return new DirectCharBufferRU(this,
-                                            -1,
-                                            pos + start,
-                                            pos + end,
-                                            capacity(),
-                                            offset);
-    }
-
-
-
-
-
-
-
-    public ByteOrder order() {
-
-
-
-
-
-        return ((ByteOrder.nativeOrder() != ByteOrder.BIG_ENDIAN)
-                ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
-
-    }
-
-
-
-
-    ByteOrder charRegionOrder() {
-        return order();
-    }
-
-
-
-
-
-
-
-
-
-
-
 }
