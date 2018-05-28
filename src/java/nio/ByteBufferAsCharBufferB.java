@@ -23,28 +23,19 @@
  * questions.
  */
 
-// -- This file was mechanically generated: Do not edit! -- //
-
 package java.nio;
 
-import jdk.internal.misc.Unsafe;
-
-
-class ByteBufferAsCharBufferB                  // package-private
-    extends CharBuffer
-{
-
-
-
-    protected final ByteBuffer bb;
-
-
-
-    ByteBufferAsCharBufferB(ByteBuffer bb) {   // package-private
-
-        super(-1, 0,
-              bb.remaining() >> 1,
-              bb.remaining() >> 1);
+// ByteBuffer转为CharBuffer，使用可读写的缓冲区。采用大端字节序，其他部分与ByteBufferAsCharBufferL相同
+class ByteBufferAsCharBufferB extends CharBuffer {
+    
+    protected final ByteBuffer bb;  // 待转换的ByteBuffer
+    
+    
+    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    ByteBufferAsCharBufferB(ByteBuffer bb) {
+        // 从byte到char转换，容量要减半
+        super(-1, 0, bb.remaining() >> 1, bb.remaining() >> 1);
         this.bb = bb;
         // enforce limit == capacity
         int cap = this.capacity();
@@ -52,30 +43,36 @@ class ByteBufferAsCharBufferB                  // package-private
         int pos = this.position();
         assert (pos <= cap);
         address = bb.address;
-
-
-
     }
-
-    ByteBufferAsCharBufferB(ByteBuffer bb,
-                                     int mark, int pos, int lim, int cap,
-                                     long addr)
-    {
-
+    
+    ByteBufferAsCharBufferB(ByteBuffer bb, int mark, int pos, int lim, int cap, long addr) {
         super(mark, pos, lim, cap);
         this.bb = bb;
         address = addr;
         assert address >= bb.address;
-
-
-
     }
-
-    @Override
-    Object base() {
-        return bb.hb;
+    
+    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 可读写 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    public boolean isReadOnly() {
+        return false;
     }
-
+    
+    // 是直接缓冲区还是非直接缓冲区，取决于传入的ByteBuffer
+    public boolean isDirect() {
+        return bb.isDirect();
+    }
+    
+    /*▲ 可读写 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public CharBuffer slice() {
         int pos = this.position();
         int lim = this.limit();
@@ -84,118 +81,134 @@ class ByteBufferAsCharBufferB                  // package-private
         long addr = byteOffset(pos);
         return new ByteBufferAsCharBufferB(bb, -1, 0, rem, rem, addr);
     }
-
+    
     public CharBuffer duplicate() {
-        return new ByteBufferAsCharBufferB(bb,
-                                                    this.markValue(),
-                                                    this.position(),
-                                                    this.limit(),
-                                                    this.capacity(),
-                                                    address);
+        return new ByteBufferAsCharBufferB(bb, this.markValue(), this.position(), this.limit(), this.capacity(), address);
     }
-
+    
     public CharBuffer asReadOnlyBuffer() {
-
-        return new ByteBufferAsCharBufferRB(bb,
-                                                 this.markValue(),
-                                                 this.position(),
-                                                 this.limit(),
-                                                 this.capacity(),
-                                                 address);
-
-
-
+        return new ByteBufferAsCharBufferRB(bb, this.markValue(), this.position(), this.limit(), this.capacity(), address);
     }
-
-
-
-    private int ix(int i) {
-        int off = (int) (address - bb.address);
-        return (i << 1) + off;
+    
+    public CharBuffer subSequence(int start, int end) {
+        int pos = position();
+        int lim = limit();
+        assert (pos <= lim);
+        pos = (pos <= lim ? pos : lim);
+        int len = lim - pos;
+        
+        if((start < 0) || (end > len) || (start > end))
+            throw new IndexOutOfBoundsException();
+        return new ByteBufferAsCharBufferB(bb, -1, pos + start, pos + end, capacity(), address);
     }
-
-    protected long byteOffset(long i) {
-        return (i << 1) + address;
-    }
-
+    
+    /*▲ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /* getCharUnaligned和putCharUnaligned方法中，最后一个参数为true，代表以大端法存取字节 */
+    
+    /*▼ get/读取 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public char get() {
-        char x = UNSAFE.getCharUnaligned(bb.hb, byteOffset(nextGetIndex()),
-            true);
+        char x = UNSAFE.getCharUnaligned(bb.hb, byteOffset(nextGetIndex()), true);
         return (x);
     }
-
+    
     public char get(int i) {
-        char x = UNSAFE.getCharUnaligned(bb.hb, byteOffset(checkIndex(i)),
-            true);
+        char x = UNSAFE.getCharUnaligned(bb.hb, byteOffset(checkIndex(i)), true);
         return (x);
     }
-
-
-   char getUnchecked(int i) {
-        char x = UNSAFE.getCharUnaligned(bb.hb, byteOffset(i),
-            true);
+    
+    char getUnchecked(int i) {
+        char x = UNSAFE.getCharUnaligned(bb.hb, byteOffset(i), true);
         return (x);
     }
-
-
-
-
+    
+    /*▲ get/读取 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ put/写入 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public CharBuffer put(char x) {
-
         char y = (x);
-        UNSAFE.putCharUnaligned(bb.hb, byteOffset(nextPutIndex()), y,
-            true);
+        UNSAFE.putCharUnaligned(bb.hb, byteOffset(nextPutIndex()), y, true);
         return this;
-
-
-
     }
-
+    
     public CharBuffer put(int i, char x) {
-
         char y = (x);
-        UNSAFE.putCharUnaligned(bb.hb, byteOffset(checkIndex(i)), y,
-            true);
+        UNSAFE.putCharUnaligned(bb.hb, byteOffset(checkIndex(i)), y, true);
         return this;
-
-
-
     }
-
+    
+    /*▲ put/写入 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 压缩 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public CharBuffer compact() {
-
         int pos = position();
         int lim = limit();
         assert (pos <= lim);
         int rem = (pos <= lim ? lim - pos : 0);
-
+        
         ByteBuffer db = bb.duplicate();
         db.limit(ix(lim));
         db.position(ix(0));
+        
         ByteBuffer sb = db.slice();
         sb.position(pos << 1);
         sb.compact();
+        
         position(rem);
         limit(capacity());
         discardMark();
+        
         return this;
-
-
-
     }
-
-    public boolean isDirect() {
-        return bb.isDirect();
+    
+    /*▲ 压缩 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    public ByteOrder order() {
+        return ByteOrder.BIG_ENDIAN;
     }
-
-    public boolean isReadOnly() {
-        return false;
+    
+    ByteOrder charRegionOrder() {
+        return order();
     }
-
-
-
+    
+    /*▲ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    
+    // 返回的是原ByteBuffer内部的存储结构
+    @Override
+    Object base() {
+        return bb.hb;
+    }
+    
+    // 获取当前缓冲区索引i处的元素的<地址>
+    protected long byteOffset(long i) {
+        // 一个char是2个字节，这里将i乘以2
+        return address + (i << 1);
+    }
+    
+    // 将CharBuffer的索引i转换为ByteBuffer中的<地址>后返回
+    private int ix(int i) {
+        int off = (int) (address - bb.address);
+        return (i << 1) + off;
+    }
+    
     public String toString(int start, int end) {
-        if ((end > limit()) || (start > end))
+        if((end > limit()) || (start > end))
             throw new IndexOutOfBoundsException();
         try {
             int len = end - start;
@@ -206,46 +219,8 @@ class ByteBufferAsCharBufferB                  // package-private
             db.limit(end);
             cb.put(db);
             return new String(ca);
-        } catch (StringIndexOutOfBoundsException x) {
+        } catch(StringIndexOutOfBoundsException x) {
             throw new IndexOutOfBoundsException();
         }
     }
-
-
-    // --- Methods to support CharSequence ---
-
-    public CharBuffer subSequence(int start, int end) {
-        int pos = position();
-        int lim = limit();
-        assert (pos <= lim);
-        pos = (pos <= lim ? pos : lim);
-        int len = lim - pos;
-
-        if ((start < 0) || (end > len) || (start > end))
-            throw new IndexOutOfBoundsException();
-        return new ByteBufferAsCharBufferB(bb,
-                                                  -1,
-                                                  pos + start,
-                                                  pos + end,
-                                                  capacity(),
-                                                  address);
-    }
-
-
-
-
-    public ByteOrder order() {
-
-        return ByteOrder.BIG_ENDIAN;
-
-
-
-
-    }
-
-
-    ByteOrder charRegionOrder() {
-        return order();
-    }
-
 }
