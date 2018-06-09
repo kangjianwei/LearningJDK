@@ -23,59 +23,41 @@
  * questions.
  */
 
-// -- This file was mechanically generated: Do not edit! -- //
-
 package java.nio;
 
-import jdk.internal.misc.Unsafe;
-
-
-class ByteBufferAsShortBufferRB                  // package-private
-    extends ByteBufferAsShortBufferB
-{
-
-
-
-
-
-
-
+// ByteBuffer转为ShortBuffer，使用只读缓冲区，是ByteBufferAsShortBufferB的只读版本
+class ByteBufferAsShortBufferRB extends ByteBufferAsShortBufferB {
+    
+    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     ByteBufferAsShortBufferRB(ByteBuffer bb) {   // package-private
-
-
-
-
-
-
-
-
-
-
-
-
         super(bb);
-
     }
-
-    ByteBufferAsShortBufferRB(ByteBuffer bb,
-                                     int mark, int pos, int lim, int cap,
-                                     long addr)
-    {
-
-
-
-
-
-
+    
+    ByteBufferAsShortBufferRB(ByteBuffer bb, int mark, int pos, int lim, int cap, long addr) {
         super(bb, mark, pos, lim, cap, addr);
-
     }
-
-    @Override
-    Object base() {
-        return bb.hb;
+    
+    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 只读缓冲区 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    public boolean isReadOnly() {
+        return true;
     }
-
+    
+    public boolean isDirect() {
+        return bb.isDirect();
+    }
+    
+    /*▲ 只读缓冲区 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public ShortBuffer slice() {
         int pos = this.position();
         int lim = this.limit();
@@ -84,168 +66,55 @@ class ByteBufferAsShortBufferRB                  // package-private
         long addr = byteOffset(pos);
         return new ByteBufferAsShortBufferRB(bb, -1, 0, rem, rem, addr);
     }
-
+    
     public ShortBuffer duplicate() {
-        return new ByteBufferAsShortBufferRB(bb,
-                                                    this.markValue(),
-                                                    this.position(),
-                                                    this.limit(),
-                                                    this.capacity(),
-                                                    address);
+        return new ByteBufferAsShortBufferRB(bb, this.markValue(), this.position(), this.limit(), this.capacity(), address);
     }
-
+    
     public ShortBuffer asReadOnlyBuffer() {
-
-
-
-
-
-
-
-
         return duplicate();
-
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
+    /*▲ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 只读缓冲区，禁止写入 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public ShortBuffer put(short x) {
-
-
-
-
-
-
         throw new ReadOnlyBufferException();
-
     }
-
+    
     public ShortBuffer put(int i, short x) {
-
-
-
-
-
-
         throw new ReadOnlyBufferException();
-
     }
-
+    
+    /*▲ 只读缓冲区，禁止写入 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 禁止压缩，因为禁止写入，压缩没意义 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public ShortBuffer compact() {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         throw new ReadOnlyBufferException();
-
     }
-
-    public boolean isDirect() {
-        return bb.isDirect();
-    }
-
-    public boolean isReadOnly() {
-        return true;
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
+    /*▲ 禁止压缩，因为禁止写入，压缩没意义 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public ByteOrder order() {
-
         return ByteOrder.BIG_ENDIAN;
-
-
-
-
     }
-
-
-
-
-
-
+    
+    /*▲ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    @Override
+    Object base() {
+        return bb.hb;
+    }
 }
