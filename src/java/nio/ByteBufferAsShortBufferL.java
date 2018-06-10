@@ -23,28 +23,18 @@
  * questions.
  */
 
-// -- This file was mechanically generated: Do not edit! -- //
-
 package java.nio;
 
-import jdk.internal.misc.Unsafe;
-
-
-class ByteBufferAsShortBufferL                  // package-private
-    extends ShortBuffer
-{
-
-
-
+// ByteBuffer转为ShortBuffer，使用可读写的缓冲区。采用小端字节序，其他部分与ByteBufferAsShortBufferB相同
+class ByteBufferAsShortBufferL extends ShortBuffer {
+    
     protected final ByteBuffer bb;
-
-
-
+    
+    
+    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     ByteBufferAsShortBufferL(ByteBuffer bb) {   // package-private
-
-        super(-1, 0,
-              bb.remaining() >> 1,
-              bb.remaining() >> 1);
+        super(-1, 0, bb.remaining() >> 1, bb.remaining() >> 1);
         this.bb = bb;
         // enforce limit == capacity
         int cap = this.capacity();
@@ -52,30 +42,35 @@ class ByteBufferAsShortBufferL                  // package-private
         int pos = this.position();
         assert (pos <= cap);
         address = bb.address;
-
-
-
     }
-
-    ByteBufferAsShortBufferL(ByteBuffer bb,
-                                     int mark, int pos, int lim, int cap,
-                                     long addr)
-    {
-
+    
+    ByteBufferAsShortBufferL(ByteBuffer bb, int mark, int pos, int lim, int cap, long addr) {
         super(mark, pos, lim, cap);
         this.bb = bb;
         address = addr;
         assert address >= bb.address;
-
-
-
     }
-
-    @Override
-    Object base() {
-        return bb.hb;
+    
+    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 可读写 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    public boolean isReadOnly() {
+        return false;
     }
-
+    
+    public boolean isDirect() {
+        return bb.isDirect();
+    }
+    
+    /*▲ 可读写 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public ShortBuffer slice() {
         int pos = this.position();
         int lim = this.limit();
@@ -84,91 +79,63 @@ class ByteBufferAsShortBufferL                  // package-private
         long addr = byteOffset(pos);
         return new ByteBufferAsShortBufferL(bb, -1, 0, rem, rem, addr);
     }
-
+    
     public ShortBuffer duplicate() {
-        return new ByteBufferAsShortBufferL(bb,
-                                                    this.markValue(),
-                                                    this.position(),
-                                                    this.limit(),
-                                                    this.capacity(),
-                                                    address);
+        return new ByteBufferAsShortBufferL(bb, this.markValue(), this.position(), this.limit(), this.capacity(), address);
     }
-
+    
     public ShortBuffer asReadOnlyBuffer() {
-
-        return new ByteBufferAsShortBufferRL(bb,
-                                                 this.markValue(),
-                                                 this.position(),
-                                                 this.limit(),
-                                                 this.capacity(),
-                                                 address);
-
-
-
+        return new ByteBufferAsShortBufferRL(bb, this.markValue(), this.position(), this.limit(), this.capacity(), address);
     }
-
-
-
-    private int ix(int i) {
-        int off = (int) (address - bb.address);
-        return (i << 1) + off;
-    }
-
-    protected long byteOffset(long i) {
-        return (i << 1) + address;
-    }
-
+    
+    /*▲ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /* getShortUnaligned和putShortUnaligned方法中，最后一个参数为false，代表以小端法存取字节 */
+    
+    /*▼ get/读取 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public short get() {
-        short x = UNSAFE.getShortUnaligned(bb.hb, byteOffset(nextGetIndex()),
-            false);
+        short x = UNSAFE.getShortUnaligned(bb.hb, byteOffset(nextGetIndex()), false);
         return (x);
     }
-
+    
     public short get(int i) {
-        short x = UNSAFE.getShortUnaligned(bb.hb, byteOffset(checkIndex(i)),
-            false);
+        short x = UNSAFE.getShortUnaligned(bb.hb, byteOffset(checkIndex(i)), false);
         return (x);
     }
-
-
-
-
-
-
-
-
-
-
-
+    
+    /*▲ get/读取 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ put/写入 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public ShortBuffer put(short x) {
-
         short y = (x);
-        UNSAFE.putShortUnaligned(bb.hb, byteOffset(nextPutIndex()), y,
-            false);
+        UNSAFE.putShortUnaligned(bb.hb, byteOffset(nextPutIndex()), y, false);
         return this;
-
-
-
     }
-
+    
     public ShortBuffer put(int i, short x) {
-
         short y = (x);
-        UNSAFE.putShortUnaligned(bb.hb, byteOffset(checkIndex(i)), y,
-            false);
+        UNSAFE.putShortUnaligned(bb.hb, byteOffset(checkIndex(i)), y, false);
         return this;
-
-
-
     }
-
+    
+    /*▲ put/写入 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 压缩 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public ShortBuffer compact() {
-
         int pos = position();
         int lim = limit();
         assert (pos <= lim);
         int rem = (pos <= lim ? lim - pos : 0);
-
+        
         ByteBuffer db = bb.duplicate();
         db.limit(ix(lim));
         db.position(ix(0));
@@ -179,73 +146,33 @@ class ByteBufferAsShortBufferL                  // package-private
         limit(capacity());
         discardMark();
         return this;
-
-
-
     }
-
-    public boolean isDirect() {
-        return bb.isDirect();
-    }
-
-    public boolean isReadOnly() {
-        return false;
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
+    /*▲ 压缩 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public ByteOrder order() {
-
-
-
-
         return ByteOrder.LITTLE_ENDIAN;
-
     }
-
-
-
-
-
-
+    
+    protected long byteOffset(long i) {
+        return (i << 1) + address;
+    }
+    
+    /*▲ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    @Override
+    Object base() {
+        return bb.hb;
+    }
+    
+    private int ix(int i) {
+        int off = (int) (address - bb.address);
+        return (i << 1) + off;
+    }
 }
