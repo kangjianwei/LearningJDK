@@ -23,229 +23,98 @@
  * questions.
  */
 
-// -- This file was mechanically generated: Do not edit! -- //
-
 package java.nio;
 
-import jdk.internal.misc.Unsafe;
-
-
-class ByteBufferAsFloatBufferRB                  // package-private
-    extends ByteBufferAsFloatBufferB
-{
-
-
-
-
-
-
-
+// ByteBuffer转为FloatBuffer，使用只读缓冲区，是ByteBufferAsFloatBufferB的只读版本
+class ByteBufferAsFloatBufferRB extends ByteBufferAsFloatBufferB {
+    
+    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     ByteBufferAsFloatBufferRB(ByteBuffer bb) {   // package-private
-
-
-
-
-
-
-
-
-
-
-
-
         super(bb);
-
     }
-
-    ByteBufferAsFloatBufferRB(ByteBuffer bb,
-                                     int mark, int pos, int lim, int cap,
-                                     long addr)
-    {
-
-
-
-
-
-
+    
+    ByteBufferAsFloatBufferRB(ByteBuffer bb, int mark, int pos, int lim, int cap, long addr) {
         super(bb, mark, pos, lim, cap, addr);
-
     }
-
+    
+    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 只读缓冲区 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    public boolean isReadOnly() {
+        return true;
+    }
+    
+    public boolean isDirect() {
+        return bb.isDirect();
+    }
+    
+    /*▲ 只读缓冲区 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    public FloatBuffer slice() {
+        int pos = this.position();
+        int lim = this.limit();
+        assert (pos<=lim);
+        int rem = (pos<=lim ? lim - pos : 0);
+        long addr = byteOffset(pos);
+        return new ByteBufferAsFloatBufferRB(bb, -1, 0, rem, rem, addr);
+    }
+    
+    public FloatBuffer duplicate() {
+        return new ByteBufferAsFloatBufferRB(bb, this.markValue(), this.position(), this.limit(), this.capacity(), address);
+    }
+    
+    public FloatBuffer asReadOnlyBuffer() {
+        return duplicate();
+    }
+    
+    /*▲ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 只读缓冲区，禁止写入 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    public FloatBuffer put(float x) {
+        throw new ReadOnlyBufferException();
+    }
+    
+    public FloatBuffer put(int i, float x) {
+        throw new ReadOnlyBufferException();
+    }
+    
+    /*▲ 只读缓冲区，禁止写入 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 禁止压缩，因为禁止写入，压缩没意义 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    public FloatBuffer compact() {
+        throw new ReadOnlyBufferException();
+    }
+    
+    /*▲ 禁止压缩，因为禁止写入，压缩没意义 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    public ByteOrder order() {
+        return ByteOrder.BIG_ENDIAN;
+    }
+    
+    /*▲ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
     @Override
     Object base() {
         return bb.hb;
     }
-
-    public FloatBuffer slice() {
-        int pos = this.position();
-        int lim = this.limit();
-        assert (pos <= lim);
-        int rem = (pos <= lim ? lim - pos : 0);
-        long addr = byteOffset(pos);
-        return new ByteBufferAsFloatBufferRB(bb, -1, 0, rem, rem, addr);
-    }
-
-    public FloatBuffer duplicate() {
-        return new ByteBufferAsFloatBufferRB(bb,
-                                                    this.markValue(),
-                                                    this.position(),
-                                                    this.limit(),
-                                                    this.capacity(),
-                                                    address);
-    }
-
-    public FloatBuffer asReadOnlyBuffer() {
-
-
-
-
-
-
-
-
-        return duplicate();
-
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    public FloatBuffer put(float x) {
-
-
-
-
-
-
-        throw new ReadOnlyBufferException();
-
-    }
-
-    public FloatBuffer put(int i, float x) {
-
-
-
-
-
-
-        throw new ReadOnlyBufferException();
-
-    }
-
-    public FloatBuffer compact() {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        throw new ReadOnlyBufferException();
-
-    }
-
-    public boolean isDirect() {
-        return bb.isDirect();
-    }
-
-    public boolean isReadOnly() {
-        return true;
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    public ByteOrder order() {
-
-        return ByteOrder.BIG_ENDIAN;
-
-
-
-
-    }
-
-
-
-
-
-
 }
