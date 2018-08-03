@@ -23,28 +23,18 @@
  * questions.
  */
 
-// -- This file was mechanically generated: Do not edit! -- //
-
 package java.nio;
 
-import jdk.internal.misc.Unsafe;
-
-
-class ByteBufferAsLongBufferB                  // package-private
-    extends LongBuffer
-{
-
-
-
+// ByteBuffer转为LongBuffer，使用可读写的缓冲区。采用大端字节序，其他部分与ByteBufferAsLongBufferL相同
+class ByteBufferAsLongBufferB extends LongBuffer {
+    
     protected final ByteBuffer bb;
-
-
-
+    
+    
+    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     ByteBufferAsLongBufferB(ByteBuffer bb) {   // package-private
-
-        super(-1, 0,
-              bb.remaining() >> 3,
-              bb.remaining() >> 3);
+        super(-1, 0, bb.remaining() >> 3, bb.remaining() >> 3);
         this.bb = bb;
         // enforce limit == capacity
         int cap = this.capacity();
@@ -52,30 +42,35 @@ class ByteBufferAsLongBufferB                  // package-private
         int pos = this.position();
         assert (pos <= cap);
         address = bb.address;
-
-
-
     }
-
-    ByteBufferAsLongBufferB(ByteBuffer bb,
-                                     int mark, int pos, int lim, int cap,
-                                     long addr)
-    {
-
+    
+    ByteBufferAsLongBufferB(ByteBuffer bb, int mark, int pos, int lim, int cap, long addr) {
         super(mark, pos, lim, cap);
         this.bb = bb;
         address = addr;
         assert address >= bb.address;
-
-
-
     }
-
-    @Override
-    Object base() {
-        return bb.hb;
+    
+    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 可读写 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    public boolean isReadOnly() {
+        return false;
     }
-
+    
+    public boolean isDirect() {
+        return bb.isDirect();
+    }
+    
+    /*▲ 可读写 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public LongBuffer slice() {
         int pos = this.position();
         int lim = this.limit();
@@ -84,91 +79,63 @@ class ByteBufferAsLongBufferB                  // package-private
         long addr = byteOffset(pos);
         return new ByteBufferAsLongBufferB(bb, -1, 0, rem, rem, addr);
     }
-
+    
     public LongBuffer duplicate() {
-        return new ByteBufferAsLongBufferB(bb,
-                                                    this.markValue(),
-                                                    this.position(),
-                                                    this.limit(),
-                                                    this.capacity(),
-                                                    address);
+        return new ByteBufferAsLongBufferB(bb, this.markValue(), this.position(), this.limit(), this.capacity(), address);
     }
-
+    
     public LongBuffer asReadOnlyBuffer() {
-
-        return new ByteBufferAsLongBufferRB(bb,
-                                                 this.markValue(),
-                                                 this.position(),
-                                                 this.limit(),
-                                                 this.capacity(),
-                                                 address);
-
-
-
+        return new ByteBufferAsLongBufferRB(bb, this.markValue(), this.position(), this.limit(), this.capacity(), address);
     }
-
-
-
-    private int ix(int i) {
-        int off = (int) (address - bb.address);
-        return (i << 3) + off;
-    }
-
-    protected long byteOffset(long i) {
-        return (i << 3) + address;
-    }
-
+    
+    /*▲ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /* getLongUnaligned和putLongUnaligned方法中，最后一个参数为true，代表以大端法存取字节 */
+    
+    /*▼ get/读取 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public long get() {
-        long x = UNSAFE.getLongUnaligned(bb.hb, byteOffset(nextGetIndex()),
-            true);
+        long x = UNSAFE.getLongUnaligned(bb.hb, byteOffset(nextGetIndex()), true);
         return (x);
     }
-
+    
     public long get(int i) {
-        long x = UNSAFE.getLongUnaligned(bb.hb, byteOffset(checkIndex(i)),
-            true);
+        long x = UNSAFE.getLongUnaligned(bb.hb, byteOffset(checkIndex(i)), true);
         return (x);
     }
-
-
-
-
-
-
-
-
-
-
-
+    
+    /*▲ get/读取 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ put/写入 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public LongBuffer put(long x) {
-
         long y = (x);
-        UNSAFE.putLongUnaligned(bb.hb, byteOffset(nextPutIndex()), y,
-            true);
+        UNSAFE.putLongUnaligned(bb.hb, byteOffset(nextPutIndex()), y, true);
         return this;
-
-
-
     }
-
+    
     public LongBuffer put(int i, long x) {
-
         long y = (x);
-        UNSAFE.putLongUnaligned(bb.hb, byteOffset(checkIndex(i)), y,
-            true);
+        UNSAFE.putLongUnaligned(bb.hb, byteOffset(checkIndex(i)), y, true);
         return this;
-
-
-
     }
-
+    
+    /*▲ put/写入 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 压缩 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public LongBuffer compact() {
-
         int pos = position();
         int lim = limit();
         assert (pos <= lim);
         int rem = (pos <= lim ? lim - pos : 0);
-
+        
         ByteBuffer db = bb.duplicate();
         db.limit(ix(lim));
         db.position(ix(0));
@@ -179,73 +146,33 @@ class ByteBufferAsLongBufferB                  // package-private
         limit(capacity());
         discardMark();
         return this;
-
-
-
     }
-
-    public boolean isDirect() {
-        return bb.isDirect();
-    }
-
-    public boolean isReadOnly() {
-        return false;
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
+    /*▲ 压缩 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public ByteOrder order() {
-
         return ByteOrder.BIG_ENDIAN;
-
-
-
-
     }
-
-
-
-
-
-
+    
+    /*▲ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    protected long byteOffset(long i) {
+        return (i << 3) + address;
+    }
+    
+    @Override
+    Object base() {
+        return bb.hb;
+    }
+    
+    private int ix(int i) {
+        int off = (int) (address - bb.address);
+        return (i << 3) + off;
+    }
 }

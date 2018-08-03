@@ -23,618 +23,109 @@
  * questions.
  */
 
-// -- This file was mechanically generated: Do not edit! -- //
-
 package java.nio;
 
 /**
-
-
-
  * A read-only HeapLongBuffer.  This class extends the corresponding
  * read/write class, overriding the mutation methods to throw a {@link
  * ReadOnlyBufferException} and overriding the view-buffer methods to return an
  * instance of this class rather than of the superclass.
-
  */
 
-class HeapLongBufferR
-    extends HeapLongBuffer
-{
+// 只读、非直接缓冲区，是HeapLongBuffer的只读版本，禁止写入操作，内部存储结构实现为long[]
+class HeapLongBufferR extends HeapLongBuffer {
+    
     // Cached array base offset
     private static final long ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(long[].class);
-
     // Cached array base offset
     private static final long ARRAY_INDEX_SCALE = UNSAFE.arrayIndexScale(long[].class);
-
-    // For speed these fields are actually declared in X-Buffer;
-    // these declarations are here as documentation
-    /*
-
-
-
-
-    */
-
-    HeapLongBufferR(int cap, int lim) {            // package-private
-
-
-
-
-
-
-
-
-        super(cap, lim);
-        this.isReadOnly = true;
-
-    }
-
-    HeapLongBufferR(long[] buf, int off, int len) { // package-private
-
-
-
-
-
-
-
-
-        super(buf, off, len);
-        this.isReadOnly = true;
-
-    }
-
-    protected HeapLongBufferR(long[] buf,
-                                   int mark, int pos, int lim, int cap,
-                                   int off)
-    {
-
-
-
-
-
-
-
-
+    
+    
+    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    protected HeapLongBufferR(long[] buf, int mark, int pos, int lim, int cap, int off) {
         super(buf, mark, pos, lim, cap, off);
         this.isReadOnly = true;
-
     }
-
-    public LongBuffer slice() {
-        return new HeapLongBufferR(hb,
-                                        -1,
-                                        0,
-                                        this.remaining(),
-                                        this.remaining(),
-                                        this.position() + offset);
+    
+    HeapLongBufferR(int cap, int lim) {            // package-private
+        super(cap, lim);
+        this.isReadOnly = true;
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    public LongBuffer duplicate() {
-        return new HeapLongBufferR(hb,
-                                        this.markValue(),
-                                        this.position(),
-                                        this.limit(),
-                                        this.capacity(),
-                                        offset);
+    
+    HeapLongBufferR(long[] buf, int off, int len) { // package-private
+        super(buf, off, len);
+        this.isReadOnly = true;
     }
-
-    public LongBuffer asReadOnlyBuffer() {
-
-
-
-
-
-
-
-
-        return duplicate();
-
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
+    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 只读/非直接 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public boolean isReadOnly() {
         return true;
     }
-
+    
+    /*▲ 只读/非直接 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    public LongBuffer slice() {
+        return new HeapLongBufferR(hb, -1, 0, this.remaining(), this.remaining(), this.position() + offset);
+    }
+    
+    public LongBuffer duplicate() {
+        return new HeapLongBufferR(hb, this.markValue(), this.position(), this.limit(), this.capacity(), offset);
+    }
+    
+    public LongBuffer asReadOnlyBuffer() {
+        return duplicate();
+    }
+    
+    /*▲ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 只读缓冲区，禁止写入操作 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public LongBuffer put(long x) {
-
-
-
-
         throw new ReadOnlyBufferException();
-
     }
-
+    
     public LongBuffer put(int i, long x) {
-
-
-
-
         throw new ReadOnlyBufferException();
-
     }
-
+    
     public LongBuffer put(long[] src, int offset, int length) {
-
-
-
-
-
-
-
-
         throw new ReadOnlyBufferException();
-
     }
-
+    
     public LongBuffer put(LongBuffer src) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         throw new ReadOnlyBufferException();
-
     }
-
+    
+    /*▲ 只读缓冲区，禁止写入操作 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 禁止压缩，因为禁止写入，压缩没意义 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public LongBuffer compact() {
-
-
-
-
-
-
-
         throw new ReadOnlyBufferException();
-
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
+    /*▲ 禁止压缩，因为禁止写入，压缩没意义 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public ByteOrder order() {
         return ByteOrder.nativeOrder();
     }
-
-
-
-
-
-
-
+    
+    /*▲ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┛ */
 }

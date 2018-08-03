@@ -27,13 +27,14 @@ package sun.nio.ch;
 
 import jdk.internal.ref.Cleaner;
 
-
+// 直接缓冲区接口
 public interface DirectBuffer {
-
-    public long address();
-
-    public Object attachment();
-
-    public Cleaner cleaner();
-
+    // 返回直接缓冲区的【绝对】起始<地址>
+    long address();
+    
+    // 返回附件，一般是指母体缓冲区的引用
+    Object attachment();
+    
+    // 返回该缓冲区的清理器
+    Cleaner cleaner();
 }

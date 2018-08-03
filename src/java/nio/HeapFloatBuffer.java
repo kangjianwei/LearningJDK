@@ -23,221 +23,132 @@
  * questions.
  */
 
-// -- This file was mechanically generated: Do not edit! -- //
-
 package java.nio;
 
 /**
-
  * A read/write HeapFloatBuffer.
-
-
-
-
-
-
  */
 
-class HeapFloatBuffer
-    extends FloatBuffer
-{
+// 可读写、非直接缓冲区，内部存储结构实现为float[]
+class HeapFloatBuffer extends FloatBuffer {
+    
     // Cached array base offset
     private static final long ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(float[].class);
-
     // Cached array base offset
     private static final long ARRAY_INDEX_SCALE = UNSAFE.arrayIndexScale(float[].class);
-
-    // For speed these fields are actually declared in X-Buffer;
-    // these declarations are here as documentation
-    /*
-
-    protected final float[] hb;
-    protected final int offset;
-
-    */
-
-    HeapFloatBuffer(int cap, int lim) {            // package-private
-
-        super(-1, 0, lim, cap, new float[cap], 0);
-        /*
-        hb = new float[cap];
-        offset = 0;
-        */
-        this.address = ARRAY_BASE_OFFSET;
-
-
-
-
-    }
-
-    HeapFloatBuffer(float[] buf, int off, int len) { // package-private
-
-        super(-1, off, off + len, buf.length, buf, 0);
-        /*
-        hb = buf;
-        offset = 0;
-        */
-        this.address = ARRAY_BASE_OFFSET;
-
-
-
-
-    }
-
-    protected HeapFloatBuffer(float[] buf,
-                                   int mark, int pos, int lim, int cap,
-                                   int off)
-    {
-
+    
+    
+    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    protected HeapFloatBuffer(float[] buf, int mark, int pos, int lim, int cap, int off) {
         super(mark, pos, lim, cap, buf, off);
-        /*
-        hb = buf;
-        offset = off;
-        */
         this.address = ARRAY_BASE_OFFSET + off * ARRAY_INDEX_SCALE;
-
-
-
-
     }
-
+    
+    HeapFloatBuffer(int cap, int lim) {            // package-private
+        super(-1, 0, lim, cap, new float[cap], 0);
+        this.address = ARRAY_BASE_OFFSET;
+    }
+    
+    HeapFloatBuffer(float[] buf, int off, int len) { // package-private
+        super(-1, off, off + len, buf.length, buf, 0);
+        this.address = ARRAY_BASE_OFFSET;
+    }
+    
+    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 可读写/非直接 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    public boolean isReadOnly() {
+        return false;
+    }
+    
+    public boolean isDirect() {
+        return false;
+    }
+    
+    /*▲ 可读写/非直接 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public FloatBuffer slice() {
-        return new HeapFloatBuffer(hb,
-                                        -1,
-                                        0,
-                                        this.remaining(),
-                                        this.remaining(),
-                                        this.position() + offset);
+        return new HeapFloatBuffer(hb, -1, 0, this.remaining(), this.remaining(), this.position() + offset);
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
     public FloatBuffer duplicate() {
-        return new HeapFloatBuffer(hb,
-                                        this.markValue(),
-                                        this.position(),
-                                        this.limit(),
-                                        this.capacity(),
-                                        offset);
+        return new HeapFloatBuffer(hb, this.markValue(), this.position(), this.limit(), this.capacity(), offset);
     }
-
+    
     public FloatBuffer asReadOnlyBuffer() {
-
-        return new HeapFloatBufferR(hb,
-                                     this.markValue(),
-                                     this.position(),
-                                     this.limit(),
-                                     this.capacity(),
-                                     offset);
-
-
-
+        return new HeapFloatBufferR(hb, this.markValue(), this.position(), this.limit(), this.capacity(), offset);
     }
-
-
-
-    protected int ix(int i) {
-        return i + offset;
-    }
-
-
-
-
-
-
-
+    
+    /*▲ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ get/读取 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public float get() {
         return hb[ix(nextGetIndex())];
     }
-
+    
     public float get(int i) {
         return hb[ix(checkIndex(i))];
     }
-
-
-
-
-
-
-
+    
     public FloatBuffer get(float[] dst, int offset, int length) {
         checkBounds(offset, length, dst.length);
-        if (length > remaining())
+        if(length>remaining())
             throw new BufferUnderflowException();
         System.arraycopy(hb, ix(position()), dst, offset, length);
         position(position() + length);
         return this;
     }
-
-    public boolean isDirect() {
-        return false;
-    }
-
-
-
-    public boolean isReadOnly() {
-        return false;
-    }
-
+    
+    /*▲ get/读取 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ put/写入 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public FloatBuffer put(float x) {
-
         hb[ix(nextPutIndex())] = x;
         return this;
-
-
-
     }
-
+    
     public FloatBuffer put(int i, float x) {
-
         hb[ix(checkIndex(i))] = x;
         return this;
-
-
-
     }
-
+    
     public FloatBuffer put(float[] src, int offset, int length) {
-
         checkBounds(offset, length, src.length);
-        if (length > remaining())
+        if(length>remaining())
             throw new BufferOverflowException();
         System.arraycopy(src, offset, hb, ix(position()), length);
         position(position() + length);
         return this;
-
-
-
     }
-
+    
     public FloatBuffer put(FloatBuffer src) {
-
-        if (src instanceof HeapFloatBuffer) {
-            if (src == this)
+        if(src instanceof HeapFloatBuffer) {
+            if(src == this)
                 throw createSameBufferException();
-            HeapFloatBuffer sb = (HeapFloatBuffer)src;
+            HeapFloatBuffer sb = (HeapFloatBuffer) src;
             int n = sb.remaining();
-            if (n > remaining())
+            if(n>remaining())
                 throw new BufferOverflowException();
-            System.arraycopy(sb.hb, sb.ix(sb.position()),
-                             hb, ix(position()), n);
+            System.arraycopy(sb.hb, sb.ix(sb.position()), hb, ix(position()), n);
             sb.position(sb.position() + n);
             position(position() + n);
-        } else if (src.isDirect()) {
+        } else if(src.isDirect()) {
             int n = src.remaining();
-            if (n > remaining())
+            if(n>remaining())
                 throw new BufferOverflowException();
             src.get(hb, ix(position()), n);
             position(position() + n);
@@ -245,396 +156,37 @@ class HeapFloatBuffer
             super.put(src);
         }
         return this;
-
-
-
     }
-
+    
+    /*▲ put/写入 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 压缩 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public FloatBuffer compact() {
-
         System.arraycopy(hb, ix(position()), hb, ix(0), remaining());
         position(remaining());
         limit(capacity());
         discardMark();
         return this;
-
-
-
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
+    /*▲ 压缩 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public ByteOrder order() {
         return ByteOrder.nativeOrder();
     }
-
-
-
-
-
-
-
+    
+    /*▲ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    protected int ix(int i) {
+        return i + offset;
+    }
 }

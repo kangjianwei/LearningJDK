@@ -38,8 +38,7 @@ package java.util;
  * {@code suffix} is <code>"}"</code> and nothing has been added to the
  * {@code StringJoiner}.
  *
- * @apiNote
- * <p>The String {@code "[George:Sally:Fred]"} may be constructed as follows:
+ * @apiNote <p>The String {@code "[George:Sally:Fred]"} may be constructed as follows:
  *
  * <pre> {@code
  * StringJoiner sj = new StringJoiner(":", "[", "]");
@@ -57,32 +56,32 @@ package java.util;
  *     .map(i -> i.toString())
  *     .collect(Collectors.joining(", "));
  * }</pre>
- *
  * @see java.util.stream.Collectors#joining(CharSequence)
  * @see java.util.stream.Collectors#joining(CharSequence, CharSequence, CharSequence)
- * @since  1.8
-*/
+ * @since 1.8
+ */
+// 专用工具类，作为字符串拼接器，用来拼接字符串。内部使用String[]实现。
 public final class StringJoiner {
-    private final String prefix;
-    private final String delimiter;
-    private final String suffix;
-
+    private final String delimiter;     // 分隔符
+    private final String prefix;        // 前缀
+    private final String suffix;        // 后缀
+    
     /** Contains all the string components added so far. */
-    private String[] elts;
-
+    private String[] elts;  // 存储拼接进来的子串
+    
     /** The number of string components added so far. */
-    private int size;
-
+    private int size;       // 记录当前已拼接的子串数量
+    
     /** Total length in chars so far, excluding prefix and suffix. */
-    private int len;
-
+    private int len;        // 记录已拼接的所有子串以及分隔符的长度（不包括前缀和后缀）
+    
     /**
-     * When overriden by the user to be non-null via {@link setEmptyValue}, the
+     * When overriden by the user to be non-null via {@link #setEmptyValue}, the
      * string returned by toString() when no elements have yet been added.
      * When null, prefix + suffix is used as the empty value.
      */
-    private String emptyValue;
-
+    private String emptyValue;  // 设定一个“空值”，可以理解为StringJoiner的默认值
+    
     /**
      * Constructs a {@code StringJoiner} with no characters in it, with no
      * {@code prefix} or {@code suffix}, and a copy of the supplied
@@ -92,14 +91,16 @@ public final class StringJoiner {
      * {@code prefix} or {@code suffix} (or properties thereof) in the result,
      * unless {@code setEmptyValue} has first been called.
      *
-     * @param  delimiter the sequence of characters to be used between each
-     *         element added to the {@code StringJoiner} value
+     * @param delimiter the sequence of characters to be used between each
+     *                  element added to the {@code StringJoiner} value
+     *
      * @throws NullPointerException if {@code delimiter} is {@code null}
      */
+    // 初始化一个只有分隔符的拼接器
     public StringJoiner(CharSequence delimiter) {
         this(delimiter, "", "");
     }
-
+    
     /**
      * Constructs a {@code StringJoiner} with no characters in it using copies
      * of the supplied {@code prefix}, {@code delimiter} and {@code suffix}.
@@ -108,16 +109,16 @@ public final class StringJoiner {
      * {@code prefix + suffix} (or properties thereof) in the result, unless
      * {@code setEmptyValue} has first been called.
      *
-     * @param  delimiter the sequence of characters to be used between each
-     *         element added to the {@code StringJoiner}
-     * @param  prefix the sequence of characters to be used at the beginning
-     * @param  suffix the sequence of characters to be used at the end
+     * @param delimiter the sequence of characters to be used between each
+     *                  element added to the {@code StringJoiner}
+     * @param prefix    the sequence of characters to be used at the beginning
+     * @param suffix    the sequence of characters to be used at the end
+     *
      * @throws NullPointerException if {@code prefix}, {@code delimiter}, or
-     *         {@code suffix} is {@code null}
+     *                              {@code suffix} is {@code null}
      */
-    public StringJoiner(CharSequence delimiter,
-                        CharSequence prefix,
-                        CharSequence suffix) {
+    // 初始化一个带有分隔符、前缀、后缀的拼接器
+    public StringJoiner(CharSequence delimiter, CharSequence prefix, CharSequence suffix) {
         Objects.requireNonNull(prefix, "The prefix must not be null");
         Objects.requireNonNull(delimiter, "The delimiter must not be null");
         Objects.requireNonNull(suffix, "The suffix must not be null");
@@ -126,7 +127,31 @@ public final class StringJoiner {
         this.delimiter = delimiter.toString();
         this.suffix = suffix.toString();
     }
-
+    
+    // 将字符串s中的char存入数组chars，并返回char的数量
+    private static int getChars(String s, char[] chars, int start) {
+        int len = s.length();
+        s.getChars(0, len, chars, start);
+        return len;
+    }
+    
+    /**
+     * Returns the length of the {@code String} representation
+     * of this {@code StringJoiner}. Note that if
+     * no add methods have been called, then the length of the {@code String}
+     * representation (either {@code prefix + suffix} or {@code emptyValue})
+     * will be returned. The value should be equivalent to
+     * {@code toString().length()}.
+     *
+     * @return the length of the current value of {@code StringJoiner}
+     */
+    // 返回拼接好的字符串的长度
+    public int length() {
+        return (size == 0 && emptyValue != null)
+            ? emptyValue.length()   // 返回默认值的长度
+            : len + prefix.length() + suffix.length();  // 返回子串+分隔符+前缀+后缀的长度
+    }
+    
     /**
      * Sets the sequence of characters to be used when determining the string
      * representation of this {@code StringJoiner} and no elements have been
@@ -135,80 +160,48 @@ public final class StringJoiner {
      * called, the {@code StringJoiner} is no longer considered empty, even if
      * the element(s) added correspond to the empty {@code String}.
      *
-     * @param  emptyValue the characters to return as the value of an empty
-     *         {@code StringJoiner}
+     * @param emptyValue the characters to return as the value of an empty
+     *                   {@code StringJoiner}
+     *
      * @return this {@code StringJoiner} itself so the calls may be chained
+     *
      * @throws NullPointerException when the {@code emptyValue} parameter is
-     *         {@code null}
+     *                              {@code null}
      */
+    // 设定空值（可以理解为StringJoiner的默认值）
     public StringJoiner setEmptyValue(CharSequence emptyValue) {
-        this.emptyValue = Objects.requireNonNull(emptyValue,
-            "The empty value must not be null").toString();
+        this.emptyValue = Objects.requireNonNull(emptyValue, "The empty value must not be null").toString();
         return this;
     }
-
-    private static int getChars(String s, char[] chars, int start) {
-        int len = s.length();
-        s.getChars(0, len, chars, start);
-        return len;
-    }
-
-    /**
-     * Returns the current value, consisting of the {@code prefix}, the values
-     * added so far separated by the {@code delimiter}, and the {@code suffix},
-     * unless no elements have been added in which case, the
-     * {@code prefix + suffix} or the {@code emptyValue} characters are returned.
-     *
-     * @return the string representation of this {@code StringJoiner}
-     */
-    @Override
-    public String toString() {
-        final String[] elts = this.elts;
-        if (elts == null && emptyValue != null) {
-            return emptyValue;
-        }
-        final int size = this.size;
-        final int addLen = prefix.length() + suffix.length();
-        if (addLen == 0) {
-            compactElts();
-            return size == 0 ? "" : elts[0];
-        }
-        final String delimiter = this.delimiter;
-        final char[] chars = new char[len + addLen];
-        int k = getChars(prefix, chars, 0);
-        if (size > 0) {
-            k += getChars(elts[0], chars, k);
-            for (int i = 1; i < size; i++) {
-                k += getChars(delimiter, chars, k);
-                k += getChars(elts[i], chars, k);
-            }
-        }
-        k += getChars(suffix, chars, k);
-        return new String(chars);
-    }
-
+    
     /**
      * Adds a copy of the given {@code CharSequence} value as the next
      * element of the {@code StringJoiner} value. If {@code newElement} is
      * {@code null}, then {@code "null"} is added.
      *
-     * @param  newElement The element to add
+     * @param newElement The element to add
+     *
      * @return a reference to this {@code StringJoiner}
      */
+    // 添加一个子串
     public StringJoiner add(CharSequence newElement) {
         final String elt = String.valueOf(newElement);
-        if (elts == null) {
+        if(elts == null) {
             elts = new String[8];
         } else {
-            if (size == elts.length)
+            // 子串数组满了，需要扩容
+            if(size == elts.length) {
                 elts = Arrays.copyOf(elts, 2 * size);
+            }
+            // 累加分隔符长度
             len += delimiter.length();
         }
+        // 累加子串长度
         len += elt.length();
         elts[size++] = elt;
         return this;
     }
-
+    
     /**
      * Adds the contents of the given {@code StringJoiner} without prefix and
      * suffix as the next element if it is non-empty. If the given {@code
@@ -225,44 +218,74 @@ public final class StringJoiner {
      *
      * @param other The {@code StringJoiner} whose contents should be merged
      *              into this one
-     * @throws NullPointerException if the other {@code StringJoiner} is null
+     *
      * @return This {@code StringJoiner}
+     *
+     * @throws NullPointerException if the other {@code StringJoiner} is null
      */
+    // 合并两个拼接器中的字符串，other中的所有子串连带分隔符将作为当前拼接器的一个子串
     public StringJoiner merge(StringJoiner other) {
         Objects.requireNonNull(other);
-        if (other.elts == null) {
+        if(other.elts == null) {
             return this;
         }
+        // 把other中所有子串连带其分隔符拼接到一起，存入other.elts[0]
         other.compactElts();
+        // 将other.elts[0]添加到当前拼接器中
         return add(other.elts[0]);
     }
-
+    
+    // 把所有子串连带分隔符拼接到一起，存入elts[0]
     private void compactElts() {
-        if (size > 1) {
+        if(size>1) {
+            // 定义一个大数组，足够存储所有子串和分割符
             final char[] chars = new char[len];
-            int i = 1, k = getChars(elts[0], chars, 0);
+            int k = getChars(elts[0], chars, 0);
+            int i = 1;
             do {
                 k += getChars(delimiter, chars, k);
                 k += getChars(elts[i], chars, k);
                 elts[i] = null;
-            } while (++i < size);
+            } while(++i<size);
             size = 1;
             elts[0] = new String(chars);
         }
     }
-
+    
     /**
-     * Returns the length of the {@code String} representation
-     * of this {@code StringJoiner}. Note that if
-     * no add methods have been called, then the length of the {@code String}
-     * representation (either {@code prefix + suffix} or {@code emptyValue})
-     * will be returned. The value should be equivalent to
-     * {@code toString().length()}.
+     * Returns the current value, consisting of the {@code prefix}, the values
+     * added so far separated by the {@code delimiter}, and the {@code suffix},
+     * unless no elements have been added in which case, the
+     * {@code prefix + suffix} or the {@code emptyValue} characters are returned.
      *
-     * @return the length of the current value of {@code StringJoiner}
+     * @return the string representation of this {@code StringJoiner}
      */
-    public int length() {
-        return (size == 0 && emptyValue != null) ? emptyValue.length() :
-            len + prefix.length() + suffix.length();
+    // 返回拼接后的字符串
+    @Override
+    public String toString() {
+        final String[] elts = this.elts;
+        if(elts == null && emptyValue != null) {
+            // 返回默认值
+            return emptyValue;
+        }
+        
+        final int size = this.size;
+        final int addLen = prefix.length() + suffix.length();
+        if(addLen == 0) {
+            compactElts();
+            return size == 0 ? "" : elts[0];
+        }
+        final String delimiter = this.delimiter;
+        final char[] chars = new char[len + addLen];
+        int k = getChars(prefix, chars, 0);
+        if(size>0) {
+            k += getChars(elts[0], chars, k);
+            for(int i = 1; i<size; i++) {
+                k += getChars(delimiter, chars, k);
+                k += getChars(elts[i], chars, k);
+            }
+        }
+        k += getChars(suffix, chars, k);
+        return new String(chars);
     }
 }

@@ -23,20 +23,7 @@
  * questions.
  */
 
-// -- This file was mechanically generated: Do not edit! -- //
-
 package java.nio;
-
-
-
-
-
-
-
-
-
-
-import jdk.internal.util.ArraysSupport;
 
 /**
  * A float buffer.
@@ -46,153 +33,30 @@ import jdk.internal.util.ArraysSupport;
  *
  * <ul>
  *
- *   <li><p> Absolute and relative {@link #get() <i>get</i>} and
- *   {@link #put(float) <i>put</i>} methods that read and write
- *   single floats; </p></li>
+ * <li><p> Absolute and relative {@link #get() <i>get</i>} and
+ * {@link #put(float) <i>put</i>} methods that read and write
+ * single floats; </p></li>
  *
- *   <li><p> Relative {@link #get(float[]) <i>bulk get</i>}
- *   methods that transfer contiguous sequences of floats from this buffer
- *   into an array; and</p></li>
+ * <li><p> Relative {@link #get(float[]) <i>bulk get</i>}
+ * methods that transfer contiguous sequences of floats from this buffer
+ * into an array; and</p></li>
  *
- *   <li><p> Relative {@link #put(float[]) <i>bulk put</i>}
- *   methods that transfer contiguous sequences of floats from a
- *   float array or some other float
- *   buffer into this buffer;&#32;and </p></li>
+ * <li><p> Relative {@link #put(float[]) <i>bulk put</i>}
+ * methods that transfer contiguous sequences of floats from a
+ * float array or some other float
+ * buffer into this buffer;&#32;and </p></li>
  *
-
-
-
-
-
-
-
-
-
-
-
-
- *
- *   <li><p> A method for {@link #compact compacting}
- *   a float buffer.  </p></li>
+ * <li><p> A method for {@link #compact compacting}
+ * a float buffer.  </p></li>
  *
  * </ul>
  *
  * <p> Float buffers can be created either by {@link #allocate
  * <i>allocation</i>}, which allocates space for the buffer's
- *
-
-
-
-
-
-
- *
  * content, by {@link #wrap(float[]) <i>wrapping</i>} an existing
  * float array  into a buffer, or by creating a
  * <a href="ByteBuffer.html#views"><i>view</i></a> of an existing byte buffer.
  *
-
- *
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-*
-
  *
  * <p> Like a byte buffer, a float buffer is either <a
  * href="ByteBuffer.html#direct"><i>direct</i> or <i>non-direct</i></a>.  A
@@ -202,319 +66,162 @@ import jdk.internal.util.ArraysSupport;
  * a float buffer is direct may be determined by invoking the {@link
  * #isDirect isDirect} method.  </p>
  *
-
-*
-
-
-
-
-
-
-
-
- *
-
-
-
- *
  * <p> Methods in this class that do not otherwise have a value to return are
  * specified to return the buffer upon which they are invoked.  This allows
  * method invocations to be chained.
- *
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- *
  *
  * @author Mark Reinhold
  * @author JSR-51 Expert Group
  * @since 1.4
  */
-
-public abstract class FloatBuffer
-    extends Buffer
-    implements Comparable<FloatBuffer>
-{
-
+/*
+ * 包装了float序列的float缓冲区
+ *
+ * 以下是所有FloatBuffer的5组实现
+ *
+ * 非直接缓冲区
+ *   FloatBuffer
+ *       |
+ * HeapFloatBuffer
+ *       |
+ * HeapFloatBufferR
+ *
+ *
+ * 直接缓冲区（缓冲区字节序与本地相同）
+ * FloatBuffer        DirectBuffer
+ *      └──────┬──────────┘ │
+ *    DirectFloatBufferU     │
+ *             ├────────────┘
+ *    DirectFloatBufferRU
+ *
+ * 直接缓冲区（缓冲区字节序与本地不同）
+ * FloatBuffer        DirectBuffer
+ *      └──────┬──────────┘ │
+ *    DirectFloatBufferS     │
+ *             ├────────────┘
+ *    DirectFloatBufferRS
+ *
+ *
+ * ByteBuffer转FloatBuffer
+ *                     FloatBuffer
+ *           ┌─────────────┘└─────────────┐
+ * ByteBufferAsFloatBufferB    ByteBufferAsFloatBufferL
+ *           |                            |
+ * ByteBufferAsFloatBufferRB   ByteBufferAsFloatBufferRL
+ */
+public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuffer> {
+    
     // These fields are declared here rather than in Heap-X-Buffer in order to
     // reduce the number of virtual method invocations needed to access these
     // values, which is especially costly when coding small buffers.
-    //
     final float[] hb;                  // Non-null only for heap buffers
+    
     final int offset;
     boolean isReadOnly;
-
-    // Creates a new buffer with the given mark, position, limit, capacity,
-    // backing array, and array offset
-    //
-    FloatBuffer(int mark, int pos, int lim, int cap,   // package-private
-                 float[] hb, int offset)
-    {
+    
+    
+    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // Creates a new buffer with the given mark, position, limit, capacity, backing array, and array offset
+    FloatBuffer(int mark, int pos, int lim, int cap, float[] hb, int offset) {
         super(mark, pos, lim, cap);
         this.hb = hb;
         this.offset = offset;
     }
-
+    
     // Creates a new buffer with the given mark, position, limit, and capacity
-    //
     FloatBuffer(int mark, int pos, int lim, int cap) { // package-private
         this(mark, pos, lim, cap, null, 0);
     }
-
+    
+    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 缓冲区属性 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Tells whether or not this float buffer is direct.
+     *
+     * @return {@code true} if, and only if, this buffer is direct
+     */
+    public abstract boolean isDirect();
+    
+    /*▲ 缓冲区属性 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 标记操作 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    Object base() {
-        return hb;
+    public final FloatBuffer mark() {
+        super.mark();
+        return this;
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
     /**
-     * Allocates a new float buffer.
-     *
-     * <p> The new buffer's position will be zero, its limit will be its
-     * capacity, its mark will be undefined, each of its elements will be
-     * initialized to zero, and its byte order will be
-
-
-
-     * the {@link ByteOrder#nativeOrder native order} of the underlying
-     * hardware.
-
-     * It will have a {@link #array backing array}, and its
-     * {@link #arrayOffset array offset} will be zero.
-     *
-     * @param  capacity
-     *         The new buffer's capacity, in floats
-     *
-     * @return  The new float buffer
-     *
-     * @throws  IllegalArgumentException
-     *          If the {@code capacity} is a negative integer
+     * {@inheritDoc}
      */
-    public static FloatBuffer allocate(int capacity) {
-        if (capacity < 0)
-            throw createCapacityException(capacity);
-        return new HeapFloatBuffer(capacity, capacity);
+    @Override
+    public final FloatBuffer position(int newPosition) {
+        super.position(newPosition);
+        return this;
     }
-
+    
     /**
-     * Wraps a float array into a buffer.
-     *
-     * <p> The new buffer will be backed by the given float array;
-     * that is, modifications to the buffer will cause the array to be modified
-     * and vice versa.  The new buffer's capacity will be
-     * {@code array.length}, its position will be {@code offset}, its limit
-     * will be {@code offset + length}, its mark will be undefined, and its
-     * byte order will be
-
-
-
-     * the {@link ByteOrder#nativeOrder native order} of the underlying
-     * hardware.
-
-     * Its {@link #array backing array} will be the given array, and
-     * its {@link #arrayOffset array offset} will be zero.  </p>
-     *
-     * @param  array
-     *         The array that will back the new buffer
-     *
-     * @param  offset
-     *         The offset of the subarray to be used; must be non-negative and
-     *         no larger than {@code array.length}.  The new buffer's position
-     *         will be set to this value.
-     *
-     * @param  length
-     *         The length of the subarray to be used;
-     *         must be non-negative and no larger than
-     *         {@code array.length - offset}.
-     *         The new buffer's limit will be set to {@code offset + length}.
-     *
-     * @return  The new float buffer
-     *
-     * @throws  IndexOutOfBoundsException
-     *          If the preconditions on the {@code offset} and {@code length}
-     *          parameters do not hold
+     * {@inheritDoc}
      */
-    public static FloatBuffer wrap(float[] array,
-                                    int offset, int length)
-    {
-        try {
-            return new HeapFloatBuffer(array, offset, length);
-        } catch (IllegalArgumentException x) {
-            throw new IndexOutOfBoundsException();
-        }
+    @Override
+    public final FloatBuffer limit(int newLimit) {
+        super.limit(newLimit);
+        return this;
     }
-
+    
     /**
-     * Wraps a float array into a buffer.
-     *
-     * <p> The new buffer will be backed by the given float array;
-     * that is, modifications to the buffer will cause the array to be modified
-     * and vice versa.  The new buffer's capacity and limit will be
-     * {@code array.length}, its position will be zero, its mark will be
-     * undefined, and its byte order will be
-
-
-
-     * the {@link ByteOrder#nativeOrder native order} of the underlying
-     * hardware.
-
-     * Its {@link #array backing array} will be the given array, and its
-     * {@link #arrayOffset array offset} will be zero.  </p>
-     *
-     * @param  array
-     *         The array that will back this buffer
-     *
-     * @return  The new float buffer
+     * {@inheritDoc}
      */
-    public static FloatBuffer wrap(float[] array) {
-        return wrap(array, 0, array.length);
+    @Override
+    public final FloatBuffer reset() {
+        super.reset();
+        return this;
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public final FloatBuffer clear() {
+        super.clear();
+        return this;
+    }
+    
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public final FloatBuffer flip() {
+        super.flip();
+        return this;
+    }
+    
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public final FloatBuffer rewind() {
+        super.rewind();
+        return this;
+    }
+    
+    /*▲ 标记操作 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates a new float buffer whose content is a shared subsequence of
      * this buffer's content.
@@ -526,24 +233,16 @@ public abstract class FloatBuffer
      *
      * <p> The new buffer's position will be zero, its capacity and its limit
      * will be the number of floats remaining in this buffer, its mark will be
-     * undefined, and its byte order will be
-
-
-
-     * identical to that of this buffer.
-
+     * undefined, and its byte order will be identical to that of this buffer.
+     *
      * The new buffer will be direct if, and only if, this buffer is direct, and
      * it will be read-only if, and only if, this buffer is read-only.  </p>
      *
-     * @return  The new float buffer
-
-
-
-
+     * @return The new float buffer
      */
     @Override
     public abstract FloatBuffer slice();
-
+    
     /**
      * Creates a new float buffer that shares this buffer's content.
      *
@@ -552,21 +251,16 @@ public abstract class FloatBuffer
      * versa; the two buffers' position, limit, and mark values will be
      * independent.
      *
-     * <p> The new buffer's capacity, limit, position,
-
-
-
-
-     * mark values, and byte order will be identical to those of this buffer.
-
+     * <p> The new buffer's capacity, limit, position, mark values, and byte order will be identical to those of this buffer.
+     *
      * The new buffer will be direct if, and only if, this buffer is direct, and
      * it will be read-only if, and only if, this buffer is read-only.  </p>
      *
-     * @return  The new float buffer
+     * @return The new float buffer
      */
     @Override
     public abstract FloatBuffer duplicate();
-
+    
     /**
      * Creates a new, read-only float buffer that shares this buffer's
      * content.
@@ -577,108 +271,45 @@ public abstract class FloatBuffer
      * content to be modified.  The two buffers' position, limit, and mark
      * values will be independent.
      *
-     * <p> The new buffer's capacity, limit, position,
-
-
-
-
-     * mark values, and byte order will be identical to those of this buffer.
-
+     * <p> The new buffer's capacity, limit, position, mark values, and byte order will be identical to those of this buffer.
+     *
      *
      * <p> If this buffer is itself read-only then this method behaves in
      * exactly the same way as the {@link #duplicate duplicate} method.  </p>
      *
-     * @return  The new, read-only float buffer
+     * @return The new, read-only float buffer
      */
     public abstract FloatBuffer asReadOnlyBuffer();
-
-
-    // -- Singleton get/put methods --
-
+    
+    /*▲ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ get ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Relative <i>get</i> method.  Reads the float at this buffer's
      * current position, and then increments the position.
      *
-     * @return  The float at the buffer's current position
+     * @return The float at the buffer's current position
      *
-     * @throws  BufferUnderflowException
-     *          If the buffer's current position is not smaller than its limit
+     * @throws BufferUnderflowException If the buffer's current position is not smaller than its limit
      */
     public abstract float get();
-
-    /**
-     * Relative <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
-     *
-     * <p> Writes the given float into this buffer at the current
-     * position, and then increments the position. </p>
-     *
-     * @param  f
-     *         The float to be written
-     *
-     * @return  This buffer
-     *
-     * @throws  BufferOverflowException
-     *          If this buffer's current position is not smaller than its limit
-     *
-     * @throws  ReadOnlyBufferException
-     *          If this buffer is read-only
-     */
-    public abstract FloatBuffer put(float f);
-
+    
     /**
      * Absolute <i>get</i> method.  Reads the float at the given
      * index.
      *
-     * @param  index
-     *         The index from which the float will be read
+     * @param index The index from which the float will be read
      *
-     * @return  The float at the given index
+     * @return The float at the given index
      *
-     * @throws  IndexOutOfBoundsException
-     *          If {@code index} is negative
-     *          or not smaller than the buffer's limit
+     * @throws IndexOutOfBoundsException If {@code index} is negative
+     *                                   or not smaller than the buffer's limit
      */
     public abstract float get(int index);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    /**
-     * Absolute <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
-     *
-     * <p> Writes the given float into this buffer at the given
-     * index. </p>
-     *
-     * @param  index
-     *         The index at which the float will be written
-     *
-     * @param  f
-     *         The float value to be written
-     *
-     * @return  This buffer
-     *
-     * @throws  IndexOutOfBoundsException
-     *          If {@code index} is negative
-     *          or not smaller than the buffer's limit
-     *
-     * @throws  ReadOnlyBufferException
-     *          If this buffer is read-only
-     */
-    public abstract FloatBuffer put(int index, float f);
-
-
-    // -- Bulk get operations --
-
+    
     /**
      * Relative bulk <i>get</i> method.
      *
@@ -706,39 +337,31 @@ public abstract class FloatBuffer
      * except that it first checks that there are sufficient floats in
      * this buffer and it is potentially much more efficient.
      *
-     * @param  dst
-     *         The array into which floats are to be written
+     * @param dst    The array into which floats are to be written
+     * @param offset The offset within the array of the first float to be
+     *               written; must be non-negative and no larger than
+     *               {@code dst.length}
+     * @param length The maximum number of floats to be written to the given
+     *               array; must be non-negative and no larger than
+     *               {@code dst.length - offset}
      *
-     * @param  offset
-     *         The offset within the array of the first float to be
-     *         written; must be non-negative and no larger than
-     *         {@code dst.length}
+     * @return This buffer
      *
-     * @param  length
-     *         The maximum number of floats to be written to the given
-     *         array; must be non-negative and no larger than
-     *         {@code dst.length - offset}
-     *
-     * @return  This buffer
-     *
-     * @throws  BufferUnderflowException
-     *          If there are fewer than {@code length} floats
-     *          remaining in this buffer
-     *
-     * @throws  IndexOutOfBoundsException
-     *          If the preconditions on the {@code offset} and {@code length}
-     *          parameters do not hold
+     * @throws BufferUnderflowException  If there are fewer than {@code length} floats
+     *                                   remaining in this buffer
+     * @throws IndexOutOfBoundsException If the preconditions on the {@code offset} and {@code length}
+     *                                   parameters do not hold
      */
     public FloatBuffer get(float[] dst, int offset, int length) {
         checkBounds(offset, length, dst.length);
-        if (length > remaining())
+        if(length > remaining())
             throw new BufferUnderflowException();
         int end = offset + length;
-        for (int i = offset; i < end; i++)
+        for(int i = offset; i < end; i++)
             dst[i] = get();
         return this;
     }
-
+    
     /**
      * Relative bulk <i>get</i> method.
      *
@@ -749,76 +372,55 @@ public abstract class FloatBuffer
      * <pre>
      *     src.get(a, 0, a.length) </pre>
      *
-     * @param   dst
-     *          The destination array
+     * @param dst The destination array
      *
-     * @return  This buffer
+     * @return This buffer
      *
-     * @throws  BufferUnderflowException
-     *          If there are fewer than {@code length} floats
-     *          remaining in this buffer
+     * @throws BufferUnderflowException If there are fewer than {@code length} floats
+     *                                  remaining in this buffer
      */
     public FloatBuffer get(float[] dst) {
         return get(dst, 0, dst.length);
     }
-
-
-    // -- Bulk put operations --
-
+    
+    /*▲ get ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ put ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
+     * Relative <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
      *
-     * <p> This method transfers the floats remaining in the given source
-     * buffer into this buffer.  If there are more floats remaining in the
-     * source buffer than in this buffer, that is, if
-     * {@code src.remaining()}&nbsp;{@code >}&nbsp;{@code remaining()},
-     * then no floats are transferred and a {@link
-     * BufferOverflowException} is thrown.
+     * <p> Writes the given float into this buffer at the current
+     * position, and then increments the position. </p>
      *
-     * <p> Otherwise, this method copies
-     * <i>n</i>&nbsp;=&nbsp;{@code src.remaining()} floats from the given
-     * buffer into this buffer, starting at each buffer's current position.
-     * The positions of both buffers are then incremented by <i>n</i>.
+     * @param f The float to be written
      *
-     * <p> In other words, an invocation of this method of the form
-     * {@code dst.put(src)} has exactly the same effect as the loop
+     * @return This buffer
      *
-     * <pre>
-     *     while (src.hasRemaining())
-     *         dst.put(src.get()); </pre>
-     *
-     * except that it first checks that there is sufficient space in this
-     * buffer and it is potentially much more efficient.
-     *
-     * @param  src
-     *         The source buffer from which floats are to be read;
-     *         must not be this buffer
-     *
-     * @return  This buffer
-     *
-     * @throws  BufferOverflowException
-     *          If there is insufficient space in this buffer
-     *          for the remaining floats in the source buffer
-     *
-     * @throws  IllegalArgumentException
-     *          If the source buffer is this buffer
-     *
-     * @throws  ReadOnlyBufferException
-     *          If this buffer is read-only
+     * @throws BufferOverflowException If this buffer's current position is not smaller than its limit
+     * @throws ReadOnlyBufferException If this buffer is read-only
      */
-    public FloatBuffer put(FloatBuffer src) {
-        if (src == this)
-            throw createSameBufferException();
-        if (isReadOnly())
-            throw new ReadOnlyBufferException();
-        int n = src.remaining();
-        if (n > remaining())
-            throw new BufferOverflowException();
-        for (int i = 0; i < n; i++)
-            put(src.get());
-        return this;
-    }
-
+    public abstract FloatBuffer put(float f);
+    
+    /**
+     * Absolute <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
+     *
+     * <p> Writes the given float into this buffer at the given
+     * index. </p>
+     *
+     * @param index The index at which the float will be written
+     * @param f     The float value to be written
+     *
+     * @return This buffer
+     *
+     * @throws IndexOutOfBoundsException If {@code index} is negative
+     *                                   or not smaller than the buffer's limit
+     * @throws ReadOnlyBufferException   If this buffer is read-only
+     */
+    public abstract FloatBuffer put(int index, float f);
+    
     /**
      * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
      *
@@ -846,40 +448,30 @@ public abstract class FloatBuffer
      * except that it first checks that there is sufficient space in this
      * buffer and it is potentially much more efficient.
      *
-     * @param  src
-     *         The array from which floats are to be read
+     * @param src    The array from which floats are to be read
+     * @param offset The offset within the array of the first float to be read;
+     *               must be non-negative and no larger than {@code array.length}
+     * @param length The number of floats to be read from the given array;
+     *               must be non-negative and no larger than
+     *               {@code array.length - offset}
      *
-     * @param  offset
-     *         The offset within the array of the first float to be read;
-     *         must be non-negative and no larger than {@code array.length}
+     * @return This buffer
      *
-     * @param  length
-     *         The number of floats to be read from the given array;
-     *         must be non-negative and no larger than
-     *         {@code array.length - offset}
-     *
-     * @return  This buffer
-     *
-     * @throws  BufferOverflowException
-     *          If there is insufficient space in this buffer
-     *
-     * @throws  IndexOutOfBoundsException
-     *          If the preconditions on the {@code offset} and {@code length}
-     *          parameters do not hold
-     *
-     * @throws  ReadOnlyBufferException
-     *          If this buffer is read-only
+     * @throws BufferOverflowException   If there is insufficient space in this buffer
+     * @throws IndexOutOfBoundsException If the preconditions on the {@code offset} and {@code length}
+     *                                   parameters do not hold
+     * @throws ReadOnlyBufferException   If this buffer is read-only
      */
     public FloatBuffer put(float[] src, int offset, int length) {
         checkBounds(offset, length, src.length);
-        if (length > remaining())
+        if(length > remaining())
             throw new BufferOverflowException();
         int end = offset + length;
-        for (int i = offset; i < end; i++)
+        for(int i = offset; i < end; i++)
             this.put(src[i]);
         return this;
     }
-
+    
     /**
      * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
      *
@@ -891,280 +483,142 @@ public abstract class FloatBuffer
      * <pre>
      *     dst.put(a, 0, a.length) </pre>
      *
-     * @param   src
-     *          The source array
+     * @param src The source array
      *
-     * @return  This buffer
+     * @return This buffer
      *
-     * @throws  BufferOverflowException
-     *          If there is insufficient space in this buffer
-     *
-     * @throws  ReadOnlyBufferException
-     *          If this buffer is read-only
+     * @throws BufferOverflowException If there is insufficient space in this buffer
+     * @throws ReadOnlyBufferException If this buffer is read-only
      */
     public final FloatBuffer put(float[] src) {
         return put(src, 0, src.length);
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    // -- Other stuff --
-
+    
     /**
-     * Tells whether or not this buffer is backed by an accessible float
-     * array.
+     * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
      *
-     * <p> If this method returns {@code true} then the {@link #array() array}
-     * and {@link #arrayOffset() arrayOffset} methods may safely be invoked.
-     * </p>
+     * <p> This method transfers the floats remaining in the given source
+     * buffer into this buffer.  If there are more floats remaining in the
+     * source buffer than in this buffer, that is, if
+     * {@code src.remaining()}&nbsp;{@code >}&nbsp;{@code remaining()},
+     * then no floats are transferred and a {@link
+     * BufferOverflowException} is thrown.
      *
-     * @return  {@code true} if, and only if, this buffer
-     *          is backed by an array and is not read-only
+     * <p> Otherwise, this method copies
+     * <i>n</i>&nbsp;=&nbsp;{@code src.remaining()} floats from the given
+     * buffer into this buffer, starting at each buffer's current position.
+     * The positions of both buffers are then incremented by <i>n</i>.
+     *
+     * <p> In other words, an invocation of this method of the form
+     * {@code dst.put(src)} has exactly the same effect as the loop
+     *
+     * <pre>
+     *     while (src.hasRemaining())
+     *         dst.put(src.get()); </pre>
+     *
+     * except that it first checks that there is sufficient space in this
+     * buffer and it is potentially much more efficient.
+     *
+     * @param src The source buffer from which floats are to be read;
+     *            must not be this buffer
+     *
+     * @return This buffer
+     *
+     * @throws BufferOverflowException  If there is insufficient space in this buffer
+     *                                  for the remaining floats in the source buffer
+     * @throws IllegalArgumentException If the source buffer is this buffer
+     * @throws ReadOnlyBufferException  If this buffer is read-only
      */
-    public final boolean hasArray() {
-        return (hb != null) && !isReadOnly;
-    }
-
-    /**
-     * Returns the float array that backs this
-     * buffer&nbsp;&nbsp;<i>(optional operation)</i>.
-     *
-     * <p> Modifications to this buffer's content will cause the returned
-     * array's content to be modified, and vice versa.
-     *
-     * <p> Invoke the {@link #hasArray hasArray} method before invoking this
-     * method in order to ensure that this buffer has an accessible backing
-     * array.  </p>
-     *
-     * @return  The array that backs this buffer
-     *
-     * @throws  ReadOnlyBufferException
-     *          If this buffer is backed by an array but is read-only
-     *
-     * @throws  UnsupportedOperationException
-     *          If this buffer is not backed by an accessible array
-     */
-    public final float[] array() {
-        if (hb == null)
-            throw new UnsupportedOperationException();
-        if (isReadOnly)
+    public FloatBuffer put(FloatBuffer src) {
+        if(src == this)
+            throw createSameBufferException();
+        if(isReadOnly())
             throw new ReadOnlyBufferException();
-        return hb;
-    }
-
-    /**
-     * Returns the offset within this buffer's backing array of the first
-     * element of the buffer&nbsp;&nbsp;<i>(optional operation)</i>.
-     *
-     * <p> If this buffer is backed by an array then buffer position <i>p</i>
-     * corresponds to array index <i>p</i>&nbsp;+&nbsp;{@code arrayOffset()}.
-     *
-     * <p> Invoke the {@link #hasArray hasArray} method before invoking this
-     * method in order to ensure that this buffer has an accessible backing
-     * array.  </p>
-     *
-     * @return  The offset within this buffer's array
-     *          of the first element of the buffer
-     *
-     * @throws  ReadOnlyBufferException
-     *          If this buffer is backed by an array but is read-only
-     *
-     * @throws  UnsupportedOperationException
-     *          If this buffer is not backed by an accessible array
-     */
-    public final int arrayOffset() {
-        if (hb == null)
-            throw new UnsupportedOperationException();
-        if (isReadOnly)
-            throw new ReadOnlyBufferException();
-        return offset;
-    }
-
-    // -- Covariant return type overrides
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public
-
-    final
-
-    FloatBuffer position(int newPosition) {
-        super.position(newPosition);
+        int n = src.remaining();
+        if(n > remaining())
+            throw new BufferOverflowException();
+        for(int i = 0; i < n; i++)
+            put(src.get());
         return this;
     }
     
+    /*▲ put ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ wrap/非直接缓冲区 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * {@inheritDoc}
+     * Wraps a float array into a buffer.
+     *
+     * <p> The new buffer will be backed by the given float array;
+     * that is, modifications to the buffer will cause the array to be modified
+     * and vice versa.  The new buffer's capacity will be
+     * {@code array.length}, its position will be {@code offset}, its limit
+     * will be {@code offset + length}, its mark will be undefined, and its
+     * byte order will be
+     *
+     *
+     *
+     * the {@link ByteOrder#nativeOrder native order} of the underlying
+     * hardware.
+     *
+     * Its {@link #array backing array} will be the given array, and
+     * its {@link #arrayOffset array offset} will be zero.  </p>
+     *
+     * @param array  The array that will back the new buffer
+     * @param offset The offset of the subarray to be used; must be non-negative and
+     *               no larger than {@code array.length}.  The new buffer's position
+     *               will be set to this value.
+     * @param length The length of the subarray to be used;
+     *               must be non-negative and no larger than
+     *               {@code array.length - offset}.
+     *               The new buffer's limit will be set to {@code offset + length}.
+     *
+     * @return The new float buffer
+     *
+     * @throws IndexOutOfBoundsException If the preconditions on the {@code offset} and {@code length}
+     *                                   parameters do not hold
      */
-    @Override
-    public
-
-    final
-
-    FloatBuffer limit(int newLimit) {
-        super.limit(newLimit);
-        return this;
+    public static FloatBuffer wrap(float[] array, int offset, int length) {
+        try {
+            return new HeapFloatBuffer(array, offset, length);
+        } catch(IllegalArgumentException x) {
+            throw new IndexOutOfBoundsException();
+        }
     }
     
     /**
-     * {@inheritDoc}
+     * Wraps a float array into a buffer.
+     *
+     * <p> The new buffer will be backed by the given float array;
+     * that is, modifications to the buffer will cause the array to be modified
+     * and vice versa.  The new buffer's capacity and limit will be
+     * {@code array.length}, its position will be zero, its mark will be
+     * undefined, and its byte order will be
+     *
+     *
+     *
+     * the {@link ByteOrder#nativeOrder native order} of the underlying
+     * hardware.
+     *
+     * Its {@link #array backing array} will be the given array, and its
+     * {@link #arrayOffset array offset} will be zero.  </p>
+     *
+     * @param array The array that will back this buffer
+     *
+     * @return The new float buffer
      */
-    @Override
-    public 
-
-    final
-
-    FloatBuffer mark() {
-        super.mark();
-        return this;
+    public static FloatBuffer wrap(float[] array) {
+        return wrap(array, 0, array.length);
     }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public 
-
-    final
-
-    FloatBuffer reset() {
-        super.reset();
-        return this;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public 
-
-    final
-
-    FloatBuffer clear() {
-        super.clear();
-        return this;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public 
-
-    final
-
-    FloatBuffer flip() {
-        super.flip();
-        return this;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public 
-
-    final
-
-    FloatBuffer rewind() {
-        super.rewind();
-        return this;
-    }
-
+    
+    /*▲ wrap/非直接缓冲区 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 压缩 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Compacts this buffer&nbsp;&nbsp;<i>(optional operation)</i>.
      *
@@ -1183,87 +637,38 @@ public abstract class FloatBuffer
      * followed immediately by an invocation of another relative <i>put</i>
      * method. </p>
      *
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+     * @return This buffer
      *
-     * @return  This buffer
-     *
-     * @throws  ReadOnlyBufferException
-     *          If this buffer is read-only
+     * @throws ReadOnlyBufferException If this buffer is read-only
      */
     public abstract FloatBuffer compact();
-
+    
+    /*▲ 压缩 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Tells whether or not this float buffer is direct.
+     * Retrieves this buffer's byte order.
      *
-     * @return  {@code true} if, and only if, this buffer is direct
+     * <p> The byte order of a float buffer created by allocation or by
+     * wrapping an existing {@code float} array is the {@link
+     * ByteOrder#nativeOrder native order} of the underlying
+     * hardware.  The byte order of a float buffer created as a <a
+     * href="ByteBuffer.html#views">view</a> of a byte buffer is that of the
+     * byte buffer at the moment that the view is created.  </p>
+     *
+     * @return This buffer's byte order
      */
-    public abstract boolean isDirect();
-
-
-
-    /**
-     * Returns a string summarizing the state of this buffer.
-     *
-     * @return  A summary string
-     */
-    public String toString() {
-        StringBuffer sb = new StringBuffer();
-        sb.append(getClass().getName());
-        sb.append("[pos=");
-        sb.append(position());
-        sb.append(" lim=");
-        sb.append(limit());
-        sb.append(" cap=");
-        sb.append(capacity());
-        sb.append("]");
-        return sb.toString();
-    }
-
-
-
-
-
-
-    /**
-     * Returns the current hash code of this buffer.
-     *
-     * <p> The hash code of a float buffer depends only upon its remaining
-     * elements; that is, upon the elements from {@code position()} up to, and
-     * including, the element at {@code limit()}&nbsp;-&nbsp;{@code 1}.
-     *
-     * <p> Because buffer hash codes are content-dependent, it is inadvisable
-     * to use buffers as keys in hash maps or similar data structures unless it
-     * is known that their contents will not change.  </p>
-     *
-     * @return  The current hash code of this buffer
-     */
-    public int hashCode() {
-        int h = 1;
-        int p = position();
-        for (int i = limit() - 1; i >= p; i--)
-
-
-
-            h = 31 * h + (int)get(i);
-
-        return h;
-    }
-
+    public abstract ByteOrder order();
+    
+    /*▲ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 比较 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Tells whether or not this buffer is equal to another object.
      *
@@ -1271,88 +676,80 @@ public abstract class FloatBuffer
      *
      * <ol>
      *
-     *   <li><p> They have the same element type,  </p></li>
+     * <li><p> They have the same element type,  </p></li>
      *
-     *   <li><p> They have the same number of remaining elements, and
-     *   </p></li>
+     * <li><p> They have the same number of remaining elements, and
+     * </p></li>
      *
-     *   <li><p> The two sequences of remaining elements, considered
-     *   independently of their starting positions, are pointwise equal.
-
-     *   This method considers two float elements {@code a} and {@code b}
-     *   to be equal if
-     *   {@code (a == b) || (Float.isNaN(a) && Float.isNaN(b))}.
-     *   The values {@code -0.0} and {@code +0.0} are considered to be
-     *   equal, unlike {@link Float#equals(Object)}.
-
-     *   </p></li>
+     * <li><p> The two sequences of remaining elements, considered
+     * independently of their starting positions, are pointwise equal.
+     *
+     * This method considers two float elements {@code a} and {@code b}
+     * to be equal if
+     * {@code (a == b) || (Float.isNaN(a) && Float.isNaN(b))}.
+     * The values {@code -0.0} and {@code +0.0} are considered to be
+     * equal, unlike {@link Float#equals(Object)}.
+     *
+     * </p></li>
      *
      * </ol>
      *
      * <p> A float buffer is not equal to any other type of object.  </p>
      *
-     * @param  ob  The object to which this buffer is to be compared
+     * @param ob The object to which this buffer is to be compared
      *
-     * @return  {@code true} if, and only if, this buffer is equal to the
-     *           given object
+     * @return {@code true} if, and only if, this buffer is equal to the
+     * given object
      */
     public boolean equals(Object ob) {
-        if (this == ob)
+        if(this == ob)
             return true;
-        if (!(ob instanceof FloatBuffer))
+        if(!(ob instanceof FloatBuffer))
             return false;
-        FloatBuffer that = (FloatBuffer)ob;
-        if (this.remaining() != that.remaining())
+        FloatBuffer that = (FloatBuffer) ob;
+        if(this.remaining() != that.remaining())
             return false;
-        return BufferMismatch.mismatch(this, this.position(),
-                                       that, that.position(),
-                                       this.remaining()) < 0;
+        return BufferMismatch.mismatch(this, this.position(), that, that.position(), this.remaining()) < 0;
     }
-
+    
+    private static int compare(float x, float y) {
+        
+        return ((x < y) ? -1 : (x > y) ? +1 : (x == y) ? 0 : Float.isNaN(x) ? (Float.isNaN(y) ? 0 : +1) : -1);
+        
+        
+    }
+    
     /**
      * Compares this buffer to another.
      *
      * <p> Two float buffers are compared by comparing their sequences of
      * remaining elements lexicographically, without regard to the starting
      * position of each sequence within its corresponding buffer.
-
+     *
      * Pairs of {@code float} elements are compared as if by invoking
-     * {@link Float#compare(float,float)}, except that
+     * {@link Float#compare(float, float)}, except that
      * {@code -0.0} and {@code 0.0} are considered to be equal.
      * {@code Float.NaN} is considered by this method to be equal
      * to itself and greater than all other {@code float} values
      * (including {@code Float.POSITIVE_INFINITY}).
-
-
-
-
+     *
+     *
+     *
+     *
      *
      * <p> A float buffer is not comparable to any other type of object.
      *
-     * @return  A negative integer, zero, or a positive integer as this buffer
-     *          is less than, equal to, or greater than the given buffer
+     * @return A negative integer, zero, or a positive integer as this buffer
+     * is less than, equal to, or greater than the given buffer
      */
     public int compareTo(FloatBuffer that) {
-        int i = BufferMismatch.mismatch(this, this.position(),
-                                        that, that.position(),
-                                        Math.min(this.remaining(), that.remaining()));
-        if (i >= 0) {
+        int i = BufferMismatch.mismatch(this, this.position(), that, that.position(), Math.min(this.remaining(), that.remaining()));
+        if(i >= 0) {
             return compare(this.get(this.position() + i), that.get(that.position() + i));
         }
         return this.remaining() - that.remaining();
     }
-
-    private static int compare(float x, float y) {
-
-        return ((x < y)  ? -1 :
-                (x > y)  ? +1 :
-                (x == y) ?  0 :
-                Float.isNaN(x) ? (Float.isNaN(y) ? 0 : +1) : -1);
-
-
-
-    }
-
+    
     /**
      * Finds and returns the relative index of the first mismatch between this
      * buffer and a given buffer.  The index is relative to the
@@ -1369,435 +766,164 @@ public abstract class FloatBuffer
      * remaining elements.
      * Otherwise, there is no mismatch.
      *
-     * @param  that
-     *         The byte buffer to be tested for a mismatch with this buffer
+     * @param that The byte buffer to be tested for a mismatch with this buffer
      *
-     * @return  The relative index of the first mismatch between this and the
-     *          given buffer, otherwise -1 if no mismatch.
+     * @return The relative index of the first mismatch between this and the
+     * given buffer, otherwise -1 if no mismatch.
      *
      * @since 11
      */
     public int mismatch(FloatBuffer that) {
         int length = Math.min(this.remaining(), that.remaining());
-        int r = BufferMismatch.mismatch(this, this.position(),
-                                        that, that.position(),
-                                        length);
+        int r = BufferMismatch.mismatch(this, this.position(), that, that.position(), length);
         return (r == -1 && this.remaining() != that.remaining()) ? length : r;
     }
-
-    // -- Other char stuff --
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    // -- Other byte stuff: Access to binary data --
-
-
-
+    
+    /*▲ 比较 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ Buffer ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Retrieves this buffer's byte order.
+     * Tells whether or not this buffer is backed by an accessible float
+     * array.
      *
-     * <p> The byte order of a float buffer created by allocation or by
-     * wrapping an existing {@code float} array is the {@link
-     * ByteOrder#nativeOrder native order} of the underlying
-     * hardware.  The byte order of a float buffer created as a <a
-     * href="ByteBuffer.html#views">view</a> of a byte buffer is that of the
-     * byte buffer at the moment that the view is created.  </p>
+     * <p> If this method returns {@code true} then the {@link #array() array}
+     * and {@link #arrayOffset() arrayOffset} methods may safely be invoked.
+     * </p>
      *
-     * @return  This buffer's byte order
+     * @return {@code true} if, and only if, this buffer
+     * is backed by an array and is not read-only
      */
-    public abstract ByteOrder order();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    public final boolean hasArray() {
+        return (hb != null) && !isReadOnly;
+    }
+    
+    /**
+     * Returns the float array that backs this
+     * buffer&nbsp;&nbsp;<i>(optional operation)</i>.
+     *
+     * <p> Modifications to this buffer's content will cause the returned
+     * array's content to be modified, and vice versa.
+     *
+     * <p> Invoke the {@link #hasArray hasArray} method before invoking this
+     * method in order to ensure that this buffer has an accessible backing
+     * array.  </p>
+     *
+     * @return The array that backs this buffer
+     *
+     * @throws ReadOnlyBufferException       If this buffer is backed by an array but is read-only
+     * @throws UnsupportedOperationException If this buffer is not backed by an accessible array
+     */
+    public final float[] array() {
+        if(hb == null)
+            throw new UnsupportedOperationException();
+        if(isReadOnly)
+            throw new ReadOnlyBufferException();
+        return hb;
+    }
+    
+    @Override
+    Object base() {
+        return hb;
+    }
+    
+    /**
+     * Returns the offset within this buffer's backing array of the first
+     * element of the buffer&nbsp;&nbsp;<i>(optional operation)</i>.
+     *
+     * <p> If this buffer is backed by an array then buffer position <i>p</i>
+     * corresponds to array index <i>p</i>&nbsp;+&nbsp;{@code arrayOffset()}.
+     *
+     * <p> Invoke the {@link #hasArray hasArray} method before invoking this
+     * method in order to ensure that this buffer has an accessible backing
+     * array.  </p>
+     *
+     * @return The offset within this buffer's array
+     * of the first element of the buffer
+     *
+     * @throws ReadOnlyBufferException       If this buffer is backed by an array but is read-only
+     * @throws UnsupportedOperationException If this buffer is not backed by an accessible array
+     */
+    public final int arrayOffset() {
+        if(hb == null)
+            throw new UnsupportedOperationException();
+        if(isReadOnly)
+            throw new ReadOnlyBufferException();
+        return offset;
+    }
+    
+    /*▲ Buffer ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /**
+     * Allocates a new float buffer.
+     *
+     * <p> The new buffer's position will be zero, its limit will be its
+     * capacity, its mark will be undefined, each of its elements will be
+     * initialized to zero, and its byte order will be
+     *
+     *
+     *
+     * the {@link ByteOrder#nativeOrder native order} of the underlying
+     * hardware.
+     *
+     * It will have a {@link #array backing array}, and its
+     * {@link #arrayOffset array offset} will be zero.
+     *
+     * @param capacity The new buffer's capacity, in floats
+     *
+     * @return The new float buffer
+     *
+     * @throws IllegalArgumentException If the {@code capacity} is a negative integer
+     */
+    public static FloatBuffer allocate(int capacity) {
+        if(capacity < 0)
+            throw createCapacityException(capacity);
+        return new HeapFloatBuffer(capacity, capacity);
+    }
+    
+    /**
+     * Returns a string summarizing the state of this buffer.
+     *
+     * @return A summary string
+     */
+    public String toString() {
+        StringBuffer sb = new StringBuffer();
+        sb.append(getClass().getName());
+        sb.append("[pos=");
+        sb.append(position());
+        sb.append(" lim=");
+        sb.append(limit());
+        sb.append(" cap=");
+        sb.append(capacity());
+        sb.append("]");
+        return sb.toString();
+    }
+    
+    /**
+     * Returns the current hash code of this buffer.
+     *
+     * <p> The hash code of a float buffer depends only upon its remaining
+     * elements; that is, upon the elements from {@code position()} up to, and
+     * including, the element at {@code limit()}&nbsp;-&nbsp;{@code 1}.
+     *
+     * <p> Because buffer hash codes are content-dependent, it is inadvisable
+     * to use buffers as keys in hash maps or similar data structures unless it
+     * is known that their contents will not change.  </p>
+     *
+     * @return The current hash code of this buffer
+     */
+    public int hashCode() {
+        int h = 1;
+        int p = position();
+        for(int i = limit() - 1; i >= p; i--)
+            
+            
+            h = 31 * h + (int) get(i);
+        
+        return h;
+    }
 }

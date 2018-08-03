@@ -23,189 +23,41 @@
  * questions.
  */
 
-// -- This file was mechanically generated: Do not edit! -- //
-
 package java.nio;
 
-import java.io.FileDescriptor;
-import java.lang.ref.Reference;
-import jdk.internal.misc.VM;
-import jdk.internal.ref.Cleaner;
 import sun.nio.ch.DirectBuffer;
 
-
-class DirectShortBufferRU
-
-
-
-    extends DirectShortBufferU
-
-    implements DirectBuffer
-{
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// 只读、直接缓冲区，是DirectShortBufferU的只读版本
+class DirectShortBufferRU extends DirectShortBufferU implements DirectBuffer {
+    
+    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     // For duplicates and slices
-    //
-    DirectShortBufferRU(DirectBuffer db,         // package-private
-                               int mark, int pos, int lim, int cap,
-                               int off)
-    {
-
-
-
-
-
-
-
-
+    DirectShortBufferRU(DirectBuffer db, int mark, int pos, int lim, int cap, int off) {
         super(db, mark, pos, lim, cap, off);
         this.isReadOnly = true;
-
     }
-
-    @Override
-    Object base() {
-        return null;
+    
+    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 只读/直接 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    public boolean isReadOnly() {
+        return true;
     }
-
+    
+    public boolean isDirect() {
+        return true;
+    }
+    
+    /*▲ 只读/直接 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public ShortBuffer slice() {
         int pos = this.position();
         int lim = this.limit();
@@ -215,330 +67,63 @@ class DirectShortBufferRU
         assert (off >= 0);
         return new DirectShortBufferRU(this, -1, 0, rem, rem, off);
     }
-
-
-
-
-
-
-
-
-
-
+    
     public ShortBuffer duplicate() {
-        return new DirectShortBufferRU(this,
-                                              this.markValue(),
-                                              this.position(),
-                                              this.limit(),
-                                              this.capacity(),
-                                              0);
+        return new DirectShortBufferRU(this, this.markValue(), this.position(), this.limit(), this.capacity(), 0);
     }
-
+    
     public ShortBuffer asReadOnlyBuffer() {
-
-
-
-
-
-
-
-
         return duplicate();
-
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
+    /*▲ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 只读缓冲区，禁止写入 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public ShortBuffer put(short x) {
-
-
-
-
-
-
-
-
         throw new ReadOnlyBufferException();
-
     }
-
+    
     public ShortBuffer put(int i, short x) {
-
-
-
-
-
-
-
-
         throw new ReadOnlyBufferException();
-
     }
-
+    
     public ShortBuffer put(ShortBuffer src) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         throw new ReadOnlyBufferException();
-
     }
-
+    
     public ShortBuffer put(short[] src, int offset, int length) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         throw new ReadOnlyBufferException();
-
     }
-
+    
+    /*▲ 只读缓冲区，禁止写入 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 禁止压缩，因为禁止写入，压缩没意义 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public ShortBuffer compact() {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         throw new ReadOnlyBufferException();
-
     }
-
-    public boolean isDirect() {
-        return true;
-    }
-
-    public boolean isReadOnly() {
-        return true;
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
+    /*▲ 禁止压缩，因为禁止写入，压缩没意义 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     public ByteOrder order() {
-
-
-
-
-
-        return ((ByteOrder.nativeOrder() != ByteOrder.BIG_ENDIAN)
-                ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
-
+        return ((ByteOrder.nativeOrder() != ByteOrder.BIG_ENDIAN) ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
+    /*▲ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    @Override
+    Object base() {
+        return null;
+    }
 }
