@@ -24,21 +24,13 @@
  */
 package java.util.stream;
 
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.Spliterator;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.IntConsumer;
-import java.util.function.Predicate;
 
 /**
- * Base interface for streams, which are sequences of elements supporting
- * sequential and parallel aggregate operations.  The following example
- * illustrates an aggregate operation using the stream types {@link Stream}
- * and {@link IntStream}, computing the sum of the weights of the red widgets:
+ * Base interface for streams, which are sequences of elements supporting sequential and parallel aggregate operations.
+ * The following example illustrates an aggregate operation using the stream types {@link Stream} and {@link IntStream},
+ * computing the sum of the weights of the red widgets:
  *
  * <pre>{@code
  *     int sum = widgets.stream()
@@ -48,31 +40,33 @@ import java.util.function.Predicate;
  * }</pre>
  *
  * See the class documentation for {@link Stream} and the package documentation
- * for <a href="package-summary.html">java.util.stream</a> for additional
- * specification of streams, stream operations, stream pipelines, and
- * parallelism, which governs the behavior of all stream types.
+ * for <a href="package-summary.html">java.util.stream</a> for additional specification of streams,
+ * stream operations, stream pipelines, and parallelism, which governs the behavior of all stream types.
  *
  * @param <T> the type of the stream elements
  * @param <S> the type of the stream implementing {@code BaseStream}
- * @since 1.8
+ *
  * @see Stream
  * @see IntStream
  * @see LongStream
  * @see DoubleStream
  * @see <a href="package-summary.html">java.util.stream</a>
+ * @since 1.8
  */
-public interface BaseStream<T, S extends BaseStream<T, S>>
-        extends AutoCloseable {
+
+// 流的基本接口。流是支持顺序和并行聚合操作的元素序列。
+public interface BaseStream<T, S extends BaseStream<T, S>> extends AutoCloseable {
+    
     /**
      * Returns an iterator for the elements of this stream.
      *
-     * <p>This is a <a href="package-summary.html#StreamOps">terminal
-     * operation</a>.
+     * <p>This is a <a href="package-summary.html#StreamOps">terminal operation</a>.
      *
      * @return the element iterator for this stream
      */
+    // 返回流中元素的Iterator（迭代器）
     Iterator<T> iterator();
-
+    
     /**
      * Returns a spliterator for the elements of this stream.
      *
@@ -89,8 +83,9 @@ public interface BaseStream<T, S extends BaseStream<T, S>>
      *
      * @return the element spliterator for this stream
      */
+    // 返回流中元素的Spliterator（可分割的迭代器）
     Spliterator<T> spliterator();
-
+    
     /**
      * Returns whether this stream, if a terminal operation were to be executed,
      * would execute in parallel.  Calling this method after invoking an
@@ -98,32 +93,9 @@ public interface BaseStream<T, S extends BaseStream<T, S>>
      *
      * @return {@code true} if this stream would execute in parallel if executed
      */
+    // 是否需要并行处理
     boolean isParallel();
-
-    /**
-     * Returns an equivalent stream that is sequential.  May return
-     * itself, either because the stream was already sequential, or because
-     * the underlying stream state was modified to be sequential.
-     *
-     * <p>This is an <a href="package-summary.html#StreamOps">intermediate
-     * operation</a>.
-     *
-     * @return a sequential stream
-     */
-    S sequential();
-
-    /**
-     * Returns an equivalent stream that is parallel.  May return
-     * itself, either because the stream was already parallel, or because
-     * the underlying stream state was modified to be parallel.
-     *
-     * <p>This is an <a href="package-summary.html#StreamOps">intermediate
-     * operation</a>.
-     *
-     * @return a parallel stream
-     */
-    S parallel();
-
+    
     /**
      * Returns an equivalent stream that is
      * <a href="package-summary.html#Ordering">unordered</a>.  May return
@@ -135,8 +107,44 @@ public interface BaseStream<T, S extends BaseStream<T, S>>
      *
      * @return an unordered stream
      */
+    /*
+     * 中间操作，返回等效的无序流。
+     * 可能会返回自身，因为该流已经是无序的，或流的状态已经被修改为无序。
+     */
     S unordered();
-
+    
+    /**
+     * Returns an equivalent stream that is sequential.  May return
+     * itself, either because the stream was already sequential, or because
+     * the underlying stream state was modified to be sequential.
+     *
+     * <p>This is an <a href="package-summary.html#StreamOps">intermediate
+     * operation</a>.
+     *
+     * @return a sequential stream
+     */
+    /*
+     * 中间操作，返回顺序的等效流。
+     * 可能会返回自身，因为该流已经是顺序的，或流的状态已经被修改为顺序。
+     */
+    S sequential();
+    
+    /**
+     * Returns an equivalent stream that is parallel.  May return
+     * itself, either because the stream was already parallel, or because
+     * the underlying stream state was modified to be parallel.
+     *
+     * <p>This is an <a href="package-summary.html#StreamOps">intermediate
+     * operation</a>.
+     *
+     * @return a parallel stream
+     */
+    /*
+     * 中间操作，返回并行的等效流。
+     * 可能会返回自身，因为流已经是并行的，或流的状态已经被修改为并行。
+     */
+    S parallel();
+    
     /**
      * Returns an equivalent stream with an additional close handler.  Close
      * handlers are run when the {@link #close()} method
@@ -153,16 +161,23 @@ public interface BaseStream<T, S extends BaseStream<T, S>>
      * operation</a>.
      *
      * @param closeHandler A task to execute when the stream is closed
+     *
      * @return a stream with a handler that is run if the stream is closed
      */
+    /*
+     * 中间操作，返回附加close操作的等效流，可能会返回自身。
+     * 在流上调用close()方法时，将运行关闭处理程序，并按其添加的顺序执行。
+     * 即使先前的关闭处理程序抛出异常，也会运行所有关闭处理程序。
+     * 如果任何关闭处理程序抛出异常，则抛出的第一个异常将被转播到close()的调用者，并将任何剩余的异常作为抑制异常添加到该异常中（除非剩下的异常之一与第一个异常相同，因为异常无法抑制自己）。
+     */
     S onClose(Runnable closeHandler);
-
+    
     /**
-     * Closes this stream, causing all close handlers for this stream pipeline
-     * to be called.
+     * Closes this stream, causing all close handlers for this stream pipeline to be called.
      *
      * @see AutoCloseable#close()
      */
+    // 关闭此流，这将导致调用此流水线的所有关闭处理程序。
     @Override
     void close();
 }
