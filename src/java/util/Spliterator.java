@@ -22,6 +22,7 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
+
 package java.util;
 
 import java.util.function.Consumer;
@@ -124,8 +125,9 @@ import java.util.function.LongConsumer;
  * does not affect the order in which the values, transformed to boxed values,
  * are encountered.
  *
- * @apiNote
- * <p>Spliterators, like {@code Iterator}s, are for traversing the elements of
+ * @param <T> the type of elements returned by this Spliterator
+ *
+ * @apiNote <p>Spliterators, like {@code Iterator}s, are for traversing the elements of
  * a source.  The {@code Spliterator} API was designed to support efficient
  * parallel traversal in addition to sequential traversal, by supporting
  * decomposition as well as single-element iteration.  In addition, the
@@ -282,189 +284,56 @@ import java.util.function.LongConsumer;
  *     propagateCompletion();
  *   }
  * }}</pre>
- *
- * @implNote
- * If the boolean system property {@code org.openjdk.java.util.stream.tripwire}
+ * @implNote If the boolean system property {@code org.openjdk.java.util.stream.tripwire}
  * is set to {@code true} then diagnostic warnings are reported if boxing of
  * primitive values occur when operating on primitive subtype specializations.
- *
- * @param <T> the type of elements returned by this Spliterator
- *
  * @see Collection
  * @since 1.8
  */
+
+/*
+ * Spliterator称作可分割迭代器(Splitable Iterator)，内部包装一个容器，随后需要对该容器中的元素进行切割和遍历（应用给定的函数）
+ *
+ * 将数据打包到Spliterator后，交给流的源头阶段，随后可以对Spliterator应用某个方法，Spliterator内部将遍历所有数据去执行那个方法。
+ *
+ * Spliterator有很多种形式，大多实现为内部类嵌套内部类，代码非常恶心...
+ *
+ * Spliterator和Iterator可以通过适配器模式进行转换
+ */
 public interface Spliterator<T> {
+    
+    /* Spliterator的8个特征值 */
+    
     /**
-     * If a remaining element exists, performs the given action on it,
-     * returning {@code true}; else returns {@code false}.  If this
-     * Spliterator is {@link #ORDERED} the action is performed on the
-     * next element in encounter order.  Exceptions thrown by the
-     * action are relayed to the caller.
-     *
-     * @param action The action
-     * @return {@code false} if no remaining elements existed
-     * upon entry to this method, else {@code true}.
-     * @throws NullPointerException if the specified action is null
+     * Characteristic value signifying that, for each pair of
+     * encountered elements {@code x, y}, {@code !x.equals(y)}. This
+     * applies for example, to a Spliterator based on a {@link Set}.
      */
-    boolean tryAdvance(Consumer<? super T> action);
-
+    // 表示每对元素各不相同，比如Set中的元素
+    int DISTINCT = 0x00000001;
     /**
-     * Performs the given action for each remaining element, sequentially in
-     * the current thread, until all elements have been processed or the action
-     * throws an exception.  If this Spliterator is {@link #ORDERED}, actions
-     * are performed in encounter order.  Exceptions thrown by the action
-     * are relayed to the caller.
+     * Characteristic value signifying that encounter order follows a defined
+     * sort order. If so, method {@link #getComparator()} returns the associated
+     * Comparator, or {@code null} if all elements are {@link Comparable} and
+     * are sorted by their natural ordering.
      *
-     * @implSpec
-     * The default implementation repeatedly invokes {@link #tryAdvance} until
-     * it returns {@code false}.  It should be overridden whenever possible.
+     * <p>A Spliterator that reports {@code SORTED} must also report
+     * {@code ORDERED}.
      *
-     * @param action The action
-     * @throws NullPointerException if the specified action is null
+     * @apiNote The spliterators for {@code Collection} classes in the JDK that
+     * implement {@link NavigableSet} or {@link SortedSet} report {@code SORTED}.
      */
-    default void forEachRemaining(Consumer<? super T> action) {
-        do { } while (tryAdvance(action));
-    }
-
-    /**
-     * If this spliterator can be partitioned, returns a Spliterator
-     * covering elements, that will, upon return from this method, not
-     * be covered by this Spliterator.
+    /*
+     * 表示Spliterator中的元素序列遵循已定义的排序顺序。
+     * 这种情况下，调用getComparator()时，要么返回一个Comparator，
+     * 要么返回null，此时意味着所有元素（的对象）都具备Comparable接口。
      *
-     * <p>If this Spliterator is {@link #ORDERED}, the returned Spliterator
-     * must cover a strict prefix of the elements.
+     * 具有#SORTED特征的Spliterator也应当具备#ORDERED特征。
      *
-     * <p>Unless this Spliterator covers an infinite number of elements,
-     * repeated calls to {@code trySplit()} must eventually return {@code null}.
-     * Upon non-null return:
-     * <ul>
-     * <li>the value reported for {@code estimateSize()} before splitting,
-     * must, after splitting, be greater than or equal to {@code estimateSize()}
-     * for this and the returned Spliterator; and</li>
-     * <li>if this Spliterator is {@code SUBSIZED}, then {@code estimateSize()}
-     * for this spliterator before splitting must be equal to the sum of
-     * {@code estimateSize()} for this and the returned Spliterator after
-     * splitting.</li>
-     * </ul>
-     *
-     * <p>This method may return {@code null} for any reason,
-     * including emptiness, inability to split after traversal has
-     * commenced, data structure constraints, and efficiency
-     * considerations.
-     *
-     * @apiNote
-     * An ideal {@code trySplit} method efficiently (without
-     * traversal) divides its elements exactly in half, allowing
-     * balanced parallel computation.  Many departures from this ideal
-     * remain highly effective; for example, only approximately
-     * splitting an approximately balanced tree, or for a tree in
-     * which leaf nodes may contain either one or two elements,
-     * failing to further split these nodes.  However, large
-     * deviations in balance and/or overly inefficient {@code
-     * trySplit} mechanics typically result in poor parallel
-     * performance.
-     *
-     * @return a {@code Spliterator} covering some portion of the
-     * elements, or {@code null} if this spliterator cannot be split
+     * 实现了NavigableSet或SortedSet接口的Collection子类元素，
+     * 其Spliterator应具备#SORTED特征。
      */
-    Spliterator<T> trySplit();
-
-    /**
-     * Returns an estimate of the number of elements that would be
-     * encountered by a {@link #forEachRemaining} traversal, or returns {@link
-     * Long#MAX_VALUE} if infinite, unknown, or too expensive to compute.
-     *
-     * <p>If this Spliterator is {@link #SIZED} and has not yet been partially
-     * traversed or split, or this Spliterator is {@link #SUBSIZED} and has
-     * not yet been partially traversed, this estimate must be an accurate
-     * count of elements that would be encountered by a complete traversal.
-     * Otherwise, this estimate may be arbitrarily inaccurate, but must decrease
-     * as specified across invocations of {@link #trySplit}.
-     *
-     * @apiNote
-     * Even an inexact estimate is often useful and inexpensive to compute.
-     * For example, a sub-spliterator of an approximately balanced binary tree
-     * may return a value that estimates the number of elements to be half of
-     * that of its parent; if the root Spliterator does not maintain an
-     * accurate count, it could estimate size to be the power of two
-     * corresponding to its maximum depth.
-     *
-     * @return the estimated size, or {@code Long.MAX_VALUE} if infinite,
-     *         unknown, or too expensive to compute.
-     */
-    long estimateSize();
-
-    /**
-     * Convenience method that returns {@link #estimateSize()} if this
-     * Spliterator is {@link #SIZED}, else {@code -1}.
-     * @implSpec
-     * The default implementation returns the result of {@code estimateSize()}
-     * if the Spliterator reports a characteristic of {@code SIZED}, and
-     * {@code -1} otherwise.
-     *
-     * @return the exact size, if known, else {@code -1}.
-     */
-    default long getExactSizeIfKnown() {
-        return (characteristics() & SIZED) == 0 ? -1L : estimateSize();
-    }
-
-    /**
-     * Returns a set of characteristics of this Spliterator and its
-     * elements. The result is represented as ORed values from {@link
-     * #ORDERED}, {@link #DISTINCT}, {@link #SORTED}, {@link #SIZED},
-     * {@link #NONNULL}, {@link #IMMUTABLE}, {@link #CONCURRENT},
-     * {@link #SUBSIZED}.  Repeated calls to {@code characteristics()} on
-     * a given spliterator, prior to or in-between calls to {@code trySplit},
-     * should always return the same result.
-     *
-     * <p>If a Spliterator reports an inconsistent set of
-     * characteristics (either those returned from a single invocation
-     * or across multiple invocations), no guarantees can be made
-     * about any computation using this Spliterator.
-     *
-     * @apiNote The characteristics of a given spliterator before splitting
-     * may differ from the characteristics after splitting.  For specific
-     * examples see the characteristic values {@link #SIZED}, {@link #SUBSIZED}
-     * and {@link #CONCURRENT}.
-     *
-     * @return a representation of characteristics
-     */
-    int characteristics();
-
-    /**
-     * Returns {@code true} if this Spliterator's {@link
-     * #characteristics} contain all of the given characteristics.
-     *
-     * @implSpec
-     * The default implementation returns true if the corresponding bits
-     * of the given characteristics are set.
-     *
-     * @param characteristics the characteristics to check for
-     * @return {@code true} if all the specified characteristics are present,
-     * else {@code false}
-     */
-    default boolean hasCharacteristics(int characteristics) {
-        return (characteristics() & characteristics) == characteristics;
-    }
-
-    /**
-     * If this Spliterator's source is {@link #SORTED} by a {@link Comparator},
-     * returns that {@code Comparator}. If the source is {@code SORTED} in
-     * {@linkplain Comparable natural order}, returns {@code null}.  Otherwise,
-     * if the source is not {@code SORTED}, throws {@link IllegalStateException}.
-     *
-     * @implSpec
-     * The default implementation always throws {@link IllegalStateException}.
-     *
-     * @return a Comparator, or {@code null} if the elements are sorted in the
-     * natural order.
-     * @throws IllegalStateException if the spliterator does not report
-     *         a characteristic of {@code SORTED}.
-     */
-    default Comparator<? super T> getComparator() {
-        throw new IllegalStateException();
-    }
-
+    int SORTED = 0x00000004;
     /**
      * Characteristic value signifying that an encounter order is defined for
      * elements. If so, this Spliterator guarantees that method
@@ -483,29 +352,8 @@ public interface Spliterator<T> {
      * {@code ORDERED} are expected to preserve ordering constraints in
      * non-commutative parallel computations.
      */
-    public static final int ORDERED    = 0x00000010;
-
-    /**
-     * Characteristic value signifying that, for each pair of
-     * encountered elements {@code x, y}, {@code !x.equals(y)}. This
-     * applies for example, to a Spliterator based on a {@link Set}.
-     */
-    public static final int DISTINCT   = 0x00000001;
-
-    /**
-     * Characteristic value signifying that encounter order follows a defined
-     * sort order. If so, method {@link #getComparator()} returns the associated
-     * Comparator, or {@code null} if all elements are {@link Comparable} and
-     * are sorted by their natural ordering.
-     *
-     * <p>A Spliterator that reports {@code SORTED} must also report
-     * {@code ORDERED}.
-     *
-     * @apiNote The spliterators for {@code Collection} classes in the JDK that
-     * implement {@link NavigableSet} or {@link SortedSet} report {@code SORTED}.
-     */
-    public static final int SORTED     = 0x00000004;
-
+    // 表示元素有固定的遭遇顺序（遍历顺序）
+    int ORDERED = 0x00000010;
     /**
      * Characteristic value signifying that the value returned from
      * {@code estimateSize()} prior to traversal or splitting represents a
@@ -518,15 +366,18 @@ public interface Spliterator<T> {
      * those for {@link HashSet}, that cover a sub-set of elements and
      * approximate their reported size do not.
      */
-    public static final int SIZED      = 0x00000040;
-
+    /*
+     * 表示可以调用estimateSize()后返回一个有限大小（往往是元素的确切数量）
+     * 大多数Collection的Spliterator都拥有此特征。
+     */
+    int SIZED = 0x00000040;
     /**
      * Characteristic value signifying that the source guarantees that
      * encountered elements will not be {@code null}. (This applies,
      * for example, to most concurrent collections, queues, and maps.)
      */
-    public static final int NONNULL    = 0x00000100;
-
+    // 表示元素非空，如大多数并行容器
+    int NONNULL = 0x00000100;
     /**
      * Characteristic value signifying that the element source cannot be
      * structurally modified; that is, elements cannot be added, replaced, or
@@ -536,8 +387,8 @@ public interface Spliterator<T> {
      * {@link ConcurrentModificationException}) concerning structural
      * interference detected during traversal.
      */
-    public static final int IMMUTABLE  = 0x00000400;
-
+    // 表示元素结构不能被修改，即无法添加、删除、替换元素（遍历期间不会进行这类操作）
+    int IMMUTABLE = 0x00000400;
     /**
      * Characteristic value signifying that the element source may be safely
      * concurrently modified (allowing additions, replacements, and/or removals)
@@ -564,8 +415,8 @@ public interface Spliterator<T> {
      * Spliterator construction, but possibly not reflecting subsequent
      * additions or removals.
      */
-    public static final int CONCURRENT = 0x00001000;
-
+    // 表示可以在没有外部同步的情况下由多个线程安全地同时修改元素
+    int CONCURRENT = 0x00001000;
     /**
      * Characteristic value signifying that all Spliterators resulting from
      * {@code trySplit()} will be both {@link #SIZED} and {@link #SUBSIZED}.
@@ -581,32 +432,219 @@ public interface Spliterator<T> {
      * {@code SUBSIZED}, since it is common to know the size of the entire tree
      * but not the exact sizes of subtrees.
      */
-    public static final int SUBSIZED = 0x00004000;
-
+    /*
+     * 表示调用trySplit()后返回的子Spliterator将同时具有#SIZED和#SUBSIZED特征。
+     * 有些树形Node只具有#SIZED特征而不具有#SUBSIZED特征，因为整棵树的元素个数是已知的，但子树元素个数为知
+     */
+    int SUBSIZED = 0x00004000;
+    
+    
+    /**
+     * Returns an estimate of the number of elements that would be
+     * encountered by a {@link #forEachRemaining} traversal, or returns {@link
+     * Long#MAX_VALUE} if infinite, unknown, or too expensive to compute.
+     *
+     * <p>If this Spliterator is {@link #SIZED} and has not yet been partially
+     * traversed or split, or this Spliterator is {@link #SUBSIZED} and has
+     * not yet been partially traversed, this estimate must be an accurate
+     * count of elements that would be encountered by a complete traversal.
+     * Otherwise, this estimate may be arbitrarily inaccurate, but must decrease
+     * as specified across invocations of {@link #trySplit}.
+     *
+     * @return the estimated size, or {@code Long.MAX_VALUE} if infinite,
+     * unknown, or too expensive to compute.
+     *
+     * @apiNote Even an inexact estimate is often useful and inexpensive to compute.
+     * For example, a sub-spliterator of an approximately balanced binary tree
+     * may return a value that estimates the number of elements to be half of
+     * that of its parent; if the root Spliterator does not maintain an
+     * accurate count, it could estimate size to be the power of two
+     * corresponding to its maximum depth.
+     */
+    // 返回当前情境中的元素数量（可能是估算值）
+    long estimateSize();
+    
+    /**
+     * Returns a set of characteristics of this Spliterator and its
+     * elements. The result is represented as ORed values from {@link
+     * #ORDERED}, {@link #DISTINCT}, {@link #SORTED}, {@link #SIZED},
+     * {@link #NONNULL}, {@link #IMMUTABLE}, {@link #CONCURRENT},
+     * {@link #SUBSIZED}.  Repeated calls to {@code characteristics()} on
+     * a given spliterator, prior to or in-between calls to {@code trySplit},
+     * should always return the same result.
+     *
+     * <p>If a Spliterator reports an inconsistent set of
+     * characteristics (either those returned from a single invocation
+     * or across multiple invocations), no guarantees can be made
+     * about any computation using this Spliterator.
+     *
+     * @return a representation of characteristics
+     *
+     * @apiNote The characteristics of a given spliterator before splitting
+     * may differ from the characteristics after splitting.  For specific
+     * examples see the characteristic values {@link #SIZED}, {@link #SUBSIZED}
+     * and {@link #CONCURRENT}.
+     */
+    // 返回容器的特征值
+    int characteristics();
+    
+    /**
+     * If this spliterator can be partitioned, returns a Spliterator
+     * covering elements, that will, upon return from this method, not
+     * be covered by this Spliterator.
+     *
+     * <p>If this Spliterator is {@link #ORDERED}, the returned Spliterator
+     * must cover a strict prefix of the elements.
+     *
+     * <p>Unless this Spliterator covers an infinite number of elements,
+     * repeated calls to {@code trySplit()} must eventually return {@code null}.
+     * Upon non-null return:
+     * <ul>
+     * <li>the value reported for {@code estimateSize()} before splitting,
+     * must, after splitting, be greater than or equal to {@code estimateSize()}
+     * for this and the returned Spliterator; and</li>
+     * <li>if this Spliterator is {@code SUBSIZED}, then {@code estimateSize()}
+     * for this spliterator before splitting must be equal to the sum of
+     * {@code estimateSize()} for this and the returned Spliterator after
+     * splitting.</li>
+     * </ul>
+     *
+     * <p>This method may return {@code null} for any reason,
+     * including emptiness, inability to split after traversal has
+     * commenced, data structure constraints, and efficiency
+     * considerations.
+     *
+     * @return a {@code Spliterator} covering some portion of the
+     * elements, or {@code null} if this spliterator cannot be split
+     *
+     * @apiNote An ideal {@code trySplit} method efficiently (without
+     * traversal) divides its elements exactly in half, allowing
+     * balanced parallel computation.  Many departures from this ideal
+     * remain highly effective; for example, only approximately
+     * splitting an approximately balanced tree, or for a tree in
+     * which leaf nodes may contain either one or two elements,
+     * failing to further split these nodes.  However, large
+     * deviations in balance and/or overly inefficient {@code
+     * trySplit} mechanics typically result in poor parallel
+     * performance.
+     */
+    // 从容器的指定范围切割一段元素，将其打包到Spliterator后返回，特征值不变
+    Spliterator<T> trySplit();
+    
+    /**
+     * If a remaining element exists, performs the given action on it,
+     * returning {@code true}; else returns {@code false}.  If this
+     * Spliterator is {@link #ORDERED} the action is performed on the
+     * next element in encounter order.  Exceptions thrown by the
+     * action are relayed to the caller.
+     *
+     * @param action The action
+     *
+     * @return {@code false} if no remaining elements existed
+     * upon entry to this method, else {@code true}.
+     *
+     * @throws NullPointerException if the specified action is null
+     */
+    // 对容器中的单个当前元素执行择取操作
+    boolean tryAdvance(Consumer<? super T> action);
+    
+    /**
+     * Performs the given action for each remaining element, sequentially in
+     * the current thread, until all elements have been processed or the action
+     * throws an exception.  If this Spliterator is {@link #ORDERED}, actions
+     * are performed in encounter order.  Exceptions thrown by the action
+     * are relayed to the caller.
+     *
+     * @param action The action
+     *
+     * @throws NullPointerException if the specified action is null
+     * @implSpec The default implementation repeatedly invokes {@link #tryAdvance} until
+     * it returns {@code false}.  It should be overridden whenever possible.
+     */
+    // 遍历容器内每个元素，在其上执行相应的择取操作
+    default void forEachRemaining(Consumer<? super T> action) {
+        do {
+        } while(tryAdvance(action));
+    }
+    
+    /**
+     * Convenience method that returns {@link #estimateSize()} if this Spliterator is {@link #SIZED}, else {@code -1}.
+     *
+     * @return the exact size, if known, else {@code -1}.
+     *
+     * @implSpec The default implementation returns the result of {@code estimateSize()}
+     * if the Spliterator reports a characteristic of {@code SIZED}, and {@code -1} otherwise.
+     */
+    // 返回当前情境中的元素数量（精确值）
+    default long getExactSizeIfKnown() {
+        return (characteristics() & SIZED) == 0 ? -1L : estimateSize();
+    }
+    
+    /**
+     * Returns {@code true} if this Spliterator's {@link
+     * #characteristics} contain all of the given characteristics.
+     *
+     * @param characteristics the characteristics to check for
+     *
+     * @return {@code true} if all the specified characteristics are present,
+     * else {@code false}
+     *
+     * @implSpec The default implementation returns true if the corresponding bits
+     * of the given characteristics are set.
+     */
+    // 该容器是否拥有某个特征值characteristics
+    default boolean hasCharacteristics(int characteristics) {
+        return (characteristics() & characteristics) == characteristics;
+    }
+    
+    /**
+     * If this Spliterator's source is {@link #SORTED} by a {@link Comparator}, returns that {@code Comparator}.
+     * If the source is {@code SORTED} in {@linkplain Comparable natural order}, returns {@code null}.  Otherwise,
+     * if the source is not {@code SORTED}, throws {@link IllegalStateException}.
+     *
+     * @return a Comparator, or {@code null} if the elements are sorted in the natural order.
+     *
+     * @throws IllegalStateException if the spliterator does not report a characteristic of {@code SORTED}.
+     * @implSpec The default implementation always throws {@link IllegalStateException}.
+     */
+    /*
+     * 对于具有SORTED特征值的容器来说，
+     * 如果该容器使用Comparator排序，则返回其Comparator；
+     * 如果该容器使用Comparable实现自然排序，则返回null；
+     *
+     * 对于不具有SORTED特征值的容器来说，抛出异常。
+     */
+    default Comparator<? super T> getComparator() {
+        throw new IllegalStateException();
+    }
+    
     /**
      * A Spliterator specialized for primitive values.
      *
-     * @param <T> the type of elements returned by this Spliterator.  The
-     * type must be a wrapper type for a primitive type, such as {@code Integer}
-     * for the primitive {@code int} type.
-     * @param <T_CONS> the type of primitive consumer.  The type must be a
-     * primitive specialization of {@link java.util.function.Consumer} for
-     * {@code T}, such as {@link java.util.function.IntConsumer} for
-     * {@code Integer}.
+     * @param <T>        the type of elements returned by this Spliterator.  The
+     *                   type must be a wrapper type for a primitive type, such as {@code Integer}
+     *                   for the primitive {@code int} type.
+     * @param <T_CONS>   the type of primitive consumer.  The type must be a
+     *                   primitive specialization of {@link java.util.function.Consumer} for
+     *                   {@code T}, such as {@link java.util.function.IntConsumer} for
+     *                   {@code Integer}.
      * @param <T_SPLITR> the type of primitive Spliterator.  The type must be
-     * a primitive specialization of Spliterator for {@code T}, such as
-     * {@link Spliterator.OfInt} for {@code Integer}.
+     *                   a primitive specialization of Spliterator for {@code T}, such as
+     *                   {@link Spliterator.OfInt} for {@code Integer}.
      *
      * @see Spliterator.OfInt
      * @see Spliterator.OfLong
      * @see Spliterator.OfDouble
      * @since 1.8
      */
-    public interface OfPrimitive<T, T_CONS, T_SPLITR extends Spliterator.OfPrimitive<T, T_CONS, T_SPLITR>>
-            extends Spliterator<T> {
+    // 为基本类型特化的Spliterator子接口
+    interface OfPrimitive<T, T_CONS, T_SPLITR extends Spliterator.OfPrimitive<T, T_CONS, T_SPLITR>>
+        extends Spliterator<T> {
+        
+        // 从容器的指定范围切割一段元素，将其打包到为基本类型特化的Spliterator后返回，特征值不变
         @Override
         T_SPLITR trySplit();
-
+        
         /**
          * If a remaining element exists, performs the given action on it,
          * returning {@code true}; else returns {@code false}.  If this
@@ -615,13 +653,16 @@ public interface Spliterator<T> {
          * action are relayed to the caller.
          *
          * @param action The action
+         *
          * @return {@code false} if no remaining elements existed
          * upon entry to this method, else {@code true}.
+         *
          * @throws NullPointerException if the specified action is null
          */
+        // 对容器中的某个元素执行择取操作[基本类型版本]
         @SuppressWarnings("overloads")
         boolean tryAdvance(T_CONS action);
-
+        
         /**
          * Performs the given action for each remaining element, sequentially in
          * the current thread, until all elements have been processed or the
@@ -629,192 +670,219 @@ public interface Spliterator<T> {
          * actions are performed in encounter order.  Exceptions thrown by the
          * action are relayed to the caller.
          *
-         * @implSpec
-         * The default implementation repeatedly invokes {@link #tryAdvance}
+         * @param action The action
+         *
+         * @throws NullPointerException if the specified action is null
+         * @implSpec The default implementation repeatedly invokes {@link #tryAdvance}
          * until it returns {@code false}.  It should be overridden whenever
          * possible.
-         *
-         * @param action The action
-         * @throws NullPointerException if the specified action is null
          */
+        // 遍历容器内每个元素，在其上执行相应的择取操作[基本类型版本]
         @SuppressWarnings("overloads")
         default void forEachRemaining(T_CONS action) {
-            do { } while (tryAdvance(action));
+            do {
+            } while(tryAdvance(action));
         }
     }
-
+    
     /**
      * A Spliterator specialized for {@code int} values.
+     *
      * @since 1.8
      */
-    public interface OfInt extends OfPrimitive<Integer, IntConsumer, OfInt> {
-
+    // 为基本类型int特化的Spliterator子接口
+    interface OfInt
+        extends OfPrimitive<Integer, IntConsumer, OfInt> {
+        
+        // 从容器的指定范围切割一段元素，将其打包到为基本类型int特化的Spliterator后返回，特征值不变
         @Override
         OfInt trySplit();
-
+        
+        // 对容器中的某个元素执行择取操作[基本类型版本]
         @Override
         boolean tryAdvance(IntConsumer action);
-
-        @Override
-        default void forEachRemaining(IntConsumer action) {
-            do { } while (tryAdvance(action));
-        }
-
+        
         /**
          * {@inheritDoc}
-         * @implSpec
-         * If the action is an instance of {@code IntConsumer} then it is cast
+         *
+         * @implSpec If the action is an instance of {@code IntConsumer} then it is cast
          * to {@code IntConsumer} and passed to
          * {@link #tryAdvance(java.util.function.IntConsumer)}; otherwise
          * the action is adapted to an instance of {@code IntConsumer}, by
          * boxing the argument of {@code IntConsumer}, and then passed to
          * {@link #tryAdvance(java.util.function.IntConsumer)}.
          */
+        // 对容器中的某个元素执行择取操作[包装类型版本]
         @Override
         default boolean tryAdvance(Consumer<? super Integer> action) {
-            if (action instanceof IntConsumer) {
+            if(action instanceof IntConsumer) {
                 return tryAdvance((IntConsumer) action);
-            }
-            else {
-                if (Tripwire.ENABLED)
-                    Tripwire.trip(getClass(),
-                                  "{0} calling Spliterator.OfInt.tryAdvance((IntConsumer) action::accept)");
+            } else {
+                if(Tripwire.ENABLED)
+                    Tripwire.trip(getClass(), "{0} calling Spliterator.OfInt.tryAdvance((IntConsumer) action::accept)");
                 return tryAdvance((IntConsumer) action::accept);
             }
         }
-
+        
+        // 遍历容器内每个元素，在其上执行相应的择取操作[基本类型版本]
+        @Override
+        default void forEachRemaining(IntConsumer action) {
+            do {
+            } while(tryAdvance(action));
+        }
+        
         /**
          * {@inheritDoc}
-         * @implSpec
-         * If the action is an instance of {@code IntConsumer} then it is cast
+         *
+         * @implSpec If the action is an instance of {@code IntConsumer} then it is cast
          * to {@code IntConsumer} and passed to
          * {@link #forEachRemaining(java.util.function.IntConsumer)}; otherwise
          * the action is adapted to an instance of {@code IntConsumer}, by
          * boxing the argument of {@code IntConsumer}, and then passed to
          * {@link #forEachRemaining(java.util.function.IntConsumer)}.
          */
+        /*
+         * 对每个剩余元素执行给定的择取操作，择取操作封装在action函数中[包装类型版本]
+         *
+         * 如果操作是{IntConsumer}的实例，那么它将被强制转换为{IntConsumer}并传递给{#forEachRemaining};
+         * 否则，通过装箱{IntConsumer}的参数，将其适配为{IntConsumer}的实例，然后传递给{#forEachRemaining}。
+         */
         @Override
         default void forEachRemaining(Consumer<? super Integer> action) {
-            if (action instanceof IntConsumer) {
+            if(action instanceof IntConsumer) {
                 forEachRemaining((IntConsumer) action);
-            }
-            else {
-                if (Tripwire.ENABLED)
-                    Tripwire.trip(getClass(),
-                                  "{0} calling Spliterator.OfInt.forEachRemaining((IntConsumer) action::accept)");
+            } else {
+                if(Tripwire.ENABLED)
+                    Tripwire.trip(getClass(), "{0} calling Spliterator.OfInt.forEachRemaining((IntConsumer) action::accept)");
                 forEachRemaining((IntConsumer) action::accept);
             }
         }
     }
-
+    
     /**
      * A Spliterator specialized for {@code long} values.
+     *
      * @since 1.8
      */
-    public interface OfLong extends OfPrimitive<Long, LongConsumer, OfLong> {
-
+    // 为基本类型long特化的Spliterator子接口
+    interface OfLong
+        extends OfPrimitive<Long, LongConsumer, OfLong> {
+        
+        // 从容器的指定范围切割一段元素，将其打包到为基本类型long特化的Spliterator后返回，特征值不变
         @Override
         OfLong trySplit();
-
+        
+        // 对容器中的某个元素执行择取操作[基本类型版本]
         @Override
         boolean tryAdvance(LongConsumer action);
-
-        @Override
-        default void forEachRemaining(LongConsumer action) {
-            do { } while (tryAdvance(action));
-        }
-
+        
         /**
          * {@inheritDoc}
-         * @implSpec
-         * If the action is an instance of {@code LongConsumer} then it is cast
+         *
+         * @implSpec If the action is an instance of {@code LongConsumer} then it is cast
          * to {@code LongConsumer} and passed to
          * {@link #tryAdvance(java.util.function.LongConsumer)}; otherwise
          * the action is adapted to an instance of {@code LongConsumer}, by
          * boxing the argument of {@code LongConsumer}, and then passed to
          * {@link #tryAdvance(java.util.function.LongConsumer)}.
          */
+        // 对容器中的某个元素执行择取操作[包装类型版本]
         @Override
         default boolean tryAdvance(Consumer<? super Long> action) {
-            if (action instanceof LongConsumer) {
+            if(action instanceof LongConsumer) {
                 return tryAdvance((LongConsumer) action);
-            }
-            else {
-                if (Tripwire.ENABLED)
-                    Tripwire.trip(getClass(),
-                                  "{0} calling Spliterator.OfLong.tryAdvance((LongConsumer) action::accept)");
+            } else {
+                if(Tripwire.ENABLED)
+                    Tripwire.trip(getClass(), "{0} calling Spliterator.OfLong.tryAdvance((LongConsumer) action::accept)");
                 return tryAdvance((LongConsumer) action::accept);
             }
         }
-
+        
+        // 遍历容器内每个元素，在其上执行相应的择取操作[基本类型版本]
+        @Override
+        default void forEachRemaining(LongConsumer action) {
+            do {
+            } while(tryAdvance(action));
+        }
+        
         /**
          * {@inheritDoc}
-         * @implSpec
-         * If the action is an instance of {@code LongConsumer} then it is cast
+         *
+         * @implSpec If the action is an instance of {@code LongConsumer} then it is cast
          * to {@code LongConsumer} and passed to
          * {@link #forEachRemaining(java.util.function.LongConsumer)}; otherwise
          * the action is adapted to an instance of {@code LongConsumer}, by
          * boxing the argument of {@code LongConsumer}, and then passed to
          * {@link #forEachRemaining(java.util.function.LongConsumer)}.
          */
+        /*
+         * 对每个剩余元素执行给定的择取操作，择取操作封装在action函数中[包装类型版本]
+         *
+         * 如果操作是{LongConsumer}的实例，那么它将被强制转换为{LongConsumer}并传递给{#forEachRemaining};
+         * 否则，通过装箱{LongConsumer}的参数，将其适配为{LongConsumer}的实例，然后传递给{#forEachRemaining}。
+         */
         @Override
         default void forEachRemaining(Consumer<? super Long> action) {
-            if (action instanceof LongConsumer) {
+            if(action instanceof LongConsumer) {
                 forEachRemaining((LongConsumer) action);
-            }
-            else {
-                if (Tripwire.ENABLED)
-                    Tripwire.trip(getClass(),
-                                  "{0} calling Spliterator.OfLong.forEachRemaining((LongConsumer) action::accept)");
+            } else {
+                if(Tripwire.ENABLED)
+                    Tripwire.trip(getClass(), "{0} calling Spliterator.OfLong.forEachRemaining((LongConsumer) action::accept)");
                 forEachRemaining((LongConsumer) action::accept);
             }
         }
     }
-
+    
     /**
      * A Spliterator specialized for {@code double} values.
+     *
      * @since 1.8
      */
-    public interface OfDouble extends OfPrimitive<Double, DoubleConsumer, OfDouble> {
-
+    // 为基本类型double特化的Spliterator子接口
+    interface OfDouble
+        extends OfPrimitive<Double, DoubleConsumer, OfDouble> {
+        
+        // 从容器的指定范围切割一段元素，将其打包到为基本类型double特化的Spliterator后返回，特征值不变
         @Override
         OfDouble trySplit();
-
+        
+        // 对容器中的某个元素执行择取操作[基本类型版本]
         @Override
         boolean tryAdvance(DoubleConsumer action);
-
-        @Override
-        default void forEachRemaining(DoubleConsumer action) {
-            do { } while (tryAdvance(action));
-        }
-
+        
         /**
          * {@inheritDoc}
-         * @implSpec
-         * If the action is an instance of {@code DoubleConsumer} then it is
+         *
+         * @implSpec If the action is an instance of {@code DoubleConsumer} then it is
          * cast to {@code DoubleConsumer} and passed to
          * {@link #tryAdvance(java.util.function.DoubleConsumer)}; otherwise
          * the action is adapted to an instance of {@code DoubleConsumer}, by
          * boxing the argument of {@code DoubleConsumer}, and then passed to
          * {@link #tryAdvance(java.util.function.DoubleConsumer)}.
          */
+        // 对容器中的某个元素执行择取操作[包装类型版本]
         @Override
         default boolean tryAdvance(Consumer<? super Double> action) {
-            if (action instanceof DoubleConsumer) {
+            if(action instanceof DoubleConsumer) {
                 return tryAdvance((DoubleConsumer) action);
-            }
-            else {
-                if (Tripwire.ENABLED)
-                    Tripwire.trip(getClass(),
-                                  "{0} calling Spliterator.OfDouble.tryAdvance((DoubleConsumer) action::accept)");
+            } else {
+                if(Tripwire.ENABLED)
+                    Tripwire.trip(getClass(), "{0} calling Spliterator.OfDouble.tryAdvance((DoubleConsumer) action::accept)");
                 return tryAdvance((DoubleConsumer) action::accept);
             }
         }
-
+        
+        // 遍历容器内每个元素，在其上执行相应的择取操作[基本类型版本]
+        @Override
+        default void forEachRemaining(DoubleConsumer action) {
+            do {
+            } while(tryAdvance(action));
+        }
+        
         /**
          * {@inheritDoc}
-         * @implSpec
-         * If the action is an instance of {@code DoubleConsumer} then it is
+         *
+         * @implSpec If the action is an instance of {@code DoubleConsumer} then it is
          * cast to {@code DoubleConsumer} and passed to
          * {@link #forEachRemaining(java.util.function.DoubleConsumer)};
          * otherwise the action is adapted to an instance of
@@ -822,15 +890,19 @@ public interface Spliterator<T> {
          * {@code DoubleConsumer}, and then passed to
          * {@link #forEachRemaining(java.util.function.DoubleConsumer)}.
          */
+        /*
+         * 对每个剩余元素执行给定的择取操作，择取操作封装在action函数中[包装类型版本]
+         *
+         * 如果操作是{DoubleConsumer}的实例，那么它将被强制转换为{DoubleConsumer}并传递给{#forEachRemaining};
+         * 否则，通过装箱{DoubleConsumer}的参数，将其适配为{DoubleConsumer}的实例，然后传递给{#forEachRemaining}。
+         */
         @Override
         default void forEachRemaining(Consumer<? super Double> action) {
-            if (action instanceof DoubleConsumer) {
+            if(action instanceof DoubleConsumer) {
                 forEachRemaining((DoubleConsumer) action);
-            }
-            else {
-                if (Tripwire.ENABLED)
-                    Tripwire.trip(getClass(),
-                                  "{0} calling Spliterator.OfDouble.forEachRemaining((DoubleConsumer) action::accept)");
+            } else {
+                if(Tripwire.ENABLED)
+                    Tripwire.trip(getClass(), "{0} calling Spliterator.OfDouble.forEachRemaining((DoubleConsumer) action::accept)");
                 forEachRemaining((DoubleConsumer) action::accept);
             }
         }
