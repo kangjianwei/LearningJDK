@@ -24,6 +24,8 @@
  */
 package java.util.stream;
 
+import jdk.internal.HotSpotIntrinsicCandidate;
+
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.Spliterator;
@@ -31,7 +33,6 @@ import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
-import jdk.internal.HotSpotIntrinsicCandidate;
 
 /**
  * Utility methods for operating on and creating streams.
@@ -42,100 +43,603 @@ import jdk.internal.HotSpotIntrinsicCandidate;
  *
  * @since 1.8
  */
-final class Streams {
 
+// 定义了一个Stream构建器和几个专用的Spliterator
+final class Streams {
+    
     private Streams() {
         throw new Error("no instances");
     }
-
+    
+    
+    /*▼ Stream构建器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /*
+     * Stream构建器的抽象基类，用来构建单元素或多元素的流。
+     *
+     * 当元素个数为0个1个时，创建单元素流
+     * 当元素个数>=2时，创建多元素流
+     *
+     * 具体行为参见实现类StreamBuilderImpl
+     */
+    private abstract static class AbstractStreamBuilderImpl<T, S extends Spliterator<T>>
+        implements Spliterator<T> {
+        // >= 0 when building, < 0 when built
+        // -1 == no elements
+        // -2 == one element, held by first
+        // -3 == two or more elements, held by buffer
+        int count;
+        
+        // Spliterator implementation for 0 or 1 element
+        // count == -1 for no elements
+        // count == -2 for one element held by first
+        
+        @Override
+        public S trySplit() {
+            return null;
+        }
+        
+        @Override
+        public long estimateSize() {
+            return -count - 1;
+        }
+        
+        @Override
+        public int characteristics() {
+            return Spliterator.SIZED | Spliterator.SUBSIZED | Spliterator.ORDERED | Spliterator.IMMUTABLE;
+        }
+    }
+    
+    /*
+     *                              ⑴                   ⑵
+     *       模式一              first  = ×  add t1  first  = t1  add t2  first  = t1     add t3  first  = t1
+     * StreamBuilderImpl() ---▶ count  = 0 -------▷ count  = 1  -------▷ count  = 2     -------▷ count  = 3
+     *                          buffer = ×          buffer = ×           buffer = t1|t2          buffer = t1|t2|t3
+     *                              ▼▼                  ▼▼
+     *                              ▼▼                  ▼▼
+     *                          first =  ×   消费   first = t1             模式二
+     *                          count = -1 ◁------- count = -2 ◀--- StreamBuilderImpl(t1)
+     *                              ⑵                   ⑴
+     *
+     * Stream构建器，兼具Spliterator属性，是个多面手
+     * Stream构建器对象有两种创建模式，参见上图。
+     *
+     * Stream构建器可能构建出两种形态的流：
+     * 第一种：构建器内没有元素或只有一个元素，此时存储元素的容器是first。
+     *        (1) 构建器采用模式一创建。
+     *            需要通过build()方法将构建器从模式一切换到模式二，而且，将返回以构建器自身做Spliterator的流。
+     *        (2) 构建器采用模式二创建。
+     *            需要通过Stream.of或Stream.ofNullable方法创建以构建器自身做Spliterator的流。
+     * 第二种：构建器内存在>=2个元素，此时存储元素的容器是buffer。
+     *        该构建器必定使用模式一创建。
+     *        返回的流以SpinedBuffer内部的Spliterator做Spliterator。
+     */
+    static final class StreamBuilderImpl<T>
+        extends AbstractStreamBuilderImpl<T, Spliterator<T>>
+        implements Stream.Builder<T> {
+        // The first element in the stream
+        // valid if count == 1
+        T first;
+        
+        // The first and subsequent elements in the stream
+        // non-null if count == 2
+        SpinedBuffer<T> buffer; // 容量可变的缓冲区
+        
+        /**
+         * Constructor for building a stream of 0 or more elements.
+         */
+        StreamBuilderImpl() {
+        }
+        
+        /**
+         * Constructor for a singleton stream.
+         *
+         * @param t the single element
+         */
+        StreamBuilderImpl(T t) {
+            first = t;
+            count = -2;
+        }
+        
+        // StreamBuilder implementation
+        
+        // 使用模式一创建构建器后，可以调用此方法构建一个新的流
+        @Override
+        public Stream<T> build() {
+            int c = count;
+            
+            if(c >= 0) {
+                // Switch count to negative value signalling the builder is built
+                count = -count - 1; // 元素个数为0或1，则完成模式一到模式二的切换
+                // Use this spliterator if 0 or 1 elements, otherwise use the spliterator of the spined buffer
+                return (c < 2)
+                    ? StreamSupport.stream(this, false) // 只有0或1个元素，创建单元素流，自身做Spliterator
+                    : StreamSupport.stream(buffer.spliterator(), false); // 元素个数>=2时，创建多元素流
+            }
+            
+            throw new IllegalStateException();
+        }
+        
+        // 使用模式一创建构建器后，可以调用此方法添加元素
+        @Override
+        public void accept(T t) {
+            // 处于模式一的⑴阶段
+            if(count == 0) {
+                first = t;
+                count++;
+            } else if(count > 0) {  // 处于模式一⑵阶段（含）以后
+                // 如果添加2个以上的元素，需要启用buffer
+                if(buffer == null) {
+                    buffer = new SpinedBuffer<>();
+                    buffer.accept(first);   // 别忘了把第一个元素添加进来
+                    count++;
+                }
+                
+                buffer.accept(t);
+            } else {
+                throw new IllegalStateException();
+            }
+        }
+        
+        // 使用模式一创建构建器后，可以调用此方法添加元素
+        public Stream.Builder<T> add(T t) {
+            accept(t);
+            return this;
+        }
+        
+        // Spliterator implementation for 0 or 1 element
+        // count == -1 for no elements
+        // count == -2 for one element held by first
+        
+        // 使用模式二创建构建器后，可以调用此方法消费元素
+        @Override
+        public boolean tryAdvance(Consumer<? super T> action) {
+            Objects.requireNonNull(action);
+            
+            if(count == -2) {
+                action.accept(first);
+                count = -1;
+                return true;
+            } else {
+                return false;
+            }
+        }
+        
+        // 使用模式二创建构建器后，可以调用此方法消费元素
+        @Override
+        public void forEachRemaining(Consumer<? super T> action) {
+            Objects.requireNonNull(action);
+            
+            // 行为与tryAdvance一致，因为此时最多只有一个元素可供消费
+            if(count == -2) {
+                action.accept(first);
+                count = -1;
+            }
+        }
+    }
+    
+    static final class IntStreamBuilderImpl
+        extends AbstractStreamBuilderImpl<Integer, Spliterator.OfInt>
+        implements IntStream.Builder, Spliterator.OfInt {
+        // The first element in the stream
+        // valid if count == 1
+        int first;
+        
+        // The first and subsequent elements in the stream
+        // non-null if count == 2
+        SpinedBuffer.OfInt buffer;
+        
+        /**
+         * Constructor for building a stream of 0 or more elements.
+         */
+        IntStreamBuilderImpl() {
+        }
+        
+        /**
+         * Constructor for a singleton stream.
+         *
+         * @param t the single element
+         */
+        IntStreamBuilderImpl(int t) {
+            first = t;
+            count = -2;
+        }
+        
+        // StreamBuilder implementation
+        
+        @Override
+        public void accept(int t) {
+            if(count == 0) {
+                first = t;
+                count++;
+            } else if(count > 0) {
+                if(buffer == null) {
+                    buffer = new SpinedBuffer.OfInt();
+                    buffer.accept(first);
+                    count++;
+                }
+                
+                buffer.accept(t);
+            } else {
+                throw new IllegalStateException();
+            }
+        }
+        
+        @Override
+        public IntStream build() {
+            int c = count;
+            if(c >= 0) {
+                // Switch count to negative value signalling the builder is built
+                count = -count - 1;
+                // Use this spliterator if 0 or 1 elements, otherwise use
+                // the spliterator of the spined buffer
+                return (c < 2) ? StreamSupport.intStream(this, false) : StreamSupport.intStream(buffer.spliterator(), false);
+            }
+            
+            throw new IllegalStateException();
+        }
+        
+        // Spliterator implementation for 0 or 1 element
+        // count == -1 for no elements
+        // count == -2 for one element held by first
+        
+        @Override
+        public boolean tryAdvance(IntConsumer action) {
+            Objects.requireNonNull(action);
+            
+            if(count == -2) {
+                action.accept(first);
+                count = -1;
+                return true;
+            } else {
+                return false;
+            }
+        }
+        
+        @Override
+        public void forEachRemaining(IntConsumer action) {
+            Objects.requireNonNull(action);
+            
+            if(count == -2) {
+                action.accept(first);
+                count = -1;
+            }
+        }
+    }
+    
+    static final class LongStreamBuilderImpl
+        extends AbstractStreamBuilderImpl<Long, Spliterator.OfLong>
+        implements LongStream.Builder, Spliterator.OfLong {
+        // The first element in the stream
+        // valid if count == 1
+        long first;
+        
+        // The first and subsequent elements in the stream
+        // non-null if count == 2
+        SpinedBuffer.OfLong buffer;
+        
+        /**
+         * Constructor for building a stream of 0 or more elements.
+         */
+        LongStreamBuilderImpl() {
+        }
+        
+        /**
+         * Constructor for a singleton stream.
+         *
+         * @param t the single element
+         */
+        LongStreamBuilderImpl(long t) {
+            first = t;
+            count = -2;
+        }
+        
+        // StreamBuilder implementation
+        
+        @Override
+        public void accept(long t) {
+            if(count == 0) {
+                first = t;
+                count++;
+            } else if(count > 0) {
+                if(buffer == null) {
+                    buffer = new SpinedBuffer.OfLong();
+                    buffer.accept(first);
+                    count++;
+                }
+                
+                buffer.accept(t);
+            } else {
+                throw new IllegalStateException();
+            }
+        }
+        
+        @Override
+        public LongStream build() {
+            int c = count;
+            if(c >= 0) {
+                // Switch count to negative value signalling the builder is built
+                count = -count - 1;
+                // Use this spliterator if 0 or 1 elements, otherwise use
+                // the spliterator of the spined buffer
+                return (c < 2) ? StreamSupport.longStream(this, false) : StreamSupport.longStream(buffer.spliterator(), false);
+            }
+            
+            throw new IllegalStateException();
+        }
+        
+        // Spliterator implementation for 0 or 1 element
+        // count == -1 for no elements
+        // count == -2 for one element held by first
+        
+        @Override
+        public boolean tryAdvance(LongConsumer action) {
+            Objects.requireNonNull(action);
+            
+            if(count == -2) {
+                action.accept(first);
+                count = -1;
+                return true;
+            } else {
+                return false;
+            }
+        }
+        
+        @Override
+        public void forEachRemaining(LongConsumer action) {
+            Objects.requireNonNull(action);
+            
+            if(count == -2) {
+                action.accept(first);
+                count = -1;
+            }
+        }
+    }
+    
+    static final class DoubleStreamBuilderImpl
+        extends AbstractStreamBuilderImpl<Double, Spliterator.OfDouble>
+        implements DoubleStream.Builder, Spliterator.OfDouble {
+        // The first element in the stream
+        // valid if count == 1
+        double first;
+        
+        // The first and subsequent elements in the stream
+        // non-null if count == 2
+        SpinedBuffer.OfDouble buffer;
+        
+        /**
+         * Constructor for building a stream of 0 or more elements.
+         */
+        DoubleStreamBuilderImpl() {
+        }
+        
+        /**
+         * Constructor for a singleton stream.
+         *
+         * @param t the single element
+         */
+        DoubleStreamBuilderImpl(double t) {
+            first = t;
+            count = -2;
+        }
+        
+        // StreamBuilder implementation
+        
+        @Override
+        public void accept(double t) {
+            if(count == 0) {
+                first = t;
+                count++;
+            } else if(count > 0) {
+                if(buffer == null) {
+                    buffer = new SpinedBuffer.OfDouble();
+                    buffer.accept(first);
+                    count++;
+                }
+                
+                buffer.accept(t);
+            } else {
+                throw new IllegalStateException();
+            }
+        }
+        
+        @Override
+        public DoubleStream build() {
+            int c = count;
+            if(c >= 0) {
+                // Switch count to negative value signalling the builder is built
+                count = -count - 1;
+                // Use this spliterator if 0 or 1 elements, otherwise use
+                // the spliterator of the spined buffer
+                return (c < 2) ? StreamSupport.doubleStream(this, false) : StreamSupport.doubleStream(buffer.spliterator(), false);
+            }
+            
+            throw new IllegalStateException();
+        }
+        
+        // Spliterator implementation for 0 or 1 element
+        // count == -1 for no elements
+        // count == -2 for one element held by first
+        
+        @Override
+        public boolean tryAdvance(DoubleConsumer action) {
+            Objects.requireNonNull(action);
+            
+            if(count == -2) {
+                action.accept(first);
+                count = -1;
+                return true;
+            } else {
+                return false;
+            }
+        }
+        
+        @Override
+        public void forEachRemaining(DoubleConsumer action) {
+            Objects.requireNonNull(action);
+            
+            if(count == -2) {
+                action.accept(first);
+                count = -1;
+            }
+        }
+    }
+    
+    /*▲ Stream构建器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 专用Spliterator，参见Stream#concat ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    abstract static class ConcatSpliterator<T, T_SPLITR extends Spliterator<T>>
+        implements Spliterator<T> {
+        
+        protected final T_SPLITR aSpliterator;
+        protected final T_SPLITR bSpliterator;
+        // Never read after splitting
+        final boolean unsized;
+        // True when no split has occurred, otherwise false
+        boolean beforeSplit;
+        
+        public ConcatSpliterator(T_SPLITR aSpliterator, T_SPLITR bSpliterator) {
+            this.aSpliterator = aSpliterator;
+            this.bSpliterator = bSpliterator;
+            beforeSplit = true;
+            // The spliterator is known to be unsized before splitting if the
+            // sum of the estimates overflows.
+            unsized = aSpliterator.estimateSize() + bSpliterator.estimateSize() < 0;
+        }
+        
+        @Override
+        public T_SPLITR trySplit() {
+            @SuppressWarnings("unchecked")
+            T_SPLITR ret = beforeSplit ? aSpliterator : (T_SPLITR) bSpliterator.trySplit();
+            beforeSplit = false;
+            return ret;
+        }
+        
+        @Override
+        public boolean tryAdvance(Consumer<? super T> consumer) {
+            boolean hasNext;
+            if(beforeSplit) {
+                hasNext = aSpliterator.tryAdvance(consumer);
+                if(!hasNext) {
+                    beforeSplit = false;
+                    hasNext = bSpliterator.tryAdvance(consumer);
+                }
+            } else
+                hasNext = bSpliterator.tryAdvance(consumer);
+            return hasNext;
+        }
+        
+        @Override
+        public void forEachRemaining(Consumer<? super T> consumer) {
+            if(beforeSplit)
+                aSpliterator.forEachRemaining(consumer);
+            bSpliterator.forEachRemaining(consumer);
+        }
+        
+        @Override
+        public long estimateSize() {
+            if(beforeSplit) {
+                // If one or both estimates are Long.MAX_VALUE then the sum
+                // will either be Long.MAX_VALUE or overflow to a negative value
+                long size = aSpliterator.estimateSize() + bSpliterator.estimateSize();
+                return (size >= 0) ? size : Long.MAX_VALUE;
+            } else {
+                return bSpliterator.estimateSize();
+            }
+        }
+        
+        @Override
+        public int characteristics() {
+            if(beforeSplit) {
+                // Concatenation loses DISTINCT and SORTED characteristics
+                return aSpliterator.characteristics() & bSpliterator.characteristics() & ~(Spliterator.DISTINCT | Spliterator.SORTED | (unsized ? Spliterator.SIZED | Spliterator.SUBSIZED : 0));
+            } else {
+                return bSpliterator.characteristics();
+            }
+        }
+        
+        @Override
+        public Comparator<? super T> getComparator() {
+            if(beforeSplit)
+                throw new IllegalStateException();
+            return bSpliterator.getComparator();
+        }
+        
+        
+        static class OfRef<T> extends ConcatSpliterator<T, Spliterator<T>> {
+            OfRef(Spliterator<T> aSpliterator, Spliterator<T> bSpliterator) {
+                super(aSpliterator, bSpliterator);
+            }
+        }
+        
+        private abstract static class OfPrimitive<T, T_CONS, T_SPLITR extends Spliterator.OfPrimitive<T, T_CONS, T_SPLITR>>
+            extends ConcatSpliterator<T, T_SPLITR>
+            implements Spliterator.OfPrimitive<T, T_CONS, T_SPLITR> {
+            private OfPrimitive(T_SPLITR aSpliterator, T_SPLITR bSpliterator) {
+                super(aSpliterator, bSpliterator);
+            }
+            
+            @Override
+            public boolean tryAdvance(T_CONS action) {
+                boolean hasNext;
+                if(beforeSplit) {
+                    hasNext = aSpliterator.tryAdvance(action);
+                    if(!hasNext) {
+                        beforeSplit = false;
+                        hasNext = bSpliterator.tryAdvance(action);
+                    }
+                } else
+                    hasNext = bSpliterator.tryAdvance(action);
+                return hasNext;
+            }
+            
+            @Override
+            public void forEachRemaining(T_CONS action) {
+                if(beforeSplit)
+                    aSpliterator.forEachRemaining(action);
+                bSpliterator.forEachRemaining(action);
+            }
+        }
+        
+        static class OfInt
+            extends ConcatSpliterator.OfPrimitive<Integer, IntConsumer, Spliterator.OfInt>
+            implements Spliterator.OfInt {
+            OfInt(Spliterator.OfInt aSpliterator, Spliterator.OfInt bSpliterator) {
+                super(aSpliterator, bSpliterator);
+            }
+        }
+        
+        static class OfLong
+            extends ConcatSpliterator.OfPrimitive<Long, LongConsumer, Spliterator.OfLong>
+            implements Spliterator.OfLong {
+            OfLong(Spliterator.OfLong aSpliterator, Spliterator.OfLong bSpliterator) {
+                super(aSpliterator, bSpliterator);
+            }
+        }
+        
+        static class OfDouble
+            extends ConcatSpliterator.OfPrimitive<Double, DoubleConsumer, Spliterator.OfDouble>
+            implements Spliterator.OfDouble {
+            OfDouble(Spliterator.OfDouble aSpliterator, Spliterator.OfDouble bSpliterator) {
+                super(aSpliterator, bSpliterator);
+            }
+        }
+    }
+    
+    /*▲ 专用Spliterator，参见Stream#concat ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 专用Spliterator，参见IntStream#range ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * An {@code int} range spliterator.
      */
-    static final class RangeIntSpliterator implements Spliterator.OfInt {
-        // Can never be greater that upTo, this avoids overflow if upper bound
-        // is Integer.MAX_VALUE
-        // All elements are traversed if from == upTo & last == 0
-        private int from;
-        private final int upTo;
-        // 1 if the range is closed and the last element has not been traversed
-        // Otherwise, 0 if the range is open, or is a closed range and all
-        // elements have been traversed
-        private int last;
-
-        RangeIntSpliterator(int from, int upTo, boolean closed) {
-            this(from, upTo, closed ? 1 : 0);
-        }
-
-        private RangeIntSpliterator(int from, int upTo, int last) {
-            this.from = from;
-            this.upTo = upTo;
-            this.last = last;
-        }
-
-        @Override
-        public boolean tryAdvance(IntConsumer consumer) {
-            Objects.requireNonNull(consumer);
-
-            final int i = from;
-            if (i < upTo) {
-                from++;
-                consumer.accept(i);
-                return true;
-            }
-            else if (last > 0) {
-                last = 0;
-                consumer.accept(i);
-                return true;
-            }
-            return false;
-        }
-
-        @Override
-        @HotSpotIntrinsicCandidate
-        public void forEachRemaining(IntConsumer consumer) {
-            Objects.requireNonNull(consumer);
-
-            int i = from;
-            final int hUpTo = upTo;
-            int hLast = last;
-            from = upTo;
-            last = 0;
-            while (i < hUpTo) {
-                consumer.accept(i++);
-            }
-            if (hLast > 0) {
-                // Last element of closed range
-                consumer.accept(i);
-            }
-        }
-
-        @Override
-        public long estimateSize() {
-            // Ensure ranges of size > Integer.MAX_VALUE report the correct size
-            return ((long) upTo) - from + last;
-        }
-
-        @Override
-        public int characteristics() {
-            return Spliterator.ORDERED | Spliterator.SIZED | Spliterator.SUBSIZED |
-                   Spliterator.IMMUTABLE | Spliterator.NONNULL |
-                   Spliterator.DISTINCT | Spliterator.SORTED;
-        }
-
-        @Override
-        public Comparator<? super Integer> getComparator() {
-            return null;
-        }
-
-        @Override
-        public Spliterator.OfInt trySplit() {
-            long size = estimateSize();
-            return size <= 1
-                   ? null
-                   // Left split always has a half-open range
-                   : new RangeIntSpliterator(from, from = from + splitPoint(size), 0);
-        }
-
+    static final class RangeIntSpliterator
+        implements Spliterator.OfInt {
         /**
          * The spliterator size below which the spliterator will be split
          * at the mid-point to produce balanced splits. Above this size the
@@ -153,13 +657,91 @@ final class Streams {
          * number of elements to a count lower than this threshold.
          */
         private static final int BALANCED_SPLIT_THRESHOLD = 1 << 24;
-
         /**
          * The split ratio of the left and right split when the spliterator
          * size is above BALANCED_SPLIT_THRESHOLD.
          */
         private static final int RIGHT_BALANCED_SPLIT_RATIO = 1 << 3;
-
+        private final int upTo;
+        // Can never be greater that upTo, this avoids overflow if upper bound
+        // is Integer.MAX_VALUE
+        // All elements are traversed if from == upTo & last == 0
+        private int from;
+        // 1 if the range is closed and the last element has not been traversed
+        // Otherwise, 0 if the range is open, or is a closed range and all
+        // elements have been traversed
+        private int last;
+        
+        RangeIntSpliterator(int from, int upTo, boolean closed) {
+            this(from, upTo, closed ? 1 : 0);
+        }
+        
+        private RangeIntSpliterator(int from, int upTo, int last) {
+            this.from = from;
+            this.upTo = upTo;
+            this.last = last;
+        }
+        
+        @Override
+        public boolean tryAdvance(IntConsumer consumer) {
+            Objects.requireNonNull(consumer);
+            
+            final int i = from;
+            if(i < upTo) {
+                from++;
+                consumer.accept(i);
+                return true;
+            } else if(last > 0) {
+                last = 0;
+                consumer.accept(i);
+                return true;
+            }
+            return false;
+        }
+        
+        @Override
+        @HotSpotIntrinsicCandidate
+        public void forEachRemaining(IntConsumer consumer) {
+            Objects.requireNonNull(consumer);
+            
+            int i = from;
+            final int hUpTo = upTo;
+            int hLast = last;
+            from = upTo;
+            last = 0;
+            while(i < hUpTo) {
+                consumer.accept(i++);
+            }
+            if(hLast > 0) {
+                // Last element of closed range
+                consumer.accept(i);
+            }
+        }
+        
+        @Override
+        public long estimateSize() {
+            // Ensure ranges of size > Integer.MAX_VALUE report the correct size
+            return ((long) upTo) - from + last;
+        }
+        
+        @Override
+        public int characteristics() {
+            return Spliterator.ORDERED | Spliterator.SIZED | Spliterator.SUBSIZED | Spliterator.IMMUTABLE | Spliterator.NONNULL | Spliterator.DISTINCT | Spliterator.SORTED;
+        }
+        
+        @Override
+        public Comparator<? super Integer> getComparator() {
+            return null;
+        }
+        
+        @Override
+        public Spliterator.OfInt trySplit() {
+            long size = estimateSize();
+            return size <= 1 ? null
+                // Left split always has a half-open range
+                : new RangeIntSpliterator(from, from = from + splitPoint(size), 0);
+        }
+        
         private int splitPoint(long size) {
             int d = (size < BALANCED_SPLIT_THRESHOLD) ? 2 : RIGHT_BALANCED_SPLIT_RATIO;
             // Cast to int is safe since:
@@ -168,97 +750,21 @@ final class Streams {
             return (int) (size / d);
         }
     }
-
+    
+    /*▲ 专用Spliterator，参见IntStream#range ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 专用Spliterator，参见LongStream#range ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * A {@code long} range spliterator.
      *
      * This implementation cannot be used for ranges whose size is greater
      * than Long.MAX_VALUE
      */
-    static final class RangeLongSpliterator implements Spliterator.OfLong {
-        // Can never be greater that upTo, this avoids overflow if upper bound
-        // is Long.MAX_VALUE
-        // All elements are traversed if from == upTo & last == 0
-        private long from;
-        private final long upTo;
-        // 1 if the range is closed and the last element has not been traversed
-        // Otherwise, 0 if the range is open, or is a closed range and all
-        // elements have been traversed
-        private int last;
-
-        RangeLongSpliterator(long from, long upTo, boolean closed) {
-            this(from, upTo, closed ? 1 : 0);
-        }
-
-        private RangeLongSpliterator(long from, long upTo, int last) {
-            assert upTo - from + last > 0;
-            this.from = from;
-            this.upTo = upTo;
-            this.last = last;
-        }
-
-        @Override
-        public boolean tryAdvance(LongConsumer consumer) {
-            Objects.requireNonNull(consumer);
-
-            final long i = from;
-            if (i < upTo) {
-                from++;
-                consumer.accept(i);
-                return true;
-            }
-            else if (last > 0) {
-                last = 0;
-                consumer.accept(i);
-                return true;
-            }
-            return false;
-        }
-
-        @Override
-        public void forEachRemaining(LongConsumer consumer) {
-            Objects.requireNonNull(consumer);
-
-            long i = from;
-            final long hUpTo = upTo;
-            int hLast = last;
-            from = upTo;
-            last = 0;
-            while (i < hUpTo) {
-                consumer.accept(i++);
-            }
-            if (hLast > 0) {
-                // Last element of closed range
-                consumer.accept(i);
-            }
-        }
-
-        @Override
-        public long estimateSize() {
-            return upTo - from + last;
-        }
-
-        @Override
-        public int characteristics() {
-            return Spliterator.ORDERED | Spliterator.SIZED | Spliterator.SUBSIZED |
-                   Spliterator.IMMUTABLE | Spliterator.NONNULL |
-                   Spliterator.DISTINCT | Spliterator.SORTED;
-        }
-
-        @Override
-        public Comparator<? super Long> getComparator() {
-            return null;
-        }
-
-        @Override
-        public Spliterator.OfLong trySplit() {
-            long size = estimateSize();
-            return size <= 1
-                   ? null
-                   // Left split always has a half-open range
-                   : new RangeLongSpliterator(from, from = from + splitPoint(size), 0);
-        }
-
+    static final class RangeLongSpliterator
+        implements Spliterator.OfLong {
         /**
          * The spliterator size below which the spliterator will be split
          * at the mid-point to produce balanced splits. Above this size the
@@ -276,587 +782,125 @@ final class Streams {
          * number of elements to a count lower than this threshold.
          */
         private static final long BALANCED_SPLIT_THRESHOLD = 1 << 24;
-
         /**
          * The split ratio of the left and right split when the spliterator
          * size is above BALANCED_SPLIT_THRESHOLD.
          */
         private static final long RIGHT_BALANCED_SPLIT_RATIO = 1 << 3;
-
+        private final long upTo;
+        // Can never be greater that upTo, this avoids overflow if upper bound
+        // is Long.MAX_VALUE
+        // All elements are traversed if from == upTo & last == 0
+        private long from;
+        // 1 if the range is closed and the last element has not been traversed
+        // Otherwise, 0 if the range is open, or is a closed range and all
+        // elements have been traversed
+        private int last;
+        
+        RangeLongSpliterator(long from, long upTo, boolean closed) {
+            this(from, upTo, closed ? 1 : 0);
+        }
+        
+        private RangeLongSpliterator(long from, long upTo, int last) {
+            assert upTo - from + last > 0;
+            this.from = from;
+            this.upTo = upTo;
+            this.last = last;
+        }
+        
+        @Override
+        public boolean tryAdvance(LongConsumer consumer) {
+            Objects.requireNonNull(consumer);
+            
+            final long i = from;
+            if(i < upTo) {
+                from++;
+                consumer.accept(i);
+                return true;
+            } else if(last > 0) {
+                last = 0;
+                consumer.accept(i);
+                return true;
+            }
+            return false;
+        }
+        
+        @Override
+        public void forEachRemaining(LongConsumer consumer) {
+            Objects.requireNonNull(consumer);
+            
+            long i = from;
+            final long hUpTo = upTo;
+            int hLast = last;
+            from = upTo;
+            last = 0;
+            while(i < hUpTo) {
+                consumer.accept(i++);
+            }
+            if(hLast > 0) {
+                // Last element of closed range
+                consumer.accept(i);
+            }
+        }
+        
+        @Override
+        public long estimateSize() {
+            return upTo - from + last;
+        }
+        
+        @Override
+        public int characteristics() {
+            return Spliterator.ORDERED | Spliterator.SIZED | Spliterator.SUBSIZED | Spliterator.IMMUTABLE | Spliterator.NONNULL | Spliterator.DISTINCT | Spliterator.SORTED;
+        }
+        
+        @Override
+        public Comparator<? super Long> getComparator() {
+            return null;
+        }
+        
+        @Override
+        public Spliterator.OfLong trySplit() {
+            long size = estimateSize();
+            return size <= 1 ? null
+                // Left split always has a half-open range
+                : new RangeLongSpliterator(from, from = from + splitPoint(size), 0);
+        }
+        
         private long splitPoint(long size) {
             long d = (size < BALANCED_SPLIT_THRESHOLD) ? 2 : RIGHT_BALANCED_SPLIT_RATIO;
             // 2 <= size <= Long.MAX_VALUE
             return size / d;
         }
     }
-
-    private abstract static class AbstractStreamBuilderImpl<T, S extends Spliterator<T>> implements Spliterator<T> {
-        // >= 0 when building, < 0 when built
-        // -1 == no elements
-        // -2 == one element, held by first
-        // -3 == two or more elements, held by buffer
-        int count;
-
-        // Spliterator implementation for 0 or 1 element
-        // count == -1 for no elements
-        // count == -2 for one element held by first
-
-        @Override
-        public S trySplit() {
-            return null;
-        }
-
-        @Override
-        public long estimateSize() {
-            return -count - 1;
-        }
-
-        @Override
-        public int characteristics() {
-            return Spliterator.SIZED | Spliterator.SUBSIZED |
-                   Spliterator.ORDERED | Spliterator.IMMUTABLE;
-        }
-    }
-
-    static final class StreamBuilderImpl<T>
-            extends AbstractStreamBuilderImpl<T, Spliterator<T>>
-            implements Stream.Builder<T> {
-        // The first element in the stream
-        // valid if count == 1
-        T first;
-
-        // The first and subsequent elements in the stream
-        // non-null if count == 2
-        SpinedBuffer<T> buffer;
-
-        /**
-         * Constructor for building a stream of 0 or more elements.
-         */
-        StreamBuilderImpl() { }
-
-        /**
-         * Constructor for a singleton stream.
-         *
-         * @param t the single element
-         */
-        StreamBuilderImpl(T t) {
-            first = t;
-            count = -2;
-        }
-
-        // StreamBuilder implementation
-
-        @Override
-        public void accept(T t) {
-            if (count == 0) {
-                first = t;
-                count++;
-            }
-            else if (count > 0) {
-                if (buffer == null) {
-                    buffer = new SpinedBuffer<>();
-                    buffer.accept(first);
-                    count++;
-                }
-
-                buffer.accept(t);
-            }
-            else {
-                throw new IllegalStateException();
-            }
-        }
-
-        public Stream.Builder<T> add(T t) {
-            accept(t);
-            return this;
-        }
-
-        @Override
-        public Stream<T> build() {
-            int c = count;
-            if (c >= 0) {
-                // Switch count to negative value signalling the builder is built
-                count = -count - 1;
-                // Use this spliterator if 0 or 1 elements, otherwise use
-                // the spliterator of the spined buffer
-                return (c < 2) ? StreamSupport.stream(this, false) : StreamSupport.stream(buffer.spliterator(), false);
-            }
-
-            throw new IllegalStateException();
-        }
-
-        // Spliterator implementation for 0 or 1 element
-        // count == -1 for no elements
-        // count == -2 for one element held by first
-
-        @Override
-        public boolean tryAdvance(Consumer<? super T> action) {
-            Objects.requireNonNull(action);
-
-            if (count == -2) {
-                action.accept(first);
-                count = -1;
-                return true;
-            }
-            else {
-                return false;
-            }
-        }
-
-        @Override
-        public void forEachRemaining(Consumer<? super T> action) {
-            Objects.requireNonNull(action);
-
-            if (count == -2) {
-                action.accept(first);
-                count = -1;
-            }
-        }
-    }
-
-    static final class IntStreamBuilderImpl
-            extends AbstractStreamBuilderImpl<Integer, Spliterator.OfInt>
-            implements IntStream.Builder, Spliterator.OfInt {
-        // The first element in the stream
-        // valid if count == 1
-        int first;
-
-        // The first and subsequent elements in the stream
-        // non-null if count == 2
-        SpinedBuffer.OfInt buffer;
-
-        /**
-         * Constructor for building a stream of 0 or more elements.
-         */
-        IntStreamBuilderImpl() { }
-
-        /**
-         * Constructor for a singleton stream.
-         *
-         * @param t the single element
-         */
-        IntStreamBuilderImpl(int t) {
-            first = t;
-            count = -2;
-        }
-
-        // StreamBuilder implementation
-
-        @Override
-        public void accept(int t) {
-            if (count == 0) {
-                first = t;
-                count++;
-            }
-            else if (count > 0) {
-                if (buffer == null) {
-                    buffer = new SpinedBuffer.OfInt();
-                    buffer.accept(first);
-                    count++;
-                }
-
-                buffer.accept(t);
-            }
-            else {
-                throw new IllegalStateException();
-            }
-        }
-
-        @Override
-        public IntStream build() {
-            int c = count;
-            if (c >= 0) {
-                // Switch count to negative value signalling the builder is built
-                count = -count - 1;
-                // Use this spliterator if 0 or 1 elements, otherwise use
-                // the spliterator of the spined buffer
-                return (c < 2) ? StreamSupport.intStream(this, false) : StreamSupport.intStream(buffer.spliterator(), false);
-            }
-
-            throw new IllegalStateException();
-        }
-
-        // Spliterator implementation for 0 or 1 element
-        // count == -1 for no elements
-        // count == -2 for one element held by first
-
-        @Override
-        public boolean tryAdvance(IntConsumer action) {
-            Objects.requireNonNull(action);
-
-            if (count == -2) {
-                action.accept(first);
-                count = -1;
-                return true;
-            }
-            else {
-                return false;
-            }
-        }
-
-        @Override
-        public void forEachRemaining(IntConsumer action) {
-            Objects.requireNonNull(action);
-
-            if (count == -2) {
-                action.accept(first);
-                count = -1;
-            }
-        }
-    }
-
-    static final class LongStreamBuilderImpl
-            extends AbstractStreamBuilderImpl<Long, Spliterator.OfLong>
-            implements LongStream.Builder, Spliterator.OfLong {
-        // The first element in the stream
-        // valid if count == 1
-        long first;
-
-        // The first and subsequent elements in the stream
-        // non-null if count == 2
-        SpinedBuffer.OfLong buffer;
-
-        /**
-         * Constructor for building a stream of 0 or more elements.
-         */
-        LongStreamBuilderImpl() { }
-
-        /**
-         * Constructor for a singleton stream.
-         *
-         * @param t the single element
-         */
-        LongStreamBuilderImpl(long t) {
-            first = t;
-            count = -2;
-        }
-
-        // StreamBuilder implementation
-
-        @Override
-        public void accept(long t) {
-            if (count == 0) {
-                first = t;
-                count++;
-            }
-            else if (count > 0) {
-                if (buffer == null) {
-                    buffer = new SpinedBuffer.OfLong();
-                    buffer.accept(first);
-                    count++;
-                }
-
-                buffer.accept(t);
-            }
-            else {
-                throw new IllegalStateException();
-            }
-        }
-
-        @Override
-        public LongStream build() {
-            int c = count;
-            if (c >= 0) {
-                // Switch count to negative value signalling the builder is built
-                count = -count - 1;
-                // Use this spliterator if 0 or 1 elements, otherwise use
-                // the spliterator of the spined buffer
-                return (c < 2) ? StreamSupport.longStream(this, false) : StreamSupport.longStream(buffer.spliterator(), false);
-            }
-
-            throw new IllegalStateException();
-        }
-
-        // Spliterator implementation for 0 or 1 element
-        // count == -1 for no elements
-        // count == -2 for one element held by first
-
-        @Override
-        public boolean tryAdvance(LongConsumer action) {
-            Objects.requireNonNull(action);
-
-            if (count == -2) {
-                action.accept(first);
-                count = -1;
-                return true;
-            }
-            else {
-                return false;
-            }
-        }
-
-        @Override
-        public void forEachRemaining(LongConsumer action) {
-            Objects.requireNonNull(action);
-
-            if (count == -2) {
-                action.accept(first);
-                count = -1;
-            }
-        }
-    }
-
-    static final class DoubleStreamBuilderImpl
-            extends AbstractStreamBuilderImpl<Double, Spliterator.OfDouble>
-            implements DoubleStream.Builder, Spliterator.OfDouble {
-        // The first element in the stream
-        // valid if count == 1
-        double first;
-
-        // The first and subsequent elements in the stream
-        // non-null if count == 2
-        SpinedBuffer.OfDouble buffer;
-
-        /**
-         * Constructor for building a stream of 0 or more elements.
-         */
-        DoubleStreamBuilderImpl() { }
-
-        /**
-         * Constructor for a singleton stream.
-         *
-         * @param t the single element
-         */
-        DoubleStreamBuilderImpl(double t) {
-            first = t;
-            count = -2;
-        }
-
-        // StreamBuilder implementation
-
-        @Override
-        public void accept(double t) {
-            if (count == 0) {
-                first = t;
-                count++;
-            }
-            else if (count > 0) {
-                if (buffer == null) {
-                    buffer = new SpinedBuffer.OfDouble();
-                    buffer.accept(first);
-                    count++;
-                }
-
-                buffer.accept(t);
-            }
-            else {
-                throw new IllegalStateException();
-            }
-        }
-
-        @Override
-        public DoubleStream build() {
-            int c = count;
-            if (c >= 0) {
-                // Switch count to negative value signalling the builder is built
-                count = -count - 1;
-                // Use this spliterator if 0 or 1 elements, otherwise use
-                // the spliterator of the spined buffer
-                return (c < 2) ? StreamSupport.doubleStream(this, false) : StreamSupport.doubleStream(buffer.spliterator(), false);
-            }
-
-            throw new IllegalStateException();
-        }
-
-        // Spliterator implementation for 0 or 1 element
-        // count == -1 for no elements
-        // count == -2 for one element held by first
-
-        @Override
-        public boolean tryAdvance(DoubleConsumer action) {
-            Objects.requireNonNull(action);
-
-            if (count == -2) {
-                action.accept(first);
-                count = -1;
-                return true;
-            }
-            else {
-                return false;
-            }
-        }
-
-        @Override
-        public void forEachRemaining(DoubleConsumer action) {
-            Objects.requireNonNull(action);
-
-            if (count == -2) {
-                action.accept(first);
-                count = -1;
-            }
-        }
-    }
-
-    abstract static class ConcatSpliterator<T, T_SPLITR extends Spliterator<T>>
-            implements Spliterator<T> {
-        protected final T_SPLITR aSpliterator;
-        protected final T_SPLITR bSpliterator;
-        // True when no split has occurred, otherwise false
-        boolean beforeSplit;
-        // Never read after splitting
-        final boolean unsized;
-
-        public ConcatSpliterator(T_SPLITR aSpliterator, T_SPLITR bSpliterator) {
-            this.aSpliterator = aSpliterator;
-            this.bSpliterator = bSpliterator;
-            beforeSplit = true;
-            // The spliterator is known to be unsized before splitting if the
-            // sum of the estimates overflows.
-            unsized = aSpliterator.estimateSize() + bSpliterator.estimateSize() < 0;
-        }
-
-        @Override
-        public T_SPLITR trySplit() {
-            @SuppressWarnings("unchecked")
-            T_SPLITR ret = beforeSplit ? aSpliterator : (T_SPLITR) bSpliterator.trySplit();
-            beforeSplit = false;
-            return ret;
-        }
-
-        @Override
-        public boolean tryAdvance(Consumer<? super T> consumer) {
-            boolean hasNext;
-            if (beforeSplit) {
-                hasNext = aSpliterator.tryAdvance(consumer);
-                if (!hasNext) {
-                    beforeSplit = false;
-                    hasNext = bSpliterator.tryAdvance(consumer);
-                }
-            }
-            else
-                hasNext = bSpliterator.tryAdvance(consumer);
-            return hasNext;
-        }
-
-        @Override
-        public void forEachRemaining(Consumer<? super T> consumer) {
-            if (beforeSplit)
-                aSpliterator.forEachRemaining(consumer);
-            bSpliterator.forEachRemaining(consumer);
-        }
-
-        @Override
-        public long estimateSize() {
-            if (beforeSplit) {
-                // If one or both estimates are Long.MAX_VALUE then the sum
-                // will either be Long.MAX_VALUE or overflow to a negative value
-                long size = aSpliterator.estimateSize() + bSpliterator.estimateSize();
-                return (size >= 0) ? size : Long.MAX_VALUE;
-            }
-            else {
-                return bSpliterator.estimateSize();
-            }
-        }
-
-        @Override
-        public int characteristics() {
-            if (beforeSplit) {
-                // Concatenation loses DISTINCT and SORTED characteristics
-                return aSpliterator.characteristics() & bSpliterator.characteristics()
-                       & ~(Spliterator.DISTINCT | Spliterator.SORTED
-                           | (unsized ? Spliterator.SIZED | Spliterator.SUBSIZED : 0));
-            }
-            else {
-                return bSpliterator.characteristics();
-            }
-        }
-
-        @Override
-        public Comparator<? super T> getComparator() {
-            if (beforeSplit)
-                throw new IllegalStateException();
-            return bSpliterator.getComparator();
-        }
-
-        static class OfRef<T> extends ConcatSpliterator<T, Spliterator<T>> {
-            OfRef(Spliterator<T> aSpliterator, Spliterator<T> bSpliterator) {
-                super(aSpliterator, bSpliterator);
-            }
-        }
-
-        private abstract static class OfPrimitive<T, T_CONS, T_SPLITR extends Spliterator.OfPrimitive<T, T_CONS, T_SPLITR>>
-                extends ConcatSpliterator<T, T_SPLITR>
-                implements Spliterator.OfPrimitive<T, T_CONS, T_SPLITR> {
-            private OfPrimitive(T_SPLITR aSpliterator, T_SPLITR bSpliterator) {
-                super(aSpliterator, bSpliterator);
-            }
-
-            @Override
-            public boolean tryAdvance(T_CONS action) {
-                boolean hasNext;
-                if (beforeSplit) {
-                    hasNext = aSpliterator.tryAdvance(action);
-                    if (!hasNext) {
-                        beforeSplit = false;
-                        hasNext = bSpliterator.tryAdvance(action);
-                    }
-                }
-                else
-                    hasNext = bSpliterator.tryAdvance(action);
-                return hasNext;
-            }
-
-            @Override
-            public void forEachRemaining(T_CONS action) {
-                if (beforeSplit)
-                    aSpliterator.forEachRemaining(action);
-                bSpliterator.forEachRemaining(action);
-            }
-        }
-
-        static class OfInt
-                extends ConcatSpliterator.OfPrimitive<Integer, IntConsumer, Spliterator.OfInt>
-                implements Spliterator.OfInt {
-            OfInt(Spliterator.OfInt aSpliterator, Spliterator.OfInt bSpliterator) {
-                super(aSpliterator, bSpliterator);
-            }
-        }
-
-        static class OfLong
-                extends ConcatSpliterator.OfPrimitive<Long, LongConsumer, Spliterator.OfLong>
-                implements Spliterator.OfLong {
-            OfLong(Spliterator.OfLong aSpliterator, Spliterator.OfLong bSpliterator) {
-                super(aSpliterator, bSpliterator);
-            }
-        }
-
-        static class OfDouble
-                extends ConcatSpliterator.OfPrimitive<Double, DoubleConsumer, Spliterator.OfDouble>
-                implements Spliterator.OfDouble {
-            OfDouble(Spliterator.OfDouble aSpliterator, Spliterator.OfDouble bSpliterator) {
-                super(aSpliterator, bSpliterator);
-            }
-        }
-    }
-
+    
+    /*▲ 专用Spliterator，参见LongStream#range ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
     /**
      * Given two Runnables, return a Runnable that executes both in sequence,
      * even if the first throws an exception, and if both throw exceptions, add
      * any exceptions thrown by the second as suppressed exceptions of the first.
      */
     static Runnable composeWithExceptions(Runnable a, Runnable b) {
-        return new Runnable() {
-            @Override
-            public void run() {
+        return () -> {
+            try {
+                a.run();
+            } catch(Throwable e1) {
                 try {
-                    a.run();
-                }
-                catch (Throwable e1) {
+                    b.run();
+                } catch(Throwable e2) {
                     try {
-                        b.run();
+                        e1.addSuppressed(e2);
+                    } catch(Throwable ignore) {
                     }
-                    catch (Throwable e2) {
-                        try {
-                            e1.addSuppressed(e2);
-                        } catch (Throwable ignore) {}
-                    }
-                    throw e1;
                 }
-                b.run();
+                throw e1;
             }
+            b.run();
         };
     }
-
+    
     /**
      * Given two streams, return a Runnable that
      * executes both of their {@link BaseStream#close} methods in sequence,
@@ -864,25 +908,22 @@ final class Streams {
      * any exceptions thrown by the second as suppressed exceptions of the first.
      */
     static Runnable composedClose(BaseStream<?, ?> a, BaseStream<?, ?> b) {
-        return new Runnable() {
-            @Override
-            public void run() {
+        return () -> {
+            try {
+                a.close();
+            } catch(Throwable e1) {
                 try {
-                    a.close();
-                }
-                catch (Throwable e1) {
+                    b.close();
+                } catch(Throwable e2) {
                     try {
-                        b.close();
+                        e1.addSuppressed(e2);
+                    } catch(Throwable ignore) {
                     }
-                    catch (Throwable e2) {
-                        try {
-                            e1.addSuppressed(e2);
-                        } catch (Throwable ignore) {}
-                    }
-                    throw e1;
                 }
-                b.close();
+                throw e1;
             }
+            b.close();
         };
     }
+    
 }
