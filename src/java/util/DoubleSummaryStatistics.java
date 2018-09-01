@@ -48,7 +48,7 @@ import java.util.stream.DoubleStream;
  * <pre> {@code
  * DoubleSummaryStatistics stats = people.stream()
  *     .collect(Collectors.summarizingDouble(Person::getWeight));
- *}</pre>
+ * }</pre>
  *
  * This computes, in a single pass, the count of people, as well as the minimum,
  * maximum, sum, and average of their weights.
@@ -61,21 +61,28 @@ import java.util.stream.DoubleStream;
  * safe and efficient parallel execution.
  * @since 1.8
  */
-public class DoubleSummaryStatistics implements DoubleConsumer {
-    private long count;
-    private double sum;
-    private double sumCompensation; // Low order bits of sum
-    private double simpleSum; // Used to compute right sum for non-finite inputs
-    private double min = Double.POSITIVE_INFINITY;
-    private double max = Double.NEGATIVE_INFINITY;
 
+// 对double类型的元素统计相关信息：计数、求和、均值、最小值、最大值
+public class DoubleSummaryStatistics implements DoubleConsumer {
+    private double min = Double.POSITIVE_INFINITY;  // 最小值
+    private double max = Double.NEGATIVE_INFINITY;  // 最大值
+    
+    private long count; // 计数
+    private double sum; // 求和，考虑了误差
+    
+    // Low order bits of sum
+    private double sumCompensation; // 上一次计算产生的误差
+    // Used to compute right sum for non-finite inputs
+    private double simpleSum;       // 简单求和，不考虑误差，只是累加
+    
     /**
      * Constructs an empty instance with zero count, zero sum,
      * {@code Double.POSITIVE_INFINITY} min, {@code Double.NEGATIVE_INFINITY}
      * max and zero average.
      */
-    public DoubleSummaryStatistics() { }
-
+    public DoubleSummaryStatistics() {
+    }
+    
     /**
      * Constructs a non-empty instance with the specified {@code count},
      * {@code min}, {@code max}, and {@code sum}.
@@ -86,11 +93,17 @@ public class DoubleSummaryStatistics implements DoubleConsumer {
      * <p>If the arguments are inconsistent then an {@code IllegalArgumentException}
      * is thrown.  The necessary consistent argument conditions are:
      * <ul>
-     *   <li>{@code count >= 0}</li>
-     *   <li>{@code (min <= max && !isNaN(sum)) || (isNaN(min) && isNaN(max) && isNaN(sum))}</li>
+     * <li>{@code count >= 0}</li>
+     * <li>{@code (min <= max && !isNaN(sum)) || (isNaN(min) && isNaN(max) && isNaN(sum))}</li>
      * </ul>
-     * @apiNote
-     * The enforcement of argument correctness means that the retrieved set of
+     *
+     * @param count the count of values
+     * @param min   the minimum value
+     * @param max   the maximum value
+     * @param sum   the sum of all values
+     *
+     * @throws IllegalArgumentException if the arguments are inconsistent
+     * @apiNote The enforcement of argument correctness means that the retrieved set of
      * recorded values obtained from a {@code DoubleSummaryStatistics} source
      * instance may not be a legal set of arguments for this constructor due to
      * arithmetic overflow of the source's recorded count of values.
@@ -98,27 +111,20 @@ public class DoubleSummaryStatistics implements DoubleConsumer {
      * creation of an internally inconsistent instance.  An example of such a
      * state would be an instance with: {@code count} = 2, {@code min} = 1,
      * {@code max} = 2, and {@code sum} = 0.
-     *
-     * @param count the count of values
-     * @param min the minimum value
-     * @param max the maximum value
-     * @param sum the sum of all values
-     * @throws IllegalArgumentException if the arguments are inconsistent
      * @since 10
      */
-    public DoubleSummaryStatistics(long count, double min, double max, double sum)
-            throws IllegalArgumentException {
-        if (count < 0L) {
+    public DoubleSummaryStatistics(long count, double min, double max, double sum) throws IllegalArgumentException {
+        if(count<0L) {
             throw new IllegalArgumentException("Negative count value");
-        } else if (count > 0L) {
-            if (min > max)
+        } else if(count>0L) {
+            if(min>max)
                 throw new IllegalArgumentException("Minimum greater than maximum");
-
+            
             // All NaN or non NaN
             var ncount = DoubleStream.of(min, max, sum).filter(Double::isNaN).count();
-            if (ncount > 0 && ncount < 3)
+            if(ncount>0 && ncount<3)
                 throw new IllegalArgumentException("Some, not all, of the minimum, maximum, or sum is NaN");
-
+            
             this.count = count;
             this.sum = sum;
             this.simpleSum = sum;
@@ -128,12 +134,13 @@ public class DoubleSummaryStatistics implements DoubleConsumer {
         }
         // Use default field values if count == 0
     }
-
+    
     /**
      * Records another value into the summary information.
      *
      * @param value the input value
      */
+    // 每遇到一个新的value，需要更新计数、计数、最小值、最大值的数据
     @Override
     public void accept(double value) {
         ++count;
@@ -142,14 +149,16 @@ public class DoubleSummaryStatistics implements DoubleConsumer {
         min = Math.min(min, value);
         max = Math.max(max, value);
     }
-
+    
     /**
      * Combines the state of another {@code DoubleSummaryStatistics} into this
      * one.
      *
      * @param other another {@code DoubleSummaryStatistics}
+     *
      * @throws NullPointerException if {@code other} is null
      */
+    // 合并两个数据源的统计信息（计数与求和相加，最小值取最小的，最大值取最大的）
     public void combine(DoubleSummaryStatistics other) {
         count += other.count;
         simpleSum += other.simpleSum;
@@ -158,27 +167,17 @@ public class DoubleSummaryStatistics implements DoubleConsumer {
         min = Math.min(min, other.min);
         max = Math.max(max, other.max);
     }
-
-    /**
-     * Incorporate a new double value using Kahan summation /
-     * compensated summation.
-     */
-    private void sumWithCompensation(double value) {
-        double tmp = value - sumCompensation;
-        double velvel = sum + tmp; // Little wolf of rounding error
-        sumCompensation = (velvel - sum) - tmp;
-        sum = velvel;
-    }
-
+    
     /**
      * Return the count of values recorded.
      *
      * @return the count of values
      */
+    // 计数
     public final long getCount() {
         return count;
     }
-
+    
     /**
      * Returns the sum of values recorded, or zero if no values have been
      * recorded.
@@ -232,24 +231,27 @@ public class DoubleSummaryStatistics implements DoubleConsumer {
      * If all the recorded values are zero, the sign of zero is
      * <em>not</em> guaranteed to be preserved in the final sum.
      *
+     * @return the sum of values, or zero if none
+     *
      * @apiNote Values sorted by increasing absolute magnitude tend to yield
      * more accurate results.
-     *
-     * @return the sum of values, or zero if none
      */
+    // 求和
     public final double getSum() {
         // Better error bounds to add both terms as the final sum
-        double tmp =  sum + sumCompensation;
-        if (Double.isNaN(tmp) && Double.isInfinite(simpleSum))
-            // If the compensated sum is spuriously NaN from
-            // accumulating one or more same-signed infinite values,
-            // return the correctly-signed infinity stored in
-            // simpleSum.
+        double tmp = sum + sumCompensation; // 比较精确的值
+        
+        if(Double.isNaN(tmp) && Double.isInfinite(simpleSum)) {
+            /*
+             * If the compensated sum is spuriously NaN from accumulating one or more same-signed infinite values,
+             * return the correctly-signed infinity stored in simpleSum.
+             */
             return simpleSum;
-        else
+        } else {
             return tmp;
+        }
     }
-
+    
     /**
      * Returns the minimum recorded value, {@code Double.NaN} if any recorded
      * value was NaN or {@code Double.POSITIVE_INFINITY} if no values were
@@ -260,10 +262,11 @@ public class DoubleSummaryStatistics implements DoubleConsumer {
      * value was NaN or {@code Double.POSITIVE_INFINITY} if no values were
      * recorded
      */
+    // 最小值
     public final double getMin() {
         return min;
     }
-
+    
     /**
      * Returns the maximum recorded value, {@code Double.NaN} if any recorded
      * value was NaN or {@code Double.NEGATIVE_INFINITY} if no values were
@@ -274,10 +277,11 @@ public class DoubleSummaryStatistics implements DoubleConsumer {
      * value was NaN or {@code Double.NEGATIVE_INFINITY} if no values were
      * recorded
      */
+    // 最大值
     public final double getMax() {
         return max;
     }
-
+    
     /**
      * Returns the arithmetic mean of values recorded, or zero if no
      * values have been recorded.
@@ -286,15 +290,16 @@ public class DoubleSummaryStatistics implements DoubleConsumer {
      * special case behavior as computing the sum; see {@link #getSum}
      * for details.
      *
+     * @return the arithmetic mean of values, or zero if none
+     *
      * @apiNote Values sorted by increasing absolute magnitude tend to yield
      * more accurate results.
-     *
-     * @return the arithmetic mean of values, or zero if none
      */
+    // 最后计算平均值
     public final double getAverage() {
-        return getCount() > 0 ? getSum() / getCount() : 0.0d;
+        return getCount()>0 ? getSum() / getCount() : 0.0d;
     }
-
+    
     /**
      * Returns a non-empty string representation of this object suitable for
      * debugging. The exact presentation format is unspecified and may vary
@@ -302,13 +307,19 @@ public class DoubleSummaryStatistics implements DoubleConsumer {
      */
     @Override
     public String toString() {
-        return String.format(
-            "%s{count=%d, sum=%f, min=%f, average=%f, max=%f}",
-            this.getClass().getSimpleName(),
-            getCount(),
-            getSum(),
-            getMin(),
-            getAverage(),
-            getMax());
+        return String.format("%s{count=%d, sum=%f, min=%f, average=%f, max=%f}", this.getClass().getSimpleName(), getCount(), getSum(), getMin(), getAverage(), getMax());
+    }
+    
+    /**
+     * Incorporate a new double value using Kahan summation /
+     * compensated summation.
+     */
+    // Kahan求和精度补偿算法，弥补浮点运算中的精度损失
+    private void sumWithCompensation(double value) {
+        double tmp = value - sumCompensation;   // 当前的值补上上一次的误差
+        // Little wolf of rounding error
+        double velvel = sum + tmp;  // 本次的求和结果，已补上上次的误差
+        sumCompensation = (velvel - sum) - tmp; // 本次运算产生的新误差
+        sum = velvel;   // 记下本次的求和结果
     }
 }
