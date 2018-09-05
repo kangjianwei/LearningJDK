@@ -25,70 +25,74 @@
 
 package java.nio;
 
-import java.util.Comparator;
 import java.util.Spliterator;
 import java.util.function.IntConsumer;
 
 /**
- * A Spliterator.OfInt for sources that traverse and split elements
- * maintained in a CharBuffer.
+ * A Spliterator.OfInt for sources that traverse and split elements maintained in a CharBuffer.
  *
- * @implNote
- * The implementation is based on the code for the Array-based spliterators.
+ * @implNote The implementation is based on the code for the Array-based spliterators.
  */
-class CharBufferSpliterator implements Spliterator.OfInt {
-    private final CharBuffer buffer;
-    private int index;   // current index, modified on advance/split
-    private final int limit;
 
+// 专用Spliterator，应用于字符序列的流中
+class CharBufferSpliterator implements Spliterator.OfInt {
+    private final CharBuffer buffer;    // 字符缓冲区
+    private final int limit;
+    private int index;                  // 当前元素索引，会被advance/split改变
+    
     CharBufferSpliterator(CharBuffer buffer) {
         this(buffer, buffer.position(), buffer.limit());
     }
-
+    
     CharBufferSpliterator(CharBuffer buffer, int origin, int limit) {
-        assert origin <= limit;
+        assert origin<=limit;
         this.buffer = buffer;
-        this.index = (origin <= limit) ? origin : limit;
+        this.index = (origin<=limit) ? origin : limit;
         this.limit = limit;
     }
-
+    
+    // 采用折半分割
     @Override
     public OfInt trySplit() {
         int lo = index, mid = (lo + limit) >>> 1;
         return (lo >= mid)
-               ? null
-               : new CharBufferSpliterator(buffer, lo, index = mid);
+            ? null
+            : new CharBufferSpliterator(buffer, lo, index = mid);
     }
-
+    
+    // 遍历元素，执行择取操作
     @Override
     public void forEachRemaining(IntConsumer action) {
-        if (action == null)
+        if(action == null)
             throw new NullPointerException();
         CharBuffer cb = buffer;
         int i = index;
         int hi = limit;
         index = hi;
-        while (i < hi) {
+        while(i<hi) {
             action.accept(cb.getUnchecked(i++));
         }
     }
-
+    
+    // 对当前元素执行择取操作
     @Override
     public boolean tryAdvance(IntConsumer action) {
-        if (action == null)
+        if(action == null)
             throw new NullPointerException();
-        if (index >= 0 && index < limit) {
+        if(index >= 0 && index<limit) {
             action.accept(buffer.getUnchecked(index++));
             return true;
         }
         return false;
     }
-
+    
+    // 返回元素数量
     @Override
     public long estimateSize() {
-        return (long)(limit - index);
+        return (long) (limit - index);
     }
-
+    
+    // 返回该Buffer的特征值
     @Override
     public int characteristics() {
         return Buffer.SPLITERATOR_CHARACTERISTICS;
