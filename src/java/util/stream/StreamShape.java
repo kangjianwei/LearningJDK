@@ -32,8 +32,7 @@ package java.util.stream;
  * specializations of value-handling abstractions such as {@code Spliterator},
  * {@code Consumer}, etc.
  *
- * @apiNote
- * This enum is used by implementations to determine compatibility between
+ * @apiNote This enum is used by implementations to determine compatibility between
  * streams and operations (i.e., if the output shape of a stream is compatible
  * with the input shape of the next operation).
  *
@@ -43,9 +42,10 @@ package java.util.stream;
  * input shape.  When representing primitive streams in this way, the
  * generic type parameter should correspond to the wrapper type for that
  * primitive type.
- *
  * @since 1.8
  */
+
+// 描述流的形状（存储的元素类型）：引用类型、int类型、long类型、double类型
 enum StreamShape {
     /**
      * The shape specialization corresponding to {@code Stream} and elements

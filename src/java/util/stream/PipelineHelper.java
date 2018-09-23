@@ -52,15 +52,18 @@ import java.util.function.IntFunction;
  * @param <P_OUT> type of output elements from the pipeline
  * @since 1.8
  */
-abstract class PipelineHelper<P_OUT> {
 
+// 定义了一组接口方法，这些方法用来串接流的各个阶段，并完成数据择取
+abstract class PipelineHelper<P_OUT> {
+    
     /**
      * Gets the stream shape for the source of the pipeline segment.
      *
      * @return the stream shape for the source of the pipeline segment.
      */
+    // 获取流的源头阶段的形状
     abstract StreamShape getSourceShape();
-
+    
     /**
      * Gets the combined stream and operation flags for the output of the described
      * pipeline.  This will incorporate stream flags from the stream source, all
@@ -69,8 +72,9 @@ abstract class PipelineHelper<P_OUT> {
      * @return the combined stream and operation flags
      * @see StreamOpFlag
      */
+    // 返回流的组合操作标志
     abstract int getStreamAndOpFlags();
-
+    
     /**
      * Returns the exact output size of the portion of the output resulting from
      * applying the pipeline stages described by this {@code PipelineHelper} to
@@ -88,8 +92,9 @@ abstract class PipelineHelper<P_OUT> {
      *        source data
      * @return the exact size if known, or -1 if infinite or unknown
      */
+    // 返回输出的元素数量，如果未知或无穷，则返回-1
     abstract<P_IN> long exactOutputSizeIfKnown(Spliterator<P_IN> spliterator);
-
+    
     /**
      * Applies the pipeline stages described by this {@code PipelineHelper} to
      * the provided {@code Spliterator} and send the results to the provided
@@ -104,8 +109,24 @@ abstract class PipelineHelper<P_OUT> {
      * @param sink the {@code Sink} to receive the results
      * @param spliterator the spliterator describing the source input to process
      */
+    // 从后往前包装sink的同时，从前到后择取数据
     abstract<P_IN, S extends Sink<P_OUT>> S wrapAndCopyInto(S sink, Spliterator<P_IN> spliterator);
-
+    
+    /**
+     * Takes a {@code Sink} that accepts elements of the output type of the
+     * {@code PipelineHelper}, and wrap it with a {@code Sink} that accepts
+     * elements of the input type and implements all the intermediate operations
+     * described by this {@code PipelineHelper}, delivering the result into the
+     * provided {@code Sink}.
+     *
+     * @param sink the {@code Sink} to receive the results
+     *
+     * @return a {@code Sink} that implements the pipeline stages and sends
+     * results to the provided {@code Sink}
+     */
+    // 从终端的Sink开始，逐段向前包装Sink形成一个单链表，然后将最靠前的sink返回
+    abstract <P_IN> Sink<P_IN> wrapSink(Sink<P_OUT> sink);
+    
     /**
      * Pushes elements obtained from the {@code Spliterator} into the provided
      * {@code Sink}.  If the stream pipeline is known to have short-circuiting
@@ -121,8 +142,9 @@ abstract class PipelineHelper<P_OUT> {
      * @param wrappedSink the destination {@code Sink}
      * @param spliterator the source {@code Spliterator}
      */
+    // 从HEAD阶段之后开始择取数据
     abstract<P_IN> void copyInto(Sink<P_IN> wrappedSink, Spliterator<P_IN> spliterator);
-
+    
     /**
      * Pushes elements obtained from the {@code Spliterator} into the provided
      * {@code Sink}, checking {@link Sink#cancellationRequested()} after each
@@ -138,50 +160,39 @@ abstract class PipelineHelper<P_OUT> {
      * @param spliterator the source {@code Spliterator}
      * @return true if the cancellation was requested
      */
+    // 从HEAD阶段之后开始择取数据，存在短路操作（即满足某种条件就终止择取）
     abstract <P_IN> boolean copyIntoWithCancel(Sink<P_IN> wrappedSink, Spliterator<P_IN> spliterator);
-
-    /**
-     * Takes a {@code Sink} that accepts elements of the output type of the
-     * {@code PipelineHelper}, and wrap it with a {@code Sink} that accepts
-     * elements of the input type and implements all the intermediate operations
-     * described by this {@code PipelineHelper}, delivering the result into the
-     * provided {@code Sink}.
-     *
-     * @param sink the {@code Sink} to receive the results
-     * @return a {@code Sink} that implements the pipeline stages and sends
-     *         results to the provided {@code Sink}
-     */
-    abstract<P_IN> Sink<P_IN> wrapSink(Sink<P_OUT> sink);
-
-    /**
-     *
-     * @param spliterator
-     * @param <P_IN>
-     * @return
-     */
-    abstract<P_IN> Spliterator<P_OUT> wrapSpliterator(Spliterator<P_IN> spliterator);
-
+    
     /**
      * Constructs a @{link Node.Builder} compatible with the output shape of
      * this {@code PipelineHelper}.
      *
      * @param exactSizeIfKnown if >=0 then a builder will be created that has a
-     *        fixed capacity of exactly sizeIfKnown elements; if < 0 then the
-     *        builder has variable capacity.  A fixed capacity builder will fail
-     *        if an element is added after the builder has reached capacity.
-     * @param generator a factory function for array instances
+     *                         fixed capacity of exactly sizeIfKnown elements; if < 0 then the
+     *                         builder has variable capacity.  A fixed capacity builder will fail
+     *                         if an element is added after the builder has reached capacity.
+     * @param generator        a factory function for array instances
+     *
      * @return a {@code Node.Builder} compatible with the output shape of this
-     *         {@code PipelineHelper}
+     * {@code PipelineHelper}
      */
-    abstract Node.Builder<P_OUT> makeNodeBuilder(long exactSizeIfKnown,
-                                                 IntFunction<P_OUT[]> generator);
-
+    // 返回第(3)、(4)类Node（固定长度Node和可变长度Node）
+    abstract Node.Builder<P_OUT> makeNodeBuilder(long exactSizeIfKnown, IntFunction<P_OUT[]> generator);
+    
     /**
      * Collects all output elements resulting from applying the pipeline stages
      * to the source {@code Spliterator} into a {@code Node}.
      *
-     * @implNote
-     * If the pipeline has no intermediate operations and the source is backed
+     * @param spliterator the source {@code Spliterator}
+     * @param flatten     if true and the pipeline is a parallel pipeline then the
+     *                    {@code Node} returned will contain no children, otherwise the
+     *                    {@code Node} may represent the root in a tree that reflects the
+     *                    shape of the computation tree.
+     * @param generator   a factory function for array instances
+     *
+     * @return the {@code Node} containing all output elements
+     *
+     * @implNote If the pipeline has no intermediate operations and the source is backed
      * by a {@code Node} then that {@code Node} will be returned (or flattened
      * and then returned). This reduces copying for a pipeline consisting of a
      * stateful operation followed by a terminal operation that returns an
@@ -189,16 +200,9 @@ abstract class PipelineHelper<P_OUT> {
      * <pre>{@code
      *     stream.sorted().toArray();
      * }</pre>
-     *
-     * @param spliterator the source {@code Spliterator}
-     * @param flatten if true and the pipeline is a parallel pipeline then the
-     *        {@code Node} returned will contain no children, otherwise the
-     *        {@code Node} may represent the root in a tree that reflects the
-     *        shape of the computation tree.
-     * @param generator a factory function for array instances
-     * @return the {@code Node} containing all output elements
      */
-    abstract<P_IN> Node<P_OUT> evaluate(Spliterator<P_IN> spliterator,
-                                        boolean flatten,
-                                        IntFunction<P_OUT[]> generator);
+    // 利用Sink链中定义的操作择取数据
+    abstract <P_IN> Node<P_OUT> evaluate(Spliterator<P_IN> spliterator, boolean flatten, IntFunction<P_OUT[]> generator);
+    
+    abstract <P_IN> Spliterator<P_OUT> wrapSpliterator(Spliterator<P_IN> spliterator);
 }

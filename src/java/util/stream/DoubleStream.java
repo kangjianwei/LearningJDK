@@ -65,220 +65,232 @@ import java.util.function.Supplier;
  * specification of streams, stream operations, stream pipelines, and
  * parallelism.
  *
- * @since 1.8
  * @see Stream
  * @see <a href="package-summary.html">java.util.stream</a>
+ * @since 1.8
  */
+
+// 为double类型特化的流水线接口
 public interface DoubleStream extends BaseStream<Double, DoubleStream> {
-
+    
+    /*▼ 创建流的源头阶段 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns a stream consisting of the elements of this stream that match
-     * the given predicate.
+     * Returns a sequential ordered stream whose elements are the specified values.
      *
-     * <p>This is an <a href="package-summary.html#StreamOps">intermediate
-     * operation</a>.
+     * @param values the elements of the new stream
      *
-     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *                  <a href="package-summary.html#Statelessness">stateless</a>
-     *                  predicate to apply to each element to determine if it
-     *                  should be included
      * @return the new stream
      */
-    DoubleStream filter(DoublePredicate predicate);
-
+    // 从数组（或类似数组）中创建一个Stream
+    static DoubleStream of(double... values) {
+        return Arrays.stream(values);
+    }
+    
     /**
-     * Returns a stream consisting of the results of applying the given
-     * function to the elements of this stream.
+     * Returns an empty sequential {@code DoubleStream}.
      *
-     * <p>This is an <a href="package-summary.html#StreamOps">intermediate
-     * operation</a>.
-     *
-     * @param mapper a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *               <a href="package-summary.html#Statelessness">stateless</a>
-     *               function to apply to each element
-     * @return the new stream
+     * @return an empty sequential stream
      */
-    DoubleStream map(DoubleUnaryOperator mapper);
-
+    // 返回空的流水线，不包含任何待处理元素
+    static DoubleStream empty() {
+        return StreamSupport.doubleStream(Spliterators.emptyDoubleSpliterator(), false);
+    }
+    
     /**
-     * Returns an object-valued {@code Stream} consisting of the results of
-     * applying the given function to the elements of this stream.
+     * Returns a sequential {@code DoubleStream} containing a single element.
      *
-     * <p>This is an <a href="package-summary.html#StreamOps">
-     *     intermediate operation</a>.
+     * @param t the single element
      *
-     * @param <U> the element type of the new stream
-     * @param mapper a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *               <a href="package-summary.html#Statelessness">stateless</a>
-     *               function to apply to each element
-     * @return the new stream
+     * @return a singleton sequential stream
      */
-    <U> Stream<U> mapToObj(DoubleFunction<? extends U> mapper);
-
+    // 返回只包含一个元素的流水线。
+    static DoubleStream of(double t) {
+        return StreamSupport.doubleStream(new Streams.DoubleStreamBuilderImpl(t), false);
+    }
+    
     /**
-     * Returns an {@code IntStream} consisting of the results of applying the
-     * given function to the elements of this stream.
+     * Returns an infinite sequential ordered {@code DoubleStream} produced by iterative
+     * application of a function {@code f} to an initial element {@code seed},
+     * producing a {@code Stream} consisting of {@code seed}, {@code f(seed)},
+     * {@code f(f(seed))}, etc.
      *
-     * <p>This is an <a href="package-summary.html#StreamOps">intermediate
-     * operation</a>.
+     * <p>The first element (position {@code 0}) in the {@code DoubleStream}
+     * will be the provided {@code seed}.  For {@code n > 0}, the element at
+     * position {@code n}, will be the result of applying the function {@code f}
+     * to the element at position {@code n - 1}.
      *
-     * @param mapper a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *               <a href="package-summary.html#Statelessness">stateless</a>
-     *               function to apply to each element
-     * @return the new stream
+     * <p>The action of applying {@code f} for one element
+     * <a href="../concurrent/package-summary.html#MemoryVisibility"><i>happens-before</i></a>
+     * the action of applying {@code f} for subsequent elements.  For any given
+     * element the action may be performed in whatever thread the library
+     * chooses.
+     *
+     * @param seed the initial element
+     * @param f    a function to be applied to the previous element to produce
+     *             a new element
+     *
+     * @return a new sequential {@code DoubleStream}
      */
-    IntStream mapToInt(DoubleToIntFunction mapper);
-
+    static DoubleStream iterate(final double seed, final DoubleUnaryOperator f) {
+        Objects.requireNonNull(f);
+        Spliterator.OfDouble spliterator = new Spliterators.AbstractDoubleSpliterator(Long.MAX_VALUE, Spliterator.ORDERED | Spliterator.IMMUTABLE | Spliterator.NONNULL) {
+            double prev;
+            boolean started;
+            
+            @Override
+            public boolean tryAdvance(DoubleConsumer action) {
+                Objects.requireNonNull(action);
+                double t;
+                if(started)
+                    t = f.applyAsDouble(prev);
+                else {
+                    t = seed;
+                    started = true;
+                }
+                action.accept(prev = t);
+                return true;
+            }
+        };
+        return StreamSupport.doubleStream(spliterator, false);
+    }
+    
     /**
-     * Returns a {@code LongStream} consisting of the results of applying the
-     * given function to the elements of this stream.
+     * Returns a sequential ordered {@code DoubleStream} produced by iterative
+     * application of the given {@code next} function to an initial element,
+     * conditioned on satisfying the given {@code hasNext} predicate.  The
+     * stream terminates as soon as the {@code hasNext} predicate returns false.
      *
-     * <p>This is an <a href="package-summary.html#StreamOps">intermediate
-     * operation</a>.
-     *
-     * @param mapper a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *               <a href="package-summary.html#Statelessness">stateless</a>
-     *               function to apply to each element
-     * @return the new stream
-     */
-    LongStream mapToLong(DoubleToLongFunction mapper);
-
-    /**
-     * Returns a stream consisting of the results of replacing each element of
-     * this stream with the contents of a mapped stream produced by applying
-     * the provided mapping function to each element.  Each mapped stream is
-     * {@link java.util.stream.BaseStream#close() closed} after its contents
-     * have been placed into this stream.  (If a mapped stream is {@code null}
-     * an empty stream is used, instead.)
-     *
-     * <p>This is an <a href="package-summary.html#StreamOps">intermediate
-     * operation</a>.
-     *
-     * @param mapper a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *               <a href="package-summary.html#Statelessness">stateless</a>
-     *               function to apply to each element which produces a
-     *               {@code DoubleStream} of new values
-     * @return the new stream
-     * @see Stream#flatMap(Function)
-     */
-    DoubleStream flatMap(DoubleFunction<? extends DoubleStream> mapper);
-
-    /**
-     * Returns a stream consisting of the distinct elements of this stream. The
-     * elements are compared for equality according to
-     * {@link java.lang.Double#compare(double, double)}.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">stateful
-     * intermediate operation</a>.
-     *
-     * @return the result stream
-     */
-    DoubleStream distinct();
-
-    /**
-     * Returns a stream consisting of the elements of this stream in sorted
-     * order. The elements are compared for equality according to
-     * {@link java.lang.Double#compare(double, double)}.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">stateful
-     * intermediate operation</a>.
-     *
-     * @return the result stream
-     */
-    DoubleStream sorted();
-
-    /**
-     * Returns a stream consisting of the elements of this stream, additionally
-     * performing the provided action on each element as elements are consumed
-     * from the resulting stream.
-     *
-     * <p>This is an <a href="package-summary.html#StreamOps">intermediate
-     * operation</a>.
-     *
-     * <p>For parallel stream pipelines, the action may be called at
-     * whatever time and in whatever thread the element is made available by the
-     * upstream operation.  If the action modifies shared state,
-     * it is responsible for providing the required synchronization.
-     *
-     * @apiNote This method exists mainly to support debugging, where you want
-     * to see the elements as they flow past a certain point in a pipeline:
+     * <p>{@code DoubleStream.iterate} should produce the same sequence of elements as
+     * produced by the corresponding for-loop:
      * <pre>{@code
-     *     DoubleStream.of(1, 2, 3, 4)
-     *         .filter(e -> e > 2)
-     *         .peek(e -> System.out.println("Filtered value: " + e))
-     *         .map(e -> e * e)
-     *         .peek(e -> System.out.println("Mapped value: " + e))
-     *         .sum();
+     *     for (double index=seed; hasNext.test(index); index = next.applyAsDouble(index)) {
+     *         ...
+     *     }
      * }</pre>
      *
-     * <p>In cases where the stream implementation is able to optimize away the
-     * production of some or all the elements (such as with short-circuiting
-     * operations like {@code findFirst}, or in the example described in
-     * {@link #count}), the action will not be invoked for those elements.
+     * <p>The resulting sequence may be empty if the {@code hasNext} predicate
+     * does not hold on the seed value.  Otherwise the first element will be the
+     * supplied {@code seed} value, the next element (if present) will be the
+     * result of applying the {@code next} function to the {@code seed} value,
+     * and so on iteratively until the {@code hasNext} predicate indicates that
+     * the stream should terminate.
      *
-     * @param action a <a href="package-summary.html#NonInterference">
-     *               non-interfering</a> action to perform on the elements as
-     *               they are consumed from the stream
-     * @return the new stream
+     * <p>The action of applying the {@code hasNext} predicate to an element
+     * <a href="../concurrent/package-summary.html#MemoryVisibility"><i>happens-before</i></a>
+     * the action of applying the {@code next} function to that element.  The
+     * action of applying the {@code next} function for one element
+     * <i>happens-before</i> the action of applying the {@code hasNext}
+     * predicate for subsequent elements.  For any given element an action may
+     * be performed in whatever thread the library chooses.
+     *
+     * @param seed    the initial element
+     * @param hasNext a predicate to apply to elements to determine when the
+     *                stream must terminate.
+     * @param next    a function to be applied to the previous element to produce
+     *                a new element
+     *
+     * @return a new sequential {@code DoubleStream}
+     *
+     * @since 9
      */
-    DoubleStream peek(DoubleConsumer action);
-
+    static DoubleStream iterate(double seed, DoublePredicate hasNext, DoubleUnaryOperator next) {
+        Objects.requireNonNull(next);
+        Objects.requireNonNull(hasNext);
+        Spliterator.OfDouble spliterator = new Spliterators.AbstractDoubleSpliterator(Long.MAX_VALUE, Spliterator.ORDERED | Spliterator.IMMUTABLE | Spliterator.NONNULL) {
+            double prev;
+            boolean started, finished;
+            
+            @Override
+            public boolean tryAdvance(DoubleConsumer action) {
+                Objects.requireNonNull(action);
+                if(finished)
+                    return false;
+                double t;
+                if(started)
+                    t = next.applyAsDouble(prev);
+                else {
+                    t = seed;
+                    started = true;
+                }
+                if(!hasNext.test(t)) {
+                    finished = true;
+                    return false;
+                }
+                action.accept(prev = t);
+                return true;
+            }
+            
+            @Override
+            public void forEachRemaining(DoubleConsumer action) {
+                Objects.requireNonNull(action);
+                if(finished)
+                    return;
+                finished = true;
+                double t = started ? next.applyAsDouble(prev) : seed;
+                while(hasNext.test(t)) {
+                    action.accept(t);
+                    t = next.applyAsDouble(t);
+                }
+            }
+        };
+        return StreamSupport.doubleStream(spliterator, false);
+    }
+    
     /**
-     * Returns a stream consisting of the elements of this stream, truncated
-     * to be no longer than {@code maxSize} in length.
+     * Returns an infinite sequential unordered stream where each element is
+     * generated by the provided {@code DoubleSupplier}.  This is suitable for
+     * generating constant streams, streams of random elements, etc.
      *
-     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
-     * stateful intermediate operation</a>.
+     * @param s the {@code DoubleSupplier} for generated elements
      *
-     * @apiNote
-     * While {@code limit()} is generally a cheap operation on sequential
-     * stream pipelines, it can be quite expensive on ordered parallel pipelines,
-     * especially for large values of {@code maxSize}, since {@code limit(n)}
-     * is constrained to return not just any <em>n</em> elements, but the
-     * <em>first n</em> elements in the encounter order.  Using an unordered
-     * stream source (such as {@link #generate(DoubleSupplier)}) or removing the
-     * ordering constraint with {@link #unordered()} may result in significant
-     * speedups of {@code limit()} in parallel pipelines, if the semantics of
-     * your situation permit.  If consistency with encounter order is required,
-     * and you are experiencing poor performance or memory utilization with
-     * {@code limit()} in parallel pipelines, switching to sequential execution
-     * with {@link #sequential()} may improve performance.
-     *
-     * @param maxSize the number of elements the stream should be limited to
-     * @return the new stream
-     * @throws IllegalArgumentException if {@code maxSize} is negative
+     * @return a new infinite sequential unordered {@code DoubleStream}
      */
-    DoubleStream limit(long maxSize);
-
+    static DoubleStream generate(DoubleSupplier s) {
+        Objects.requireNonNull(s);
+        return StreamSupport.doubleStream(new StreamSpliterators.InfiniteSupplyingSpliterator.OfDouble(Long.MAX_VALUE, s), false);
+    }
+    
     /**
-     * Returns a stream consisting of the remaining elements of this stream
-     * after discarding the first {@code n} elements of the stream.
-     * If this stream contains fewer than {@code n} elements then an
-     * empty stream will be returned.
+     * Creates a lazily concatenated stream whose elements are all the
+     * elements of the first stream followed by all the elements of the
+     * second stream.  The resulting stream is ordered if both
+     * of the input streams are ordered, and parallel if either of the input
+     * streams is parallel.  When the resulting stream is closed, the close
+     * handlers for both input streams are invoked.
      *
-     * <p>This is a <a href="package-summary.html#StreamOps">stateful
-     * intermediate operation</a>.
+     * <p>This method operates on the two input streams and binds each stream
+     * to its source.  As a result subsequent modifications to an input stream
+     * source may not be reflected in the concatenated stream result.
      *
-     * @apiNote
-     * While {@code skip()} is generally a cheap operation on sequential
-     * stream pipelines, it can be quite expensive on ordered parallel pipelines,
-     * especially for large values of {@code n}, since {@code skip(n)}
-     * is constrained to skip not just any <em>n</em> elements, but the
-     * <em>first n</em> elements in the encounter order.  Using an unordered
-     * stream source (such as {@link #generate(DoubleSupplier)}) or removing the
-     * ordering constraint with {@link #unordered()} may result in significant
-     * speedups of {@code skip()} in parallel pipelines, if the semantics of
-     * your situation permit.  If consistency with encounter order is required,
-     * and you are experiencing poor performance or memory utilization with
-     * {@code skip()} in parallel pipelines, switching to sequential execution
-     * with {@link #sequential()} may improve performance.
+     * @param a the first stream
+     * @param b the second stream
      *
-     * @param n the number of leading elements to skip
-     * @return the new stream
-     * @throws IllegalArgumentException if {@code n} is negative
+     * @return the concatenation of the two input streams
+     *
+     * @implNote Use caution when constructing streams from repeated concatenation.
+     * Accessing an element of a deeply concatenated stream can result in deep
+     * call chains, or even {@code StackOverflowError}.
+     * @apiNote To preserve optimization opportunities this method binds each stream to
+     * its source and accepts only two streams as parameters.  For example, the
+     * exact size of the concatenated stream source can be computed if the exact
+     * size of each input stream source is known.
+     * To concatenate more streams without binding, or without nested calls to
+     * this method, try creating a stream of streams and flat-mapping with the
+     * identity function, for example:
+     * <pre>{@code
+     *     DoubleStream concat = Stream.of(s1, s2, s3, s4).flatMapToDouble(s -> s);
+     * }</pre>
      */
-    DoubleStream skip(long n);
-
+    static DoubleStream concat(DoubleStream a, DoubleStream b) {
+        Objects.requireNonNull(a);
+        Objects.requireNonNull(b);
+        
+        Spliterator.OfDouble split = new Streams.ConcatSpliterator.OfDouble(a.spliterator(), b.spliterator());
+        DoubleStream stream = StreamSupport.doubleStream(split, a.isParallel() || b.isParallel());
+        return stream.onClose(Streams.composedClose(a, b));
+    }
+    
     /**
      * Returns, if this stream is ordered, a stream consisting of the longest
      * prefix of elements taken from this stream that match the given predicate.
@@ -305,8 +317,14 @@ public interface DoubleStream extends BaseStream<Double, DoubleStream> {
      * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
      * stateful intermediate operation</a>.
      *
-     * @implSpec
-     * The default implementation obtains the {@link #spliterator() spliterator}
+     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *                  <a href="package-summary.html#Statelessness">stateless</a>
+     *                  predicate to apply to elements to determine the longest
+     *                  prefix of elements.
+     *
+     * @return the new stream
+     *
+     * @implSpec The default implementation obtains the {@link #spliterator() spliterator}
      * of this stream, wraps that spliterator so as to support the semantics
      * of this operation on traversal, and returns a new stream associated with
      * the wrapped spliterator.  The returned stream preserves the execution
@@ -314,9 +332,7 @@ public interface DoubleStream extends BaseStream<Double, DoubleStream> {
      * as per {@link #isParallel()}) but the wrapped spliterator may choose to
      * not support splitting.  When the returned stream is closed, the close
      * handlers for both the returned and this stream are invoked.
-     *
-     * @apiNote
-     * While {@code takeWhile()} is generally a cheap operation on sequential
+     * @apiNote While {@code takeWhile()} is generally a cheap operation on sequential
      * stream pipelines, it can be quite expensive on ordered parallel
      * pipelines, since the operation is constrained to return not just any
      * valid prefix, but the longest prefix of elements in the encounter order.
@@ -328,23 +344,15 @@ public interface DoubleStream extends BaseStream<Double, DoubleStream> {
      * you are experiencing poor performance or memory utilization with
      * {@code takeWhile()} in parallel pipelines, switching to sequential
      * execution with {@link #sequential()} may improve performance.
-     *
-     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *                  <a href="package-summary.html#Statelessness">stateless</a>
-     *                  predicate to apply to elements to determine the longest
-     *                  prefix of elements.
-     * @return the new stream
      * @since 9
      */
     default DoubleStream takeWhile(DoublePredicate predicate) {
         Objects.requireNonNull(predicate);
         // Reuses the unordered spliterator, which, when encounter is present,
         // is safe to use as long as it configured not to split
-        return StreamSupport.doubleStream(
-                new WhileOps.UnorderedWhileSpliterator.OfDouble.Taking(spliterator(), true, predicate),
-                isParallel()).onClose(this::close);
+        return StreamSupport.doubleStream(new WhileOps.UnorderedWhileSpliterator.OfDouble.Taking(spliterator(), true, predicate), isParallel()).onClose(this::close);
     }
-
+    
     /**
      * Returns, if this stream is ordered, a stream consisting of the remaining
      * elements of this stream after dropping the longest prefix of elements
@@ -372,8 +380,14 @@ public interface DoubleStream extends BaseStream<Double, DoubleStream> {
      * <p>This is a <a href="package-summary.html#StreamOps">stateful
      * intermediate operation</a>.
      *
-     * @implSpec
-     * The default implementation obtains the {@link #spliterator() spliterator}
+     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *                  <a href="package-summary.html#Statelessness">stateless</a>
+     *                  predicate to apply to elements to determine the longest
+     *                  prefix of elements.
+     *
+     * @return the new stream
+     *
+     * @implSpec The default implementation obtains the {@link #spliterator() spliterator}
      * of this stream, wraps that spliterator so as to support the semantics
      * of this operation on traversal, and returns a new stream associated with
      * the wrapped spliterator.  The returned stream preserves the execution
@@ -381,9 +395,7 @@ public interface DoubleStream extends BaseStream<Double, DoubleStream> {
      * as per {@link #isParallel()}) but the wrapped spliterator may choose to
      * not support splitting.  When the returned stream is closed, the close
      * handlers for both the returned and this stream are invoked.
-     *
-     * @apiNote
-     * While {@code dropWhile()} is generally a cheap operation on sequential
+     * @apiNote While {@code dropWhile()} is generally a cheap operation on sequential
      * stream pipelines, it can be quite expensive on ordered parallel
      * pipelines, since the operation is constrained to return not just any
      * valid prefix, but the longest prefix of elements in the encounter order.
@@ -395,23 +407,395 @@ public interface DoubleStream extends BaseStream<Double, DoubleStream> {
      * you are experiencing poor performance or memory utilization with
      * {@code dropWhile()} in parallel pipelines, switching to sequential
      * execution with {@link #sequential()} may improve performance.
-     *
-     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *                  <a href="package-summary.html#Statelessness">stateless</a>
-     *                  predicate to apply to elements to determine the longest
-     *                  prefix of elements.
-     * @return the new stream
      * @since 9
      */
     default DoubleStream dropWhile(DoublePredicate predicate) {
         Objects.requireNonNull(predicate);
         // Reuses the unordered spliterator, which, when encounter is present,
         // is safe to use as long as it configured not to split
-        return StreamSupport.doubleStream(
-                new WhileOps.UnorderedWhileSpliterator.OfDouble.Dropping(spliterator(), true, predicate),
-                isParallel()).onClose(this::close);
+        return StreamSupport.doubleStream(new WhileOps.UnorderedWhileSpliterator.OfDouble.Dropping(spliterator(), true, predicate), isParallel()).onClose(this::close);
     }
-
+    
+    /*▲ 创建流的源头阶段 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 中间操作-无状态 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a stream consisting of the elements of this stream that match
+     * the given predicate.
+     *
+     * <p>This is an <a href="package-summary.html#StreamOps">intermediate
+     * operation</a>.
+     *
+     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *                  <a href="package-summary.html#Statelessness">stateless</a>
+     *                  predicate to apply to each element to determine if it
+     *                  should be included
+     *
+     * @return the new stream
+     */
+    // 筛选数据
+    DoubleStream filter(DoublePredicate predicate);
+    
+    /**
+     * Returns a stream consisting of the results of applying the given
+     * function to the elements of this stream.
+     *
+     * <p>This is an <a href="package-summary.html#StreamOps">intermediate
+     * operation</a>.
+     *
+     * @param mapper a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *               <a href="package-summary.html#Statelessness">stateless</a>
+     *               function to apply to each element
+     *
+     * @return the new stream
+     */
+    // 映射数据
+    DoubleStream map(DoubleUnaryOperator mapper);
+    
+    /**
+     * Returns an {@code IntStream} consisting of the results of applying the
+     * given function to the elements of this stream.
+     *
+     * <p>This is an <a href="package-summary.html#StreamOps">intermediate
+     * operation</a>.
+     *
+     * @param mapper a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *               <a href="package-summary.html#Statelessness">stateless</a>
+     *               function to apply to each element
+     *
+     * @return the new stream
+     */
+    // 映射数据
+    IntStream mapToInt(DoubleToIntFunction mapper);
+    
+    /**
+     * Returns a {@code LongStream} consisting of the results of applying the
+     * given function to the elements of this stream.
+     *
+     * <p>This is an <a href="package-summary.html#StreamOps">intermediate
+     * operation</a>.
+     *
+     * @param mapper a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *               <a href="package-summary.html#Statelessness">stateless</a>
+     *               function to apply to each element
+     *
+     * @return the new stream
+     */
+    // 映射数据
+    LongStream mapToLong(DoubleToLongFunction mapper);
+    
+    /**
+     * Returns an object-valued {@code Stream} consisting of the results of
+     * applying the given function to the elements of this stream.
+     *
+     * <p>This is an <a href="package-summary.html#StreamOps">
+     * intermediate operation</a>.
+     *
+     * @param <U>    the element type of the new stream
+     * @param mapper a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *               <a href="package-summary.html#Statelessness">stateless</a>
+     *               function to apply to each element
+     *
+     * @return the new stream
+     */
+    // 映射数据
+    <U> Stream<U> mapToObj(DoubleFunction<? extends U> mapper);
+    
+    /**
+     * Returns a stream consisting of the results of replacing each element of
+     * this stream with the contents of a mapped stream produced by applying
+     * the provided mapping function to each element.  Each mapped stream is
+     * {@link java.util.stream.BaseStream#close() closed} after its contents
+     * have been placed into this stream.  (If a mapped stream is {@code null}
+     * an empty stream is used, instead.)
+     *
+     * <p>This is an <a href="package-summary.html#StreamOps">intermediate
+     * operation</a>.
+     *
+     * @param mapper a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *               <a href="package-summary.html#Statelessness">stateless</a>
+     *               function to apply to each element which produces a
+     *               {@code DoubleStream} of new values
+     *
+     * @return the new stream
+     *
+     * @see Stream#flatMap(Function)
+     */
+    // 数据降维
+    DoubleStream flatMap(DoubleFunction<? extends DoubleStream> mapper);
+    
+    /**
+     * Returns a stream consisting of the elements of this stream, additionally
+     * performing the provided action on each element as elements are consumed
+     * from the resulting stream.
+     *
+     * <p>This is an <a href="package-summary.html#StreamOps">intermediate
+     * operation</a>.
+     *
+     * <p>For parallel stream pipelines, the action may be called at
+     * whatever time and in whatever thread the element is made available by the
+     * upstream operation.  If the action modifies shared state,
+     * it is responsible for providing the required synchronization.
+     *
+     * @param action a <a href="package-summary.html#NonInterference">
+     *               non-interfering</a> action to perform on the elements as
+     *               they are consumed from the stream
+     *
+     * @return the new stream
+     *
+     * @apiNote This method exists mainly to support debugging, where you want
+     * to see the elements as they flow past a certain point in a pipeline:
+     * <pre>{@code
+     *     DoubleStream.of(1, 2, 3, 4)
+     *         .filter(e -> e > 2)
+     *         .peek(e -> System.out.println("Filtered value: " + e))
+     *         .map(e -> e * e)
+     *         .peek(e -> System.out.println("Mapped value: " + e))
+     *         .sum();
+     * }</pre>
+     *
+     * <p>In cases where the stream implementation is able to optimize away the
+     * production of some or all the elements (such as with short-circuiting
+     * operations like {@code findFirst}, or in the example described in
+     * {@link #count}), the action will not be invoked for those elements.
+     */
+    // 用于查看流的内部结构，不会对流的结构产生影响
+    DoubleStream peek(DoubleConsumer action);
+    
+    /**
+     * Returns a {@code Stream} consisting of the elements of this stream,
+     * boxed to {@code Double}.
+     *
+     * <p>This is an <a href="package-summary.html#StreamOps">intermediate
+     * operation</a>.
+     *
+     * @return a {@code Stream} consistent of the elements of this stream,
+     * each boxed to a {@code Double}
+     */
+    // 装箱
+    Stream<Double> boxed();
+    
+    /*▲ 中间操作-无状态 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 中间操作-有状态 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a stream consisting of the distinct elements of this stream. The
+     * elements are compared for equality according to
+     * {@link java.lang.Double#compare(double, double)}.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">stateful
+     * intermediate operation</a>.
+     *
+     * @return the result stream
+     */
+    // 去重
+    DoubleStream distinct();
+    
+    /**
+     * Returns a stream consisting of the elements of this stream in sorted
+     * order. The elements are compared for equality according to
+     * {@link java.lang.Double#compare(double, double)}.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">stateful
+     * intermediate operation</a>.
+     *
+     * @return the result stream
+     */
+    // 排序（默认升序）
+    DoubleStream sorted();
+    
+    /**
+     * Returns a stream consisting of the elements of this stream, truncated
+     * to be no longer than {@code maxSize} in length.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
+     * stateful intermediate operation</a>.
+     *
+     * @param maxSize the number of elements the stream should be limited to
+     *
+     * @return the new stream
+     *
+     * @throws IllegalArgumentException if {@code maxSize} is negative
+     * @apiNote While {@code limit()} is generally a cheap operation on sequential
+     * stream pipelines, it can be quite expensive on ordered parallel pipelines,
+     * especially for large values of {@code maxSize}, since {@code limit(n)}
+     * is constrained to return not just any <em>n</em> elements, but the
+     * <em>first n</em> elements in the encounter order.  Using an unordered
+     * stream source (such as {@link #generate(DoubleSupplier)}) or removing the
+     * ordering constraint with {@link #unordered()} may result in significant
+     * speedups of {@code limit()} in parallel pipelines, if the semantics of
+     * your situation permit.  If consistency with encounter order is required,
+     * and you are experiencing poor performance or memory utilization with
+     * {@code limit()} in parallel pipelines, switching to sequential execution
+     * with {@link #sequential()} may improve performance.
+     */
+    // 只显示前maxSize个元素
+    DoubleStream limit(long maxSize);
+    
+    /**
+     * Returns a stream consisting of the remaining elements of this stream
+     * after discarding the first {@code n} elements of the stream.
+     * If this stream contains fewer than {@code n} elements then an
+     * empty stream will be returned.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">stateful
+     * intermediate operation</a>.
+     *
+     * @param n the number of leading elements to skip
+     *
+     * @return the new stream
+     *
+     * @throws IllegalArgumentException if {@code n} is negative
+     * @apiNote While {@code skip()} is generally a cheap operation on sequential
+     * stream pipelines, it can be quite expensive on ordered parallel pipelines,
+     * especially for large values of {@code n}, since {@code skip(n)}
+     * is constrained to skip not just any <em>n</em> elements, but the
+     * <em>first n</em> elements in the encounter order.  Using an unordered
+     * stream source (such as {@link #generate(DoubleSupplier)}) or removing the
+     * ordering constraint with {@link #unordered()} may result in significant
+     * speedups of {@code skip()} in parallel pipelines, if the semantics of
+     * your situation permit.  If consistency with encounter order is required,
+     * and you are experiencing poor performance or memory utilization with
+     * {@code skip()} in parallel pipelines, switching to sequential execution
+     * with {@link #sequential()} may improve performance.
+     */
+    // 跳过前n个元素
+    DoubleStream skip(long n);
+    
+    /*▲ 中间操作-有状态 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 终端操作-短路操作 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns whether any elements of this stream match the provided
+     * predicate.  May not evaluate the predicate on all elements if not
+     * necessary for determining the result.  If the stream is empty then
+     * {@code false} is returned and the predicate is not evaluated.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
+     * terminal operation</a>.
+     *
+     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *                  <a href="package-summary.html#Statelessness">stateless</a>
+     *                  predicate to apply to elements of this stream
+     *
+     * @return {@code true} if any elements of the stream match the provided
+     * predicate, otherwise {@code false}
+     *
+     * @apiNote This method evaluates the <em>existential quantification</em> of the
+     * predicate over the elements of the stream (for some x P(x)).
+     */
+    // 存在元素满足predicate条件
+    boolean anyMatch(DoublePredicate predicate);
+    
+    /**
+     * Returns whether all elements of this stream match the provided predicate.
+     * May not evaluate the predicate on all elements if not necessary for
+     * determining the result.  If the stream is empty then {@code true} is
+     * returned and the predicate is not evaluated.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
+     * terminal operation</a>.
+     *
+     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *                  <a href="package-summary.html#Statelessness">stateless</a>
+     *                  predicate to apply to elements of this stream
+     *
+     * @return {@code true} if either all elements of the stream match the
+     * provided predicate or the stream is empty, otherwise {@code false}
+     *
+     * @apiNote This method evaluates the <em>universal quantification</em> of the
+     * predicate over the elements of the stream (for all x P(x)).  If the
+     * stream is empty, the quantification is said to be <em>vacuously
+     * satisfied</em> and is always {@code true} (regardless of P(x)).
+     */
+    // 所有元素满足predicate条件
+    boolean allMatch(DoublePredicate predicate);
+    
+    /**
+     * Returns whether no elements of this stream match the provided predicate.
+     * May not evaluate the predicate on all elements if not necessary for
+     * determining the result.  If the stream is empty then {@code true} is
+     * returned and the predicate is not evaluated.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
+     * terminal operation</a>.
+     *
+     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *                  <a href="package-summary.html#Statelessness">stateless</a>
+     *                  predicate to apply to elements of this stream
+     *
+     * @return {@code true} if either no elements of the stream match the
+     * provided predicate or the stream is empty, otherwise {@code false}
+     *
+     * @apiNote This method evaluates the <em>universal quantification</em> of the
+     * negated predicate over the elements of the stream (for all x ~P(x)).  If
+     * the stream is empty, the quantification is said to be vacuously satisfied
+     * and is always {@code true}, regardless of P(x).
+     */
+    // 没有元素满足predicate条件
+    boolean noneMatch(DoublePredicate predicate);
+    
+    /**
+     * Returns an {@link OptionalDouble} describing the first element of this
+     * stream, or an empty {@code OptionalDouble} if the stream is empty.  If
+     * the stream has no encounter order, then any element may be returned.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
+     * terminal operation</a>.
+     *
+     * @return an {@code OptionalDouble} describing the first element of this
+     * stream, or an empty {@code OptionalDouble} if the stream is empty
+     */
+    // 找出第一个元素，返回一个可选的操作
+    OptionalDouble findFirst();
+    
+    /**
+     * Returns an {@link OptionalDouble} describing some element of the stream,
+     * or an empty {@code OptionalDouble} if the stream is empty.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
+     * terminal operation</a>.
+     *
+     * <p>The behavior of this operation is explicitly nondeterministic; it is
+     * free to select any element in the stream.  This is to allow for maximal
+     * performance in parallel operations; the cost is that multiple invocations
+     * on the same source may not return the same result.  (If a stable result
+     * is desired, use {@link #findFirst()} instead.)
+     *
+     * @return an {@code OptionalDouble} describing some element of this stream,
+     * or an empty {@code OptionalDouble} if the stream is empty
+     *
+     * @see #findFirst()
+     */
+    // 找到一个元素就返回，往往是第一个元素
+    OptionalDouble findAny();
+    
+    /*▲ 终端操作-短路操作 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 终端操作-非短路操作 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns an array containing the elements of this stream.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">terminal
+     * operation</a>.
+     *
+     * @return an array containing the elements of this stream
+     */
+    // 将数据存入double数组返回
+    double[] toArray();
+    
     /**
      * Performs an action for each element of this stream.
      *
@@ -428,8 +812,9 @@ public interface DoubleStream extends BaseStream<Double, DoubleStream> {
      * @param action a <a href="package-summary.html#NonInterference">
      *               non-interfering</a> action to perform on the elements
      */
+    // 遍历，并执行action操作
     void forEach(DoubleConsumer action);
-
+    
     /**
      * Performs an action for each element of this stream, guaranteeing that
      * each element is processed in encounter order for streams that have a
@@ -440,75 +825,12 @@ public interface DoubleStream extends BaseStream<Double, DoubleStream> {
      *
      * @param action a <a href="package-summary.html#NonInterference">
      *               non-interfering</a> action to perform on the elements
+     *
      * @see #forEach(DoubleConsumer)
      */
+    // 按遭遇顺序遍历，并执行action操作
     void forEachOrdered(DoubleConsumer action);
-
-    /**
-     * Returns an array containing the elements of this stream.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">terminal
-     * operation</a>.
-     *
-     * @return an array containing the elements of this stream
-     */
-    double[] toArray();
-
-    /**
-     * Performs a <a href="package-summary.html#Reduction">reduction</a> on the
-     * elements of this stream, using the provided identity value and an
-     * <a href="package-summary.html#Associativity">associative</a>
-     * accumulation function, and returns the reduced value.  This is equivalent
-     * to:
-     * <pre>{@code
-     *     double result = identity;
-     *     for (double element : this stream)
-     *         result = accumulator.applyAsDouble(result, element)
-     *     return result;
-     * }</pre>
-     *
-     * but is not constrained to execute sequentially.
-     *
-     * <p>The {@code identity} value must be an identity for the accumulator
-     * function. This means that for all {@code x},
-     * {@code accumulator.apply(identity, x)} is equal to {@code x}.
-     * The {@code accumulator} function must be an
-     * <a href="package-summary.html#Associativity">associative</a> function.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">terminal
-     * operation</a>.
-     *
-     * @apiNote Sum, min, max, and average are all special cases of reduction.
-     * Summing a stream of numbers can be expressed as:
-
-     * <pre>{@code
-     *     double sum = numbers.reduce(0, (a, b) -> a+b);
-     * }</pre>
-     *
-     * or more compactly:
-     *
-     * <pre>{@code
-     *     double sum = numbers.reduce(0, Double::sum);
-     * }</pre>
-     *
-     * <p>While this may seem a more roundabout way to perform an aggregation
-     * compared to simply mutating a running total in a loop, reduction
-     * operations parallelize more gracefully, without needing additional
-     * synchronization and with greatly reduced risk of data races.
-     *
-     * @param identity the identity value for the accumulating function
-     * @param op an <a href="package-summary.html#Associativity">associative</a>,
-     *           <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *           <a href="package-summary.html#Statelessness">stateless</a>
-     *           function for combining two values
-     * @return the result of the reduction
-     * @see #sum()
-     * @see #min()
-     * @see #max()
-     * @see #average()
-     */
-    double reduce(double identity, DoubleBinaryOperator op);
-
+    
     /**
      * Performs a <a href="package-summary.html#Reduction">reduction</a> on the
      * elements of this stream, using an
@@ -541,11 +863,71 @@ public interface DoubleStream extends BaseStream<Double, DoubleStream> {
      *           <a href="package-summary.html#NonInterference">non-interfering</a>,
      *           <a href="package-summary.html#Statelessness">stateless</a>
      *           function for combining two values
+     *
      * @return the result of the reduction
+     *
      * @see #reduce(double, DoubleBinaryOperator)
      */
+    // 收纳汇总，两两比对，完成指定动作
     OptionalDouble reduce(DoubleBinaryOperator op);
-
+    
+    /**
+     * Performs a <a href="package-summary.html#Reduction">reduction</a> on the
+     * elements of this stream, using the provided identity value and an
+     * <a href="package-summary.html#Associativity">associative</a>
+     * accumulation function, and returns the reduced value.  This is equivalent
+     * to:
+     * <pre>{@code
+     *     double result = identity;
+     *     for (double element : this stream)
+     *         result = accumulator.applyAsDouble(result, element)
+     *     return result;
+     * }</pre>
+     *
+     * but is not constrained to execute sequentially.
+     *
+     * <p>The {@code identity} value must be an identity for the accumulator
+     * function. This means that for all {@code x},
+     * {@code accumulator.apply(identity, x)} is equal to {@code x}.
+     * The {@code accumulator} function must be an
+     * <a href="package-summary.html#Associativity">associative</a> function.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">terminal
+     * operation</a>.
+     *
+     * @param identity the identity value for the accumulating function
+     * @param op       an <a href="package-summary.html#Associativity">associative</a>,
+     *                 <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *                 <a href="package-summary.html#Statelessness">stateless</a>
+     *                 function for combining two values
+     *
+     * @return the result of the reduction
+     *
+     * @apiNote Sum, min, max, and average are all special cases of reduction.
+     * Summing a stream of numbers can be expressed as:
+     *
+     * <pre>{@code
+     *     double sum = numbers.reduce(0, (a, b) -> a+b);
+     * }</pre>
+     *
+     * or more compactly:
+     *
+     * <pre>{@code
+     *     double sum = numbers.reduce(0, Double::sum);
+     * }</pre>
+     *
+     * <p>While this may seem a more roundabout way to perform an aggregation
+     * compared to simply mutating a running total in a loop, reduction
+     * operations parallelize more gracefully, without needing additional
+     * synchronization and with greatly reduced risk of data races.
+     * @see #sum()
+     * @see #min()
+     * @see #max()
+     * @see #average()
+     */
+    // 收纳汇总，两两比对，完成op动作。identity是初值，op中的输入类型应当一致。
+    double reduce(double identity, DoubleBinaryOperator op);
+    
     /**
      * Performs a <a href="package-summary.html#MutableReduction">mutable
      * reduction</a> operation on the elements of this stream.  A mutable
@@ -567,16 +949,16 @@ public interface DoubleStream extends BaseStream<Double, DoubleStream> {
      * <p>This is a <a href="package-summary.html#StreamOps">terminal
      * operation</a>.
      *
-     * @param <R> the type of the mutable result container
-     * @param supplier a function that creates a new mutable result container.
-     *                 For a parallel execution, this function may be called
-     *                 multiple times and must return a fresh value each time.
+     * @param <R>         the type of the mutable result container
+     * @param supplier    a function that creates a new mutable result container.
+     *                    For a parallel execution, this function may be called
+     *                    multiple times and must return a fresh value each time.
      * @param accumulator an <a href="package-summary.html#Associativity">associative</a>,
      *                    <a href="package-summary.html#NonInterference">non-interfering</a>,
      *                    <a href="package-summary.html#Statelessness">stateless</a>
      *                    function that must fold an element into a result
      *                    container.
-     * @param combiner an <a href="package-summary.html#Associativity">associative</a>,
+     * @param combiner    an <a href="package-summary.html#Associativity">associative</a>,
      *                    <a href="package-summary.html#NonInterference">non-interfering</a>,
      *                    <a href="package-summary.html#Statelessness">stateless</a>
      *                    function that accepts two partial result containers
@@ -584,13 +966,89 @@ public interface DoubleStream extends BaseStream<Double, DoubleStream> {
      *                    accumulator function.  The combiner function must fold
      *                    the elements from the second result container into the
      *                    first result container.
+     *
      * @return the result of the reduction
+     *
      * @see Stream#collect(Supplier, BiConsumer, BiConsumer)
      */
-    <R> R collect(Supplier<R> supplier,
-                  ObjDoubleConsumer<R> accumulator,
-                  BiConsumer<R, R> combiner);
-
+    // 收集输出的元素到某个容器
+    <R> R collect(Supplier<R> supplier, ObjDoubleConsumer<R> accumulator, BiConsumer<R, R> combiner);
+    
+    /**
+     * Returns the count of elements in this stream.  This is a special case of
+     * a <a href="package-summary.html#Reduction">reduction</a> and is
+     * equivalent to:
+     * <pre>{@code
+     *     return mapToLong(e -> 1L).sum();
+     * }</pre>
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">terminal operation</a>.
+     *
+     * @return the count of elements in this stream
+     *
+     * @apiNote An implementation may choose to not execute the stream pipeline (either
+     * sequentially or in parallel) if it is capable of computing the count
+     * directly from the stream source.  In such cases no source elements will
+     * be traversed and no intermediate operations will be evaluated.
+     * Behavioral parameters with side-effects, which are strongly discouraged
+     * except for harmless cases such as debugging, may be affected.  For
+     * example, consider the following stream:
+     * <pre>{@code
+     *     DoubleStream s = DoubleStream.of(1, 2, 3, 4);
+     *     long count = s.peek(System.out::println).count();
+     * }</pre>
+     * The number of elements covered by the stream source is known and the
+     * intermediate operation, {@code peek}, does not inject into or remove
+     * elements from the stream (as may be the case for {@code flatMap} or
+     * {@code filter} operations).  Thus the count is 4 and there is no need to
+     * execute the pipeline and, as a side-effect, print out the elements.
+     */
+    // 计数
+    long count();
+    
+    /**
+     * Returns an {@code OptionalDouble} describing the minimum element of this
+     * stream, or an empty OptionalDouble if this stream is empty.  The minimum
+     * element will be {@code Double.NaN} if any stream element was NaN. Unlike
+     * the numerical comparison operators, this method considers negative zero
+     * to be strictly smaller than positive zero. This is a special case of a
+     * <a href="package-summary.html#Reduction">reduction</a> and is
+     * equivalent to:
+     * <pre>{@code
+     *     return reduce(Double::min);
+     * }</pre>
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">terminal
+     * operation</a>.
+     *
+     * @return an {@code OptionalDouble} containing the minimum element of this
+     * stream, or an empty optional if the stream is empty
+     */
+    // 求最小值
+    OptionalDouble min();
+    
+    /**
+     * Returns an {@code OptionalDouble} describing the maximum element of this
+     * stream, or an empty OptionalDouble if this stream is empty.  The maximum
+     * element will be {@code Double.NaN} if any stream element was NaN. Unlike
+     * the numerical comparison operators, this method considers negative zero
+     * to be strictly smaller than positive zero. This is a
+     * special case of a
+     * <a href="package-summary.html#Reduction">reduction</a> and is
+     * equivalent to:
+     * <pre>{@code
+     *     return reduce(Double::max);
+     * }</pre>
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">terminal
+     * operation</a>.
+     *
+     * @return an {@code OptionalDouble} containing the maximum element of this
+     * stream, or an empty optional if the stream is empty
+     */
+    // 求最大值
+    OptionalDouble max();
+    
     /**
      * Returns the sum of elements in this stream.
      *
@@ -660,86 +1118,14 @@ public interface DoubleStream extends BaseStream<Double, DoubleStream> {
      * <p>This is a <a href="package-summary.html#StreamOps">terminal
      * operation</a>.
      *
+     * @return the sum of elements in this stream
+     *
      * @apiNote Elements sorted by increasing absolute magnitude tend
      * to yield more accurate results.
-     *
-     * @return the sum of elements in this stream
      */
+    // 求和
     double sum();
-
-    /**
-     * Returns an {@code OptionalDouble} describing the minimum element of this
-     * stream, or an empty OptionalDouble if this stream is empty.  The minimum
-     * element will be {@code Double.NaN} if any stream element was NaN. Unlike
-     * the numerical comparison operators, this method considers negative zero
-     * to be strictly smaller than positive zero. This is a special case of a
-     * <a href="package-summary.html#Reduction">reduction</a> and is
-     * equivalent to:
-     * <pre>{@code
-     *     return reduce(Double::min);
-     * }</pre>
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">terminal
-     * operation</a>.
-     *
-     * @return an {@code OptionalDouble} containing the minimum element of this
-     * stream, or an empty optional if the stream is empty
-     */
-    OptionalDouble min();
-
-    /**
-     * Returns an {@code OptionalDouble} describing the maximum element of this
-     * stream, or an empty OptionalDouble if this stream is empty.  The maximum
-     * element will be {@code Double.NaN} if any stream element was NaN. Unlike
-     * the numerical comparison operators, this method considers negative zero
-     * to be strictly smaller than positive zero. This is a
-     * special case of a
-     * <a href="package-summary.html#Reduction">reduction</a> and is
-     * equivalent to:
-     * <pre>{@code
-     *     return reduce(Double::max);
-     * }</pre>
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">terminal
-     * operation</a>.
-     *
-     * @return an {@code OptionalDouble} containing the maximum element of this
-     * stream, or an empty optional if the stream is empty
-     */
-    OptionalDouble max();
-
-    /**
-     * Returns the count of elements in this stream.  This is a special case of
-     * a <a href="package-summary.html#Reduction">reduction</a> and is
-     * equivalent to:
-     * <pre>{@code
-     *     return mapToLong(e -> 1L).sum();
-     * }</pre>
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">terminal operation</a>.
-     *
-     * @apiNote
-     * An implementation may choose to not execute the stream pipeline (either
-     * sequentially or in parallel) if it is capable of computing the count
-     * directly from the stream source.  In such cases no source elements will
-     * be traversed and no intermediate operations will be evaluated.
-     * Behavioral parameters with side-effects, which are strongly discouraged
-     * except for harmless cases such as debugging, may be affected.  For
-     * example, consider the following stream:
-     * <pre>{@code
-     *     DoubleStream s = DoubleStream.of(1, 2, 3, 4);
-     *     long count = s.peek(System.out::println).count();
-     * }</pre>
-     * The number of elements covered by the stream source is known and the
-     * intermediate operation, {@code peek}, does not inject into or remove
-     * elements from the stream (as may be the case for {@code flatMap} or
-     * {@code filter} operations).  Thus the count is 4 and there is no need to
-     * execute the pipeline and, as a side-effect, print out the elements.
-     *
-     * @return the count of elements in this stream
-     */
-    long count();
-
+    
     /**
      * Returns an {@code OptionalDouble} describing the arithmetic
      * mean of elements of this stream, or an empty optional if this
@@ -749,20 +1135,21 @@ public interface DoubleStream extends BaseStream<Double, DoubleStream> {
      * special case behavior as computing the sum; see {@link #sum}
      * for details.
      *
-     *  <p>The average is a special case of a <a
-     *  href="package-summary.html#Reduction">reduction</a>.
+     * <p>The average is a special case of a <a
+     * href="package-summary.html#Reduction">reduction</a>.
      *
      * <p>This is a <a href="package-summary.html#StreamOps">terminal
      * operation</a>.
      *
-     * @apiNote Elements sorted by increasing absolute magnitude tend
-     * to yield more accurate results.
-     *
      * @return an {@code OptionalDouble} containing the average element of this
      * stream, or an empty optional if the stream is empty
+     *
+     * @apiNote Elements sorted by increasing absolute magnitude tend
+     * to yield more accurate results.
      */
+    // 求平均值
     OptionalDouble average();
-
+    
     /**
      * Returns a {@code DoubleSummaryStatistics} describing various summary data
      * about the elements of this stream.  This is a special
@@ -774,356 +1161,45 @@ public interface DoubleStream extends BaseStream<Double, DoubleStream> {
      * @return a {@code DoubleSummaryStatistics} describing various summary data
      * about the elements of this stream
      */
+    // 信息统计
     DoubleSummaryStatistics summaryStatistics();
-
-    /**
-     * Returns whether any elements of this stream match the provided
-     * predicate.  May not evaluate the predicate on all elements if not
-     * necessary for determining the result.  If the stream is empty then
-     * {@code false} is returned and the predicate is not evaluated.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
-     * terminal operation</a>.
-     *
-     * @apiNote
-     * This method evaluates the <em>existential quantification</em> of the
-     * predicate over the elements of the stream (for some x P(x)).
-     *
-     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *                  <a href="package-summary.html#Statelessness">stateless</a>
-     *                  predicate to apply to elements of this stream
-     * @return {@code true} if any elements of the stream match the provided
-     * predicate, otherwise {@code false}
-     */
-    boolean anyMatch(DoublePredicate predicate);
-
-    /**
-     * Returns whether all elements of this stream match the provided predicate.
-     * May not evaluate the predicate on all elements if not necessary for
-     * determining the result.  If the stream is empty then {@code true} is
-     * returned and the predicate is not evaluated.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
-     * terminal operation</a>.
-     *
-     * @apiNote
-     * This method evaluates the <em>universal quantification</em> of the
-     * predicate over the elements of the stream (for all x P(x)).  If the
-     * stream is empty, the quantification is said to be <em>vacuously
-     * satisfied</em> and is always {@code true} (regardless of P(x)).
-     *
-     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *                  <a href="package-summary.html#Statelessness">stateless</a>
-     *                  predicate to apply to elements of this stream
-     * @return {@code true} if either all elements of the stream match the
-     * provided predicate or the stream is empty, otherwise {@code false}
-     */
-    boolean allMatch(DoublePredicate predicate);
-
-    /**
-     * Returns whether no elements of this stream match the provided predicate.
-     * May not evaluate the predicate on all elements if not necessary for
-     * determining the result.  If the stream is empty then {@code true} is
-     * returned and the predicate is not evaluated.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
-     * terminal operation</a>.
-     *
-     * @apiNote
-     * This method evaluates the <em>universal quantification</em> of the
-     * negated predicate over the elements of the stream (for all x ~P(x)).  If
-     * the stream is empty, the quantification is said to be vacuously satisfied
-     * and is always {@code true}, regardless of P(x).
-     *
-     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *                  <a href="package-summary.html#Statelessness">stateless</a>
-     *                  predicate to apply to elements of this stream
-     * @return {@code true} if either no elements of the stream match the
-     * provided predicate or the stream is empty, otherwise {@code false}
-     */
-    boolean noneMatch(DoublePredicate predicate);
-
-    /**
-     * Returns an {@link OptionalDouble} describing the first element of this
-     * stream, or an empty {@code OptionalDouble} if the stream is empty.  If
-     * the stream has no encounter order, then any element may be returned.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
-     * terminal operation</a>.
-     *
-     * @return an {@code OptionalDouble} describing the first element of this
-     * stream, or an empty {@code OptionalDouble} if the stream is empty
-     */
-    OptionalDouble findFirst();
-
-    /**
-     * Returns an {@link OptionalDouble} describing some element of the stream,
-     * or an empty {@code OptionalDouble} if the stream is empty.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
-     * terminal operation</a>.
-     *
-     * <p>The behavior of this operation is explicitly nondeterministic; it is
-     * free to select any element in the stream.  This is to allow for maximal
-     * performance in parallel operations; the cost is that multiple invocations
-     * on the same source may not return the same result.  (If a stable result
-     * is desired, use {@link #findFirst()} instead.)
-     *
-     * @return an {@code OptionalDouble} describing some element of this stream,
-     * or an empty {@code OptionalDouble} if the stream is empty
-     * @see #findFirst()
-     */
-    OptionalDouble findAny();
-
-    /**
-     * Returns a {@code Stream} consisting of the elements of this stream,
-     * boxed to {@code Double}.
-     *
-     * <p>This is an <a href="package-summary.html#StreamOps">intermediate
-     * operation</a>.
-     *
-     * @return a {@code Stream} consistent of the elements of this stream,
-     * each boxed to a {@code Double}
-     */
-    Stream<Double> boxed();
-
-    @Override
-    DoubleStream sequential();
-
-    @Override
-    DoubleStream parallel();
-
+    
+    /*▲ 终端操作-非短路操作 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 实现BaseStream接口 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 返回流中元素的Iterator（迭代器）
     @Override
     PrimitiveIterator.OfDouble iterator();
-
+    
+    // 返回流中元素的Spliterator（可分割的迭代器）
     @Override
     Spliterator.OfDouble spliterator();
-
-
-    // Static factories
-
+    
+    // 中间操作，返回顺序的等效流。
+    @Override
+    DoubleStream sequential();
+    
+    // 中间操作，返回并行的等效流。
+    @Override
+    DoubleStream parallel();
+    
+    /*▲ 实现BaseStream接口 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
     /**
      * Returns a builder for a {@code DoubleStream}.
      *
      * @return a stream builder
      */
-    public static Builder builder() {
+    // 返回一个Stream构建器
+    static Builder builder() {
         return new Streams.DoubleStreamBuilderImpl();
     }
-
-    /**
-     * Returns an empty sequential {@code DoubleStream}.
-     *
-     * @return an empty sequential stream
-     */
-    public static DoubleStream empty() {
-        return StreamSupport.doubleStream(Spliterators.emptyDoubleSpliterator(), false);
-    }
-
-    /**
-     * Returns a sequential {@code DoubleStream} containing a single element.
-     *
-     * @param t the single element
-     * @return a singleton sequential stream
-     */
-    public static DoubleStream of(double t) {
-        return StreamSupport.doubleStream(new Streams.DoubleStreamBuilderImpl(t), false);
-    }
-
-    /**
-     * Returns a sequential ordered stream whose elements are the specified values.
-     *
-     * @param values the elements of the new stream
-     * @return the new stream
-     */
-    public static DoubleStream of(double... values) {
-        return Arrays.stream(values);
-    }
-
-    /**
-     * Returns an infinite sequential ordered {@code DoubleStream} produced by iterative
-     * application of a function {@code f} to an initial element {@code seed},
-     * producing a {@code Stream} consisting of {@code seed}, {@code f(seed)},
-     * {@code f(f(seed))}, etc.
-     *
-     * <p>The first element (position {@code 0}) in the {@code DoubleStream}
-     * will be the provided {@code seed}.  For {@code n > 0}, the element at
-     * position {@code n}, will be the result of applying the function {@code f}
-     *  to the element at position {@code n - 1}.
-     *
-     * <p>The action of applying {@code f} for one element
-     * <a href="../concurrent/package-summary.html#MemoryVisibility"><i>happens-before</i></a>
-     * the action of applying {@code f} for subsequent elements.  For any given
-     * element the action may be performed in whatever thread the library
-     * chooses.
-     *
-     * @param seed the initial element
-     * @param f a function to be applied to the previous element to produce
-     *          a new element
-     * @return a new sequential {@code DoubleStream}
-     */
-    public static DoubleStream iterate(final double seed, final DoubleUnaryOperator f) {
-        Objects.requireNonNull(f);
-        Spliterator.OfDouble spliterator = new Spliterators.AbstractDoubleSpliterator(Long.MAX_VALUE,
-               Spliterator.ORDERED | Spliterator.IMMUTABLE | Spliterator.NONNULL) {
-            double prev;
-            boolean started;
-
-            @Override
-            public boolean tryAdvance(DoubleConsumer action) {
-                Objects.requireNonNull(action);
-                double t;
-                if (started)
-                    t = f.applyAsDouble(prev);
-                else {
-                    t = seed;
-                    started = true;
-                }
-                action.accept(prev = t);
-                return true;
-            }
-        };
-        return StreamSupport.doubleStream(spliterator, false);
-    }
-
-    /**
-     * Returns a sequential ordered {@code DoubleStream} produced by iterative
-     * application of the given {@code next} function to an initial element,
-     * conditioned on satisfying the given {@code hasNext} predicate.  The
-     * stream terminates as soon as the {@code hasNext} predicate returns false.
-     *
-     * <p>{@code DoubleStream.iterate} should produce the same sequence of elements as
-     * produced by the corresponding for-loop:
-     * <pre>{@code
-     *     for (double index=seed; hasNext.test(index); index = next.applyAsDouble(index)) {
-     *         ...
-     *     }
-     * }</pre>
-     *
-     * <p>The resulting sequence may be empty if the {@code hasNext} predicate
-     * does not hold on the seed value.  Otherwise the first element will be the
-     * supplied {@code seed} value, the next element (if present) will be the
-     * result of applying the {@code next} function to the {@code seed} value,
-     * and so on iteratively until the {@code hasNext} predicate indicates that
-     * the stream should terminate.
-     *
-     * <p>The action of applying the {@code hasNext} predicate to an element
-     * <a href="../concurrent/package-summary.html#MemoryVisibility"><i>happens-before</i></a>
-     * the action of applying the {@code next} function to that element.  The
-     * action of applying the {@code next} function for one element
-     * <i>happens-before</i> the action of applying the {@code hasNext}
-     * predicate for subsequent elements.  For any given element an action may
-     * be performed in whatever thread the library chooses.
-     *
-     * @param seed the initial element
-     * @param hasNext a predicate to apply to elements to determine when the
-     *                stream must terminate.
-     * @param next a function to be applied to the previous element to produce
-     *             a new element
-     * @return a new sequential {@code DoubleStream}
-     * @since 9
-     */
-    public static DoubleStream iterate(double seed, DoublePredicate hasNext, DoubleUnaryOperator next) {
-        Objects.requireNonNull(next);
-        Objects.requireNonNull(hasNext);
-        Spliterator.OfDouble spliterator = new Spliterators.AbstractDoubleSpliterator(Long.MAX_VALUE,
-               Spliterator.ORDERED | Spliterator.IMMUTABLE | Spliterator.NONNULL) {
-            double prev;
-            boolean started, finished;
-
-            @Override
-            public boolean tryAdvance(DoubleConsumer action) {
-                Objects.requireNonNull(action);
-                if (finished)
-                    return false;
-                double t;
-                if (started)
-                    t = next.applyAsDouble(prev);
-                else {
-                    t = seed;
-                    started = true;
-                }
-                if (!hasNext.test(t)) {
-                    finished = true;
-                    return false;
-                }
-                action.accept(prev = t);
-                return true;
-            }
-
-            @Override
-            public void forEachRemaining(DoubleConsumer action) {
-                Objects.requireNonNull(action);
-                if (finished)
-                    return;
-                finished = true;
-                double t = started ? next.applyAsDouble(prev) : seed;
-                while (hasNext.test(t)) {
-                    action.accept(t);
-                    t = next.applyAsDouble(t);
-                }
-            }
-        };
-        return StreamSupport.doubleStream(spliterator, false);
-    }
-
-    /**
-     * Returns an infinite sequential unordered stream where each element is
-     * generated by the provided {@code DoubleSupplier}.  This is suitable for
-     * generating constant streams, streams of random elements, etc.
-     *
-     * @param s the {@code DoubleSupplier} for generated elements
-     * @return a new infinite sequential unordered {@code DoubleStream}
-     */
-    public static DoubleStream generate(DoubleSupplier s) {
-        Objects.requireNonNull(s);
-        return StreamSupport.doubleStream(
-                new StreamSpliterators.InfiniteSupplyingSpliterator.OfDouble(Long.MAX_VALUE, s), false);
-    }
-
-    /**
-     * Creates a lazily concatenated stream whose elements are all the
-     * elements of the first stream followed by all the elements of the
-     * second stream.  The resulting stream is ordered if both
-     * of the input streams are ordered, and parallel if either of the input
-     * streams is parallel.  When the resulting stream is closed, the close
-     * handlers for both input streams are invoked.
-     *
-     * <p>This method operates on the two input streams and binds each stream
-     * to its source.  As a result subsequent modifications to an input stream
-     * source may not be reflected in the concatenated stream result.
-     *
-     * @implNote
-     * Use caution when constructing streams from repeated concatenation.
-     * Accessing an element of a deeply concatenated stream can result in deep
-     * call chains, or even {@code StackOverflowError}.
-     *
-     * @apiNote
-     * To preserve optimization opportunities this method binds each stream to
-     * its source and accepts only two streams as parameters.  For example, the
-     * exact size of the concatenated stream source can be computed if the exact
-     * size of each input stream source is known.
-     * To concatenate more streams without binding, or without nested calls to
-     * this method, try creating a stream of streams and flat-mapping with the
-     * identity function, for example:
-     * <pre>{@code
-     *     DoubleStream concat = Stream.of(s1, s2, s3, s4).flatMapToDouble(s -> s);
-     * }</pre>
-     *
-     * @param a the first stream
-     * @param b the second stream
-     * @return the concatenation of the two input streams
-     */
-    public static DoubleStream concat(DoubleStream a, DoubleStream b) {
-        Objects.requireNonNull(a);
-        Objects.requireNonNull(b);
-
-        Spliterator.OfDouble split = new Streams.ConcatSpliterator.OfDouble(
-                a.spliterator(), b.spliterator());
-        DoubleStream stream = StreamSupport.doubleStream(split, a.isParallel() || b.isParallel());
-        return stream.onClose(Streams.composedClose(a, b));
-    }
-
+    
     /**
      * A mutable builder for a {@code DoubleStream}.
      *
@@ -1137,37 +1213,18 @@ public interface DoubleStream extends BaseStream<Double, DoubleStream> {
      * @see DoubleStream#builder()
      * @since 1.8
      */
-    public interface Builder extends DoubleConsumer {
-
+    // Stream构建器接口，允许创建单元素流或多元素流。
+    interface Builder extends DoubleConsumer {
+        
         /**
          * Adds an element to the stream being built.
          *
          * @throws IllegalStateException if the builder has already transitioned
-         * to the built state
+         *                               to the built state
          */
         @Override
         void accept(double t);
-
-        /**
-         * Adds an element to the stream being built.
-         *
-         * @implSpec
-         * The default implementation behaves as if:
-         * <pre>{@code
-         *     accept(t)
-         *     return this;
-         * }</pre>
-         *
-         * @param t the element to add
-         * @return {@code this} builder
-         * @throws IllegalStateException if the builder has already transitioned
-         * to the built state
-         */
-        default Builder add(double t) {
-            accept(t);
-            return this;
-        }
-
+        
         /**
          * Builds the stream, transitioning this builder to the built state.
          * An {@code IllegalStateException} is thrown if there are further
@@ -1175,9 +1232,30 @@ public interface DoubleStream extends BaseStream<Double, DoubleStream> {
          * state.
          *
          * @return the built stream
+         *
          * @throws IllegalStateException if the builder has already transitioned
-         * to the built state
+         *                               to the built state
          */
         DoubleStream build();
+        
+        /**
+         * Adds an element to the stream being built.
+         *
+         * @param t the element to add
+         *
+         * @return {@code this} builder
+         *
+         * @throws IllegalStateException if the builder has already transitioned
+         *                               to the built state
+         * @implSpec The default implementation behaves as if:
+         * <pre>{@code
+         *     accept(t)
+         *     return this;
+         * }</pre>
+         */
+        default Builder add(double t) {
+            accept(t);
+            return this;
+        }
     }
 }
