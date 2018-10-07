@@ -25,29 +25,37 @@
 
 package jdk.internal.misc;
 
-import javax.crypto.SealedObject;
-import java.io.ObjectInputFilter;
-import java.lang.module.ModuleDescriptor;
-import java.util.ResourceBundle;
-import java.util.jar.JarFile;
 import java.io.Console;
 import java.io.FileDescriptor;
 import java.io.FilePermission;
+import java.io.ObjectInputFilter;
 import java.io.ObjectInputStream;
 import java.io.RandomAccessFile;
+import java.lang.module.ModuleDescriptor;
 import java.security.ProtectionDomain;
+import java.util.ResourceBundle;
+import java.util.jar.JarFile;
 
-/** A repository of "shared secrets", which are a mechanism for
-    calling implementation-private methods in another package without
-    using reflection. A package-private class implements a public
-    interface and provides the ability to call package-private methods
-    within that package; the object implementing that interface is
-    provided through a third package to which access is restricted.
-    This framework avoids the primary disadvantage of using reflection
-    for this purpose, namely the loss of compile-time checking. */
+import javax.crypto.SealedObject;
 
+/**
+ * A repository of "shared secrets", which are a mechanism for
+ * calling implementation-private methods in another package without
+ * using reflection. A package-private class implements a public
+ * interface and provides the ability to call package-private methods
+ * within that package; the object implementing that interface is
+ * provided through a third package to which access is restricted.
+ * This framework avoids the primary disadvantage of using reflection
+ * for this purpose, namely the loss of compile-time checking.
+ */
+/*
+ * 集合了众多“后门”接口，用来访问一些非公开的方法
+ * 对于每个“后门”类来说，其原理就像使用setter和getter一样
+ * 优点是不需要反射，缺点是权限开放过大
+ */
 public class SharedSecrets {
     private static final Unsafe unsafe = Unsafe.getUnsafe();
+    
     private static JavaUtilJarAccess javaUtilJarAccess;
     private static JavaLangAccess javaLangAccess;
     private static JavaLangModuleAccess javaLangModuleAccess;
@@ -73,267 +81,293 @@ public class SharedSecrets {
     private static JavaObjectInputFilterAccess javaObjectInputFilterAccess;
     private static JavaIORandomAccessFileAccess javaIORandomAccessFileAccess;
     private static JavaxCryptoSealedObjectAccess javaxCryptoSealedObjectAccess;
-
+    
+    
     public static JavaUtilJarAccess javaUtilJarAccess() {
-        if (javaUtilJarAccess == null) {
+        if(javaUtilJarAccess == null) {
             // Ensure JarFile is initialized; we know that that class
             // provides the shared secret
             unsafe.ensureClassInitialized(JarFile.class);
         }
         return javaUtilJarAccess;
     }
-
+    
     public static void setJavaUtilJarAccess(JavaUtilJarAccess access) {
         javaUtilJarAccess = access;
     }
-
-    public static void setJavaLangAccess(JavaLangAccess jla) {
-        javaLangAccess = jla;
-    }
-
+    
+    
     public static JavaLangAccess getJavaLangAccess() {
         return javaLangAccess;
     }
-
-    public static void setJavaLangInvokeAccess(JavaLangInvokeAccess jlia) {
-        javaLangInvokeAccess = jlia;
+    
+    public static void setJavaLangAccess(JavaLangAccess jla) {
+        javaLangAccess = jla;
     }
-
+    
+    
     public static JavaLangInvokeAccess getJavaLangInvokeAccess() {
-        if (javaLangInvokeAccess == null) {
+        if(javaLangInvokeAccess == null) {
             try {
                 Class<?> c = Class.forName("java.lang.invoke.MethodHandleImpl");
                 unsafe.ensureClassInitialized(c);
-            } catch (ClassNotFoundException e) {};
+            } catch(ClassNotFoundException e) {
+            }
         }
         return javaLangInvokeAccess;
     }
-
-    public static void setJavaLangModuleAccess(JavaLangModuleAccess jlrma) {
-        javaLangModuleAccess = jlrma;
+    
+    public static void setJavaLangInvokeAccess(JavaLangInvokeAccess jlia) {
+        javaLangInvokeAccess = jlia;
     }
-
+    
+    
     public static JavaLangModuleAccess getJavaLangModuleAccess() {
-        if (javaLangModuleAccess == null) {
+        if(javaLangModuleAccess == null) {
             unsafe.ensureClassInitialized(ModuleDescriptor.class);
         }
         return javaLangModuleAccess;
     }
-
-    public static void setJavaLangRefAccess(JavaLangRefAccess jlra) {
-        javaLangRefAccess = jlra;
+    
+    public static void setJavaLangModuleAccess(JavaLangModuleAccess jlrma) {
+        javaLangModuleAccess = jlrma;
     }
-
+    
+    
     public static JavaLangRefAccess getJavaLangRefAccess() {
         return javaLangRefAccess;
     }
-
-    public static void setJavaNetUriAccess(JavaNetUriAccess jnua) {
-        javaNetUriAccess = jnua;
+    
+    public static void setJavaLangRefAccess(JavaLangRefAccess jlra) {
+        javaLangRefAccess = jlra;
     }
-
+    
+    
     public static JavaNetUriAccess getJavaNetUriAccess() {
-        if (javaNetUriAccess == null)
+        if(javaNetUriAccess == null)
             unsafe.ensureClassInitialized(java.net.URI.class);
         return javaNetUriAccess;
     }
-
-    public static void setJavaNetURLAccess(JavaNetURLAccess jnua) {
-        javaNetURLAccess = jnua;
+    
+    public static void setJavaNetUriAccess(JavaNetUriAccess jnua) {
+        javaNetUriAccess = jnua;
     }
-
+    
+    
     public static JavaNetURLAccess getJavaNetURLAccess() {
-        if (javaNetURLAccess == null)
+        if(javaNetURLAccess == null)
             unsafe.ensureClassInitialized(java.net.URL.class);
         return javaNetURLAccess;
     }
-
-    public static void setJavaNetURLClassLoaderAccess(JavaNetURLClassLoaderAccess jnua) {
-        javaNetURLClassLoaderAccess = jnua;
+    
+    public static void setJavaNetURLAccess(JavaNetURLAccess jnua) {
+        javaNetURLAccess = jnua;
     }
-
+    
+    
     public static JavaNetURLClassLoaderAccess getJavaNetURLClassLoaderAccess() {
-        if (javaNetURLClassLoaderAccess == null)
+        if(javaNetURLClassLoaderAccess == null)
             unsafe.ensureClassInitialized(java.net.URLClassLoader.class);
         return javaNetURLClassLoaderAccess;
     }
-
-    public static void setJavaNetInetAddressAccess(JavaNetInetAddressAccess jna) {
-        javaNetInetAddressAccess = jna;
+    
+    public static void setJavaNetURLClassLoaderAccess(JavaNetURLClassLoaderAccess jnua) {
+        javaNetURLClassLoaderAccess = jnua;
     }
-
+    
+    
     public static JavaNetInetAddressAccess getJavaNetInetAddressAccess() {
-        if (javaNetInetAddressAccess == null)
+        if(javaNetInetAddressAccess == null)
             unsafe.ensureClassInitialized(java.net.InetAddress.class);
         return javaNetInetAddressAccess;
     }
-
-    public static void setJavaNetHttpCookieAccess(JavaNetHttpCookieAccess a) {
-        javaNetHttpCookieAccess = a;
+    
+    public static void setJavaNetInetAddressAccess(JavaNetInetAddressAccess jna) {
+        javaNetInetAddressAccess = jna;
     }
-
+    
+    
     public static JavaNetHttpCookieAccess getJavaNetHttpCookieAccess() {
-        if (javaNetHttpCookieAccess == null)
+        if(javaNetHttpCookieAccess == null)
             unsafe.ensureClassInitialized(java.net.HttpCookie.class);
         return javaNetHttpCookieAccess;
     }
-
-    public static void setJavaNetSocketAccess(JavaNetSocketAccess jnsa) {
-        javaNetSocketAccess = jnsa;
+    
+    public static void setJavaNetHttpCookieAccess(JavaNetHttpCookieAccess a) {
+        javaNetHttpCookieAccess = a;
     }
-
+    
+    
     public static JavaNetSocketAccess getJavaNetSocketAccess() {
-        if (javaNetSocketAccess == null)
+        if(javaNetSocketAccess == null)
             unsafe.ensureClassInitialized(java.net.ServerSocket.class);
         return javaNetSocketAccess;
     }
-
-    public static void setJavaNioAccess(JavaNioAccess jna) {
-        javaNioAccess = jna;
+    
+    public static void setJavaNetSocketAccess(JavaNetSocketAccess jnsa) {
+        javaNetSocketAccess = jnsa;
     }
-
+    
+    
     public static JavaNioAccess getJavaNioAccess() {
-        if (javaNioAccess == null) {
+        if(javaNioAccess == null) {
             // Ensure java.nio.Buffer is initialized, which provides the
             // shared secret.
             unsafe.ensureClassInitialized(java.nio.Buffer.class);
         }
         return javaNioAccess;
     }
-
-    public static void setJavaIOAccess(JavaIOAccess jia) {
-        javaIOAccess = jia;
+    
+    public static void setJavaNioAccess(JavaNioAccess jna) {
+        javaNioAccess = jna;
     }
-
+    
+    
     public static JavaIOAccess getJavaIOAccess() {
-        if (javaIOAccess == null) {
+        if(javaIOAccess == null) {
             unsafe.ensureClassInitialized(Console.class);
         }
         return javaIOAccess;
     }
-
-    public static void setJavaIOFileDescriptorAccess(JavaIOFileDescriptorAccess jiofda) {
-        javaIOFileDescriptorAccess = jiofda;
+    
+    public static void setJavaIOAccess(JavaIOAccess jia) {
+        javaIOAccess = jia;
     }
-
+    
+    
     public static JavaIOFilePermissionAccess getJavaIOFilePermissionAccess() {
-        if (javaIOFilePermissionAccess == null)
+        if(javaIOFilePermissionAccess == null)
             unsafe.ensureClassInitialized(FilePermission.class);
-
+        
         return javaIOFilePermissionAccess;
     }
-
+    
     public static void setJavaIOFilePermissionAccess(JavaIOFilePermissionAccess jiofpa) {
         javaIOFilePermissionAccess = jiofpa;
     }
-
+    
+    
     public static JavaIOFileDescriptorAccess getJavaIOFileDescriptorAccess() {
-        if (javaIOFileDescriptorAccess == null)
+        if(javaIOFileDescriptorAccess == null)
             unsafe.ensureClassInitialized(FileDescriptor.class);
-
+        
         return javaIOFileDescriptorAccess;
     }
-
-    public static void setJavaSecurityAccess(JavaSecurityAccess jsa) {
-        javaSecurityAccess = jsa;
+    
+    public static void setJavaIOFileDescriptorAccess(JavaIOFileDescriptorAccess jiofda) {
+        javaIOFileDescriptorAccess = jiofda;
     }
-
+    
+    
     public static JavaSecurityAccess getJavaSecurityAccess() {
-        if (javaSecurityAccess == null) {
+        if(javaSecurityAccess == null) {
             unsafe.ensureClassInitialized(ProtectionDomain.class);
         }
         return javaSecurityAccess;
     }
-
+    
+    public static void setJavaSecurityAccess(JavaSecurityAccess jsa) {
+        javaSecurityAccess = jsa;
+    }
+    
+    
     public static JavaUtilZipFileAccess getJavaUtilZipFileAccess() {
-        if (javaUtilZipFileAccess == null)
+        if(javaUtilZipFileAccess == null)
             unsafe.ensureClassInitialized(java.util.zip.ZipFile.class);
         return javaUtilZipFileAccess;
     }
-
+    
     public static void setJavaUtilZipFileAccess(JavaUtilZipFileAccess access) {
         javaUtilZipFileAccess = access;
     }
-
-    public static void setJavaAWTAccess(JavaAWTAccess jaa) {
-        javaAWTAccess = jaa;
-    }
-
+    
+    
     public static JavaAWTAccess getJavaAWTAccess() {
         // this may return null in which case calling code needs to
         // provision for.
         return javaAWTAccess;
     }
-
-    public static void setJavaAWTFontAccess(JavaAWTFontAccess jafa) {
-        javaAWTFontAccess = jafa;
+    
+    public static void setJavaAWTAccess(JavaAWTAccess jaa) {
+        javaAWTAccess = jaa;
     }
-
+    
+    
     public static JavaAWTFontAccess getJavaAWTFontAccess() {
         // this may return null in which case calling code needs to
         // provision for.
         return javaAWTFontAccess;
     }
-
+    
+    public static void setJavaAWTFontAccess(JavaAWTFontAccess jafa) {
+        javaAWTFontAccess = jafa;
+    }
+    
+    
     public static JavaBeansAccess getJavaBeansAccess() {
         return javaBeansAccess;
     }
-
+    
     public static void setJavaBeansAccess(JavaBeansAccess access) {
         javaBeansAccess = access;
     }
-
+    
+    
     public static JavaUtilResourceBundleAccess getJavaUtilResourceBundleAccess() {
-        if (javaUtilResourceBundleAccess == null)
+        if(javaUtilResourceBundleAccess == null)
             unsafe.ensureClassInitialized(ResourceBundle.class);
         return javaUtilResourceBundleAccess;
     }
-
+    
     public static void setJavaUtilResourceBundleAccess(JavaUtilResourceBundleAccess access) {
         javaUtilResourceBundleAccess = access;
     }
-
+    
+    
     public static JavaObjectInputStreamAccess getJavaObjectInputStreamAccess() {
-        if (javaObjectInputStreamAccess == null) {
+        if(javaObjectInputStreamAccess == null) {
             unsafe.ensureClassInitialized(ObjectInputStream.class);
         }
         return javaObjectInputStreamAccess;
     }
-
+    
     public static void setJavaObjectInputStreamAccess(JavaObjectInputStreamAccess access) {
         javaObjectInputStreamAccess = access;
     }
-
+    
+    
     public static JavaObjectInputFilterAccess getJavaObjectInputFilterAccess() {
-        if (javaObjectInputFilterAccess == null) {
+        if(javaObjectInputFilterAccess == null) {
             unsafe.ensureClassInitialized(ObjectInputFilter.Config.class);
         }
         return javaObjectInputFilterAccess;
     }
-
+    
     public static void setJavaObjectInputFilterAccess(JavaObjectInputFilterAccess access) {
         javaObjectInputFilterAccess = access;
     }
-
-    public static void setJavaIORandomAccessFileAccess(JavaIORandomAccessFileAccess jirafa) {
-        javaIORandomAccessFileAccess = jirafa;
-    }
-
+    
+    
     public static JavaIORandomAccessFileAccess getJavaIORandomAccessFileAccess() {
-        if (javaIORandomAccessFileAccess == null) {
+        if(javaIORandomAccessFileAccess == null) {
             unsafe.ensureClassInitialized(RandomAccessFile.class);
         }
         return javaIORandomAccessFileAccess;
     }
-
-    public static void setJavaxCryptoSealedObjectAccess(JavaxCryptoSealedObjectAccess jcsoa) {
-        javaxCryptoSealedObjectAccess = jcsoa;
+    
+    public static void setJavaIORandomAccessFileAccess(JavaIORandomAccessFileAccess jirafa) {
+        javaIORandomAccessFileAccess = jirafa;
     }
-
+    
+    
     public static JavaxCryptoSealedObjectAccess getJavaxCryptoSealedObjectAccess() {
-        if (javaxCryptoSealedObjectAccess == null) {
+        if(javaxCryptoSealedObjectAccess == null) {
             unsafe.ensureClassInitialized(SealedObject.class);
         }
         return javaxCryptoSealedObjectAccess;
+    }
+    
+    public static void setJavaxCryptoSealedObjectAccess(JavaxCryptoSealedObjectAccess jcsoa) {
+        javaxCryptoSealedObjectAccess = jcsoa;
     }
 }
