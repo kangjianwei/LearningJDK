@@ -25,8 +25,8 @@
 
 package java.lang;
 
-import jdk.internal.math.FloatingDecimal;
 import jdk.internal.HotSpotIntrinsicCandidate;
+import jdk.internal.math.FloatingDecimal;
 
 /**
  * The {@code Float} class wraps a value of primitive type
@@ -40,33 +40,48 @@ import jdk.internal.HotSpotIntrinsicCandidate;
  * constants and methods useful when dealing with a
  * {@code float}.
  *
- * @author  Lee Boynton
- * @author  Arthur van Hoff
- * @author  Joseph D. Darcy
+ * @author Lee Boynton
+ * @author Arthur van Hoff
+ * @author Joseph D. Darcy
  * @since 1.0
  */
+// float的包装类
 public final class Float extends Number implements Comparable<Float> {
+    
+    /** use serialVersionUID from JDK 1.0.2 for interoperability */
+    private static final long serialVersionUID = -2671257302660747028L;
+    
+    /**
+     * The {@code Class} instance representing the primitive type
+     * {@code float}.
+     *
+     * @since 1.1
+     */
+    // 相当于float.class
+    @SuppressWarnings("unchecked")
+    public static final Class<Float> TYPE = (Class<Float>) Class.getPrimitiveClass("float");
+    
     /**
      * A constant holding the positive infinity of type
      * {@code float}. It is equal to the value returned by
      * {@code Float.intBitsToFloat(0x7f800000)}.
      */
-    public static final float POSITIVE_INFINITY = 1.0f / 0.0f;
-
+    public static final float POSITIVE_INFINITY = 1.0f / 0.0f;  // 代表正无穷大
+    
     /**
      * A constant holding the negative infinity of type
      * {@code float}. It is equal to the value returned by
      * {@code Float.intBitsToFloat(0xff800000)}.
      */
-    public static final float NEGATIVE_INFINITY = -1.0f / 0.0f;
-
+    public static final float NEGATIVE_INFINITY = -1.0f / 0.0f; // 代表负无穷大
+    
     /**
      * A constant holding a Not-a-Number (NaN) value of type
      * {@code float}.  It is equivalent to the value returned by
      * {@code Float.intBitsToFloat(0x7fc00000)}.
      */
-    public static final float NaN = 0.0f / 0.0f;
-
+    public static final float NaN = 0.0f / 0.0f; // 代表非数字
+    
     /**
      * A constant holding the largest positive finite value of type
      * {@code float}, (2-2<sup>-23</sup>)&middot;2<sup>127</sup>.
@@ -74,8 +89,8 @@ public final class Float extends Number implements Comparable<Float> {
      * {@code 0x1.fffffeP+127f} and also equal to
      * {@code Float.intBitsToFloat(0x7f7fffff)}.
      */
-    public static final float MAX_VALUE = 0x1.fffffeP+127f; // 3.4028235e+38f
-
+    public static final float MAX_VALUE = 0x1.fffffeP+127f; // float最大值：3.4028235e+38f
+    
     /**
      * A constant holding the smallest positive normal value of type
      * {@code float}, 2<sup>-126</sup>.  It is equal to the
@@ -84,16 +99,16 @@ public final class Float extends Number implements Comparable<Float> {
      *
      * @since 1.6
      */
-    public static final float MIN_NORMAL = 0x1.0p-126f; // 1.17549435E-38f
-
+    public static final float MIN_NORMAL = 0x1.0p-126f; // float最小正值：1.17549435E-38f，正规数
+    
     /**
      * A constant holding the smallest positive nonzero value of type
      * {@code float}, 2<sup>-149</sup>. It is equal to the
      * hexadecimal floating-point literal {@code 0x0.000002P-126f}
      * and also equal to {@code Float.intBitsToFloat(0x1)}.
      */
-    public static final float MIN_VALUE = 0x0.000002P-126f; // 1.4e-45f
-
+    public static final float MIN_VALUE = 0x0.000002P-126f; // float最小正值：1.4e-45f，次正规数
+    
     /**
      * Maximum exponent a finite {@code float} variable may have.  It
      * is equal to the value returned by {@code
@@ -101,8 +116,8 @@ public final class Float extends Number implements Comparable<Float> {
      *
      * @since 1.6
      */
-    public static final int MAX_EXPONENT = 127;
-
+    public static final int MAX_EXPONENT = 127; // float二进制形式指数部分最大值
+    
     /**
      * Minimum exponent a normalized {@code float} variable may have.
      * It is equal to the value returned by {@code
@@ -110,195 +125,110 @@ public final class Float extends Number implements Comparable<Float> {
      *
      * @since 1.6
      */
-    public static final int MIN_EXPONENT = -126;
-
+    public static final int MIN_EXPONENT = -126; // float二进制形式指数部分最小值
+    
     /**
      * The number of bits used to represent a {@code float} value.
      *
      * @since 1.5
      */
-    public static final int SIZE = 32;
-
+    public static final int SIZE = 32;  // 当前类型所占bit[位]数
+    
     /**
      * The number of bytes used to represent a {@code float} value.
      *
      * @since 1.8
      */
-    public static final int BYTES = SIZE / Byte.SIZE;
-
+    public static final int BYTES = SIZE / Byte.SIZE;   // 当前类型所占字节数
+    
     /**
-     * The {@code Class} instance representing the primitive type
-     * {@code float}.
+     * The value of the Float.
      *
-     * @since 1.1
+     * @serial
      */
-    @SuppressWarnings("unchecked")
-    public static final Class<Float> TYPE = (Class<Float>) Class.getPrimitiveClass("float");
-
+    private final float value; // 当前类包装的值
+    
+    
+    
+    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns a string representation of the {@code float}
-     * argument. All characters mentioned below are ASCII characters.
-     * <ul>
-     * <li>If the argument is NaN, the result is the string
-     * "{@code NaN}".
-     * <li>Otherwise, the result is a string that represents the sign and
-     *     magnitude (absolute value) of the argument. If the sign is
-     *     negative, the first character of the result is
-     *     '{@code -}' ({@code '\u005Cu002D'}); if the sign is
-     *     positive, no sign character appears in the result. As for
-     *     the magnitude <i>m</i>:
-     * <ul>
-     * <li>If <i>m</i> is infinity, it is represented by the characters
-     *     {@code "Infinity"}; thus, positive infinity produces
-     *     the result {@code "Infinity"} and negative infinity
-     *     produces the result {@code "-Infinity"}.
-     * <li>If <i>m</i> is zero, it is represented by the characters
-     *     {@code "0.0"}; thus, negative zero produces the result
-     *     {@code "-0.0"} and positive zero produces the result
-     *     {@code "0.0"}.
-     * <li> If <i>m</i> is greater than or equal to 10<sup>-3</sup> but
-     *      less than 10<sup>7</sup>, then it is represented as the
-     *      integer part of <i>m</i>, in decimal form with no leading
-     *      zeroes, followed by '{@code .}'
-     *      ({@code '\u005Cu002E'}), followed by one or more
-     *      decimal digits representing the fractional part of
-     *      <i>m</i>.
-     * <li> If <i>m</i> is less than 10<sup>-3</sup> or greater than or
-     *      equal to 10<sup>7</sup>, then it is represented in
-     *      so-called "computerized scientific notation." Let <i>n</i>
-     *      be the unique integer such that 10<sup><i>n</i> </sup>&le;
-     *      <i>m</i> {@literal <} 10<sup><i>n</i>+1</sup>; then let <i>a</i>
-     *      be the mathematically exact quotient of <i>m</i> and
-     *      10<sup><i>n</i></sup> so that 1 &le; <i>a</i> {@literal <} 10.
-     *      The magnitude is then represented as the integer part of
-     *      <i>a</i>, as a single decimal digit, followed by
-     *      '{@code .}' ({@code '\u005Cu002E'}), followed by
-     *      decimal digits representing the fractional part of
-     *      <i>a</i>, followed by the letter '{@code E}'
-     *      ({@code '\u005Cu0045'}), followed by a representation
-     *      of <i>n</i> as a decimal integer, as produced by the
-     *      method {@link java.lang.Integer#toString(int)}.
+     * Constructs a newly allocated {@code Float} object that
+     * represents the primitive {@code float} argument.
      *
-     * </ul>
-     * </ul>
-     * How many digits must be printed for the fractional part of
-     * <i>m</i> or <i>a</i>? There must be at least one digit
-     * to represent the fractional part, and beyond that as many, but
-     * only as many, more digits as are needed to uniquely distinguish
-     * the argument value from adjacent values of type
-     * {@code float}. That is, suppose that <i>x</i> is the
-     * exact mathematical value represented by the decimal
-     * representation produced by this method for a finite nonzero
-     * argument <i>f</i>. Then <i>f</i> must be the {@code float}
-     * value nearest to <i>x</i>; or, if two {@code float} values are
-     * equally close to <i>x</i>, then <i>f</i> must be one of
-     * them and the least significant bit of the significand of
-     * <i>f</i> must be {@code 0}.
+     * @param value the value to be represented by the {@code Float}.
      *
-     * <p>To create localized string representations of a floating-point
-     * value, use subclasses of {@link java.text.NumberFormat}.
-     *
-     * @param   f   the float to be converted.
-     * @return a string representation of the argument.
+     * @deprecated It is rarely appropriate to use this constructor. The static factory
+     * {@link #valueOf(float)} is generally a better choice, as it is
+     * likely to yield significantly better space and time performance.
      */
-    public static String toString(float f) {
-        return FloatingDecimal.toJavaFormatString(f);
+    @Deprecated(since = "9")
+    public Float(float value) {
+        this.value = value;
     }
-
+    
     /**
-     * Returns a hexadecimal string representation of the
-     * {@code float} argument. All characters mentioned below are
-     * ASCII characters.
+     * Constructs a newly allocated {@code Float} object that
+     * represents the argument converted to type {@code float}.
      *
-     * <ul>
-     * <li>If the argument is NaN, the result is the string
-     *     "{@code NaN}".
-     * <li>Otherwise, the result is a string that represents the sign and
-     * magnitude (absolute value) of the argument. If the sign is negative,
-     * the first character of the result is '{@code -}'
-     * ({@code '\u005Cu002D'}); if the sign is positive, no sign character
-     * appears in the result. As for the magnitude <i>m</i>:
+     * @param value the value to be represented by the {@code Float}.
      *
-     * <ul>
-     * <li>If <i>m</i> is infinity, it is represented by the string
-     * {@code "Infinity"}; thus, positive infinity produces the
-     * result {@code "Infinity"} and negative infinity produces
-     * the result {@code "-Infinity"}.
+     * @deprecated It is rarely appropriate to use this constructor. Instead, use the
+     * static factory method {@link #valueOf(float)} method as follows:
+     * {@code Float.valueOf((float)value)}.
+     */
+    @Deprecated(since = "9")
+    public Float(double value) {
+        this.value = (float) value;
+    }
+    
+    /**
+     * Constructs a newly allocated {@code Float} object that
+     * represents the floating-point value of type {@code float}
+     * represented by the string. The string is converted to a
+     * {@code float} value as if by the {@code valueOf} method.
      *
-     * <li>If <i>m</i> is zero, it is represented by the string
-     * {@code "0x0.0p0"}; thus, negative zero produces the result
-     * {@code "-0x0.0p0"} and positive zero produces the result
-     * {@code "0x0.0p0"}.
+     * @param s a string to be converted to a {@code Float}.
      *
-     * <li>If <i>m</i> is a {@code float} value with a
-     * normalized representation, substrings are used to represent the
-     * significand and exponent fields.  The significand is
-     * represented by the characters {@code "0x1."}
-     * followed by a lowercase hexadecimal representation of the rest
-     * of the significand as a fraction.  Trailing zeros in the
-     * hexadecimal representation are removed unless all the digits
-     * are zero, in which case a single zero is used. Next, the
-     * exponent is represented by {@code "p"} followed
-     * by a decimal string of the unbiased exponent as if produced by
-     * a call to {@link Integer#toString(int) Integer.toString} on the
-     * exponent value.
+     * @throws NumberFormatException if the string does not contain a
+     *                               parsable number.
+     * @deprecated It is rarely appropriate to use this constructor.
+     * Use {@link #parseFloat(String)} to convert a string to a
+     * {@code float} primitive, or use {@link #valueOf(String)}
+     * to convert a string to a {@code Float} object.
+     */
+    @Deprecated(since = "9")
+    public Float(String s) throws NumberFormatException {
+        value = parseFloat(s);
+    }
+    
+    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ [装箱] ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a {@code Float} instance representing the specified
+     * {@code float} value.
+     * If a new {@code Float} instance is not required, this method
+     * should generally be used in preference to the constructor
+     * {@link #Float(float)}, as this method is likely to yield
+     * significantly better space and time performance by caching
+     * frequently requested values.
      *
-     * <li>If <i>m</i> is a {@code float} value with a subnormal
-     * representation, the significand is represented by the
-     * characters {@code "0x0."} followed by a
-     * hexadecimal representation of the rest of the significand as a
-     * fraction.  Trailing zeros in the hexadecimal representation are
-     * removed. Next, the exponent is represented by
-     * {@code "p-126"}.  Note that there must be at
-     * least one nonzero digit in a subnormal significand.
+     * @param f a float value.
      *
-     * </ul>
+     * @return a {@code Float} instance representing {@code f}.
      *
-     * </ul>
-     *
-     * <table class="striped">
-     * <caption>Examples</caption>
-     * <thead>
-     * <tr><th scope="col">Floating-point Value</th><th scope="col">Hexadecimal String</th>
-     * </thead>
-     * <tbody>
-     * <tr><th scope="row">{@code 1.0}</th> <td>{@code 0x1.0p0}</td>
-     * <tr><th scope="row">{@code -1.0}</th>        <td>{@code -0x1.0p0}</td>
-     * <tr><th scope="row">{@code 2.0}</th> <td>{@code 0x1.0p1}</td>
-     * <tr><th scope="row">{@code 3.0}</th> <td>{@code 0x1.8p1}</td>
-     * <tr><th scope="row">{@code 0.5}</th> <td>{@code 0x1.0p-1}</td>
-     * <tr><th scope="row">{@code 0.25}</th>        <td>{@code 0x1.0p-2}</td>
-     * <tr><th scope="row">{@code Float.MAX_VALUE}</th>
-     *     <td>{@code 0x1.fffffep127}</td>
-     * <tr><th scope="row">{@code Minimum Normal Value}</th>
-     *     <td>{@code 0x1.0p-126}</td>
-     * <tr><th scope="row">{@code Maximum Subnormal Value}</th>
-     *     <td>{@code 0x0.fffffep-126}</td>
-     * <tr><th scope="row">{@code Float.MIN_VALUE}</th>
-     *     <td>{@code 0x0.000002p-126}</td>
-     * </tbody>
-     * </table>
-     * @param   f   the {@code float} to be converted.
-     * @return a hex string representation of the argument.
      * @since 1.5
-     * @author Joseph D. Darcy
      */
-    public static String toHexString(float f) {
-        if (Math.abs(f) < Float.MIN_NORMAL
-            &&  f != 0.0f ) {// float subnormal
-            // Adjust exponent to create subnormal double, then
-            // replace subnormal double exponent with subnormal float
-            // exponent
-            String s = Double.toHexString(Math.scalb((double)f,
-                                                     /* -1022+126 */
-                                                     Double.MIN_EXPONENT-
-                                                     Float.MIN_EXPONENT));
-            return s.replaceFirst("p-1022$", "p-126");
-        }
-        else // double string will be the same as float string
-            return Double.toHexString(f);
+    // float-->Float 默认的装箱行为
+    @HotSpotIntrinsicCandidate
+    public static Float valueOf(float f) {
+        return new Float(f);
     }
-
+    
     /**
      * Returns a {@code Float} object holding the
      * {@code float} value represented by the argument string
@@ -334,9 +264,9 @@ public final class Float extends Number implements Comparable<Float> {
      * <dd><i>HexNumeral</i>
      * <dd><i>HexNumeral</i> {@code .}
      * <dd>{@code 0x} <i>HexDigits<sub>opt</sub>
-     *     </i>{@code .}<i> HexDigits</i>
+     * </i>{@code .}<i> HexDigits</i>
      * <dd>{@code 0X}<i> HexDigits<sub>opt</sub>
-     *     </i>{@code .} <i>HexDigits</i>
+     * </i>{@code .} <i>HexDigits</i>
      * </dl>
      *
      * <dl>
@@ -409,329 +339,411 @@ public final class Float extends Number implements Comparable<Float> {
      * for {@link Double#valueOf Double.valueOf} lists a regular
      * expression which can be used to screen the input.
      *
-     * @param   s   the string to be parsed.
-     * @return  a {@code Float} object holding the value
-     *          represented by the {@code String} argument.
-     * @throws  NumberFormatException  if the string does not contain a
-     *          parsable number.
+     * @param s the string to be parsed.
+     *
+     * @return a {@code Float} object holding the value
+     * represented by the {@code String} argument.
+     *
+     * @throws NumberFormatException if the string does not contain a
+     *                               parsable number.
      */
+    // 将字符串s解析为float值，然后再装箱
     public static Float valueOf(String s) throws NumberFormatException {
         return new Float(parseFloat(s));
     }
-
+    
+    /*▲ [装箱] ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ [拆箱] ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns a {@code Float} instance representing the specified
-     * {@code float} value.
-     * If a new {@code Float} instance is not required, this method
-     * should generally be used in preference to the constructor
-     * {@link #Float(float)}, as this method is likely to yield
-     * significantly better space and time performance by caching
-     * frequently requested values.
+     * Returns the value of this {@code Float} as a {@code byte} after
+     * a narrowing primitive conversion.
      *
-     * @param  f a float value.
-     * @return a {@code Float} instance representing {@code f}.
-     * @since  1.5
+     * @return the {@code float} value represented by this object
+     * converted to type {@code byte}
+     *
+     * @jls 5.1.3 Narrowing Primitive Conversions
      */
-    @HotSpotIntrinsicCandidate
-    public static Float valueOf(float f) {
-        return new Float(f);
+    // 以byte形式返回当前对象的值
+    public byte byteValue() {
+        return (byte) value;
     }
-
+    
+    /**
+     * Returns the value of this {@code Float} as a {@code short}
+     * after a narrowing primitive conversion.
+     *
+     * @return the {@code float} value represented by this object
+     * converted to type {@code short}
+     *
+     * @jls 5.1.3 Narrowing Primitive Conversions
+     * @since 1.1
+     */
+    // 以short形式返回当前对象的值
+    public short shortValue() {
+        return (short) value;
+    }
+    
+    /**
+     * Returns the value of this {@code Float} as an {@code int} after
+     * a narrowing primitive conversion.
+     *
+     * @return the {@code float} value represented by this object
+     * converted to type {@code int}
+     *
+     * @jls 5.1.3 Narrowing Primitive Conversions
+     */
+    // 以int形式返回当前对象的值
+    public int intValue() {
+        return (int) value;
+    }
+    
+    /**
+     * Returns value of this {@code Float} as a {@code long} after a
+     * narrowing primitive conversion.
+     *
+     * @return the {@code float} value represented by this object
+     * converted to type {@code long}
+     *
+     * @jls 5.1.3 Narrowing Primitive Conversions
+     */
+    // 以long形式返回当前对象的值
+    public long longValue() {
+        return (long) value;
+    }
+    
+    /**
+     * Returns the {@code float} value of this {@code Float} object.
+     *
+     * @return the {@code float} value represented by this object
+     */
+    // Float-->float 默认的拆箱行为
+    @HotSpotIntrinsicCandidate
+    public float floatValue() {
+        return value;
+    }
+    
+    /**
+     * Returns the value of this {@code Float} as a {@code double}
+     * after a widening primitive conversion.
+     *
+     * @return the {@code float} value represented by this
+     * object converted to type {@code double}
+     *
+     * @jls 5.1.2 Widening Primitive Conversions
+     */
+    // 以double形式返回当前对象的值
+    public double doubleValue() {
+        return (double) value;
+    }
+    
+    /*▲ [拆箱] ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 逆字符串化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns a new {@code float} initialized to the value
      * represented by the specified {@code String}, as performed
      * by the {@code valueOf} method of class {@code Float}.
      *
-     * @param  s the string to be parsed.
+     * @param s the string to be parsed.
+     *
      * @return the {@code float} value represented by the string
-     *         argument.
+     * argument.
+     *
      * @throws NullPointerException  if the string is null
      * @throws NumberFormatException if the string does not contain a
-     *               parsable {@code float}.
-     * @see    java.lang.Float#valueOf(String)
+     *                               parsable {@code float}.
+     * @see java.lang.Float#valueOf(String)
      * @since 1.2
      */
+    // 将字符串s解析为float值
     public static float parseFloat(String s) throws NumberFormatException {
         return FloatingDecimal.parseFloat(s);
     }
-
-    /**
-     * Returns {@code true} if the specified number is a
-     * Not-a-Number (NaN) value, {@code false} otherwise.
-     *
-     * @param   v   the value to be tested.
-     * @return  {@code true} if the argument is NaN;
-     *          {@code false} otherwise.
-     */
-    public static boolean isNaN(float v) {
-        return (v != v);
-    }
-
-    /**
-     * Returns {@code true} if the specified number is infinitely
-     * large in magnitude, {@code false} otherwise.
-     *
-     * @param   v   the value to be tested.
-     * @return  {@code true} if the argument is positive infinity or
-     *          negative infinity; {@code false} otherwise.
-     */
-    public static boolean isInfinite(float v) {
-        return (v == POSITIVE_INFINITY) || (v == NEGATIVE_INFINITY);
-    }
-
-
-    /**
-     * Returns {@code true} if the argument is a finite floating-point
-     * value; returns {@code false} otherwise (for NaN and infinity
-     * arguments).
-     *
-     * @param f the {@code float} value to be tested
-     * @return {@code true} if the argument is a finite
-     * floating-point value, {@code false} otherwise.
-     * @since 1.8
-     */
-     public static boolean isFinite(float f) {
-        return Math.abs(f) <= Float.MAX_VALUE;
-    }
-
-    /**
-     * The value of the Float.
-     *
-     * @serial
-     */
-    private final float value;
-
-    /**
-     * Constructs a newly allocated {@code Float} object that
-     * represents the primitive {@code float} argument.
-     *
-     * @param   value   the value to be represented by the {@code Float}.
-     *
-     * @deprecated
-     * It is rarely appropriate to use this constructor. The static factory
-     * {@link #valueOf(float)} is generally a better choice, as it is
-     * likely to yield significantly better space and time performance.
-     */
-    @Deprecated(since="9")
-    public Float(float value) {
-        this.value = value;
-    }
-
-    /**
-     * Constructs a newly allocated {@code Float} object that
-     * represents the argument converted to type {@code float}.
-     *
-     * @param   value   the value to be represented by the {@code Float}.
-     *
-     * @deprecated
-     * It is rarely appropriate to use this constructor. Instead, use the
-     * static factory method {@link #valueOf(float)} method as follows:
-     * {@code Float.valueOf((float)value)}.
-     */
-    @Deprecated(since="9")
-    public Float(double value) {
-        this.value = (float)value;
-    }
-
-    /**
-     * Constructs a newly allocated {@code Float} object that
-     * represents the floating-point value of type {@code float}
-     * represented by the string. The string is converted to a
-     * {@code float} value as if by the {@code valueOf} method.
-     *
-     * @param   s   a string to be converted to a {@code Float}.
-     * @throws      NumberFormatException if the string does not contain a
-     *              parsable number.
-     *
-     * @deprecated
-     * It is rarely appropriate to use this constructor.
-     * Use {@link #parseFloat(String)} to convert a string to a
-     * {@code float} primitive, or use {@link #valueOf(String)}
-     * to convert a string to a {@code Float} object.
-     */
-    @Deprecated(since="9")
-    public Float(String s) throws NumberFormatException {
-        value = parseFloat(s);
-    }
-
-    /**
-     * Returns {@code true} if this {@code Float} value is a
-     * Not-a-Number (NaN), {@code false} otherwise.
-     *
-     * @return  {@code true} if the value represented by this object is
-     *          NaN; {@code false} otherwise.
-     */
-    public boolean isNaN() {
-        return isNaN(value);
-    }
-
-    /**
-     * Returns {@code true} if this {@code Float} value is
-     * infinitely large in magnitude, {@code false} otherwise.
-     *
-     * @return  {@code true} if the value represented by this object is
-     *          positive infinity or negative infinity;
-     *          {@code false} otherwise.
-     */
-    public boolean isInfinite() {
-        return isInfinite(value);
-    }
-
+    
+    /*▲ 逆字符串化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字符串化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns a string representation of this {@code Float} object.
      * The primitive {@code float} value represented by this object
      * is converted to a {@code String} exactly as if by the method
      * {@code toString} of one argument.
      *
-     * @return  a {@code String} representation of this object.
+     * @return a {@code String} representation of this object.
+     *
      * @see java.lang.Float#toString(float)
      */
     public String toString() {
         return Float.toString(value);
     }
-
+    
     /**
-     * Returns the value of this {@code Float} as a {@code byte} after
-     * a narrowing primitive conversion.
-     *
-     * @return  the {@code float} value represented by this object
-     *          converted to type {@code byte}
-     * @jls 5.1.3 Narrowing Primitive Conversions
-     */
-    public byte byteValue() {
-        return (byte)value;
-    }
-
-    /**
-     * Returns the value of this {@code Float} as a {@code short}
-     * after a narrowing primitive conversion.
-     *
-     * @return  the {@code float} value represented by this object
-     *          converted to type {@code short}
-     * @jls 5.1.3 Narrowing Primitive Conversions
-     * @since 1.1
-     */
-    public short shortValue() {
-        return (short)value;
-    }
-
-    /**
-     * Returns the value of this {@code Float} as an {@code int} after
-     * a narrowing primitive conversion.
-     *
-     * @return  the {@code float} value represented by this object
-     *          converted to type {@code int}
-     * @jls 5.1.3 Narrowing Primitive Conversions
-     */
-    public int intValue() {
-        return (int)value;
-    }
-
-    /**
-     * Returns value of this {@code Float} as a {@code long} after a
-     * narrowing primitive conversion.
-     *
-     * @return  the {@code float} value represented by this object
-     *          converted to type {@code long}
-     * @jls 5.1.3 Narrowing Primitive Conversions
-     */
-    public long longValue() {
-        return (long)value;
-    }
-
-    /**
-     * Returns the {@code float} value of this {@code Float} object.
-     *
-     * @return the {@code float} value represented by this object
-     */
-    @HotSpotIntrinsicCandidate
-    public float floatValue() {
-        return value;
-    }
-
-    /**
-     * Returns the value of this {@code Float} as a {@code double}
-     * after a widening primitive conversion.
-     *
-     * @return the {@code float} value represented by this
-     *         object converted to type {@code double}
-     * @jls 5.1.2 Widening Primitive Conversions
-     */
-    public double doubleValue() {
-        return (double)value;
-    }
-
-    /**
-     * Returns a hash code for this {@code Float} object. The
-     * result is the integer bit representation, exactly as produced
-     * by the method {@link #floatToIntBits(float)}, of the primitive
-     * {@code float} value represented by this {@code Float}
-     * object.
-     *
-     * @return a hash code value for this object.
-     */
-    @Override
-    public int hashCode() {
-        return Float.hashCode(value);
-    }
-
-    /**
-     * Returns a hash code for a {@code float} value; compatible with
-     * {@code Float.hashCode()}.
-     *
-     * @param value the value to hash
-     * @return a hash code value for a {@code float} value.
-     * @since 1.8
-     */
-    public static int hashCode(float value) {
-        return floatToIntBits(value);
-    }
-
-    /**
-
-     * Compares this object against the specified object.  The result
-     * is {@code true} if and only if the argument is not
-     * {@code null} and is a {@code Float} object that
-     * represents a {@code float} with the same value as the
-     * {@code float} represented by this object. For this
-     * purpose, two {@code float} values are considered to be the
-     * same if and only if the method {@link #floatToIntBits(float)}
-     * returns the identical {@code int} value when applied to
-     * each.
-     *
-     * <p>Note that in most cases, for two instances of class
-     * {@code Float}, {@code f1} and {@code f2}, the value
-     * of {@code f1.equals(f2)} is {@code true} if and only if
-     *
-     * <blockquote><pre>
-     *   f1.floatValue() == f2.floatValue()
-     * </pre></blockquote>
-     *
-     * <p>also has the value {@code true}. However, there are two exceptions:
+     * Returns a string representation of the {@code float}
+     * argument. All characters mentioned below are ASCII characters.
      * <ul>
-     * <li>If {@code f1} and {@code f2} both represent
-     *     {@code Float.NaN}, then the {@code equals} method returns
-     *     {@code true}, even though {@code Float.NaN==Float.NaN}
-     *     has the value {@code false}.
-     * <li>If {@code f1} represents {@code +0.0f} while
-     *     {@code f2} represents {@code -0.0f}, or vice
-     *     versa, the {@code equal} test has the value
-     *     {@code false}, even though {@code 0.0f==-0.0f}
-     *     has the value {@code true}.
+     * <li>If the argument is NaN, the result is the string
+     * "{@code NaN}".
+     * <li>Otherwise, the result is a string that represents the sign and
+     * magnitude (absolute value) of the argument. If the sign is
+     * negative, the first character of the result is
+     * '{@code -}' ({@code '\u005Cu002D'}); if the sign is
+     * positive, no sign character appears in the result. As for
+     * the magnitude <i>m</i>:
+     * <ul>
+     * <li>If <i>m</i> is infinity, it is represented by the characters
+     * {@code "Infinity"}; thus, positive infinity produces
+     * the result {@code "Infinity"} and negative infinity
+     * produces the result {@code "-Infinity"}.
+     * <li>If <i>m</i> is zero, it is represented by the characters
+     * {@code "0.0"}; thus, negative zero produces the result
+     * {@code "-0.0"} and positive zero produces the result
+     * {@code "0.0"}.
+     * <li> If <i>m</i> is greater than or equal to 10<sup>-3</sup> but
+     * less than 10<sup>7</sup>, then it is represented as the
+     * integer part of <i>m</i>, in decimal form with no leading
+     * zeroes, followed by '{@code .}'
+     * ({@code '\u005Cu002E'}), followed by one or more
+     * decimal digits representing the fractional part of
+     * <i>m</i>.
+     * <li> If <i>m</i> is less than 10<sup>-3</sup> or greater than or
+     * equal to 10<sup>7</sup>, then it is represented in
+     * so-called "computerized scientific notation." Let <i>n</i>
+     * be the unique integer such that 10<sup><i>n</i> </sup>&le;
+     * <i>m</i> {@literal <} 10<sup><i>n</i>+1</sup>; then let <i>a</i>
+     * be the mathematically exact quotient of <i>m</i> and
+     * 10<sup><i>n</i></sup> so that 1 &le; <i>a</i> {@literal <} 10.
+     * The magnitude is then represented as the integer part of
+     * <i>a</i>, as a single decimal digit, followed by
+     * '{@code .}' ({@code '\u005Cu002E'}), followed by
+     * decimal digits representing the fractional part of
+     * <i>a</i>, followed by the letter '{@code E}'
+     * ({@code '\u005Cu0045'}), followed by a representation
+     * of <i>n</i> as a decimal integer, as produced by the
+     * method {@link java.lang.Integer#toString(int)}.
+     *
+     * </ul>
+     * </ul>
+     * How many digits must be printed for the fractional part of
+     * <i>m</i> or <i>a</i>? There must be at least one digit
+     * to represent the fractional part, and beyond that as many, but
+     * only as many, more digits as are needed to uniquely distinguish
+     * the argument value from adjacent values of type
+     * {@code float}. That is, suppose that <i>x</i> is the
+     * exact mathematical value represented by the decimal
+     * representation produced by this method for a finite nonzero
+     * argument <i>f</i>. Then <i>f</i> must be the {@code float}
+     * value nearest to <i>x</i>; or, if two {@code float} values are
+     * equally close to <i>x</i>, then <i>f</i> must be one of
+     * them and the least significant bit of the significand of
+     * <i>f</i> must be {@code 0}.
+     *
+     * <p>To create localized string representations of a floating-point
+     * value, use subclasses of {@link java.text.NumberFormat}.
+     *
+     * @param f the float to be converted.
+     *
+     * @return a string representation of the argument.
+     */
+    public static String toString(float f) {
+        return FloatingDecimal.toJavaFormatString(f);
+    }
+    
+    /**
+     * Returns a hexadecimal string representation of the
+     * {@code float} argument. All characters mentioned below are
+     * ASCII characters.
+     *
+     * <ul>
+     * <li>If the argument is NaN, the result is the string
+     * "{@code NaN}".
+     * <li>Otherwise, the result is a string that represents the sign and
+     * magnitude (absolute value) of the argument. If the sign is negative,
+     * the first character of the result is '{@code -}'
+     * ({@code '\u005Cu002D'}); if the sign is positive, no sign character
+     * appears in the result. As for the magnitude <i>m</i>:
+     *
+     * <ul>
+     * <li>If <i>m</i> is infinity, it is represented by the string
+     * {@code "Infinity"}; thus, positive infinity produces the
+     * result {@code "Infinity"} and negative infinity produces
+     * the result {@code "-Infinity"}.
+     *
+     * <li>If <i>m</i> is zero, it is represented by the string
+     * {@code "0x0.0p0"}; thus, negative zero produces the result
+     * {@code "-0x0.0p0"} and positive zero produces the result
+     * {@code "0x0.0p0"}.
+     *
+     * <li>If <i>m</i> is a {@code float} value with a
+     * normalized representation, substrings are used to represent the
+     * significand and exponent fields.  The significand is
+     * represented by the characters {@code "0x1."}
+     * followed by a lowercase hexadecimal representation of the rest
+     * of the significand as a fraction.  Trailing zeros in the
+     * hexadecimal representation are removed unless all the digits
+     * are zero, in which case a single zero is used. Next, the
+     * exponent is represented by {@code "p"} followed
+     * by a decimal string of the unbiased exponent as if produced by
+     * a call to {@link Integer#toString(int) Integer.toString} on the
+     * exponent value.
+     *
+     * <li>If <i>m</i> is a {@code float} value with a subnormal
+     * representation, the significand is represented by the
+     * characters {@code "0x0."} followed by a
+     * hexadecimal representation of the rest of the significand as a
+     * fraction.  Trailing zeros in the hexadecimal representation are
+     * removed. Next, the exponent is represented by
+     * {@code "p-126"}.  Note that there must be at
+     * least one nonzero digit in a subnormal significand.
+     *
      * </ul>
      *
-     * This definition allows hash tables to operate properly.
+     * </ul>
      *
-     * @param obj the object to be compared
-     * @return  {@code true} if the objects are the same;
-     *          {@code false} otherwise.
-     * @see java.lang.Float#floatToIntBits(float)
+     * <table class="striped">
+     * <caption>Examples</caption>
+     * <thead>
+     * <tr><th scope="col">Floating-point Value</th><th scope="col">Hexadecimal String</th>
+     * </thead>
+     * <tbody>
+     * <tr><th scope="row">{@code 1.0}</th> <td>{@code 0x1.0p0}</td>
+     * <tr><th scope="row">{@code -1.0}</th>        <td>{@code -0x1.0p0}</td>
+     * <tr><th scope="row">{@code 2.0}</th> <td>{@code 0x1.0p1}</td>
+     * <tr><th scope="row">{@code 3.0}</th> <td>{@code 0x1.8p1}</td>
+     * <tr><th scope="row">{@code 0.5}</th> <td>{@code 0x1.0p-1}</td>
+     * <tr><th scope="row">{@code 0.25}</th>        <td>{@code 0x1.0p-2}</td>
+     * <tr><th scope="row">{@code Float.MAX_VALUE}</th>
+     * <td>{@code 0x1.fffffep127}</td>
+     * <tr><th scope="row">{@code Minimum Normal Value}</th>
+     * <td>{@code 0x1.0p-126}</td>
+     * <tr><th scope="row">{@code Maximum Subnormal Value}</th>
+     * <td>{@code 0x0.fffffep-126}</td>
+     * <tr><th scope="row">{@code Float.MIN_VALUE}</th>
+     * <td>{@code 0x0.000002p-126}</td>
+     * </tbody>
+     * </table>
+     *
+     * @param f the {@code float} to be converted.
+     *
+     * @return a hex string representation of the argument.
+     *
+     * @author Joseph D. Darcy
+     * @since 1.5
      */
-    public boolean equals(Object obj) {
-        return (obj instanceof Float)
-               && (floatToIntBits(((Float)obj).value) == floatToIntBits(value));
+    // 返回浮点值f的十六进制形式
+    public static String toHexString(float f) {
+        if(Math.abs(f)<Float.MIN_NORMAL && f != 0.0f) {// float subnormal
+            // Adjust exponent to create subnormal double,
+            // then replace subnormal double exponent with subnormal float exponent
+            String s = Double.toHexString(
+                Math.scalb((double) f,
+                    /* -1022+126 */
+                    Double.MIN_EXPONENT - Float.MIN_EXPONENT)
+            );
+            return s.replaceFirst("p-1022$", "p-126");
+        } else { // double string will be the same as float string
+            return Double.toHexString(f);
+        }
     }
-
+    
+    /*▲ 字符串化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 比较 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Compares the two specified {@code float} values. The sign
+     * of the integer value returned is the same as that of the
+     * integer that would be returned by the call:
+     * <pre>
+     *    new Float(f1).compareTo(new Float(f2))
+     * </pre>
+     *
+     * @param f1 the first {@code float} to compare.
+     * @param f2 the second {@code float} to compare.
+     *
+     * @return the value {@code 0} if {@code f1} is
+     * numerically equal to {@code f2}; a value less than
+     * {@code 0} if {@code f1} is numerically less than
+     * {@code f2}; and a value greater than {@code 0}
+     * if {@code f1} is numerically greater than
+     * {@code f2}.
+     *
+     * @since 1.4
+     */
+    // 比较两个float
+    public static int compare(float f1, float f2) {
+        if(f1<f2)
+            return -1;           // Neither val is NaN, thisVal is smaller
+        if(f1>f2)
+            return 1;            // Neither val is NaN, thisVal is larger
+        
+        // Cannot use floatToRawIntBits because of possibility of NaNs.
+        int thisBits = Float.floatToIntBits(f1);
+        int anotherBits = Float.floatToIntBits(f2);
+        
+        return (thisBits == anotherBits
+            ? 0 // Values are equal
+            : (thisBits<anotherBits
+            ? -1  // (-0.0, 0.0) or (!NaN, NaN)
+            : 1)  // (0.0, -0.0) or (NaN, !NaN)
+        );
+    }
+    
+    /**
+     * Compares two {@code Float} objects numerically.  There are
+     * two ways in which comparisons performed by this method differ
+     * from those performed by the Java language numerical comparison
+     * operators ({@code <, <=, ==, >=, >}) when
+     * applied to primitive {@code float} values:
+     *
+     * <ul><li>
+     * {@code Float.NaN} is considered by this method to
+     * be equal to itself and greater than all other
+     * {@code float} values
+     * (including {@code Float.POSITIVE_INFINITY}).
+     * <li>
+     * {@code 0.0f} is considered by this method to be greater
+     * than {@code -0.0f}.
+     * </ul>
+     *
+     * This ensures that the <i>natural ordering</i> of {@code Float}
+     * objects imposed by this method is <i>consistent with equals</i>.
+     *
+     * @param anotherFloat the {@code Float} to be compared.
+     *
+     * @return the value {@code 0} if {@code anotherFloat} is
+     * numerically equal to this {@code Float}; a value
+     * less than {@code 0} if this {@code Float}
+     * is numerically less than {@code anotherFloat};
+     * and a value greater than {@code 0} if this
+     * {@code Float} is numerically greater than
+     * {@code anotherFloat}.
+     *
+     * @see Comparable#compareTo(Object)
+     * @since 1.2
+     */
+    // 比较两个Float
+    public int compareTo(Float anotherFloat) {
+        return Float.compare(value, anotherFloat.value);
+    }
+    
+    /*▲ 比较 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 位操作 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns a representation of the specified floating-point value
      * according to the IEEE 754 floating-point "single format" bit
@@ -760,17 +772,20 @@ public final class Float extends Number implements Comparable<Float> {
      * (except all NaN values are collapsed to a single
      * "canonical" NaN value).
      *
-     * @param   value   a floating-point number.
+     * @param value a floating-point number.
+     *
      * @return the bits that represent the floating-point number.
      */
+    // 先计算value的二进制格式，然后返回该二进制格式表示的int
     @HotSpotIntrinsicCandidate
     public static int floatToIntBits(float value) {
-        if (!isNaN(value)) {
+        if(!isNaN(value)) {
             return floatToRawIntBits(value);
         }
+        
         return 0x7fc00000;
     }
-
+    
     /**
      * Returns a representation of the specified floating-point value
      * according to the IEEE 754 floating-point "single format" bit
@@ -802,13 +817,16 @@ public final class Float extends Number implements Comparable<Float> {
      * floating-point value the same as the argument to
      * {@code floatToRawIntBits}.
      *
-     * @param   value   a floating-point number.
+     * @param value a floating-point number.
+     *
      * @return the bits that represent the floating-point number.
+     *
      * @since 1.3
      */
+    // 先计算value的二进制格式，然后返回该二进制格式表示的int
     @HotSpotIntrinsicCandidate
     public static native int floatToRawIntBits(float value);
-
+    
     /**
      * Returns the {@code float} value corresponding to a given
      * bit representation.
@@ -864,124 +882,223 @@ public final class Float extends Number implements Comparable<Float> {
      * dependent; although all NaN bit patterns, quiet or signaling,
      * must be in the NaN range identified above.
      *
-     * @param   bits   an integer.
-     * @return  the {@code float} floating-point value with the same bit
-     *          pattern.
+     * @param bits an integer.
+     *
+     * @return the {@code float} floating-point value with the same bit
+     * pattern.
      */
+    // 先计算bits的二进制格式，然后返回该二进制格式表示的float
     @HotSpotIntrinsicCandidate
     public static native float intBitsToFloat(int bits);
-
-    /**
-     * Compares two {@code Float} objects numerically.  There are
-     * two ways in which comparisons performed by this method differ
-     * from those performed by the Java language numerical comparison
-     * operators ({@code <, <=, ==, >=, >}) when
-     * applied to primitive {@code float} values:
-     *
-     * <ul><li>
-     *          {@code Float.NaN} is considered by this method to
-     *          be equal to itself and greater than all other
-     *          {@code float} values
-     *          (including {@code Float.POSITIVE_INFINITY}).
-     * <li>
-     *          {@code 0.0f} is considered by this method to be greater
-     *          than {@code -0.0f}.
-     * </ul>
-     *
-     * This ensures that the <i>natural ordering</i> of {@code Float}
-     * objects imposed by this method is <i>consistent with equals</i>.
-     *
-     * @param   anotherFloat   the {@code Float} to be compared.
-     * @return  the value {@code 0} if {@code anotherFloat} is
-     *          numerically equal to this {@code Float}; a value
-     *          less than {@code 0} if this {@code Float}
-     *          is numerically less than {@code anotherFloat};
-     *          and a value greater than {@code 0} if this
-     *          {@code Float} is numerically greater than
-     *          {@code anotherFloat}.
-     *
-     * @since   1.2
-     * @see Comparable#compareTo(Object)
-     */
-    public int compareTo(Float anotherFloat) {
-        return Float.compare(value, anotherFloat.value);
-    }
-
-    /**
-     * Compares the two specified {@code float} values. The sign
-     * of the integer value returned is the same as that of the
-     * integer that would be returned by the call:
-     * <pre>
-     *    new Float(f1).compareTo(new Float(f2))
-     * </pre>
-     *
-     * @param   f1        the first {@code float} to compare.
-     * @param   f2        the second {@code float} to compare.
-     * @return  the value {@code 0} if {@code f1} is
-     *          numerically equal to {@code f2}; a value less than
-     *          {@code 0} if {@code f1} is numerically less than
-     *          {@code f2}; and a value greater than {@code 0}
-     *          if {@code f1} is numerically greater than
-     *          {@code f2}.
-     * @since 1.4
-     */
-    public static int compare(float f1, float f2) {
-        if (f1 < f2)
-            return -1;           // Neither val is NaN, thisVal is smaller
-        if (f1 > f2)
-            return 1;            // Neither val is NaN, thisVal is larger
-
-        // Cannot use floatToRawIntBits because of possibility of NaNs.
-        int thisBits    = Float.floatToIntBits(f1);
-        int anotherBits = Float.floatToIntBits(f2);
-
-        return (thisBits == anotherBits ?  0 : // Values are equal
-                (thisBits < anotherBits ? -1 : // (-0.0, 0.0) or (!NaN, NaN)
-                 1));                          // (0.0, -0.0) or (NaN, !NaN)
-    }
-
+    
+    /*▲ 位操作 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 简单运算 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Adds two {@code float} values together as per the + operator.
      *
      * @param a the first operand
      * @param b the second operand
+     *
      * @return the sum of {@code a} and {@code b}
+     *
      * @jls 4.2.4 Floating-Point Operations
      * @see java.util.function.BinaryOperator
      * @since 1.8
      */
+    // 求和
     public static float sum(float a, float b) {
         return a + b;
     }
-
+    
     /**
      * Returns the greater of two {@code float} values
      * as if by calling {@link Math#max(float, float) Math.max}.
      *
      * @param a the first operand
      * @param b the second operand
+     *
      * @return the greater of {@code a} and {@code b}
+     *
      * @see java.util.function.BinaryOperator
      * @since 1.8
      */
+    // 最大值
     public static float max(float a, float b) {
         return Math.max(a, b);
     }
-
+    
     /**
      * Returns the smaller of two {@code float} values
      * as if by calling {@link Math#min(float, float) Math.min}.
      *
      * @param a the first operand
      * @param b the second operand
+     *
      * @return the smaller of {@code a} and {@code b}
+     *
      * @see java.util.function.BinaryOperator
      * @since 1.8
      */
+    // 最小值
     public static float min(float a, float b) {
         return Math.min(a, b);
     }
-
-    /** use serialVersionUID from JDK 1.0.2 for interoperability */
-    private static final long serialVersionUID = -2671257302660747028L;
+    
+    /*▲ 简单运算 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 非常规数值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns {@code true} if this {@code Float} value is a
+     * Not-a-Number (NaN), {@code false} otherwise.
+     *
+     * @return {@code true} if the value represented by this object is
+     * NaN; {@code false} otherwise.
+     */
+    // 判断当前float值是否为NaN
+    public boolean isNaN() {
+        return isNaN(value);
+    }
+    
+    /**
+     * Returns {@code true} if the specified number is a
+     * Not-a-Number (NaN) value, {@code false} otherwise.
+     *
+     * @param v the value to be tested.
+     *
+     * @return {@code true} if the argument is NaN;
+     * {@code false} otherwise.
+     */
+    // 判断f是否为NaN
+    public static boolean isNaN(float v) {
+        return (v != v);
+    }
+    
+    /**
+     * Returns {@code true} if this {@code Float} value is
+     * infinitely large in magnitude, {@code false} otherwise.
+     *
+     * @return {@code true} if the value represented by this object is
+     * positive infinity or negative infinity;
+     * {@code false} otherwise.
+     */
+    // 判断当前float值是否为正无穷大/负无穷大
+    public boolean isInfinite() {
+        return isInfinite(value);
+    }
+    
+    /**
+     * Returns {@code true} if the specified number is infinitely
+     * large in magnitude, {@code false} otherwise.
+     *
+     * @param v the value to be tested.
+     *
+     * @return {@code true} if the argument is positive infinity or
+     * negative infinity; {@code false} otherwise.
+     */
+    // 判断v是否为正无穷大/负无穷大
+    public static boolean isInfinite(float v) {
+        return (v == POSITIVE_INFINITY) || (v == NEGATIVE_INFINITY);
+    }
+    
+    /**
+     * Returns {@code true} if the argument is a finite floating-point
+     * value; returns {@code false} otherwise (for NaN and infinity
+     * arguments).
+     *
+     * @param f the {@code float} value to be tested
+     *
+     * @return {@code true} if the argument is a finite
+     * floating-point value, {@code false} otherwise.
+     *
+     * @since 1.8
+     */
+    // 判断f是否为有限值
+    public static boolean isFinite(float f) {
+        return Math.abs(f)<=Float.MAX_VALUE;
+    }
+    
+    /*▲ 非常规数值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /**
+     * Returns a hash code for this {@code Float} object. The
+     * result is the integer bit representation, exactly as produced
+     * by the method {@link #floatToIntBits(float)}, of the primitive
+     * {@code float} value represented by this {@code Float}
+     * object.
+     *
+     * @return a hash code value for this object.
+     */
+    @Override
+    public int hashCode() {
+        return Float.hashCode(value);
+    }
+    
+    /**
+     * Returns a hash code for a {@code float} value; compatible with
+     * {@code Float.hashCode()}.
+     *
+     * @param value the value to hash
+     *
+     * @return a hash code value for a {@code float} value.
+     *
+     * @since 1.8
+     */
+    public static int hashCode(float value) {
+        return floatToIntBits(value);
+    }
+    
+    /**
+     * Compares this object against the specified object.  The result
+     * is {@code true} if and only if the argument is not
+     * {@code null} and is a {@code Float} object that
+     * represents a {@code float} with the same value as the
+     * {@code float} represented by this object. For this
+     * purpose, two {@code float} values are considered to be the
+     * same if and only if the method {@link #floatToIntBits(float)}
+     * returns the identical {@code int} value when applied to
+     * each.
+     *
+     * <p>Note that in most cases, for two instances of class
+     * {@code Float}, {@code f1} and {@code f2}, the value
+     * of {@code f1.equals(f2)} is {@code true} if and only if
+     *
+     * <blockquote><pre>
+     *   f1.floatValue() == f2.floatValue()
+     * </pre></blockquote>
+     *
+     * <p>also has the value {@code true}. However, there are two exceptions:
+     * <ul>
+     * <li>If {@code f1} and {@code f2} both represent
+     * {@code Float.NaN}, then the {@code equals} method returns
+     * {@code true}, even though {@code Float.NaN==Float.NaN}
+     * has the value {@code false}.
+     * <li>If {@code f1} represents {@code +0.0f} while
+     * {@code f2} represents {@code -0.0f}, or vice
+     * versa, the {@code equal} test has the value
+     * {@code false}, even though {@code 0.0f==-0.0f}
+     * has the value {@code true}.
+     * </ul>
+     *
+     * This definition allows hash tables to operate properly.
+     *
+     * @param obj the object to be compared
+     *
+     * @return {@code true} if the objects are the same;
+     * {@code false} otherwise.
+     *
+     * @see java.lang.Float#floatToIntBits(float)
+     */
+    public boolean equals(Object obj) {
+        return (obj instanceof Float) && (floatToIntBits(((Float) obj).value) == floatToIntBits(value));
+    }
+    
 }
