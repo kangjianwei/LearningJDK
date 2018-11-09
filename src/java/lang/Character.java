@@ -25,12 +25,12 @@
 
 package java.lang;
 
+import jdk.internal.HotSpotIntrinsicCandidate;
+
 import java.util.Arrays;
-import java.util.Map;
 import java.util.HashMap;
 import java.util.Locale;
-
-import jdk.internal.HotSpotIntrinsicCandidate;
+import java.util.Map;
 
 /**
  * The {@code Character} class wraps a value of the primitive
@@ -114,29 +114,381 @@ import jdk.internal.HotSpotIntrinsicCandidate;
  * encoding. For more information on Unicode terminology, refer to the
  * <a href="http://www.unicode.org/glossary/">Unicode Glossary</a>.
  *
- * @author  Lee Boynton
- * @author  Guy Steele
- * @author  Akira Tanaka
- * @author  Martin Buchholz
- * @author  Ulf Zibis
- * @since   1.0
+ * @author Lee Boynton
+ * @author Guy Steele
+ * @author Akira Tanaka
+ * @author Martin Buchholz
+ * @author Ulf Zibis
+ * @since 1.0
  */
-public final
-class Character implements java.io.Serializable, Comparable<Character> {
+
+/*
+ * char的包装类
+ *
+ * 一个有用的链接：https://www.oracle.com/technetwork/articles/java/supplementary-142654.html
+ *
+ * Character的局限性是：对于四字节的符号（其实也不是一个char）无法包装（但可以根据其码点值解码为字符串）。
+ */
+public final class Character implements java.io.Serializable, Comparable<Character> {
+    
+    /*▼ Unicode符号分类代号 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * General category "Lu" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte UPPERCASE_LETTER = 1;              // Lu - Letter, uppercase
+    /**
+     * General category "Ll" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte LOWERCASE_LETTER = 2;              // Ll - Letter, lowercase
+    /**
+     * General category "Lt" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte TITLECASE_LETTER = 3;              // Lt - Letter, titlecase
+    /**
+     * General category "Lm" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte MODIFIER_LETTER = 4;               // Lm - Letter, modifier
+    /**
+     * General category "Lo" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte OTHER_LETTER = 5;                  // Lo - Letter, other
+    
+    /**
+     * General category "Mn" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte NON_SPACING_MARK = 6;              // Mn - Mark, nonspacing
+    /**
+     * General category "Me" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte ENCLOSING_MARK = 7;                // Me - Mark, enclosing
+    /**
+     * General category "Mc" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte COMBINING_SPACING_MARK = 8;        // Mc - Mark, spacing combining
+    
+    /**
+     * General category "Nd" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte DECIMAL_DIGIT_NUMBER = 9;          // Nd - Number, decimal digit
+    /**
+     * General category "Nl" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte LETTER_NUMBER = 10;                // Nl - Number, letter
+    /**
+     * General category "No" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte OTHER_NUMBER = 11;                 // No - Number, other
+    
+    /**
+     * General category "Pd" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte DASH_PUNCTUATION = 20;             // Pd - Punctuation, dash
+    /**
+     * General category "Ps" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte START_PUNCTUATION = 21;            // Ps - Punctuation, open
+    /**
+     * General category "Pe" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte END_PUNCTUATION = 22;              // Pe - Punctuation, close
+    /**
+     * General category "Pc" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte CONNECTOR_PUNCTUATION = 23;        // Pc - Punctuation, connector
+    /**
+     * General category "Po" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte OTHER_PUNCTUATION = 24;            // Po - Punctuation, other
+    /**
+     * General category "Pi" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte INITIAL_QUOTE_PUNCTUATION = 29;    // Pi - Punctuation, initial quote
+    /**
+     * General category "Pf" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte FINAL_QUOTE_PUNCTUATION = 30;      // Pf - Punctuation, final quote
+    
+    /**
+     * General category "Sm" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte MATH_SYMBOL = 25;                  // Sm - Symbol, math
+    /**
+     * General category "Sc" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte CURRENCY_SYMBOL = 26;              // Sc - Symbol, currency
+    /**
+     * General category "Sk" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte MODIFIER_SYMBOL = 27;              // Sk - Symbol, modifier
+    /**
+     * General category "So" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte OTHER_SYMBOL = 28;                 // So - Symbol, other
+    
+    /**
+     * General category "Zs" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte SPACE_SEPARATOR = 12;              // Zs - Separator, space
+    /**
+     * General category "Zl" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte LINE_SEPARATOR = 13;               // Zl - Separator, line
+    /**
+     * General category "Zp" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte PARAGRAPH_SEPARATOR = 14;          // Zp - Separator, paragraph
+    
+    
+    /**
+     * General category "Cn" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte UNASSIGNED = 0;                    // Cn - Other, not assigned
+    /**
+     * General category "Cc" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte CONTROL = 15;                      // Cc - Other, control
+    /**
+     * General category "Cf" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte FORMAT = 16;                       // Cf - Other, format
+    /**
+     * General category "Co" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte PRIVATE_USE = 18;                  // Co - Other, private use
+    /**
+     * General category "Cs" in the Unicode specification.
+     *
+     * @since 1.1
+     */
+    public static final byte SURROGATE = 19;                    // Cs - Other, surrogate
+    
+    /*▲ Unicode符号分类代号 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ Unicode双向字符类型 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Undefined bidirectional character type. Undefined {@code char}
+     * values have undefined directionality in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_UNDEFINED = -1;                     // 未定义
+    /**
+     * Strong bidirectional character type "L" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_LEFT_TO_RIGHT = 0;                  // Left-to-Right
+    /**
+     * Strong bidirectional character type "R" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_RIGHT_TO_LEFT = 1;                  // Right-to-Left
+    /**
+     * Strong bidirectional character type "AL" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC = 2;           // Arabic Letter
+    /**
+     * Weak bidirectional character type "EN" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_EUROPEAN_NUMBER = 3;                // European Number
+    /**
+     * Weak bidirectional character type "ES" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR = 4;      // European Separator
+    /**
+     * Weak bidirectional character type "ET" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR = 5;     // European Number Terminator
+    /**
+     * Weak bidirectional character type "AN" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_ARABIC_NUMBER = 6;                  // Arabic Number
+    /**
+     * Weak bidirectional character type "CS" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_COMMON_NUMBER_SEPARATOR = 7;        // Common Number Separator
+    /**
+     * Weak bidirectional character type "NSM" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_NONSPACING_MARK = 8;                // Nonspacing Mark
+    /**
+     * Weak bidirectional character type "BN" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_BOUNDARY_NEUTRAL = 9;               // Boundary Neutral
+    /**
+     * Neutral bidirectional character type "B" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_PARAGRAPH_SEPARATOR = 10;           // Paragraph Separator
+    /**
+     * Neutral bidirectional character type "S" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_SEGMENT_SEPARATOR = 11;             // Segment Separator
+    /**
+     * Neutral bidirectional character type "WS" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_WHITESPACE = 12;                    // Whitespace
+    /**
+     * Neutral bidirectional character type "ON" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_OTHER_NEUTRALS = 13;                // Other Neutrals
+    /**
+     * Strong bidirectional character type "LRE" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_LEFT_TO_RIGHT_EMBEDDING = 14;       // Left-to-Right Embedding
+    /**
+     * Strong bidirectional character type "LRO" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_LEFT_TO_RIGHT_OVERRIDE = 15;        // Left-to-Right Override
+    /**
+     * Strong bidirectional character type "RLE" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING = 16;       // Right-to-Left Embedding
+    /**
+     * Strong bidirectional character type "RLO" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE = 17;        // Right-to-Left Override
+    /**
+     * Weak bidirectional character type "PDF" in the Unicode specification.
+     *
+     * @since 1.4
+     */
+    public static final byte DIRECTIONALITY_POP_DIRECTIONAL_FORMAT = 18;        // Pop Directional Format
+    /**
+     * Weak bidirectional character type "LRI" in the Unicode specification.
+     *
+     * @since 9
+     */
+    public static final byte DIRECTIONALITY_LEFT_TO_RIGHT_ISOLATE = 19;         // Left-to-Right Isolate
+    /**
+     * Weak bidirectional character type "RLI" in the Unicode specification.
+     *
+     * @since 9
+     */
+    public static final byte DIRECTIONALITY_RIGHT_TO_LEFT_ISOLATE = 20;         // Right-to-Left Isolate
+    /**
+     * Weak bidirectional character type "FSI" in the Unicode specification.
+     *
+     * @since 9
+     */
+    public static final byte DIRECTIONALITY_FIRST_STRONG_ISOLATE = 21;          // First Strong Isolate
+    /**
+     * Weak bidirectional character type "PDI" in the Unicode specification.
+     *
+     * @since 9
+     */
+    public static final byte DIRECTIONALITY_POP_DIRECTIONAL_ISOLATE = 22;       // Pop Directional Isolate
+    
+    /*▲ Unicode双向字符类型 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
     /**
      * The minimum radix available for conversion to and from strings.
-     * The constant value of this field is the smallest value permitted
-     * for the radix argument in radix-conversion methods such as the
-     * {@code digit} method, the {@code forDigit} method, and the
-     * {@code toString} method of class {@code Integer}.
+     * The constant value of this field is the smallest value permitted for the radix argument in radix-conversion methods such as the {@code digit} method,
+     * the {@code forDigit} method, and the {@code toString} method of class {@code Integer}.
      *
-     * @see     Character#digit(char, int)
-     * @see     Character#forDigit(int, int)
-     * @see     Integer#toString(int, int)
-     * @see     Integer#valueOf(String)
+     * @see Character#digit(char, int)
+     * @see Character#forDigit(int, int)
+     * @see Integer#toString(int, int)
+     * @see Integer#valueOf(String)
      */
+    // 进制转换约束下限，最小2进制
     public static final int MIN_RADIX = 2;
-
+    
     /**
      * The maximum radix available for conversion to and from strings.
      * The constant value of this field is the largest value permitted
@@ -144,4498 +496,4004 @@ class Character implements java.io.Serializable, Comparable<Character> {
      * {@code digit} method, the {@code forDigit} method, and the
      * {@code toString} method of class {@code Integer}.
      *
-     * @see     Character#digit(char, int)
-     * @see     Character#forDigit(int, int)
-     * @see     Integer#toString(int, int)
-     * @see     Integer#valueOf(String)
+     * @see Character#digit(char, int)
+     * @see Character#forDigit(int, int)
+     * @see Integer#toString(int, int)
+     * @see Integer#valueOf(String)
      */
+    // 进制转换约束上限，最大36进制，因为10个数字+26个字母的限制
     public static final int MAX_RADIX = 36;
-
+    
     /**
-     * The constant value of this field is the smallest value of type
-     * {@code char}, {@code '\u005Cu0000'}.
+     * The constant value of this field is the smallest value of type {@code char}, {@code '\u005Cu0000'}.
      *
-     * @since   1.0.2
+     * @since 1.0.2
      */
+    // char的最小值，Unicode基本平面区码点最小值
     public static final char MIN_VALUE = '\u0000';
-
+    
     /**
-     * The constant value of this field is the largest value of type
-     * {@code char}, {@code '\u005CuFFFF'}.
+     * The constant value of this field is the largest value of type {@code char}, {@code '\u005CuFFFF'}.
      *
-     * @since   1.0.2
+     * @since 1.0.2
      */
+    // char的最大值，Unicode基本平面区码点最大值
     public static final char MAX_VALUE = '\uFFFF';
-
+    
     /**
-     * The {@code Class} instance representing the primitive type
-     * {@code char}.
+     * The {@code Class} instance representing the primitive type {@code char}.
      *
-     * @since   1.1
+     * @since 1.1
      */
+    // 基本类型char的包装类实例
     @SuppressWarnings("unchecked")
     public static final Class<Character> TYPE = (Class<Character>) Class.getPrimitiveClass("char");
-
-    /*
-     * Normative general types
-     */
-
-    /*
-     * General character types
-     */
-
+    
     /**
-     * General category "Cn" in the Unicode specification.
-     * @since   1.1
+     * The minimum value of a <a href="http://www.unicode.org/glossary/#code_point"> Unicode code point</a>, constant {@code U+0000}.
+     *
+     * @since 1.5
      */
-    public static final byte UNASSIGNED = 0;
-
+    public static final int MIN_CODE_POINT = 0x000000;  // Unicode码点最小值
     /**
-     * General category "Lu" in the Unicode specification.
-     * @since   1.1
+     * The maximum value of a <a href="http://www.unicode.org/glossary/#code_point"> Unicode code point</a>, constant {@code U+10FFFF}.
+     *
+     * @since 1.5
      */
-    public static final byte UPPERCASE_LETTER = 1;
-
+    public static final int MAX_CODE_POINT = 0x10FFFF;  // Unicode码点最大值
+    
     /**
-     * General category "Ll" in the Unicode specification.
-     * @since   1.1
+     * The minimum value of a <a href="http://www.unicode.org/glossary/#supplementary_code_point"> Unicode supplementary code point</a>, constant {@code U+10000}.
+     *
+     * @since 1.5
      */
-    public static final byte LOWERCASE_LETTER = 2;
-
+    public static final int MIN_SUPPLEMENTARY_CODE_POINT = 0x010000;    // Unicode非基本平面区码点最小值
+    
     /**
-     * General category "Lt" in the Unicode specification.
-     * @since   1.1
+     * The minimum value of a <a href="http://www.unicode.org/glossary/#high_surrogate_code_unit"> Unicode high-surrogate code unit</a> in the UTF-16 encoding, constant {@code '\u005CuD800'}.
+     * A high-surrogate is also known as a <i>leading-surrogate</i>.
+     *
+     * @since 1.5
      */
-    public static final byte TITLECASE_LETTER = 3;
-
+    public static final char MIN_HIGH_SURROGATE = '\uD800'; // 高代理区[U+D800~U+DBFF]的左边界
     /**
-     * General category "Lm" in the Unicode specification.
-     * @since   1.1
+     * The maximum value of a <a href="http://www.unicode.org/glossary/#high_surrogate_code_unit"> Unicode high-surrogate code unit</a> in the UTF-16 encoding, constant {@code '\u005CuDBFF'}.
+     * A high-surrogate is also known as a <i>leading-surrogate</i>.
+     *
+     * @since 1.5
      */
-    public static final byte MODIFIER_LETTER = 4;
-
+    public static final char MAX_HIGH_SURROGATE = '\uDBFF'; // 高代理区[U+D800~U+DBFF]的右边界
+    
     /**
-     * General category "Lo" in the Unicode specification.
-     * @since   1.1
+     * The minimum value of a <a href="http://www.unicode.org/glossary/#low_surrogate_code_unit"> Unicode low-surrogate code unit</a> in the UTF-16 encoding, constant {@code '\u005CuDC00'}.
+     * A low-surrogate is also known as a <i>trailing-surrogate</i>.
+     *
+     * @since 1.5
      */
-    public static final byte OTHER_LETTER = 5;
-
+    public static final char MIN_LOW_SURROGATE  = '\uDC00'; // 低代理区[U+DC00~U+DFFF]的左边界
     /**
-     * General category "Mn" in the Unicode specification.
-     * @since   1.1
+     * The maximum value of a <a href="http://www.unicode.org/glossary/#low_surrogate_code_unit"> Unicode low-surrogate code unit</a> in the UTF-16 encoding, constant {@code '\u005CuDFFF'}.
+     * A low-surrogate is also known as a <i>trailing-surrogate</i>.
+     *
+     * @since 1.5
      */
-    public static final byte NON_SPACING_MARK = 6;
-
+    public static final char MAX_LOW_SURROGATE  = '\uDFFF'; // 低代理区[U+DC00~U+DFFF]的右边界
+    
     /**
-     * General category "Me" in the Unicode specification.
-     * @since   1.1
+     * The minimum value of a Unicode surrogate code unit in the UTF-16 encoding, constant {@code '\u005CuD800'}.
+     *
+     * @since 1.5
      */
-    public static final byte ENCLOSING_MARK = 7;
-
+    public static final char MIN_SURROGATE      = MIN_HIGH_SURROGATE;   // Unicode高代理区下限
     /**
-     * General category "Mc" in the Unicode specification.
-     * @since   1.1
+     * The maximum value of a Unicode surrogate code unit in the UTF-16 encoding, constant {@code '\u005CuDFFF'}.
+     *
+     * @since 1.5
      */
-    public static final byte COMBINING_SPACING_MARK = 8;
-
+    public static final char MAX_SURROGATE      = MAX_LOW_SURROGATE;    // Unicode低代理区上限
+    
     /**
-     * General category "Nd" in the Unicode specification.
-     * @since   1.1
+     * The number of bits used to represent a {@code char} value in unsigned binary form, constant {@code 16}.
+     *
+     * @since 1.5
      */
-    public static final byte DECIMAL_DIGIT_NUMBER        = 9;
-
+    public static final int SIZE = 16;                  // （无符号）char所占的位数
     /**
-     * General category "Nl" in the Unicode specification.
-     * @since   1.1
+     * The number of bytes used to represent a {@code char} value in unsigned binary form.
+     *
+     * @since 1.8
      */
-    public static final byte LETTER_NUMBER = 10;
-
-    /**
-     * General category "No" in the Unicode specification.
-     * @since   1.1
-     */
-    public static final byte OTHER_NUMBER = 11;
-
-    /**
-     * General category "Zs" in the Unicode specification.
-     * @since   1.1
-     */
-    public static final byte SPACE_SEPARATOR = 12;
-
-    /**
-     * General category "Zl" in the Unicode specification.
-     * @since   1.1
-     */
-    public static final byte LINE_SEPARATOR = 13;
-
-    /**
-     * General category "Zp" in the Unicode specification.
-     * @since   1.1
-     */
-    public static final byte PARAGRAPH_SEPARATOR = 14;
-
-    /**
-     * General category "Cc" in the Unicode specification.
-     * @since   1.1
-     */
-    public static final byte CONTROL = 15;
-
-    /**
-     * General category "Cf" in the Unicode specification.
-     * @since   1.1
-     */
-    public static final byte FORMAT = 16;
-
-    /**
-     * General category "Co" in the Unicode specification.
-     * @since   1.1
-     */
-    public static final byte PRIVATE_USE = 18;
-
-    /**
-     * General category "Cs" in the Unicode specification.
-     * @since   1.1
-     */
-    public static final byte SURROGATE = 19;
-
-    /**
-     * General category "Pd" in the Unicode specification.
-     * @since   1.1
-     */
-    public static final byte DASH_PUNCTUATION = 20;
-
-    /**
-     * General category "Ps" in the Unicode specification.
-     * @since   1.1
-     */
-    public static final byte START_PUNCTUATION = 21;
-
-    /**
-     * General category "Pe" in the Unicode specification.
-     * @since   1.1
-     */
-    public static final byte END_PUNCTUATION = 22;
-
-    /**
-     * General category "Pc" in the Unicode specification.
-     * @since   1.1
-     */
-    public static final byte CONNECTOR_PUNCTUATION = 23;
-
-    /**
-     * General category "Po" in the Unicode specification.
-     * @since   1.1
-     */
-    public static final byte OTHER_PUNCTUATION = 24;
-
-    /**
-     * General category "Sm" in the Unicode specification.
-     * @since   1.1
-     */
-    public static final byte MATH_SYMBOL = 25;
-
-    /**
-     * General category "Sc" in the Unicode specification.
-     * @since   1.1
-     */
-    public static final byte CURRENCY_SYMBOL = 26;
-
-    /**
-     * General category "Sk" in the Unicode specification.
-     * @since   1.1
-     */
-    public static final byte MODIFIER_SYMBOL = 27;
-
-    /**
-     * General category "So" in the Unicode specification.
-     * @since   1.1
-     */
-    public static final byte OTHER_SYMBOL = 28;
-
-    /**
-     * General category "Pi" in the Unicode specification.
-     * @since   1.4
-     */
-    public static final byte INITIAL_QUOTE_PUNCTUATION = 29;
-
-    /**
-     * General category "Pf" in the Unicode specification.
-     * @since   1.4
-     */
-    public static final byte FINAL_QUOTE_PUNCTUATION = 30;
-
+    public static final int BYTES = SIZE / Byte.SIZE;   // （无符号）char所占的字节数
+    
     /**
      * Error flag. Use int (code point) to avoid confusion with U+FFFF.
      */
-    static final int ERROR = 0xFFFFFFFF;
-
-
+    static final int ERROR = 0xFFFFFFFF;    // 错误标记
+    
     /**
-     * Undefined bidirectional character type. Undefined {@code char}
-     * values have undefined directionality in the Unicode specification.
-     * @since 1.4
+     * use serialVersionUID from JDK 1.0.2 for interoperability
      */
-    public static final byte DIRECTIONALITY_UNDEFINED = -1;
-
+    private static final long serialVersionUID = 3786198910865385080L;
+    
     /**
-     * Strong bidirectional character type "L" in the Unicode specification.
-     * @since 1.4
-     */
-    public static final byte DIRECTIONALITY_LEFT_TO_RIGHT = 0;
-
-    /**
-     * Strong bidirectional character type "R" in the Unicode specification.
-     * @since 1.4
-     */
-    public static final byte DIRECTIONALITY_RIGHT_TO_LEFT = 1;
-
-    /**
-    * Strong bidirectional character type "AL" in the Unicode specification.
-     * @since 1.4
-     */
-    public static final byte DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC = 2;
-
-    /**
-     * Weak bidirectional character type "EN" in the Unicode specification.
-     * @since 1.4
-     */
-    public static final byte DIRECTIONALITY_EUROPEAN_NUMBER = 3;
-
-    /**
-     * Weak bidirectional character type "ES" in the Unicode specification.
-     * @since 1.4
-     */
-    public static final byte DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR = 4;
-
-    /**
-     * Weak bidirectional character type "ET" in the Unicode specification.
-     * @since 1.4
-     */
-    public static final byte DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR = 5;
-
-    /**
-     * Weak bidirectional character type "AN" in the Unicode specification.
-     * @since 1.4
-     */
-    public static final byte DIRECTIONALITY_ARABIC_NUMBER = 6;
-
-    /**
-     * Weak bidirectional character type "CS" in the Unicode specification.
-     * @since 1.4
-     */
-    public static final byte DIRECTIONALITY_COMMON_NUMBER_SEPARATOR = 7;
-
-    /**
-     * Weak bidirectional character type "NSM" in the Unicode specification.
-     * @since 1.4
-     */
-    public static final byte DIRECTIONALITY_NONSPACING_MARK = 8;
-
-    /**
-     * Weak bidirectional character type "BN" in the Unicode specification.
-     * @since 1.4
-     */
-    public static final byte DIRECTIONALITY_BOUNDARY_NEUTRAL = 9;
-
-    /**
-     * Neutral bidirectional character type "B" in the Unicode specification.
-     * @since 1.4
-     */
-    public static final byte DIRECTIONALITY_PARAGRAPH_SEPARATOR = 10;
-
-    /**
-     * Neutral bidirectional character type "S" in the Unicode specification.
-     * @since 1.4
-     */
-    public static final byte DIRECTIONALITY_SEGMENT_SEPARATOR = 11;
-
-    /**
-     * Neutral bidirectional character type "WS" in the Unicode specification.
-     * @since 1.4
-     */
-    public static final byte DIRECTIONALITY_WHITESPACE = 12;
-
-    /**
-     * Neutral bidirectional character type "ON" in the Unicode specification.
-     * @since 1.4
-     */
-    public static final byte DIRECTIONALITY_OTHER_NEUTRALS = 13;
-
-    /**
-     * Strong bidirectional character type "LRE" in the Unicode specification.
-     * @since 1.4
-     */
-    public static final byte DIRECTIONALITY_LEFT_TO_RIGHT_EMBEDDING = 14;
-
-    /**
-     * Strong bidirectional character type "LRO" in the Unicode specification.
-     * @since 1.4
-     */
-    public static final byte DIRECTIONALITY_LEFT_TO_RIGHT_OVERRIDE = 15;
-
-    /**
-     * Strong bidirectional character type "RLE" in the Unicode specification.
-     * @since 1.4
-     */
-    public static final byte DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING = 16;
-
-    /**
-     * Strong bidirectional character type "RLO" in the Unicode specification.
-     * @since 1.4
-     */
-    public static final byte DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE = 17;
-
-    /**
-     * Weak bidirectional character type "PDF" in the Unicode specification.
-     * @since 1.4
-     */
-    public static final byte DIRECTIONALITY_POP_DIRECTIONAL_FORMAT = 18;
-
-    /**
-     * Weak bidirectional character type "LRI" in the Unicode specification.
-     * @since 9
-     */
-    public static final byte DIRECTIONALITY_LEFT_TO_RIGHT_ISOLATE = 19;
-
-    /**
-     * Weak bidirectional character type "RLI" in the Unicode specification.
-     * @since 9
-     */
-    public static final byte DIRECTIONALITY_RIGHT_TO_LEFT_ISOLATE = 20;
-
-    /**
-     * Weak bidirectional character type "FSI" in the Unicode specification.
-     * @since 9
-     */
-    public static final byte DIRECTIONALITY_FIRST_STRONG_ISOLATE = 21;
-
-    /**
-     * Weak bidirectional character type "PDI" in the Unicode specification.
-     * @since 9
-     */
-    public static final byte DIRECTIONALITY_POP_DIRECTIONAL_ISOLATE = 22;
-
-    /**
-     * The minimum value of a
-     * <a href="http://www.unicode.org/glossary/#high_surrogate_code_unit">
-     * Unicode high-surrogate code unit</a>
-     * in the UTF-16 encoding, constant {@code '\u005CuD800'}.
-     * A high-surrogate is also known as a <i>leading-surrogate</i>.
+     * The value of the {@code Character}.
      *
-     * @since 1.5
+     * @serial
      */
-    public static final char MIN_HIGH_SURROGATE = '\uD800';
-
+    private final char value;   // Character包装的值
+    
+    
     /**
-     * The maximum value of a
-     * <a href="http://www.unicode.org/glossary/#high_surrogate_code_unit">
-     * Unicode high-surrogate code unit</a>
-     * in the UTF-16 encoding, constant {@code '\u005CuDBFF'}.
-     * A high-surrogate is also known as a <i>leading-surrogate</i>.
+     * Constructs a newly allocated {@code Character} object that represents the specified {@code char} value.
      *
-     * @since 1.5
-     */
-    public static final char MAX_HIGH_SURROGATE = '\uDBFF';
-
-    /**
-     * The minimum value of a
-     * <a href="http://www.unicode.org/glossary/#low_surrogate_code_unit">
-     * Unicode low-surrogate code unit</a>
-     * in the UTF-16 encoding, constant {@code '\u005CuDC00'}.
-     * A low-surrogate is also known as a <i>trailing-surrogate</i>.
+     * @param value the value to be represented by the {@code Character} object.
      *
-     * @since 1.5
+     * @deprecated It is rarely appropriate to use this constructor.
+     * The static factory {@link #valueOf(char)} is generally a better choice, as it is likely to yield significantly better space and time performance.
      */
-    public static final char MIN_LOW_SURROGATE  = '\uDC00';
-
-    /**
-     * The maximum value of a
-     * <a href="http://www.unicode.org/glossary/#low_surrogate_code_unit">
-     * Unicode low-surrogate code unit</a>
-     * in the UTF-16 encoding, constant {@code '\u005CuDFFF'}.
-     * A low-surrogate is also known as a <i>trailing-surrogate</i>.
-     *
-     * @since 1.5
-     */
-    public static final char MAX_LOW_SURROGATE  = '\uDFFF';
-
-    /**
-     * The minimum value of a Unicode surrogate code unit in the
-     * UTF-16 encoding, constant {@code '\u005CuD800'}.
-     *
-     * @since 1.5
-     */
-    public static final char MIN_SURROGATE = MIN_HIGH_SURROGATE;
-
-    /**
-     * The maximum value of a Unicode surrogate code unit in the
-     * UTF-16 encoding, constant {@code '\u005CuDFFF'}.
-     *
-     * @since 1.5
-     */
-    public static final char MAX_SURROGATE = MAX_LOW_SURROGATE;
-
-    /**
-     * The minimum value of a
-     * <a href="http://www.unicode.org/glossary/#supplementary_code_point">
-     * Unicode supplementary code point</a>, constant {@code U+10000}.
-     *
-     * @since 1.5
-     */
-    public static final int MIN_SUPPLEMENTARY_CODE_POINT = 0x010000;
-
-    /**
-     * The minimum value of a
-     * <a href="http://www.unicode.org/glossary/#code_point">
-     * Unicode code point</a>, constant {@code U+0000}.
-     *
-     * @since 1.5
-     */
-    public static final int MIN_CODE_POINT = 0x000000;
-
-    /**
-     * The maximum value of a
-     * <a href="http://www.unicode.org/glossary/#code_point">
-     * Unicode code point</a>, constant {@code U+10FFFF}.
-     *
-     * @since 1.5
-     */
-    public static final int MAX_CODE_POINT = 0X10FFFF;
-
-
-    /**
-     * Instances of this class represent particular subsets of the Unicode
-     * character set.  The only family of subsets defined in the
-     * {@code Character} class is {@link Character.UnicodeBlock}.
-     * Other portions of the Java API may define other subsets for their
-     * own purposes.
-     *
-     * @since 1.2
-     */
-    public static class Subset  {
-
-        private String name;
-
-        /**
-         * Constructs a new {@code Subset} instance.
-         *
-         * @param  name  The name of this subset
-         * @throws NullPointerException if name is {@code null}
-         */
-        protected Subset(String name) {
-            if (name == null) {
-                throw new NullPointerException("name");
-            }
-            this.name = name;
-        }
-
-        /**
-         * Compares two {@code Subset} objects for equality.
-         * This method returns {@code true} if and only if
-         * {@code this} and the argument refer to the same
-         * object; since this method is {@code final}, this
-         * guarantee holds for all subclasses.
-         */
-        public final boolean equals(Object obj) {
-            return (this == obj);
-        }
-
-        /**
-         * Returns the standard hash code as defined by the
-         * {@link Object#hashCode} method.  This method
-         * is {@code final} in order to ensure that the
-         * {@code equals} and {@code hashCode} methods will
-         * be consistent in all subclasses.
-         */
-        public final int hashCode() {
-            return super.hashCode();
-        }
-
-        /**
-         * Returns the name of this subset.
-         */
-        public final String toString() {
-            return name;
-        }
+    // 过时，用valueOf替代。但如果不想使用[0, 127]范围内的字符缓存对象，则可以调用此方法。
+    @Deprecated(since = "9")
+    public Character(char value) {
+        this.value = value;
     }
-
-    // See http://www.unicode.org/Public/UNIDATA/Blocks.txt
-    // for the latest specification of Unicode Blocks.
-
+    
+    
+    
+    /*▼ 装箱/拆箱 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * A family of character subsets representing the character blocks in the
-     * Unicode specification. Character blocks generally define characters
-     * used for a specific script or purpose. A character is contained by
-     * at most one Unicode block.
+     * Returns a {@code Character} instance representing the specified {@code char} value.
+     * If a new {@code Character} instance is not required, this method should generally be used in preference to the constructor {@link #Character(char)},
+     * as this method is likely to yield significantly better space and time performance by caching frequently requested values.
      *
-     * @since 1.2
+     * This method will always cache values in the range {@code '\u005Cu0000'} to {@code '\u005Cu007F'}, inclusive, and may cache other values outside of this range.
+     *
+     * @param c a char value.
+     *
+     * @return a {@code Character} instance representing {@code c}.
+     *
+     * @since 1.5
      */
-    public static final class UnicodeBlock extends Subset {
-        /**
-         * 638  - the expected number of entities
-         * 0.75 - the default load factor of HashMap
-         */
-        private static Map<String, UnicodeBlock> map =
-                new HashMap<>((int)(638 / 0.75f + 1.0f));
-
-        /**
-         * Creates a UnicodeBlock with the given identifier name.
-         * This name must be the same as the block identifier.
-         */
-        private UnicodeBlock(String idName) {
-            super(idName);
-            map.put(idName, this);
+    // 装箱，返回char的包装类实例。如果char范围在[0, 127]内，则使用缓存
+    @HotSpotIntrinsicCandidate
+    public static Character valueOf(char c) {
+        if(c <= 127) { // must cache
+            return CharacterCache.cache[(int) c];
         }
-
-        /**
-         * Creates a UnicodeBlock with the given identifier name and
-         * alias name.
-         */
-        private UnicodeBlock(String idName, String alias) {
-            this(idName);
-            map.put(alias, this);
-        }
-
-        /**
-         * Creates a UnicodeBlock with the given identifier name and
-         * alias names.
-         */
-        private UnicodeBlock(String idName, String... aliases) {
-            this(idName);
-            for (String alias : aliases)
-                map.put(alias, this);
-        }
-
-        /**
-         * Constant for the "Basic Latin" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock  BASIC_LATIN =
-            new UnicodeBlock("BASIC_LATIN",
-                             "BASIC LATIN",
-                             "BASICLATIN");
-
-        /**
-         * Constant for the "Latin-1 Supplement" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock LATIN_1_SUPPLEMENT =
-            new UnicodeBlock("LATIN_1_SUPPLEMENT",
-                             "LATIN-1 SUPPLEMENT",
-                             "LATIN-1SUPPLEMENT");
-
-        /**
-         * Constant for the "Latin Extended-A" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock LATIN_EXTENDED_A =
-            new UnicodeBlock("LATIN_EXTENDED_A",
-                             "LATIN EXTENDED-A",
-                             "LATINEXTENDED-A");
-
-        /**
-         * Constant for the "Latin Extended-B" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock LATIN_EXTENDED_B =
-            new UnicodeBlock("LATIN_EXTENDED_B",
-                             "LATIN EXTENDED-B",
-                             "LATINEXTENDED-B");
-
-        /**
-         * Constant for the "IPA Extensions" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock IPA_EXTENSIONS =
-            new UnicodeBlock("IPA_EXTENSIONS",
-                             "IPA EXTENSIONS",
-                             "IPAEXTENSIONS");
-
-        /**
-         * Constant for the "Spacing Modifier Letters" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock SPACING_MODIFIER_LETTERS =
-            new UnicodeBlock("SPACING_MODIFIER_LETTERS",
-                             "SPACING MODIFIER LETTERS",
-                             "SPACINGMODIFIERLETTERS");
-
-        /**
-         * Constant for the "Combining Diacritical Marks" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock COMBINING_DIACRITICAL_MARKS =
-            new UnicodeBlock("COMBINING_DIACRITICAL_MARKS",
-                             "COMBINING DIACRITICAL MARKS",
-                             "COMBININGDIACRITICALMARKS");
-
-        /**
-         * Constant for the "Greek and Coptic" Unicode character block.
-         * <p>
-         * This block was previously known as the "Greek" block.
-         *
-         * @since 1.2
-         */
-        public static final UnicodeBlock GREEK =
-            new UnicodeBlock("GREEK",
-                             "GREEK AND COPTIC",
-                             "GREEKANDCOPTIC");
-
-        /**
-         * Constant for the "Cyrillic" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock CYRILLIC =
-            new UnicodeBlock("CYRILLIC");
-
-        /**
-         * Constant for the "Armenian" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock ARMENIAN =
-            new UnicodeBlock("ARMENIAN");
-
-        /**
-         * Constant for the "Hebrew" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock HEBREW =
-            new UnicodeBlock("HEBREW");
-
-        /**
-         * Constant for the "Arabic" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock ARABIC =
-            new UnicodeBlock("ARABIC");
-
-        /**
-         * Constant for the "Devanagari" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock DEVANAGARI =
-            new UnicodeBlock("DEVANAGARI");
-
-        /**
-         * Constant for the "Bengali" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock BENGALI =
-            new UnicodeBlock("BENGALI");
-
-        /**
-         * Constant for the "Gurmukhi" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock GURMUKHI =
-            new UnicodeBlock("GURMUKHI");
-
-        /**
-         * Constant for the "Gujarati" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock GUJARATI =
-            new UnicodeBlock("GUJARATI");
-
-        /**
-         * Constant for the "Oriya" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock ORIYA =
-            new UnicodeBlock("ORIYA");
-
-        /**
-         * Constant for the "Tamil" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock TAMIL =
-            new UnicodeBlock("TAMIL");
-
-        /**
-         * Constant for the "Telugu" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock TELUGU =
-            new UnicodeBlock("TELUGU");
-
-        /**
-         * Constant for the "Kannada" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock KANNADA =
-            new UnicodeBlock("KANNADA");
-
-        /**
-         * Constant for the "Malayalam" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock MALAYALAM =
-            new UnicodeBlock("MALAYALAM");
-
-        /**
-         * Constant for the "Thai" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock THAI =
-            new UnicodeBlock("THAI");
-
-        /**
-         * Constant for the "Lao" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock LAO =
-            new UnicodeBlock("LAO");
-
-        /**
-         * Constant for the "Tibetan" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock TIBETAN =
-            new UnicodeBlock("TIBETAN");
-
-        /**
-         * Constant for the "Georgian" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock GEORGIAN =
-            new UnicodeBlock("GEORGIAN");
-
-        /**
-         * Constant for the "Hangul Jamo" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock HANGUL_JAMO =
-            new UnicodeBlock("HANGUL_JAMO",
-                             "HANGUL JAMO",
-                             "HANGULJAMO");
-
-        /**
-         * Constant for the "Latin Extended Additional" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock LATIN_EXTENDED_ADDITIONAL =
-            new UnicodeBlock("LATIN_EXTENDED_ADDITIONAL",
-                             "LATIN EXTENDED ADDITIONAL",
-                             "LATINEXTENDEDADDITIONAL");
-
-        /**
-         * Constant for the "Greek Extended" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock GREEK_EXTENDED =
-            new UnicodeBlock("GREEK_EXTENDED",
-                             "GREEK EXTENDED",
-                             "GREEKEXTENDED");
-
-        /**
-         * Constant for the "General Punctuation" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock GENERAL_PUNCTUATION =
-            new UnicodeBlock("GENERAL_PUNCTUATION",
-                             "GENERAL PUNCTUATION",
-                             "GENERALPUNCTUATION");
-
-        /**
-         * Constant for the "Superscripts and Subscripts" Unicode character
-         * block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock SUPERSCRIPTS_AND_SUBSCRIPTS =
-            new UnicodeBlock("SUPERSCRIPTS_AND_SUBSCRIPTS",
-                             "SUPERSCRIPTS AND SUBSCRIPTS",
-                             "SUPERSCRIPTSANDSUBSCRIPTS");
-
-        /**
-         * Constant for the "Currency Symbols" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock CURRENCY_SYMBOLS =
-            new UnicodeBlock("CURRENCY_SYMBOLS",
-                             "CURRENCY SYMBOLS",
-                             "CURRENCYSYMBOLS");
-
-        /**
-         * Constant for the "Combining Diacritical Marks for Symbols" Unicode
-         * character block.
-         * <p>
-         * This block was previously known as "Combining Marks for Symbols".
-         * @since 1.2
-         */
-        public static final UnicodeBlock COMBINING_MARKS_FOR_SYMBOLS =
-            new UnicodeBlock("COMBINING_MARKS_FOR_SYMBOLS",
-                             "COMBINING DIACRITICAL MARKS FOR SYMBOLS",
-                             "COMBININGDIACRITICALMARKSFORSYMBOLS",
-                             "COMBINING MARKS FOR SYMBOLS",
-                             "COMBININGMARKSFORSYMBOLS");
-
-        /**
-         * Constant for the "Letterlike Symbols" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock LETTERLIKE_SYMBOLS =
-            new UnicodeBlock("LETTERLIKE_SYMBOLS",
-                             "LETTERLIKE SYMBOLS",
-                             "LETTERLIKESYMBOLS");
-
-        /**
-         * Constant for the "Number Forms" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock NUMBER_FORMS =
-            new UnicodeBlock("NUMBER_FORMS",
-                             "NUMBER FORMS",
-                             "NUMBERFORMS");
-
-        /**
-         * Constant for the "Arrows" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock ARROWS =
-            new UnicodeBlock("ARROWS");
-
-        /**
-         * Constant for the "Mathematical Operators" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock MATHEMATICAL_OPERATORS =
-            new UnicodeBlock("MATHEMATICAL_OPERATORS",
-                             "MATHEMATICAL OPERATORS",
-                             "MATHEMATICALOPERATORS");
-
-        /**
-         * Constant for the "Miscellaneous Technical" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock MISCELLANEOUS_TECHNICAL =
-            new UnicodeBlock("MISCELLANEOUS_TECHNICAL",
-                             "MISCELLANEOUS TECHNICAL",
-                             "MISCELLANEOUSTECHNICAL");
-
-        /**
-         * Constant for the "Control Pictures" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock CONTROL_PICTURES =
-            new UnicodeBlock("CONTROL_PICTURES",
-                             "CONTROL PICTURES",
-                             "CONTROLPICTURES");
-
-        /**
-         * Constant for the "Optical Character Recognition" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock OPTICAL_CHARACTER_RECOGNITION =
-            new UnicodeBlock("OPTICAL_CHARACTER_RECOGNITION",
-                             "OPTICAL CHARACTER RECOGNITION",
-                             "OPTICALCHARACTERRECOGNITION");
-
-        /**
-         * Constant for the "Enclosed Alphanumerics" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock ENCLOSED_ALPHANUMERICS =
-            new UnicodeBlock("ENCLOSED_ALPHANUMERICS",
-                             "ENCLOSED ALPHANUMERICS",
-                             "ENCLOSEDALPHANUMERICS");
-
-        /**
-         * Constant for the "Box Drawing" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock BOX_DRAWING =
-            new UnicodeBlock("BOX_DRAWING",
-                             "BOX DRAWING",
-                             "BOXDRAWING");
-
-        /**
-         * Constant for the "Block Elements" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock BLOCK_ELEMENTS =
-            new UnicodeBlock("BLOCK_ELEMENTS",
-                             "BLOCK ELEMENTS",
-                             "BLOCKELEMENTS");
-
-        /**
-         * Constant for the "Geometric Shapes" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock GEOMETRIC_SHAPES =
-            new UnicodeBlock("GEOMETRIC_SHAPES",
-                             "GEOMETRIC SHAPES",
-                             "GEOMETRICSHAPES");
-
-        /**
-         * Constant for the "Miscellaneous Symbols" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock MISCELLANEOUS_SYMBOLS =
-            new UnicodeBlock("MISCELLANEOUS_SYMBOLS",
-                             "MISCELLANEOUS SYMBOLS",
-                             "MISCELLANEOUSSYMBOLS");
-
-        /**
-         * Constant for the "Dingbats" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock DINGBATS =
-            new UnicodeBlock("DINGBATS");
-
-        /**
-         * Constant for the "CJK Symbols and Punctuation" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock CJK_SYMBOLS_AND_PUNCTUATION =
-            new UnicodeBlock("CJK_SYMBOLS_AND_PUNCTUATION",
-                             "CJK SYMBOLS AND PUNCTUATION",
-                             "CJKSYMBOLSANDPUNCTUATION");
-
-        /**
-         * Constant for the "Hiragana" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock HIRAGANA =
-            new UnicodeBlock("HIRAGANA");
-
-        /**
-         * Constant for the "Katakana" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock KATAKANA =
-            new UnicodeBlock("KATAKANA");
-
-        /**
-         * Constant for the "Bopomofo" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock BOPOMOFO =
-            new UnicodeBlock("BOPOMOFO");
-
-        /**
-         * Constant for the "Hangul Compatibility Jamo" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock HANGUL_COMPATIBILITY_JAMO =
-            new UnicodeBlock("HANGUL_COMPATIBILITY_JAMO",
-                             "HANGUL COMPATIBILITY JAMO",
-                             "HANGULCOMPATIBILITYJAMO");
-
-        /**
-         * Constant for the "Kanbun" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock KANBUN =
-            new UnicodeBlock("KANBUN");
-
-        /**
-         * Constant for the "Enclosed CJK Letters and Months" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock ENCLOSED_CJK_LETTERS_AND_MONTHS =
-            new UnicodeBlock("ENCLOSED_CJK_LETTERS_AND_MONTHS",
-                             "ENCLOSED CJK LETTERS AND MONTHS",
-                             "ENCLOSEDCJKLETTERSANDMONTHS");
-
-        /**
-         * Constant for the "CJK Compatibility" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock CJK_COMPATIBILITY =
-            new UnicodeBlock("CJK_COMPATIBILITY",
-                             "CJK COMPATIBILITY",
-                             "CJKCOMPATIBILITY");
-
-        /**
-         * Constant for the "CJK Unified Ideographs" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock CJK_UNIFIED_IDEOGRAPHS =
-            new UnicodeBlock("CJK_UNIFIED_IDEOGRAPHS",
-                             "CJK UNIFIED IDEOGRAPHS",
-                             "CJKUNIFIEDIDEOGRAPHS");
-
-        /**
-         * Constant for the "Hangul Syllables" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock HANGUL_SYLLABLES =
-            new UnicodeBlock("HANGUL_SYLLABLES",
-                             "HANGUL SYLLABLES",
-                             "HANGULSYLLABLES");
-
-        /**
-         * Constant for the "Private Use Area" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock PRIVATE_USE_AREA =
-            new UnicodeBlock("PRIVATE_USE_AREA",
-                             "PRIVATE USE AREA",
-                             "PRIVATEUSEAREA");
-
-        /**
-         * Constant for the "CJK Compatibility Ideographs" Unicode character
-         * block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock CJK_COMPATIBILITY_IDEOGRAPHS =
-            new UnicodeBlock("CJK_COMPATIBILITY_IDEOGRAPHS",
-                             "CJK COMPATIBILITY IDEOGRAPHS",
-                             "CJKCOMPATIBILITYIDEOGRAPHS");
-
-        /**
-         * Constant for the "Alphabetic Presentation Forms" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock ALPHABETIC_PRESENTATION_FORMS =
-            new UnicodeBlock("ALPHABETIC_PRESENTATION_FORMS",
-                             "ALPHABETIC PRESENTATION FORMS",
-                             "ALPHABETICPRESENTATIONFORMS");
-
-        /**
-         * Constant for the "Arabic Presentation Forms-A" Unicode character
-         * block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock ARABIC_PRESENTATION_FORMS_A =
-            new UnicodeBlock("ARABIC_PRESENTATION_FORMS_A",
-                             "ARABIC PRESENTATION FORMS-A",
-                             "ARABICPRESENTATIONFORMS-A");
-
-        /**
-         * Constant for the "Combining Half Marks" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock COMBINING_HALF_MARKS =
-            new UnicodeBlock("COMBINING_HALF_MARKS",
-                             "COMBINING HALF MARKS",
-                             "COMBININGHALFMARKS");
-
-        /**
-         * Constant for the "CJK Compatibility Forms" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock CJK_COMPATIBILITY_FORMS =
-            new UnicodeBlock("CJK_COMPATIBILITY_FORMS",
-                             "CJK COMPATIBILITY FORMS",
-                             "CJKCOMPATIBILITYFORMS");
-
-        /**
-         * Constant for the "Small Form Variants" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock SMALL_FORM_VARIANTS =
-            new UnicodeBlock("SMALL_FORM_VARIANTS",
-                             "SMALL FORM VARIANTS",
-                             "SMALLFORMVARIANTS");
-
-        /**
-         * Constant for the "Arabic Presentation Forms-B" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock ARABIC_PRESENTATION_FORMS_B =
-            new UnicodeBlock("ARABIC_PRESENTATION_FORMS_B",
-                             "ARABIC PRESENTATION FORMS-B",
-                             "ARABICPRESENTATIONFORMS-B");
-
-        /**
-         * Constant for the "Halfwidth and Fullwidth Forms" Unicode character
-         * block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock HALFWIDTH_AND_FULLWIDTH_FORMS =
-            new UnicodeBlock("HALFWIDTH_AND_FULLWIDTH_FORMS",
-                             "HALFWIDTH AND FULLWIDTH FORMS",
-                             "HALFWIDTHANDFULLWIDTHFORMS");
-
-        /**
-         * Constant for the "Specials" Unicode character block.
-         * @since 1.2
-         */
-        public static final UnicodeBlock SPECIALS =
-            new UnicodeBlock("SPECIALS");
-
-        /**
-         * @deprecated
-         * Instead of {@code SURROGATES_AREA}, use {@link #HIGH_SURROGATES},
-         * {@link #HIGH_PRIVATE_USE_SURROGATES}, and {@link #LOW_SURROGATES}.
-         * These constants match the block definitions of the Unicode Standard.
-         * The {@link #of(char)} and {@link #of(int)} methods return the
-         * standard constants.
-         */
-        @Deprecated(since="1.5")
-        public static final UnicodeBlock SURROGATES_AREA =
-            new UnicodeBlock("SURROGATES_AREA");
-
-        /**
-         * Constant for the "Syriac" Unicode character block.
-         * @since 1.4
-         */
-        public static final UnicodeBlock SYRIAC =
-            new UnicodeBlock("SYRIAC");
-
-        /**
-         * Constant for the "Thaana" Unicode character block.
-         * @since 1.4
-         */
-        public static final UnicodeBlock THAANA =
-            new UnicodeBlock("THAANA");
-
-        /**
-         * Constant for the "Sinhala" Unicode character block.
-         * @since 1.4
-         */
-        public static final UnicodeBlock SINHALA =
-            new UnicodeBlock("SINHALA");
-
-        /**
-         * Constant for the "Myanmar" Unicode character block.
-         * @since 1.4
-         */
-        public static final UnicodeBlock MYANMAR =
-            new UnicodeBlock("MYANMAR");
-
-        /**
-         * Constant for the "Ethiopic" Unicode character block.
-         * @since 1.4
-         */
-        public static final UnicodeBlock ETHIOPIC =
-            new UnicodeBlock("ETHIOPIC");
-
-        /**
-         * Constant for the "Cherokee" Unicode character block.
-         * @since 1.4
-         */
-        public static final UnicodeBlock CHEROKEE =
-            new UnicodeBlock("CHEROKEE");
-
-        /**
-         * Constant for the "Unified Canadian Aboriginal Syllabics" Unicode character block.
-         * @since 1.4
-         */
-        public static final UnicodeBlock UNIFIED_CANADIAN_ABORIGINAL_SYLLABICS =
-            new UnicodeBlock("UNIFIED_CANADIAN_ABORIGINAL_SYLLABICS",
-                             "UNIFIED CANADIAN ABORIGINAL SYLLABICS",
-                             "UNIFIEDCANADIANABORIGINALSYLLABICS");
-
-        /**
-         * Constant for the "Ogham" Unicode character block.
-         * @since 1.4
-         */
-        public static final UnicodeBlock OGHAM =
-            new UnicodeBlock("OGHAM");
-
-        /**
-         * Constant for the "Runic" Unicode character block.
-         * @since 1.4
-         */
-        public static final UnicodeBlock RUNIC =
-            new UnicodeBlock("RUNIC");
-
-        /**
-         * Constant for the "Khmer" Unicode character block.
-         * @since 1.4
-         */
-        public static final UnicodeBlock KHMER =
-            new UnicodeBlock("KHMER");
-
-        /**
-         * Constant for the "Mongolian" Unicode character block.
-         * @since 1.4
-         */
-        public static final UnicodeBlock MONGOLIAN =
-            new UnicodeBlock("MONGOLIAN");
-
-        /**
-         * Constant for the "Braille Patterns" Unicode character block.
-         * @since 1.4
-         */
-        public static final UnicodeBlock BRAILLE_PATTERNS =
-            new UnicodeBlock("BRAILLE_PATTERNS",
-                             "BRAILLE PATTERNS",
-                             "BRAILLEPATTERNS");
-
-        /**
-         * Constant for the "CJK Radicals Supplement" Unicode character block.
-         * @since 1.4
-         */
-        public static final UnicodeBlock CJK_RADICALS_SUPPLEMENT =
-            new UnicodeBlock("CJK_RADICALS_SUPPLEMENT",
-                             "CJK RADICALS SUPPLEMENT",
-                             "CJKRADICALSSUPPLEMENT");
-
-        /**
-         * Constant for the "Kangxi Radicals" Unicode character block.
-         * @since 1.4
-         */
-        public static final UnicodeBlock KANGXI_RADICALS =
-            new UnicodeBlock("KANGXI_RADICALS",
-                             "KANGXI RADICALS",
-                             "KANGXIRADICALS");
-
-        /**
-         * Constant for the "Ideographic Description Characters" Unicode character block.
-         * @since 1.4
-         */
-        public static final UnicodeBlock IDEOGRAPHIC_DESCRIPTION_CHARACTERS =
-            new UnicodeBlock("IDEOGRAPHIC_DESCRIPTION_CHARACTERS",
-                             "IDEOGRAPHIC DESCRIPTION CHARACTERS",
-                             "IDEOGRAPHICDESCRIPTIONCHARACTERS");
-
-        /**
-         * Constant for the "Bopomofo Extended" Unicode character block.
-         * @since 1.4
-         */
-        public static final UnicodeBlock BOPOMOFO_EXTENDED =
-            new UnicodeBlock("BOPOMOFO_EXTENDED",
-                             "BOPOMOFO EXTENDED",
-                             "BOPOMOFOEXTENDED");
-
-        /**
-         * Constant for the "CJK Unified Ideographs Extension A" Unicode character block.
-         * @since 1.4
-         */
-        public static final UnicodeBlock CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A =
-            new UnicodeBlock("CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A",
-                             "CJK UNIFIED IDEOGRAPHS EXTENSION A",
-                             "CJKUNIFIEDIDEOGRAPHSEXTENSIONA");
-
-        /**
-         * Constant for the "Yi Syllables" Unicode character block.
-         * @since 1.4
-         */
-        public static final UnicodeBlock YI_SYLLABLES =
-            new UnicodeBlock("YI_SYLLABLES",
-                             "YI SYLLABLES",
-                             "YISYLLABLES");
-
-        /**
-         * Constant for the "Yi Radicals" Unicode character block.
-         * @since 1.4
-         */
-        public static final UnicodeBlock YI_RADICALS =
-            new UnicodeBlock("YI_RADICALS",
-                             "YI RADICALS",
-                             "YIRADICALS");
-
-        /**
-         * Constant for the "Cyrillic Supplement" Unicode character block.
-         * This block was previously known as the "Cyrillic Supplementary" block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock CYRILLIC_SUPPLEMENTARY =
-            new UnicodeBlock("CYRILLIC_SUPPLEMENTARY",
-                             "CYRILLIC SUPPLEMENTARY",
-                             "CYRILLICSUPPLEMENTARY",
-                             "CYRILLIC SUPPLEMENT",
-                             "CYRILLICSUPPLEMENT");
-
-        /**
-         * Constant for the "Tagalog" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock TAGALOG =
-            new UnicodeBlock("TAGALOG");
-
-        /**
-         * Constant for the "Hanunoo" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock HANUNOO =
-            new UnicodeBlock("HANUNOO");
-
-        /**
-         * Constant for the "Buhid" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock BUHID =
-            new UnicodeBlock("BUHID");
-
-        /**
-         * Constant for the "Tagbanwa" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock TAGBANWA =
-            new UnicodeBlock("TAGBANWA");
-
-        /**
-         * Constant for the "Limbu" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock LIMBU =
-            new UnicodeBlock("LIMBU");
-
-        /**
-         * Constant for the "Tai Le" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock TAI_LE =
-            new UnicodeBlock("TAI_LE",
-                             "TAI LE",
-                             "TAILE");
-
-        /**
-         * Constant for the "Khmer Symbols" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock KHMER_SYMBOLS =
-            new UnicodeBlock("KHMER_SYMBOLS",
-                             "KHMER SYMBOLS",
-                             "KHMERSYMBOLS");
-
-        /**
-         * Constant for the "Phonetic Extensions" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock PHONETIC_EXTENSIONS =
-            new UnicodeBlock("PHONETIC_EXTENSIONS",
-                             "PHONETIC EXTENSIONS",
-                             "PHONETICEXTENSIONS");
-
-        /**
-         * Constant for the "Miscellaneous Mathematical Symbols-A" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock MISCELLANEOUS_MATHEMATICAL_SYMBOLS_A =
-            new UnicodeBlock("MISCELLANEOUS_MATHEMATICAL_SYMBOLS_A",
-                             "MISCELLANEOUS MATHEMATICAL SYMBOLS-A",
-                             "MISCELLANEOUSMATHEMATICALSYMBOLS-A");
-
-        /**
-         * Constant for the "Supplemental Arrows-A" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock SUPPLEMENTAL_ARROWS_A =
-            new UnicodeBlock("SUPPLEMENTAL_ARROWS_A",
-                             "SUPPLEMENTAL ARROWS-A",
-                             "SUPPLEMENTALARROWS-A");
-
-        /**
-         * Constant for the "Supplemental Arrows-B" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock SUPPLEMENTAL_ARROWS_B =
-            new UnicodeBlock("SUPPLEMENTAL_ARROWS_B",
-                             "SUPPLEMENTAL ARROWS-B",
-                             "SUPPLEMENTALARROWS-B");
-
-        /**
-         * Constant for the "Miscellaneous Mathematical Symbols-B" Unicode
-         * character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock MISCELLANEOUS_MATHEMATICAL_SYMBOLS_B =
-            new UnicodeBlock("MISCELLANEOUS_MATHEMATICAL_SYMBOLS_B",
-                             "MISCELLANEOUS MATHEMATICAL SYMBOLS-B",
-                             "MISCELLANEOUSMATHEMATICALSYMBOLS-B");
-
-        /**
-         * Constant for the "Supplemental Mathematical Operators" Unicode
-         * character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock SUPPLEMENTAL_MATHEMATICAL_OPERATORS =
-            new UnicodeBlock("SUPPLEMENTAL_MATHEMATICAL_OPERATORS",
-                             "SUPPLEMENTAL MATHEMATICAL OPERATORS",
-                             "SUPPLEMENTALMATHEMATICALOPERATORS");
-
-        /**
-         * Constant for the "Miscellaneous Symbols and Arrows" Unicode character
-         * block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock MISCELLANEOUS_SYMBOLS_AND_ARROWS =
-            new UnicodeBlock("MISCELLANEOUS_SYMBOLS_AND_ARROWS",
-                             "MISCELLANEOUS SYMBOLS AND ARROWS",
-                             "MISCELLANEOUSSYMBOLSANDARROWS");
-
-        /**
-         * Constant for the "Katakana Phonetic Extensions" Unicode character
-         * block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock KATAKANA_PHONETIC_EXTENSIONS =
-            new UnicodeBlock("KATAKANA_PHONETIC_EXTENSIONS",
-                             "KATAKANA PHONETIC EXTENSIONS",
-                             "KATAKANAPHONETICEXTENSIONS");
-
-        /**
-         * Constant for the "Yijing Hexagram Symbols" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock YIJING_HEXAGRAM_SYMBOLS =
-            new UnicodeBlock("YIJING_HEXAGRAM_SYMBOLS",
-                             "YIJING HEXAGRAM SYMBOLS",
-                             "YIJINGHEXAGRAMSYMBOLS");
-
-        /**
-         * Constant for the "Variation Selectors" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock VARIATION_SELECTORS =
-            new UnicodeBlock("VARIATION_SELECTORS",
-                             "VARIATION SELECTORS",
-                             "VARIATIONSELECTORS");
-
-        /**
-         * Constant for the "Linear B Syllabary" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock LINEAR_B_SYLLABARY =
-            new UnicodeBlock("LINEAR_B_SYLLABARY",
-                             "LINEAR B SYLLABARY",
-                             "LINEARBSYLLABARY");
-
-        /**
-         * Constant for the "Linear B Ideograms" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock LINEAR_B_IDEOGRAMS =
-            new UnicodeBlock("LINEAR_B_IDEOGRAMS",
-                             "LINEAR B IDEOGRAMS",
-                             "LINEARBIDEOGRAMS");
-
-        /**
-         * Constant for the "Aegean Numbers" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock AEGEAN_NUMBERS =
-            new UnicodeBlock("AEGEAN_NUMBERS",
-                             "AEGEAN NUMBERS",
-                             "AEGEANNUMBERS");
-
-        /**
-         * Constant for the "Old Italic" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock OLD_ITALIC =
-            new UnicodeBlock("OLD_ITALIC",
-                             "OLD ITALIC",
-                             "OLDITALIC");
-
-        /**
-         * Constant for the "Gothic" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock GOTHIC =
-            new UnicodeBlock("GOTHIC");
-
-        /**
-         * Constant for the "Ugaritic" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock UGARITIC =
-            new UnicodeBlock("UGARITIC");
-
-        /**
-         * Constant for the "Deseret" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock DESERET =
-            new UnicodeBlock("DESERET");
-
-        /**
-         * Constant for the "Shavian" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock SHAVIAN =
-            new UnicodeBlock("SHAVIAN");
-
-        /**
-         * Constant for the "Osmanya" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock OSMANYA =
-            new UnicodeBlock("OSMANYA");
-
-        /**
-         * Constant for the "Cypriot Syllabary" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock CYPRIOT_SYLLABARY =
-            new UnicodeBlock("CYPRIOT_SYLLABARY",
-                             "CYPRIOT SYLLABARY",
-                             "CYPRIOTSYLLABARY");
-
-        /**
-         * Constant for the "Byzantine Musical Symbols" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock BYZANTINE_MUSICAL_SYMBOLS =
-            new UnicodeBlock("BYZANTINE_MUSICAL_SYMBOLS",
-                             "BYZANTINE MUSICAL SYMBOLS",
-                             "BYZANTINEMUSICALSYMBOLS");
-
-        /**
-         * Constant for the "Musical Symbols" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock MUSICAL_SYMBOLS =
-            new UnicodeBlock("MUSICAL_SYMBOLS",
-                             "MUSICAL SYMBOLS",
-                             "MUSICALSYMBOLS");
-
-        /**
-         * Constant for the "Tai Xuan Jing Symbols" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock TAI_XUAN_JING_SYMBOLS =
-            new UnicodeBlock("TAI_XUAN_JING_SYMBOLS",
-                             "TAI XUAN JING SYMBOLS",
-                             "TAIXUANJINGSYMBOLS");
-
-        /**
-         * Constant for the "Mathematical Alphanumeric Symbols" Unicode
-         * character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock MATHEMATICAL_ALPHANUMERIC_SYMBOLS =
-            new UnicodeBlock("MATHEMATICAL_ALPHANUMERIC_SYMBOLS",
-                             "MATHEMATICAL ALPHANUMERIC SYMBOLS",
-                             "MATHEMATICALALPHANUMERICSYMBOLS");
-
-        /**
-         * Constant for the "CJK Unified Ideographs Extension B" Unicode
-         * character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B =
-            new UnicodeBlock("CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B",
-                             "CJK UNIFIED IDEOGRAPHS EXTENSION B",
-                             "CJKUNIFIEDIDEOGRAPHSEXTENSIONB");
-
-        /**
-         * Constant for the "CJK Compatibility Ideographs Supplement" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock CJK_COMPATIBILITY_IDEOGRAPHS_SUPPLEMENT =
-            new UnicodeBlock("CJK_COMPATIBILITY_IDEOGRAPHS_SUPPLEMENT",
-                             "CJK COMPATIBILITY IDEOGRAPHS SUPPLEMENT",
-                             "CJKCOMPATIBILITYIDEOGRAPHSSUPPLEMENT");
-
-        /**
-         * Constant for the "Tags" Unicode character block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock TAGS =
-            new UnicodeBlock("TAGS");
-
-        /**
-         * Constant for the "Variation Selectors Supplement" Unicode character
-         * block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock VARIATION_SELECTORS_SUPPLEMENT =
-            new UnicodeBlock("VARIATION_SELECTORS_SUPPLEMENT",
-                             "VARIATION SELECTORS SUPPLEMENT",
-                             "VARIATIONSELECTORSSUPPLEMENT");
-
-        /**
-         * Constant for the "Supplementary Private Use Area-A" Unicode character
-         * block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock SUPPLEMENTARY_PRIVATE_USE_AREA_A =
-            new UnicodeBlock("SUPPLEMENTARY_PRIVATE_USE_AREA_A",
-                             "SUPPLEMENTARY PRIVATE USE AREA-A",
-                             "SUPPLEMENTARYPRIVATEUSEAREA-A");
-
-        /**
-         * Constant for the "Supplementary Private Use Area-B" Unicode character
-         * block.
-         * @since 1.5
-         */
-        public static final UnicodeBlock SUPPLEMENTARY_PRIVATE_USE_AREA_B =
-            new UnicodeBlock("SUPPLEMENTARY_PRIVATE_USE_AREA_B",
-                             "SUPPLEMENTARY PRIVATE USE AREA-B",
-                             "SUPPLEMENTARYPRIVATEUSEAREA-B");
-
-        /**
-         * Constant for the "High Surrogates" Unicode character block.
-         * This block represents codepoint values in the high surrogate
-         * range: U+D800 through U+DB7F
-         *
-         * @since 1.5
-         */
-        public static final UnicodeBlock HIGH_SURROGATES =
-            new UnicodeBlock("HIGH_SURROGATES",
-                             "HIGH SURROGATES",
-                             "HIGHSURROGATES");
-
-        /**
-         * Constant for the "High Private Use Surrogates" Unicode character
-         * block.
-         * This block represents codepoint values in the private use high
-         * surrogate range: U+DB80 through U+DBFF
-         *
-         * @since 1.5
-         */
-        public static final UnicodeBlock HIGH_PRIVATE_USE_SURROGATES =
-            new UnicodeBlock("HIGH_PRIVATE_USE_SURROGATES",
-                             "HIGH PRIVATE USE SURROGATES",
-                             "HIGHPRIVATEUSESURROGATES");
-
-        /**
-         * Constant for the "Low Surrogates" Unicode character block.
-         * This block represents codepoint values in the low surrogate
-         * range: U+DC00 through U+DFFF
-         *
-         * @since 1.5
-         */
-        public static final UnicodeBlock LOW_SURROGATES =
-            new UnicodeBlock("LOW_SURROGATES",
-                             "LOW SURROGATES",
-                             "LOWSURROGATES");
-
-        /**
-         * Constant for the "Arabic Supplement" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock ARABIC_SUPPLEMENT =
-            new UnicodeBlock("ARABIC_SUPPLEMENT",
-                             "ARABIC SUPPLEMENT",
-                             "ARABICSUPPLEMENT");
-
-        /**
-         * Constant for the "NKo" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock NKO =
-            new UnicodeBlock("NKO");
-
-        /**
-         * Constant for the "Samaritan" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock SAMARITAN =
-            new UnicodeBlock("SAMARITAN");
-
-        /**
-         * Constant for the "Mandaic" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock MANDAIC =
-            new UnicodeBlock("MANDAIC");
-
-        /**
-         * Constant for the "Ethiopic Supplement" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock ETHIOPIC_SUPPLEMENT =
-            new UnicodeBlock("ETHIOPIC_SUPPLEMENT",
-                             "ETHIOPIC SUPPLEMENT",
-                             "ETHIOPICSUPPLEMENT");
-
-        /**
-         * Constant for the "Unified Canadian Aboriginal Syllabics Extended"
-         * Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock UNIFIED_CANADIAN_ABORIGINAL_SYLLABICS_EXTENDED =
-            new UnicodeBlock("UNIFIED_CANADIAN_ABORIGINAL_SYLLABICS_EXTENDED",
-                             "UNIFIED CANADIAN ABORIGINAL SYLLABICS EXTENDED",
-                             "UNIFIEDCANADIANABORIGINALSYLLABICSEXTENDED");
-
-        /**
-         * Constant for the "New Tai Lue" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock NEW_TAI_LUE =
-            new UnicodeBlock("NEW_TAI_LUE",
-                             "NEW TAI LUE",
-                             "NEWTAILUE");
-
-        /**
-         * Constant for the "Buginese" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock BUGINESE =
-            new UnicodeBlock("BUGINESE");
-
-        /**
-         * Constant for the "Tai Tham" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock TAI_THAM =
-            new UnicodeBlock("TAI_THAM",
-                             "TAI THAM",
-                             "TAITHAM");
-
-        /**
-         * Constant for the "Balinese" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock BALINESE =
-            new UnicodeBlock("BALINESE");
-
-        /**
-         * Constant for the "Sundanese" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock SUNDANESE =
-            new UnicodeBlock("SUNDANESE");
-
-        /**
-         * Constant for the "Batak" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock BATAK =
-            new UnicodeBlock("BATAK");
-
-        /**
-         * Constant for the "Lepcha" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock LEPCHA =
-            new UnicodeBlock("LEPCHA");
-
-        /**
-         * Constant for the "Ol Chiki" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock OL_CHIKI =
-            new UnicodeBlock("OL_CHIKI",
-                             "OL CHIKI",
-                             "OLCHIKI");
-
-        /**
-         * Constant for the "Vedic Extensions" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock VEDIC_EXTENSIONS =
-            new UnicodeBlock("VEDIC_EXTENSIONS",
-                             "VEDIC EXTENSIONS",
-                             "VEDICEXTENSIONS");
-
-        /**
-         * Constant for the "Phonetic Extensions Supplement" Unicode character
-         * block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock PHONETIC_EXTENSIONS_SUPPLEMENT =
-            new UnicodeBlock("PHONETIC_EXTENSIONS_SUPPLEMENT",
-                             "PHONETIC EXTENSIONS SUPPLEMENT",
-                             "PHONETICEXTENSIONSSUPPLEMENT");
-
-        /**
-         * Constant for the "Combining Diacritical Marks Supplement" Unicode
-         * character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock COMBINING_DIACRITICAL_MARKS_SUPPLEMENT =
-            new UnicodeBlock("COMBINING_DIACRITICAL_MARKS_SUPPLEMENT",
-                             "COMBINING DIACRITICAL MARKS SUPPLEMENT",
-                             "COMBININGDIACRITICALMARKSSUPPLEMENT");
-
-        /**
-         * Constant for the "Glagolitic" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock GLAGOLITIC =
-            new UnicodeBlock("GLAGOLITIC");
-
-        /**
-         * Constant for the "Latin Extended-C" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock LATIN_EXTENDED_C =
-            new UnicodeBlock("LATIN_EXTENDED_C",
-                             "LATIN EXTENDED-C",
-                             "LATINEXTENDED-C");
-
-        /**
-         * Constant for the "Coptic" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock COPTIC =
-            new UnicodeBlock("COPTIC");
-
-        /**
-         * Constant for the "Georgian Supplement" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock GEORGIAN_SUPPLEMENT =
-            new UnicodeBlock("GEORGIAN_SUPPLEMENT",
-                             "GEORGIAN SUPPLEMENT",
-                             "GEORGIANSUPPLEMENT");
-
-        /**
-         * Constant for the "Tifinagh" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock TIFINAGH =
-            new UnicodeBlock("TIFINAGH");
-
-        /**
-         * Constant for the "Ethiopic Extended" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock ETHIOPIC_EXTENDED =
-            new UnicodeBlock("ETHIOPIC_EXTENDED",
-                             "ETHIOPIC EXTENDED",
-                             "ETHIOPICEXTENDED");
-
-        /**
-         * Constant for the "Cyrillic Extended-A" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock CYRILLIC_EXTENDED_A =
-            new UnicodeBlock("CYRILLIC_EXTENDED_A",
-                             "CYRILLIC EXTENDED-A",
-                             "CYRILLICEXTENDED-A");
-
-        /**
-         * Constant for the "Supplemental Punctuation" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock SUPPLEMENTAL_PUNCTUATION =
-            new UnicodeBlock("SUPPLEMENTAL_PUNCTUATION",
-                             "SUPPLEMENTAL PUNCTUATION",
-                             "SUPPLEMENTALPUNCTUATION");
-
-        /**
-         * Constant for the "CJK Strokes" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock CJK_STROKES =
-            new UnicodeBlock("CJK_STROKES",
-                             "CJK STROKES",
-                             "CJKSTROKES");
-
-        /**
-         * Constant for the "Lisu" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock LISU =
-            new UnicodeBlock("LISU");
-
-        /**
-         * Constant for the "Vai" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock VAI =
-            new UnicodeBlock("VAI");
-
-        /**
-         * Constant for the "Cyrillic Extended-B" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock CYRILLIC_EXTENDED_B =
-            new UnicodeBlock("CYRILLIC_EXTENDED_B",
-                             "CYRILLIC EXTENDED-B",
-                             "CYRILLICEXTENDED-B");
-
-        /**
-         * Constant for the "Bamum" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock BAMUM =
-            new UnicodeBlock("BAMUM");
-
-        /**
-         * Constant for the "Modifier Tone Letters" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock MODIFIER_TONE_LETTERS =
-            new UnicodeBlock("MODIFIER_TONE_LETTERS",
-                             "MODIFIER TONE LETTERS",
-                             "MODIFIERTONELETTERS");
-
-        /**
-         * Constant for the "Latin Extended-D" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock LATIN_EXTENDED_D =
-            new UnicodeBlock("LATIN_EXTENDED_D",
-                             "LATIN EXTENDED-D",
-                             "LATINEXTENDED-D");
-
-        /**
-         * Constant for the "Syloti Nagri" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock SYLOTI_NAGRI =
-            new UnicodeBlock("SYLOTI_NAGRI",
-                             "SYLOTI NAGRI",
-                             "SYLOTINAGRI");
-
-        /**
-         * Constant for the "Common Indic Number Forms" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock COMMON_INDIC_NUMBER_FORMS =
-            new UnicodeBlock("COMMON_INDIC_NUMBER_FORMS",
-                             "COMMON INDIC NUMBER FORMS",
-                             "COMMONINDICNUMBERFORMS");
-
-        /**
-         * Constant for the "Phags-pa" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock PHAGS_PA =
-            new UnicodeBlock("PHAGS_PA",
-                             "PHAGS-PA");
-
-        /**
-         * Constant for the "Saurashtra" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock SAURASHTRA =
-            new UnicodeBlock("SAURASHTRA");
-
-        /**
-         * Constant for the "Devanagari Extended" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock DEVANAGARI_EXTENDED =
-            new UnicodeBlock("DEVANAGARI_EXTENDED",
-                             "DEVANAGARI EXTENDED",
-                             "DEVANAGARIEXTENDED");
-
-        /**
-         * Constant for the "Kayah Li" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock KAYAH_LI =
-            new UnicodeBlock("KAYAH_LI",
-                             "KAYAH LI",
-                             "KAYAHLI");
-
-        /**
-         * Constant for the "Rejang" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock REJANG =
-            new UnicodeBlock("REJANG");
-
-        /**
-         * Constant for the "Hangul Jamo Extended-A" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock HANGUL_JAMO_EXTENDED_A =
-            new UnicodeBlock("HANGUL_JAMO_EXTENDED_A",
-                             "HANGUL JAMO EXTENDED-A",
-                             "HANGULJAMOEXTENDED-A");
-
-        /**
-         * Constant for the "Javanese" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock JAVANESE =
-            new UnicodeBlock("JAVANESE");
-
-        /**
-         * Constant for the "Cham" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock CHAM =
-            new UnicodeBlock("CHAM");
-
-        /**
-         * Constant for the "Myanmar Extended-A" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock MYANMAR_EXTENDED_A =
-            new UnicodeBlock("MYANMAR_EXTENDED_A",
-                             "MYANMAR EXTENDED-A",
-                             "MYANMAREXTENDED-A");
-
-        /**
-         * Constant for the "Tai Viet" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock TAI_VIET =
-            new UnicodeBlock("TAI_VIET",
-                             "TAI VIET",
-                             "TAIVIET");
-
-        /**
-         * Constant for the "Ethiopic Extended-A" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock ETHIOPIC_EXTENDED_A =
-            new UnicodeBlock("ETHIOPIC_EXTENDED_A",
-                             "ETHIOPIC EXTENDED-A",
-                             "ETHIOPICEXTENDED-A");
-
-        /**
-         * Constant for the "Meetei Mayek" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock MEETEI_MAYEK =
-            new UnicodeBlock("MEETEI_MAYEK",
-                             "MEETEI MAYEK",
-                             "MEETEIMAYEK");
-
-        /**
-         * Constant for the "Hangul Jamo Extended-B" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock HANGUL_JAMO_EXTENDED_B =
-            new UnicodeBlock("HANGUL_JAMO_EXTENDED_B",
-                             "HANGUL JAMO EXTENDED-B",
-                             "HANGULJAMOEXTENDED-B");
-
-        /**
-         * Constant for the "Vertical Forms" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock VERTICAL_FORMS =
-            new UnicodeBlock("VERTICAL_FORMS",
-                             "VERTICAL FORMS",
-                             "VERTICALFORMS");
-
-        /**
-         * Constant for the "Ancient Greek Numbers" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock ANCIENT_GREEK_NUMBERS =
-            new UnicodeBlock("ANCIENT_GREEK_NUMBERS",
-                             "ANCIENT GREEK NUMBERS",
-                             "ANCIENTGREEKNUMBERS");
-
-        /**
-         * Constant for the "Ancient Symbols" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock ANCIENT_SYMBOLS =
-            new UnicodeBlock("ANCIENT_SYMBOLS",
-                             "ANCIENT SYMBOLS",
-                             "ANCIENTSYMBOLS");
-
-        /**
-         * Constant for the "Phaistos Disc" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock PHAISTOS_DISC =
-            new UnicodeBlock("PHAISTOS_DISC",
-                             "PHAISTOS DISC",
-                             "PHAISTOSDISC");
-
-        /**
-         * Constant for the "Lycian" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock LYCIAN =
-            new UnicodeBlock("LYCIAN");
-
-        /**
-         * Constant for the "Carian" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock CARIAN =
-            new UnicodeBlock("CARIAN");
-
-        /**
-         * Constant for the "Old Persian" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock OLD_PERSIAN =
-            new UnicodeBlock("OLD_PERSIAN",
-                             "OLD PERSIAN",
-                             "OLDPERSIAN");
-
-        /**
-         * Constant for the "Imperial Aramaic" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock IMPERIAL_ARAMAIC =
-            new UnicodeBlock("IMPERIAL_ARAMAIC",
-                             "IMPERIAL ARAMAIC",
-                             "IMPERIALARAMAIC");
-
-        /**
-         * Constant for the "Phoenician" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock PHOENICIAN =
-            new UnicodeBlock("PHOENICIAN");
-
-        /**
-         * Constant for the "Lydian" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock LYDIAN =
-            new UnicodeBlock("LYDIAN");
-
-        /**
-         * Constant for the "Kharoshthi" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock KHAROSHTHI =
-            new UnicodeBlock("KHAROSHTHI");
-
-        /**
-         * Constant for the "Old South Arabian" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock OLD_SOUTH_ARABIAN =
-            new UnicodeBlock("OLD_SOUTH_ARABIAN",
-                             "OLD SOUTH ARABIAN",
-                             "OLDSOUTHARABIAN");
-
-        /**
-         * Constant for the "Avestan" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock AVESTAN =
-            new UnicodeBlock("AVESTAN");
-
-        /**
-         * Constant for the "Inscriptional Parthian" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock INSCRIPTIONAL_PARTHIAN =
-            new UnicodeBlock("INSCRIPTIONAL_PARTHIAN",
-                             "INSCRIPTIONAL PARTHIAN",
-                             "INSCRIPTIONALPARTHIAN");
-
-        /**
-         * Constant for the "Inscriptional Pahlavi" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock INSCRIPTIONAL_PAHLAVI =
-            new UnicodeBlock("INSCRIPTIONAL_PAHLAVI",
-                             "INSCRIPTIONAL PAHLAVI",
-                             "INSCRIPTIONALPAHLAVI");
-
-        /**
-         * Constant for the "Old Turkic" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock OLD_TURKIC =
-            new UnicodeBlock("OLD_TURKIC",
-                             "OLD TURKIC",
-                             "OLDTURKIC");
-
-        /**
-         * Constant for the "Rumi Numeral Symbols" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock RUMI_NUMERAL_SYMBOLS =
-            new UnicodeBlock("RUMI_NUMERAL_SYMBOLS",
-                             "RUMI NUMERAL SYMBOLS",
-                             "RUMINUMERALSYMBOLS");
-
-        /**
-         * Constant for the "Brahmi" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock BRAHMI =
-            new UnicodeBlock("BRAHMI");
-
-        /**
-         * Constant for the "Kaithi" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock KAITHI =
-            new UnicodeBlock("KAITHI");
-
-        /**
-         * Constant for the "Cuneiform" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock CUNEIFORM =
-            new UnicodeBlock("CUNEIFORM");
-
-        /**
-         * Constant for the "Cuneiform Numbers and Punctuation" Unicode
-         * character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock CUNEIFORM_NUMBERS_AND_PUNCTUATION =
-            new UnicodeBlock("CUNEIFORM_NUMBERS_AND_PUNCTUATION",
-                             "CUNEIFORM NUMBERS AND PUNCTUATION",
-                             "CUNEIFORMNUMBERSANDPUNCTUATION");
-
-        /**
-         * Constant for the "Egyptian Hieroglyphs" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock EGYPTIAN_HIEROGLYPHS =
-            new UnicodeBlock("EGYPTIAN_HIEROGLYPHS",
-                             "EGYPTIAN HIEROGLYPHS",
-                             "EGYPTIANHIEROGLYPHS");
-
-        /**
-         * Constant for the "Bamum Supplement" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock BAMUM_SUPPLEMENT =
-            new UnicodeBlock("BAMUM_SUPPLEMENT",
-                             "BAMUM SUPPLEMENT",
-                             "BAMUMSUPPLEMENT");
-
-        /**
-         * Constant for the "Kana Supplement" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock KANA_SUPPLEMENT =
-            new UnicodeBlock("KANA_SUPPLEMENT",
-                             "KANA SUPPLEMENT",
-                             "KANASUPPLEMENT");
-
-        /**
-         * Constant for the "Ancient Greek Musical Notation" Unicode character
-         * block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock ANCIENT_GREEK_MUSICAL_NOTATION =
-            new UnicodeBlock("ANCIENT_GREEK_MUSICAL_NOTATION",
-                             "ANCIENT GREEK MUSICAL NOTATION",
-                             "ANCIENTGREEKMUSICALNOTATION");
-
-        /**
-         * Constant for the "Counting Rod Numerals" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock COUNTING_ROD_NUMERALS =
-            new UnicodeBlock("COUNTING_ROD_NUMERALS",
-                             "COUNTING ROD NUMERALS",
-                             "COUNTINGRODNUMERALS");
-
-        /**
-         * Constant for the "Mahjong Tiles" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock MAHJONG_TILES =
-            new UnicodeBlock("MAHJONG_TILES",
-                             "MAHJONG TILES",
-                             "MAHJONGTILES");
-
-        /**
-         * Constant for the "Domino Tiles" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock DOMINO_TILES =
-            new UnicodeBlock("DOMINO_TILES",
-                             "DOMINO TILES",
-                             "DOMINOTILES");
-
-        /**
-         * Constant for the "Playing Cards" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock PLAYING_CARDS =
-            new UnicodeBlock("PLAYING_CARDS",
-                             "PLAYING CARDS",
-                             "PLAYINGCARDS");
-
-        /**
-         * Constant for the "Enclosed Alphanumeric Supplement" Unicode character
-         * block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock ENCLOSED_ALPHANUMERIC_SUPPLEMENT =
-            new UnicodeBlock("ENCLOSED_ALPHANUMERIC_SUPPLEMENT",
-                             "ENCLOSED ALPHANUMERIC SUPPLEMENT",
-                             "ENCLOSEDALPHANUMERICSUPPLEMENT");
-
-        /**
-         * Constant for the "Enclosed Ideographic Supplement" Unicode character
-         * block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock ENCLOSED_IDEOGRAPHIC_SUPPLEMENT =
-            new UnicodeBlock("ENCLOSED_IDEOGRAPHIC_SUPPLEMENT",
-                             "ENCLOSED IDEOGRAPHIC SUPPLEMENT",
-                             "ENCLOSEDIDEOGRAPHICSUPPLEMENT");
-
-        /**
-         * Constant for the "Miscellaneous Symbols And Pictographs" Unicode
-         * character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock MISCELLANEOUS_SYMBOLS_AND_PICTOGRAPHS =
-            new UnicodeBlock("MISCELLANEOUS_SYMBOLS_AND_PICTOGRAPHS",
-                             "MISCELLANEOUS SYMBOLS AND PICTOGRAPHS",
-                             "MISCELLANEOUSSYMBOLSANDPICTOGRAPHS");
-
-        /**
-         * Constant for the "Emoticons" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock EMOTICONS =
-            new UnicodeBlock("EMOTICONS");
-
-        /**
-         * Constant for the "Transport And Map Symbols" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock TRANSPORT_AND_MAP_SYMBOLS =
-            new UnicodeBlock("TRANSPORT_AND_MAP_SYMBOLS",
-                             "TRANSPORT AND MAP SYMBOLS",
-                             "TRANSPORTANDMAPSYMBOLS");
-
-        /**
-         * Constant for the "Alchemical Symbols" Unicode character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock ALCHEMICAL_SYMBOLS =
-            new UnicodeBlock("ALCHEMICAL_SYMBOLS",
-                             "ALCHEMICAL SYMBOLS",
-                             "ALCHEMICALSYMBOLS");
-
-        /**
-         * Constant for the "CJK Unified Ideographs Extension C" Unicode
-         * character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock CJK_UNIFIED_IDEOGRAPHS_EXTENSION_C =
-            new UnicodeBlock("CJK_UNIFIED_IDEOGRAPHS_EXTENSION_C",
-                             "CJK UNIFIED IDEOGRAPHS EXTENSION C",
-                             "CJKUNIFIEDIDEOGRAPHSEXTENSIONC");
-
-        /**
-         * Constant for the "CJK Unified Ideographs Extension D" Unicode
-         * character block.
-         * @since 1.7
-         */
-        public static final UnicodeBlock CJK_UNIFIED_IDEOGRAPHS_EXTENSION_D =
-            new UnicodeBlock("CJK_UNIFIED_IDEOGRAPHS_EXTENSION_D",
-                             "CJK UNIFIED IDEOGRAPHS EXTENSION D",
-                             "CJKUNIFIEDIDEOGRAPHSEXTENSIOND");
-
-        /**
-         * Constant for the "Arabic Extended-A" Unicode character block.
-         * @since 1.8
-         */
-        public static final UnicodeBlock ARABIC_EXTENDED_A =
-            new UnicodeBlock("ARABIC_EXTENDED_A",
-                             "ARABIC EXTENDED-A",
-                             "ARABICEXTENDED-A");
-
-        /**
-         * Constant for the "Sundanese Supplement" Unicode character block.
-         * @since 1.8
-         */
-        public static final UnicodeBlock SUNDANESE_SUPPLEMENT =
-            new UnicodeBlock("SUNDANESE_SUPPLEMENT",
-                             "SUNDANESE SUPPLEMENT",
-                             "SUNDANESESUPPLEMENT");
-
-        /**
-         * Constant for the "Meetei Mayek Extensions" Unicode character block.
-         * @since 1.8
-         */
-        public static final UnicodeBlock MEETEI_MAYEK_EXTENSIONS =
-            new UnicodeBlock("MEETEI_MAYEK_EXTENSIONS",
-                             "MEETEI MAYEK EXTENSIONS",
-                             "MEETEIMAYEKEXTENSIONS");
-
-        /**
-         * Constant for the "Meroitic Hieroglyphs" Unicode character block.
-         * @since 1.8
-         */
-        public static final UnicodeBlock MEROITIC_HIEROGLYPHS =
-            new UnicodeBlock("MEROITIC_HIEROGLYPHS",
-                             "MEROITIC HIEROGLYPHS",
-                             "MEROITICHIEROGLYPHS");
-
-        /**
-         * Constant for the "Meroitic Cursive" Unicode character block.
-         * @since 1.8
-         */
-        public static final UnicodeBlock MEROITIC_CURSIVE =
-            new UnicodeBlock("MEROITIC_CURSIVE",
-                             "MEROITIC CURSIVE",
-                             "MEROITICCURSIVE");
-
-        /**
-         * Constant for the "Sora Sompeng" Unicode character block.
-         * @since 1.8
-         */
-        public static final UnicodeBlock SORA_SOMPENG =
-            new UnicodeBlock("SORA_SOMPENG",
-                             "SORA SOMPENG",
-                             "SORASOMPENG");
-
-        /**
-         * Constant for the "Chakma" Unicode character block.
-         * @since 1.8
-         */
-        public static final UnicodeBlock CHAKMA =
-            new UnicodeBlock("CHAKMA");
-
-        /**
-         * Constant for the "Sharada" Unicode character block.
-         * @since 1.8
-         */
-        public static final UnicodeBlock SHARADA =
-            new UnicodeBlock("SHARADA");
-
-        /**
-         * Constant for the "Takri" Unicode character block.
-         * @since 1.8
-         */
-        public static final UnicodeBlock TAKRI =
-            new UnicodeBlock("TAKRI");
-
-        /**
-         * Constant for the "Miao" Unicode character block.
-         * @since 1.8
-         */
-        public static final UnicodeBlock MIAO =
-            new UnicodeBlock("MIAO");
-
-        /**
-         * Constant for the "Arabic Mathematical Alphabetic Symbols" Unicode
-         * character block.
-         * @since 1.8
-         */
-        public static final UnicodeBlock ARABIC_MATHEMATICAL_ALPHABETIC_SYMBOLS =
-            new UnicodeBlock("ARABIC_MATHEMATICAL_ALPHABETIC_SYMBOLS",
-                             "ARABIC MATHEMATICAL ALPHABETIC SYMBOLS",
-                             "ARABICMATHEMATICALALPHABETICSYMBOLS");
-
-        /**
-         * Constant for the "Combining Diacritical Marks Extended" Unicode
-         * character block.
-         * @since 9
-         */
-        public static final UnicodeBlock COMBINING_DIACRITICAL_MARKS_EXTENDED =
-            new UnicodeBlock("COMBINING_DIACRITICAL_MARKS_EXTENDED",
-                             "COMBINING DIACRITICAL MARKS EXTENDED",
-                             "COMBININGDIACRITICALMARKSEXTENDED");
-
-        /**
-         * Constant for the "Myanmar Extended-B" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock MYANMAR_EXTENDED_B =
-            new UnicodeBlock("MYANMAR_EXTENDED_B",
-                             "MYANMAR EXTENDED-B",
-                             "MYANMAREXTENDED-B");
-
-        /**
-         * Constant for the "Latin Extended-E" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock LATIN_EXTENDED_E =
-            new UnicodeBlock("LATIN_EXTENDED_E",
-                             "LATIN EXTENDED-E",
-                             "LATINEXTENDED-E");
-
-        /**
-         * Constant for the "Coptic Epact Numbers" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock COPTIC_EPACT_NUMBERS =
-            new UnicodeBlock("COPTIC_EPACT_NUMBERS",
-                             "COPTIC EPACT NUMBERS",
-                             "COPTICEPACTNUMBERS");
-
-        /**
-         * Constant for the "Old Permic" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock OLD_PERMIC =
-            new UnicodeBlock("OLD_PERMIC",
-                             "OLD PERMIC",
-                             "OLDPERMIC");
-
-        /**
-         * Constant for the "Elbasan" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock ELBASAN =
-            new UnicodeBlock("ELBASAN");
-
-        /**
-         * Constant for the "Caucasian Albanian" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock CAUCASIAN_ALBANIAN =
-            new UnicodeBlock("CAUCASIAN_ALBANIAN",
-                             "CAUCASIAN ALBANIAN",
-                             "CAUCASIANALBANIAN");
-
-        /**
-         * Constant for the "Linear A" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock LINEAR_A =
-            new UnicodeBlock("LINEAR_A",
-                             "LINEAR A",
-                             "LINEARA");
-
-        /**
-         * Constant for the "Palmyrene" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock PALMYRENE =
-            new UnicodeBlock("PALMYRENE");
-
-        /**
-         * Constant for the "Nabataean" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock NABATAEAN =
-            new UnicodeBlock("NABATAEAN");
-
-        /**
-         * Constant for the "Old North Arabian" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock OLD_NORTH_ARABIAN =
-            new UnicodeBlock("OLD_NORTH_ARABIAN",
-                             "OLD NORTH ARABIAN",
-                             "OLDNORTHARABIAN");
-
-        /**
-         * Constant for the "Manichaean" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock MANICHAEAN =
-            new UnicodeBlock("MANICHAEAN");
-
-        /**
-         * Constant for the "Psalter Pahlavi" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock PSALTER_PAHLAVI =
-            new UnicodeBlock("PSALTER_PAHLAVI",
-                             "PSALTER PAHLAVI",
-                             "PSALTERPAHLAVI");
-
-        /**
-         * Constant for the "Mahajani" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock MAHAJANI =
-            new UnicodeBlock("MAHAJANI");
-
-        /**
-         * Constant for the "Sinhala Archaic Numbers" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock SINHALA_ARCHAIC_NUMBERS =
-            new UnicodeBlock("SINHALA_ARCHAIC_NUMBERS",
-                             "SINHALA ARCHAIC NUMBERS",
-                             "SINHALAARCHAICNUMBERS");
-
-        /**
-         * Constant for the "Khojki" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock KHOJKI =
-            new UnicodeBlock("KHOJKI");
-
-        /**
-         * Constant for the "Khudawadi" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock KHUDAWADI =
-            new UnicodeBlock("KHUDAWADI");
-
-        /**
-         * Constant for the "Grantha" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock GRANTHA =
-            new UnicodeBlock("GRANTHA");
-
-        /**
-         * Constant for the "Tirhuta" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock TIRHUTA =
-            new UnicodeBlock("TIRHUTA");
-
-        /**
-         * Constant for the "Siddham" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock SIDDHAM =
-            new UnicodeBlock("SIDDHAM");
-
-        /**
-         * Constant for the "Modi" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock MODI =
-            new UnicodeBlock("MODI");
-
-        /**
-         * Constant for the "Warang Citi" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock WARANG_CITI =
-            new UnicodeBlock("WARANG_CITI",
-                             "WARANG CITI",
-                             "WARANGCITI");
-
-        /**
-         * Constant for the "Pau Cin Hau" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock PAU_CIN_HAU =
-            new UnicodeBlock("PAU_CIN_HAU",
-                             "PAU CIN HAU",
-                             "PAUCINHAU");
-
-        /**
-         * Constant for the "Mro" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock MRO =
-            new UnicodeBlock("MRO");
-
-        /**
-         * Constant for the "Bassa Vah" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock BASSA_VAH =
-            new UnicodeBlock("BASSA_VAH",
-                             "BASSA VAH",
-                             "BASSAVAH");
-
-        /**
-         * Constant for the "Pahawh Hmong" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock PAHAWH_HMONG =
-            new UnicodeBlock("PAHAWH_HMONG",
-                             "PAHAWH HMONG",
-                             "PAHAWHHMONG");
-
-        /**
-         * Constant for the "Duployan" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock DUPLOYAN =
-            new UnicodeBlock("DUPLOYAN");
-
-        /**
-         * Constant for the "Shorthand Format Controls" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock SHORTHAND_FORMAT_CONTROLS =
-            new UnicodeBlock("SHORTHAND_FORMAT_CONTROLS",
-                             "SHORTHAND FORMAT CONTROLS",
-                             "SHORTHANDFORMATCONTROLS");
-
-        /**
-         * Constant for the "Mende Kikakui" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock MENDE_KIKAKUI =
-            new UnicodeBlock("MENDE_KIKAKUI",
-                             "MENDE KIKAKUI",
-                             "MENDEKIKAKUI");
-
-        /**
-         * Constant for the "Ornamental Dingbats" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock ORNAMENTAL_DINGBATS =
-            new UnicodeBlock("ORNAMENTAL_DINGBATS",
-                             "ORNAMENTAL DINGBATS",
-                             "ORNAMENTALDINGBATS");
-
-        /**
-         * Constant for the "Geometric Shapes Extended" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock GEOMETRIC_SHAPES_EXTENDED =
-            new UnicodeBlock("GEOMETRIC_SHAPES_EXTENDED",
-                             "GEOMETRIC SHAPES EXTENDED",
-                             "GEOMETRICSHAPESEXTENDED");
-
-        /**
-         * Constant for the "Supplemental Arrows-C" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock SUPPLEMENTAL_ARROWS_C =
-            new UnicodeBlock("SUPPLEMENTAL_ARROWS_C",
-                             "SUPPLEMENTAL ARROWS-C",
-                             "SUPPLEMENTALARROWS-C");
-
-        /**
-         * Constant for the "Cherokee Supplement" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock CHEROKEE_SUPPLEMENT =
-            new UnicodeBlock("CHEROKEE_SUPPLEMENT",
-                             "CHEROKEE SUPPLEMENT",
-                             "CHEROKEESUPPLEMENT");
-
-        /**
-         * Constant for the "Hatran" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock HATRAN =
-            new UnicodeBlock("HATRAN");
-
-        /**
-         * Constant for the "Old Hungarian" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock OLD_HUNGARIAN =
-            new UnicodeBlock("OLD_HUNGARIAN",
-                             "OLD HUNGARIAN",
-                             "OLDHUNGARIAN");
-
-        /**
-         * Constant for the "Multani" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock MULTANI =
-            new UnicodeBlock("MULTANI");
-
-        /**
-         * Constant for the "Ahom" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock AHOM =
-            new UnicodeBlock("AHOM");
-
-        /**
-         * Constant for the "Early Dynastic Cuneiform" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock EARLY_DYNASTIC_CUNEIFORM =
-            new UnicodeBlock("EARLY_DYNASTIC_CUNEIFORM",
-                             "EARLY DYNASTIC CUNEIFORM",
-                             "EARLYDYNASTICCUNEIFORM");
-
-        /**
-         * Constant for the "Anatolian Hieroglyphs" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock ANATOLIAN_HIEROGLYPHS =
-            new UnicodeBlock("ANATOLIAN_HIEROGLYPHS",
-                             "ANATOLIAN HIEROGLYPHS",
-                             "ANATOLIANHIEROGLYPHS");
-
-        /**
-         * Constant for the "Sutton SignWriting" Unicode character block.
-         * @since 9
-         */
-        public static final UnicodeBlock SUTTON_SIGNWRITING =
-            new UnicodeBlock("SUTTON_SIGNWRITING",
-                             "SUTTON SIGNWRITING",
-                             "SUTTONSIGNWRITING");
-
-        /**
-         * Constant for the "Supplemental Symbols and Pictographs" Unicode
-         * character block.
-         * @since 9
-         */
-        public static final UnicodeBlock SUPPLEMENTAL_SYMBOLS_AND_PICTOGRAPHS =
-            new UnicodeBlock("SUPPLEMENTAL_SYMBOLS_AND_PICTOGRAPHS",
-                             "SUPPLEMENTAL SYMBOLS AND PICTOGRAPHS",
-                             "SUPPLEMENTALSYMBOLSANDPICTOGRAPHS");
-
-        /**
-         * Constant for the "CJK Unified Ideographs Extension E" Unicode
-         * character block.
-         * @since 9
-         */
-        public static final UnicodeBlock CJK_UNIFIED_IDEOGRAPHS_EXTENSION_E =
-            new UnicodeBlock("CJK_UNIFIED_IDEOGRAPHS_EXTENSION_E",
-                             "CJK UNIFIED IDEOGRAPHS EXTENSION E",
-                             "CJKUNIFIEDIDEOGRAPHSEXTENSIONE");
-
-        /**
-         * Constant for the "Syriac Supplement" Unicode
-         * character block.
-         * @since 11
-         */
-        public static final UnicodeBlock SYRIAC_SUPPLEMENT =
-            new UnicodeBlock("SYRIAC_SUPPLEMENT",
-                             "SYRIAC SUPPLEMENT",
-                             "SYRIACSUPPLEMENT");
-
-        /**
-         * Constant for the "Cyrillic Extended-C" Unicode
-         * character block.
-         * @since 11
-         */
-        public static final UnicodeBlock CYRILLIC_EXTENDED_C =
-            new UnicodeBlock("CYRILLIC_EXTENDED_C",
-                             "CYRILLIC EXTENDED-C",
-                             "CYRILLICEXTENDED-C");
-
-        /**
-         * Constant for the "Osage" Unicode
-         * character block.
-         * @since 11
-         */
-        public static final UnicodeBlock OSAGE =
-            new UnicodeBlock("OSAGE");
-
-        /**
-         * Constant for the "Newa" Unicode
-         * character block.
-         * @since 11
-         */
-        public static final UnicodeBlock NEWA =
-            new UnicodeBlock("NEWA");
-
-        /**
-         * Constant for the "Mongolian Supplement" Unicode
-         * character block.
-         * @since 11
-         */
-        public static final UnicodeBlock MONGOLIAN_SUPPLEMENT =
-            new UnicodeBlock("MONGOLIAN_SUPPLEMENT",
-                             "MONGOLIAN SUPPLEMENT",
-                             "MONGOLIANSUPPLEMENT");
-
-        /**
-         * Constant for the "Marchen" Unicode
-         * character block.
-         * @since 11
-         */
-        public static final UnicodeBlock MARCHEN =
-            new UnicodeBlock("MARCHEN");
-
-        /**
-         * Constant for the "Ideographic Symbols and Punctuation" Unicode
-         * character block.
-         * @since 11
-         */
-        public static final UnicodeBlock IDEOGRAPHIC_SYMBOLS_AND_PUNCTUATION =
-            new UnicodeBlock("IDEOGRAPHIC_SYMBOLS_AND_PUNCTUATION",
-                             "IDEOGRAPHIC SYMBOLS AND PUNCTUATION",
-                             "IDEOGRAPHICSYMBOLSANDPUNCTUATION");
-
-        /**
-         * Constant for the "Tangut" Unicode
-         * character block.
-         * @since 11
-         */
-        public static final UnicodeBlock TANGUT =
-            new UnicodeBlock("TANGUT");
-
-        /**
-         * Constant for the "Tangut Components" Unicode
-         * character block.
-         * @since 11
-         */
-        public static final UnicodeBlock TANGUT_COMPONENTS =
-            new UnicodeBlock("TANGUT_COMPONENTS",
-                             "TANGUT COMPONENTS",
-                             "TANGUTCOMPONENTS");
-
-        /**
-         * Constant for the "Kana Extended-A" Unicode
-         * character block.
-         * @since 11
-         */
-        public static final UnicodeBlock KANA_EXTENDED_A =
-            new UnicodeBlock("KANA_EXTENDED_A",
-                             "KANA EXTENDED-A",
-                             "KANAEXTENDED-A");
-        /**
-         * Constant for the "Glagolitic Supplement" Unicode
-         * character block.
-         * @since 11
-         */
-        public static final UnicodeBlock GLAGOLITIC_SUPPLEMENT =
-            new UnicodeBlock("GLAGOLITIC_SUPPLEMENT",
-                             "GLAGOLITIC SUPPLEMENT",
-                             "GLAGOLITICSUPPLEMENT");
-        /**
-         * Constant for the "Adlam" Unicode
-         * character block.
-         * @since 11
-         */
-        public static final UnicodeBlock ADLAM =
-            new UnicodeBlock("ADLAM");
-
-        /**
-         * Constant for the "Masaram Gondi" Unicode
-         * character block.
-         * @since 11
-         */
-        public static final UnicodeBlock MASARAM_GONDI =
-            new UnicodeBlock("MASARAM_GONDI",
-                             "MASARAM GONDI",
-                             "MASARAMGONDI");
-
-        /**
-         * Constant for the "Zanabazar Square" Unicode
-         * character block.
-         * @since 11
-         */
-        public static final UnicodeBlock ZANABAZAR_SQUARE =
-            new UnicodeBlock("ZANABAZAR_SQUARE",
-                             "ZANABAZAR SQUARE",
-                             "ZANABAZARSQUARE");
-
-        /**
-         * Constant for the "Nushu" Unicode
-         * character block.
-         * @since 11
-         */
-        public static final UnicodeBlock NUSHU =
-            new UnicodeBlock("NUSHU");
-
-        /**
-         * Constant for the "Soyombo" Unicode
-         * character block.
-         * @since 11
-         */
-        public static final UnicodeBlock SOYOMBO =
-            new UnicodeBlock("SOYOMBO");
-
-        /**
-         * Constant for the "Bhaiksuki" Unicode
-         * character block.
-         * @since 11
-         */
-        public static final UnicodeBlock BHAIKSUKI =
-            new UnicodeBlock("BHAIKSUKI");
-
-        /**
-         * Constant for the "CJK Unified Ideographs Extension F" Unicode
-         * character block.
-         * @since 11
-         */
-        public static final UnicodeBlock CJK_UNIFIED_IDEOGRAPHS_EXTENSION_F =
-            new UnicodeBlock("CJK_UNIFIED_IDEOGRAPHS_EXTENSION_F",
-                             "CJK UNIFIED IDEOGRAPHS EXTENSION F",
-                             "CJKUNIFIEDIDEOGRAPHSEXTENSIONF");
-
-        private static final int blockStarts[] = {
-            0x0000,   // 0000..007F; Basic Latin
-            0x0080,   // 0080..00FF; Latin-1 Supplement
-            0x0100,   // 0100..017F; Latin Extended-A
-            0x0180,   // 0180..024F; Latin Extended-B
-            0x0250,   // 0250..02AF; IPA Extensions
-            0x02B0,   // 02B0..02FF; Spacing Modifier Letters
-            0x0300,   // 0300..036F; Combining Diacritical Marks
-            0x0370,   // 0370..03FF; Greek and Coptic
-            0x0400,   // 0400..04FF; Cyrillic
-            0x0500,   // 0500..052F; Cyrillic Supplement
-            0x0530,   // 0530..058F; Armenian
-            0x0590,   // 0590..05FF; Hebrew
-            0x0600,   // 0600..06FF; Arabic
-            0x0700,   // 0700..074F; Syriac
-            0x0750,   // 0750..077F; Arabic Supplement
-            0x0780,   // 0780..07BF; Thaana
-            0x07C0,   // 07C0..07FF; NKo
-            0x0800,   // 0800..083F; Samaritan
-            0x0840,   // 0840..085F; Mandaic
-            0x0860,   // 0860..086F; Syriac Supplement
-            0x0870,   //             unassigned
-            0x08A0,   // 08A0..08FF; Arabic Extended-A
-            0x0900,   // 0900..097F; Devanagari
-            0x0980,   // 0980..09FF; Bengali
-            0x0A00,   // 0A00..0A7F; Gurmukhi
-            0x0A80,   // 0A80..0AFF; Gujarati
-            0x0B00,   // 0B00..0B7F; Oriya
-            0x0B80,   // 0B80..0BFF; Tamil
-            0x0C00,   // 0C00..0C7F; Telugu
-            0x0C80,   // 0C80..0CFF; Kannada
-            0x0D00,   // 0D00..0D7F; Malayalam
-            0x0D80,   // 0D80..0DFF; Sinhala
-            0x0E00,   // 0E00..0E7F; Thai
-            0x0E80,   // 0E80..0EFF; Lao
-            0x0F00,   // 0F00..0FFF; Tibetan
-            0x1000,   // 1000..109F; Myanmar
-            0x10A0,   // 10A0..10FF; Georgian
-            0x1100,   // 1100..11FF; Hangul Jamo
-            0x1200,   // 1200..137F; Ethiopic
-            0x1380,   // 1380..139F; Ethiopic Supplement
-            0x13A0,   // 13A0..13FF; Cherokee
-            0x1400,   // 1400..167F; Unified Canadian Aboriginal Syllabics
-            0x1680,   // 1680..169F; Ogham
-            0x16A0,   // 16A0..16FF; Runic
-            0x1700,   // 1700..171F; Tagalog
-            0x1720,   // 1720..173F; Hanunoo
-            0x1740,   // 1740..175F; Buhid
-            0x1760,   // 1760..177F; Tagbanwa
-            0x1780,   // 1780..17FF; Khmer
-            0x1800,   // 1800..18AF; Mongolian
-            0x18B0,   // 18B0..18FF; Unified Canadian Aboriginal Syllabics Extended
-            0x1900,   // 1900..194F; Limbu
-            0x1950,   // 1950..197F; Tai Le
-            0x1980,   // 1980..19DF; New Tai Lue
-            0x19E0,   // 19E0..19FF; Khmer Symbols
-            0x1A00,   // 1A00..1A1F; Buginese
-            0x1A20,   // 1A20..1AAF; Tai Tham
-            0x1AB0,   // 1AB0..1AFF; Combining Diacritical Marks Extended
-            0x1B00,   // 1B00..1B7F; Balinese
-            0x1B80,   // 1B80..1BBF; Sundanese
-            0x1BC0,   // 1BC0..1BFF; Batak
-            0x1C00,   // 1C00..1C4F; Lepcha
-            0x1C50,   // 1C50..1C7F; Ol Chiki
-            0x1C80,   // 1C80..1C8F; Cyrillic Extended-C
-            0x1C90,   //             unassigned
-            0x1CC0,   // 1CC0..1CCF; Sundanese Supplement
-            0x1CD0,   // 1CD0..1CFF; Vedic Extensions
-            0x1D00,   // 1D00..1D7F; Phonetic Extensions
-            0x1D80,   // 1D80..1DBF; Phonetic Extensions Supplement
-            0x1DC0,   // 1DC0..1DFF; Combining Diacritical Marks Supplement
-            0x1E00,   // 1E00..1EFF; Latin Extended Additional
-            0x1F00,   // 1F00..1FFF; Greek Extended
-            0x2000,   // 2000..206F; General Punctuation
-            0x2070,   // 2070..209F; Superscripts and Subscripts
-            0x20A0,   // 20A0..20CF; Currency Symbols
-            0x20D0,   // 20D0..20FF; Combining Diacritical Marks for Symbols
-            0x2100,   // 2100..214F; Letterlike Symbols
-            0x2150,   // 2150..218F; Number Forms
-            0x2190,   // 2190..21FF; Arrows
-            0x2200,   // 2200..22FF; Mathematical Operators
-            0x2300,   // 2300..23FF; Miscellaneous Technical
-            0x2400,   // 2400..243F; Control Pictures
-            0x2440,   // 2440..245F; Optical Character Recognition
-            0x2460,   // 2460..24FF; Enclosed Alphanumerics
-            0x2500,   // 2500..257F; Box Drawing
-            0x2580,   // 2580..259F; Block Elements
-            0x25A0,   // 25A0..25FF; Geometric Shapes
-            0x2600,   // 2600..26FF; Miscellaneous Symbols
-            0x2700,   // 2700..27BF; Dingbats
-            0x27C0,   // 27C0..27EF; Miscellaneous Mathematical Symbols-A
-            0x27F0,   // 27F0..27FF; Supplemental Arrows-A
-            0x2800,   // 2800..28FF; Braille Patterns
-            0x2900,   // 2900..297F; Supplemental Arrows-B
-            0x2980,   // 2980..29FF; Miscellaneous Mathematical Symbols-B
-            0x2A00,   // 2A00..2AFF; Supplemental Mathematical Operators
-            0x2B00,   // 2B00..2BFF; Miscellaneous Symbols and Arrows
-            0x2C00,   // 2C00..2C5F; Glagolitic
-            0x2C60,   // 2C60..2C7F; Latin Extended-C
-            0x2C80,   // 2C80..2CFF; Coptic
-            0x2D00,   // 2D00..2D2F; Georgian Supplement
-            0x2D30,   // 2D30..2D7F; Tifinagh
-            0x2D80,   // 2D80..2DDF; Ethiopic Extended
-            0x2DE0,   // 2DE0..2DFF; Cyrillic Extended-A
-            0x2E00,   // 2E00..2E7F; Supplemental Punctuation
-            0x2E80,   // 2E80..2EFF; CJK Radicals Supplement
-            0x2F00,   // 2F00..2FDF; Kangxi Radicals
-            0x2FE0,   //             unassigned
-            0x2FF0,   // 2FF0..2FFF; Ideographic Description Characters
-            0x3000,   // 3000..303F; CJK Symbols and Punctuation
-            0x3040,   // 3040..309F; Hiragana
-            0x30A0,   // 30A0..30FF; Katakana
-            0x3100,   // 3100..312F; Bopomofo
-            0x3130,   // 3130..318F; Hangul Compatibility Jamo
-            0x3190,   // 3190..319F; Kanbun
-            0x31A0,   // 31A0..31BF; Bopomofo Extended
-            0x31C0,   // 31C0..31EF; CJK Strokes
-            0x31F0,   // 31F0..31FF; Katakana Phonetic Extensions
-            0x3200,   // 3200..32FF; Enclosed CJK Letters and Months
-            0x3300,   // 3300..33FF; CJK Compatibility
-            0x3400,   // 3400..4DBF; CJK Unified Ideographs Extension A
-            0x4DC0,   // 4DC0..4DFF; Yijing Hexagram Symbols
-            0x4E00,   // 4E00..9FFF; CJK Unified Ideographs
-            0xA000,   // A000..A48F; Yi Syllables
-            0xA490,   // A490..A4CF; Yi Radicals
-            0xA4D0,   // A4D0..A4FF; Lisu
-            0xA500,   // A500..A63F; Vai
-            0xA640,   // A640..A69F; Cyrillic Extended-B
-            0xA6A0,   // A6A0..A6FF; Bamum
-            0xA700,   // A700..A71F; Modifier Tone Letters
-            0xA720,   // A720..A7FF; Latin Extended-D
-            0xA800,   // A800..A82F; Syloti Nagri
-            0xA830,   // A830..A83F; Common Indic Number Forms
-            0xA840,   // A840..A87F; Phags-pa
-            0xA880,   // A880..A8DF; Saurashtra
-            0xA8E0,   // A8E0..A8FF; Devanagari Extended
-            0xA900,   // A900..A92F; Kayah Li
-            0xA930,   // A930..A95F; Rejang
-            0xA960,   // A960..A97F; Hangul Jamo Extended-A
-            0xA980,   // A980..A9DF; Javanese
-            0xA9E0,   // A9E0..A9FF; Myanmar Extended-B
-            0xAA00,   // AA00..AA5F; Cham
-            0xAA60,   // AA60..AA7F; Myanmar Extended-A
-            0xAA80,   // AA80..AADF; Tai Viet
-            0xAAE0,   // AAE0..AAFF; Meetei Mayek Extensions
-            0xAB00,   // AB00..AB2F; Ethiopic Extended-A
-            0xAB30,   // AB30..AB6F; Latin Extended-E
-            0xAB70,   // AB70..ABBF; Cherokee Supplement
-            0xABC0,   // ABC0..ABFF; Meetei Mayek
-            0xAC00,   // AC00..D7AF; Hangul Syllables
-            0xD7B0,   // D7B0..D7FF; Hangul Jamo Extended-B
-            0xD800,   // D800..DB7F; High Surrogates
-            0xDB80,   // DB80..DBFF; High Private Use Surrogates
-            0xDC00,   // DC00..DFFF; Low Surrogates
-            0xE000,   // E000..F8FF; Private Use Area
-            0xF900,   // F900..FAFF; CJK Compatibility Ideographs
-            0xFB00,   // FB00..FB4F; Alphabetic Presentation Forms
-            0xFB50,   // FB50..FDFF; Arabic Presentation Forms-A
-            0xFE00,   // FE00..FE0F; Variation Selectors
-            0xFE10,   // FE10..FE1F; Vertical Forms
-            0xFE20,   // FE20..FE2F; Combining Half Marks
-            0xFE30,   // FE30..FE4F; CJK Compatibility Forms
-            0xFE50,   // FE50..FE6F; Small Form Variants
-            0xFE70,   // FE70..FEFF; Arabic Presentation Forms-B
-            0xFF00,   // FF00..FFEF; Halfwidth and Fullwidth Forms
-            0xFFF0,   // FFF0..FFFF; Specials
-            0x10000,  // 10000..1007F; Linear B Syllabary
-            0x10080,  // 10080..100FF; Linear B Ideograms
-            0x10100,  // 10100..1013F; Aegean Numbers
-            0x10140,  // 10140..1018F; Ancient Greek Numbers
-            0x10190,  // 10190..101CF; Ancient Symbols
-            0x101D0,  // 101D0..101FF; Phaistos Disc
-            0x10200,  //               unassigned
-            0x10280,  // 10280..1029F; Lycian
-            0x102A0,  // 102A0..102DF; Carian
-            0x102E0,  // 102E0..102FF; Coptic Epact Numbers
-            0x10300,  // 10300..1032F; Old Italic
-            0x10330,  // 10330..1034F; Gothic
-            0x10350,  // 10350..1037F; Old Permic
-            0x10380,  // 10380..1039F; Ugaritic
-            0x103A0,  // 103A0..103DF; Old Persian
-            0x103E0,  //               unassigned
-            0x10400,  // 10400..1044F; Deseret
-            0x10450,  // 10450..1047F; Shavian
-            0x10480,  // 10480..104AF; Osmanya
-            0x104B0,  // 104B0..104FF; Osage
-            0x10500,  // 10500..1052F; Elbasan
-            0x10530,  // 10530..1056F; Caucasian Albanian
-            0x10570,  //               unassigned
-            0x10600,  // 10600..1077F; Linear A
-            0x10780,  //               unassigned
-            0x10800,  // 10800..1083F; Cypriot Syllabary
-            0x10840,  // 10840..1085F; Imperial Aramaic
-            0x10860,  // 10860..1087F; Palmyrene
-            0x10880,  // 10880..108AF; Nabataean
-            0x108B0,  //               unassigned
-            0x108E0,  // 108E0..108FF; Hatran
-            0x10900,  // 10900..1091F; Phoenician
-            0x10920,  // 10920..1093F; Lydian
-            0x10940,  //               unassigned
-            0x10980,  // 10980..1099F; Meroitic Hieroglyphs
-            0x109A0,  // 109A0..109FF; Meroitic Cursive
-            0x10A00,  // 10A00..10A5F; Kharoshthi
-            0x10A60,  // 10A60..10A7F; Old South Arabian
-            0x10A80,  // 10A80..10A9F; Old North Arabian
-            0x10AA0,  //               unassigned
-            0x10AC0,  // 10AC0..10AFF; Manichaean
-            0x10B00,  // 10B00..10B3F; Avestan
-            0x10B40,  // 10B40..10B5F; Inscriptional Parthian
-            0x10B60,  // 10B60..10B7F; Inscriptional Pahlavi
-            0x10B80,  // 10B80..10BAF; Psalter Pahlavi
-            0x10BB0,  //               unassigned
-            0x10C00,  // 10C00..10C4F; Old Turkic
-            0x10C50,  //               unassigned
-            0x10C80,  // 10C80..10CFF; Old Hungarian
-            0x10D00,  //               unassigned
-            0x10E60,  // 10E60..10E7F; Rumi Numeral Symbols
-            0x10E80,  //               unassigned
-            0x11000,  // 11000..1107F; Brahmi
-            0x11080,  // 11080..110CF; Kaithi
-            0x110D0,  // 110D0..110FF; Sora Sompeng
-            0x11100,  // 11100..1114F; Chakma
-            0x11150,  // 11150..1117F; Mahajani
-            0x11180,  // 11180..111DF; Sharada
-            0x111E0,  // 111E0..111FF; Sinhala Archaic Numbers
-            0x11200,  // 11200..1124F; Khojki
-            0x11250,  //               unassigned
-            0x11280,  // 11280..112AF; Multani
-            0x112B0,  // 112B0..112FF; Khudawadi
-            0x11300,  // 11300..1137F; Grantha
-            0x11380,  //               unassigned
-            0x11400,  // 11400..1147F; Newa
-            0x11480,  // 11480..114DF; Tirhuta
-            0x114E0,  //               unassigned
-            0x11580,  // 11580..115FF; Siddham
-            0x11600,  // 11600..1165F; Modi
-            0x11660, //  11660..1167F; Mongolian Supplement
-            0x11680,  // 11680..116CF; Takri
-            0x116D0,  //               unassigned
-            0x11700,  // 11700..1173F; Ahom
-            0x11740,  //               unassigned
-            0x118A0,  // 118A0..118FF; Warang Citi
-            0x11900,  //               unassigned
-            0x11A00,  // 11A00..11A4F; Zanabazar Square
-            0x11A50,  // 11A50..11AAF; Soyombo
-            0x11AB0,  //               unassigned
-            0x11AC0,  // 11AC0..11AFF; Pau Cin Hau
-            0x11B00,  //               unassigned
-            0x11C00,  // 11C00..11C6F; Bhaiksuki
-            0x11C70,  // 11C70..11CBF; Marchen
-            0x11CC0,  //               unassigned
-            0x11D00,  // 11D00..11D5F; Masaram Gondi
-            0x11D60,  //               unassigned
-            0x12000,  // 12000..123FF; Cuneiform
-            0x12400,  // 12400..1247F; Cuneiform Numbers and Punctuation
-            0x12480,  // 12480..1254F; Early Dynastic Cuneiform
-            0x12550,  //               unassigned
-            0x13000,  // 13000..1342F; Egyptian Hieroglyphs
-            0x13430,  //               unassigned
-            0x14400,  // 14400..1467F; Anatolian Hieroglyphs
-            0x14680,  //               unassigned
-            0x16800,  // 16800..16A3F; Bamum Supplement
-            0x16A40,  // 16A40..16A6F; Mro
-            0x16A70,  //               unassigned
-            0x16AD0,  // 16AD0..16AFF; Bassa Vah
-            0x16B00,  // 16B00..16B8F; Pahawh Hmong
-            0x16B90,  //               unassigned
-            0x16F00,  // 16F00..16F9F; Miao
-            0x16FA0,  //               unassigned
-            0x16FE0,  // 16FE0..16FFF; Ideographic Symbols and Punctuation
-            0x17000,  // 17000..187FF; Tangut
-            0x18800,  // 18800..18AFF; Tangut Components
-            0x18B00,  //               unassigned
-            0x1B000,  // 1B000..1B0FF; Kana Supplement
-            0x1B100,  // 1B100..1B12F; Kana Extended-A
-            0x1B130,  //               unassigned
-            0x1B170,  // 1B170..1B2FF; Nushu
-            0x1B300,  //               unassigned
-            0x1BC00,  // 1BC00..1BC9F; Duployan
-            0x1BCA0,  // 1BCA0..1BCAF; Shorthand Format Controls
-            0x1BCB0,  //               unassigned
-            0x1D000,  // 1D000..1D0FF; Byzantine Musical Symbols
-            0x1D100,  // 1D100..1D1FF; Musical Symbols
-            0x1D200,  // 1D200..1D24F; Ancient Greek Musical Notation
-            0x1D250,  //               unassigned
-            0x1D300,  // 1D300..1D35F; Tai Xuan Jing Symbols
-            0x1D360,  // 1D360..1D37F; Counting Rod Numerals
-            0x1D380,  //               unassigned
-            0x1D400,  // 1D400..1D7FF; Mathematical Alphanumeric Symbols
-            0x1D800,  // 1D800..1DAAF; Sutton SignWriting
-            0x1DAB0,  //               unassigned
-            0x1E000,  // 1E000..1E02F; Glagolitic Supplement
-            0x1E030,  //               unassigned
-            0x1E800,  // 1E800..1E8DF; Mende Kikakui
-            0x1E8E0,  //               unassigned
-            0x1E900,  // 1E900..1E95F; Adlam
-            0x1E960,  //               unassigned
-            0x1EE00,  // 1EE00..1EEFF; Arabic Mathematical Alphabetic Symbols
-            0x1EF00,  //               unassigned
-            0x1F000,  // 1F000..1F02F; Mahjong Tiles
-            0x1F030,  // 1F030..1F09F; Domino Tiles
-            0x1F0A0,  // 1F0A0..1F0FF; Playing Cards
-            0x1F100,  // 1F100..1F1FF; Enclosed Alphanumeric Supplement
-            0x1F200,  // 1F200..1F2FF; Enclosed Ideographic Supplement
-            0x1F300,  // 1F300..1F5FF; Miscellaneous Symbols and Pictographs
-            0x1F600,  // 1F600..1F64F; Emoticons
-            0x1F650,  // 1F650..1F67F; Ornamental Dingbats
-            0x1F680,  // 1F680..1F6FF; Transport and Map Symbols
-            0x1F700,  // 1F700..1F77F; Alchemical Symbols
-            0x1F780,  // 1F780..1F7FF; Geometric Shapes Extended
-            0x1F800,  // 1F800..1F8FF; Supplemental Arrows-C
-            0x1F900,  // 1F900..1F9FF; Supplemental Symbols and Pictographs
-            0x1FA00,  //               unassigned
-            0x20000,  // 20000..2A6DF; CJK Unified Ideographs Extension B
-            0x2A6E0,  //               unassigned
-            0x2A700,  // 2A700..2B73F; CJK Unified Ideographs Extension C
-            0x2B740,  // 2B740..2B81F; CJK Unified Ideographs Extension D
-            0x2B820,  // 2B820..2CEAF; CJK Unified Ideographs Extension E
-            0x2CEB0,  // 2CEB0..2EBEF; CJK Unified Ideographs Extension F
-            0x2EBF0,  //               unassigned
-            0x2F800,  // 2F800..2FA1F; CJK Compatibility Ideographs Supplement
-            0x2FA20,  //               unassigned
-            0xE0000,  // E0000..E007F; Tags
-            0xE0080,  //               unassigned
-            0xE0100,  // E0100..E01EF; Variation Selectors Supplement
-            0xE01F0,  //               unassigned
-            0xF0000,  // F0000..FFFFF; Supplementary Private Use Area-A
-            0x100000  // 100000..10FFFF; Supplementary Private Use Area-B
-        };
-
-        private static final UnicodeBlock[] blocks = {
-            BASIC_LATIN,
-            LATIN_1_SUPPLEMENT,
-            LATIN_EXTENDED_A,
-            LATIN_EXTENDED_B,
-            IPA_EXTENSIONS,
-            SPACING_MODIFIER_LETTERS,
-            COMBINING_DIACRITICAL_MARKS,
-            GREEK,
-            CYRILLIC,
-            CYRILLIC_SUPPLEMENTARY,
-            ARMENIAN,
-            HEBREW,
-            ARABIC,
-            SYRIAC,
-            ARABIC_SUPPLEMENT,
-            THAANA,
-            NKO,
-            SAMARITAN,
-            MANDAIC,
-            SYRIAC_SUPPLEMENT,
-            null,
-            ARABIC_EXTENDED_A,
-            DEVANAGARI,
-            BENGALI,
-            GURMUKHI,
-            GUJARATI,
-            ORIYA,
-            TAMIL,
-            TELUGU,
-            KANNADA,
-            MALAYALAM,
-            SINHALA,
-            THAI,
-            LAO,
-            TIBETAN,
-            MYANMAR,
-            GEORGIAN,
-            HANGUL_JAMO,
-            ETHIOPIC,
-            ETHIOPIC_SUPPLEMENT,
-            CHEROKEE,
-            UNIFIED_CANADIAN_ABORIGINAL_SYLLABICS,
-            OGHAM,
-            RUNIC,
-            TAGALOG,
-            HANUNOO,
-            BUHID,
-            TAGBANWA,
-            KHMER,
-            MONGOLIAN,
-            UNIFIED_CANADIAN_ABORIGINAL_SYLLABICS_EXTENDED,
-            LIMBU,
-            TAI_LE,
-            NEW_TAI_LUE,
-            KHMER_SYMBOLS,
-            BUGINESE,
-            TAI_THAM,
-            COMBINING_DIACRITICAL_MARKS_EXTENDED,
-            BALINESE,
-            SUNDANESE,
-            BATAK,
-            LEPCHA,
-            OL_CHIKI,
-            CYRILLIC_EXTENDED_C,
-            null,
-            SUNDANESE_SUPPLEMENT,
-            VEDIC_EXTENSIONS,
-            PHONETIC_EXTENSIONS,
-            PHONETIC_EXTENSIONS_SUPPLEMENT,
-            COMBINING_DIACRITICAL_MARKS_SUPPLEMENT,
-            LATIN_EXTENDED_ADDITIONAL,
-            GREEK_EXTENDED,
-            GENERAL_PUNCTUATION,
-            SUPERSCRIPTS_AND_SUBSCRIPTS,
-            CURRENCY_SYMBOLS,
-            COMBINING_MARKS_FOR_SYMBOLS,
-            LETTERLIKE_SYMBOLS,
-            NUMBER_FORMS,
-            ARROWS,
-            MATHEMATICAL_OPERATORS,
-            MISCELLANEOUS_TECHNICAL,
-            CONTROL_PICTURES,
-            OPTICAL_CHARACTER_RECOGNITION,
-            ENCLOSED_ALPHANUMERICS,
-            BOX_DRAWING,
-            BLOCK_ELEMENTS,
-            GEOMETRIC_SHAPES,
-            MISCELLANEOUS_SYMBOLS,
-            DINGBATS,
-            MISCELLANEOUS_MATHEMATICAL_SYMBOLS_A,
-            SUPPLEMENTAL_ARROWS_A,
-            BRAILLE_PATTERNS,
-            SUPPLEMENTAL_ARROWS_B,
-            MISCELLANEOUS_MATHEMATICAL_SYMBOLS_B,
-            SUPPLEMENTAL_MATHEMATICAL_OPERATORS,
-            MISCELLANEOUS_SYMBOLS_AND_ARROWS,
-            GLAGOLITIC,
-            LATIN_EXTENDED_C,
-            COPTIC,
-            GEORGIAN_SUPPLEMENT,
-            TIFINAGH,
-            ETHIOPIC_EXTENDED,
-            CYRILLIC_EXTENDED_A,
-            SUPPLEMENTAL_PUNCTUATION,
-            CJK_RADICALS_SUPPLEMENT,
-            KANGXI_RADICALS,
-            null,
-            IDEOGRAPHIC_DESCRIPTION_CHARACTERS,
-            CJK_SYMBOLS_AND_PUNCTUATION,
-            HIRAGANA,
-            KATAKANA,
-            BOPOMOFO,
-            HANGUL_COMPATIBILITY_JAMO,
-            KANBUN,
-            BOPOMOFO_EXTENDED,
-            CJK_STROKES,
-            KATAKANA_PHONETIC_EXTENSIONS,
-            ENCLOSED_CJK_LETTERS_AND_MONTHS,
-            CJK_COMPATIBILITY,
-            CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A,
-            YIJING_HEXAGRAM_SYMBOLS,
-            CJK_UNIFIED_IDEOGRAPHS,
-            YI_SYLLABLES,
-            YI_RADICALS,
-            LISU,
-            VAI,
-            CYRILLIC_EXTENDED_B,
-            BAMUM,
-            MODIFIER_TONE_LETTERS,
-            LATIN_EXTENDED_D,
-            SYLOTI_NAGRI,
-            COMMON_INDIC_NUMBER_FORMS,
-            PHAGS_PA,
-            SAURASHTRA,
-            DEVANAGARI_EXTENDED,
-            KAYAH_LI,
-            REJANG,
-            HANGUL_JAMO_EXTENDED_A,
-            JAVANESE,
-            MYANMAR_EXTENDED_B,
-            CHAM,
-            MYANMAR_EXTENDED_A,
-            TAI_VIET,
-            MEETEI_MAYEK_EXTENSIONS,
-            ETHIOPIC_EXTENDED_A,
-            LATIN_EXTENDED_E,
-            CHEROKEE_SUPPLEMENT,
-            MEETEI_MAYEK,
-            HANGUL_SYLLABLES,
-            HANGUL_JAMO_EXTENDED_B,
-            HIGH_SURROGATES,
-            HIGH_PRIVATE_USE_SURROGATES,
-            LOW_SURROGATES,
-            PRIVATE_USE_AREA,
-            CJK_COMPATIBILITY_IDEOGRAPHS,
-            ALPHABETIC_PRESENTATION_FORMS,
-            ARABIC_PRESENTATION_FORMS_A,
-            VARIATION_SELECTORS,
-            VERTICAL_FORMS,
-            COMBINING_HALF_MARKS,
-            CJK_COMPATIBILITY_FORMS,
-            SMALL_FORM_VARIANTS,
-            ARABIC_PRESENTATION_FORMS_B,
-            HALFWIDTH_AND_FULLWIDTH_FORMS,
-            SPECIALS,
-            LINEAR_B_SYLLABARY,
-            LINEAR_B_IDEOGRAMS,
-            AEGEAN_NUMBERS,
-            ANCIENT_GREEK_NUMBERS,
-            ANCIENT_SYMBOLS,
-            PHAISTOS_DISC,
-            null,
-            LYCIAN,
-            CARIAN,
-            COPTIC_EPACT_NUMBERS,
-            OLD_ITALIC,
-            GOTHIC,
-            OLD_PERMIC,
-            UGARITIC,
-            OLD_PERSIAN,
-            null,
-            DESERET,
-            SHAVIAN,
-            OSMANYA,
-            OSAGE,
-            ELBASAN,
-            CAUCASIAN_ALBANIAN,
-            null,
-            LINEAR_A,
-            null,
-            CYPRIOT_SYLLABARY,
-            IMPERIAL_ARAMAIC,
-            PALMYRENE,
-            NABATAEAN,
-            null,
-            HATRAN,
-            PHOENICIAN,
-            LYDIAN,
-            null,
-            MEROITIC_HIEROGLYPHS,
-            MEROITIC_CURSIVE,
-            KHAROSHTHI,
-            OLD_SOUTH_ARABIAN,
-            OLD_NORTH_ARABIAN,
-            null,
-            MANICHAEAN,
-            AVESTAN,
-            INSCRIPTIONAL_PARTHIAN,
-            INSCRIPTIONAL_PAHLAVI,
-            PSALTER_PAHLAVI,
-            null,
-            OLD_TURKIC,
-            null,
-            OLD_HUNGARIAN,
-            null,
-            RUMI_NUMERAL_SYMBOLS,
-            null,
-            BRAHMI,
-            KAITHI,
-            SORA_SOMPENG,
-            CHAKMA,
-            MAHAJANI,
-            SHARADA,
-            SINHALA_ARCHAIC_NUMBERS,
-            KHOJKI,
-            null,
-            MULTANI,
-            KHUDAWADI,
-            GRANTHA,
-            null,
-            NEWA,
-            TIRHUTA,
-            null,
-            SIDDHAM,
-            MODI,
-            MONGOLIAN_SUPPLEMENT,
-            TAKRI,
-            null,
-            AHOM,
-            null,
-            WARANG_CITI,
-            null,
-            ZANABAZAR_SQUARE,
-            SOYOMBO,
-            null,
-            PAU_CIN_HAU,
-            null,
-            BHAIKSUKI,
-            MARCHEN,
-            null,
-            MASARAM_GONDI,
-            null,
-            CUNEIFORM,
-            CUNEIFORM_NUMBERS_AND_PUNCTUATION,
-            EARLY_DYNASTIC_CUNEIFORM,
-            null,
-            EGYPTIAN_HIEROGLYPHS,
-            null,
-            ANATOLIAN_HIEROGLYPHS,
-            null,
-            BAMUM_SUPPLEMENT,
-            MRO,
-            null,
-            BASSA_VAH,
-            PAHAWH_HMONG,
-            null,
-            MIAO,
-            null,
-            IDEOGRAPHIC_SYMBOLS_AND_PUNCTUATION,
-            TANGUT,
-            TANGUT_COMPONENTS,
-            null,
-            KANA_SUPPLEMENT,
-            KANA_EXTENDED_A,
-            null,
-            NUSHU,
-            null,
-            DUPLOYAN,
-            SHORTHAND_FORMAT_CONTROLS,
-            null,
-            BYZANTINE_MUSICAL_SYMBOLS,
-            MUSICAL_SYMBOLS,
-            ANCIENT_GREEK_MUSICAL_NOTATION,
-            null,
-            TAI_XUAN_JING_SYMBOLS,
-            COUNTING_ROD_NUMERALS,
-            null,
-            MATHEMATICAL_ALPHANUMERIC_SYMBOLS,
-            SUTTON_SIGNWRITING,
-            null,
-            GLAGOLITIC_SUPPLEMENT,
-            null,
-            MENDE_KIKAKUI,
-            null,
-            ADLAM,
-            null,
-            ARABIC_MATHEMATICAL_ALPHABETIC_SYMBOLS,
-            null,
-            MAHJONG_TILES,
-            DOMINO_TILES,
-            PLAYING_CARDS,
-            ENCLOSED_ALPHANUMERIC_SUPPLEMENT,
-            ENCLOSED_IDEOGRAPHIC_SUPPLEMENT,
-            MISCELLANEOUS_SYMBOLS_AND_PICTOGRAPHS,
-            EMOTICONS,
-            ORNAMENTAL_DINGBATS,
-            TRANSPORT_AND_MAP_SYMBOLS,
-            ALCHEMICAL_SYMBOLS,
-            GEOMETRIC_SHAPES_EXTENDED,
-            SUPPLEMENTAL_ARROWS_C,
-            SUPPLEMENTAL_SYMBOLS_AND_PICTOGRAPHS,
-            null,
-            CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B,
-            null,
-            CJK_UNIFIED_IDEOGRAPHS_EXTENSION_C,
-            CJK_UNIFIED_IDEOGRAPHS_EXTENSION_D,
-            CJK_UNIFIED_IDEOGRAPHS_EXTENSION_E,
-            CJK_UNIFIED_IDEOGRAPHS_EXTENSION_F,
-            null,
-            CJK_COMPATIBILITY_IDEOGRAPHS_SUPPLEMENT,
-            null,
-            TAGS,
-            null,
-            VARIATION_SELECTORS_SUPPLEMENT,
-            null,
-            SUPPLEMENTARY_PRIVATE_USE_AREA_A,
-            SUPPLEMENTARY_PRIVATE_USE_AREA_B
-        };
-
-
-        /**
-         * Returns the object representing the Unicode block containing the
-         * given character, or {@code null} if the character is not a
-         * member of a defined block.
-         *
-         * <p><b>Note:</b> This method cannot handle
-         * <a href="Character.html#supplementary"> supplementary
-         * characters</a>.  To support all Unicode characters, including
-         * supplementary characters, use the {@link #of(int)} method.
-         *
-         * @param   c  The character in question
-         * @return  The {@code UnicodeBlock} instance representing the
-         *          Unicode block of which this character is a member, or
-         *          {@code null} if the character is not a member of any
-         *          Unicode block
-         */
-        public static UnicodeBlock of(char c) {
-            return of((int)c);
-        }
-
-        /**
-         * Returns the object representing the Unicode block
-         * containing the given character (Unicode code point), or
-         * {@code null} if the character is not a member of a
-         * defined block.
-         *
-         * @param   codePoint the character (Unicode code point) in question.
-         * @return  The {@code UnicodeBlock} instance representing the
-         *          Unicode block of which this character is a member, or
-         *          {@code null} if the character is not a member of any
-         *          Unicode block
-         * @throws  IllegalArgumentException if the specified
-         * {@code codePoint} is an invalid Unicode code point.
-         * @see Character#isValidCodePoint(int)
-         * @since   1.5
-         */
-        public static UnicodeBlock of(int codePoint) {
-            if (!isValidCodePoint(codePoint)) {
-                throw new IllegalArgumentException(
-                    String.format("Not a valid Unicode code point: 0x%X", codePoint));
-            }
-
-            int top, bottom, current;
-            bottom = 0;
-            top = blockStarts.length;
-            current = top/2;
-
-            // invariant: top > current >= bottom && codePoint >= unicodeBlockStarts[bottom]
-            while (top - bottom > 1) {
-                if (codePoint >= blockStarts[current]) {
-                    bottom = current;
-                } else {
-                    top = current;
-                }
-                current = (top + bottom) / 2;
-            }
-            return blocks[current];
-        }
-
-        /**
-         * Returns the UnicodeBlock with the given name. Block
-         * names are determined by The Unicode Standard. The file
-         * {@code Blocks-<version>.txt} defines blocks for a particular
-         * version of the standard. The {@link Character} class specifies
-         * the version of the standard that it supports.
-         * <p>
-         * This method accepts block names in the following forms:
-         * <ol>
-         * <li> Canonical block names as defined by the Unicode Standard.
-         * For example, the standard defines a "Basic Latin" block. Therefore, this
-         * method accepts "Basic Latin" as a valid block name. The documentation of
-         * each UnicodeBlock provides the canonical name.
-         * <li>Canonical block names with all spaces removed. For example, "BasicLatin"
-         * is a valid block name for the "Basic Latin" block.
-         * <li>The text representation of each constant UnicodeBlock identifier.
-         * For example, this method will return the {@link #BASIC_LATIN} block if
-         * provided with the "BASIC_LATIN" name. This form replaces all spaces and
-         * hyphens in the canonical name with underscores.
-         * </ol>
-         * Finally, character case is ignored for all of the valid block name forms.
-         * For example, "BASIC_LATIN" and "basic_latin" are both valid block names.
-         * The en_US locale's case mapping rules are used to provide case-insensitive
-         * string comparisons for block name validation.
-         * <p>
-         * If the Unicode Standard changes block names, both the previous and
-         * current names will be accepted.
-         *
-         * @param blockName A {@code UnicodeBlock} name.
-         * @return The {@code UnicodeBlock} instance identified
-         *         by {@code blockName}
-         * @throws IllegalArgumentException if {@code blockName} is an
-         *         invalid name
-         * @throws NullPointerException if {@code blockName} is null
-         * @since 1.5
-         */
-        public static final UnicodeBlock forName(String blockName) {
-            UnicodeBlock block = map.get(blockName.toUpperCase(Locale.US));
-            if (block == null) {
-                throw new IllegalArgumentException("Not a valid block name: "
-                            + blockName);
-            }
-            return block;
-        }
+        return new Character(c);
     }
-
-
+    
     /**
-     * A family of character subsets representing the character scripts
-     * defined in the <a href="http://www.unicode.org/reports/tr24/">
-     * <i>Unicode Standard Annex #24: Script Names</i></a>. Every Unicode
-     * character is assigned to a single Unicode script, either a specific
-     * script, such as {@link Character.UnicodeScript#LATIN Latin}, or
-     * one of the following three special values,
-     * {@link Character.UnicodeScript#INHERITED Inherited},
-     * {@link Character.UnicodeScript#COMMON Common} or
-     * {@link Character.UnicodeScript#UNKNOWN Unknown}.
+     * Returns the value of this {@code Character} object.
+     *
+     * @return the primitive {@code char} value represented by
+     * this object.
+     */
+    // 拆箱，将Character对象转为char值
+    @HotSpotIntrinsicCandidate
+    public char charValue() {
+        return value;
+    }
+    
+    /*▲ 装箱/拆箱 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 判断字符属性 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Determines if the specified character (Unicode code point) is an alphabet.
+     * <p>
+     * A character is considered to be alphabetic if its general category type,
+     * provided by {@link Character#getType(int) getType(codePoint)}, is any of
+     * the following:
+     * <ul>
+     * <li> {@code UPPERCASE_LETTER}
+     * <li> {@code LOWERCASE_LETTER}
+     * <li> {@code TITLECASE_LETTER}
+     * <li> {@code MODIFIER_LETTER}
+     * <li> {@code OTHER_LETTER}
+     * <li> {@code LETTER_NUMBER}
+     * </ul>
+     * or it has contributory property Other_Alphabetic as defined by the
+     * Unicode Standard.
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return {@code true} if the character is a Unicode alphabet
+     * character, {@code false} otherwise.
      *
      * @since 1.7
      */
-    public static enum UnicodeScript {
+    // true：该字符是字母[Alphabetic]字符
+    public static boolean isAlphabetic(int codePoint) {
+        return (((((1 << Character.UPPERCASE_LETTER)
+            | (1 << Character.LOWERCASE_LETTER)
+            | (1 << Character.TITLECASE_LETTER)
+            | (1 << Character.MODIFIER_LETTER)
+            | (1 << Character.OTHER_LETTER)
+            | (1 << Character.LETTER_NUMBER)) >> getType(codePoint)) & 1) != 0)
+            || CharacterData.of(codePoint).isOtherAlphabetic(codePoint);
+    }
+    
+    /**
+     * Determines if the specified character (Unicode code point) is a CJKV (Chinese, Japanese, Korean and Vietnamese) ideograph, as defined by the Unicode Standard.
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return {@code true} if the character is a Unicode ideograph
+     * character, {@code false} otherwise.
+     *
+     * @since 1.7
+     */
+    // true：该字符是表意字符
+    public static boolean isIdeographic(int codePoint) {
+        return CharacterData.of(codePoint).isIdeographic(codePoint);
+    }
+    
+    /**
+     * Determines if the specified character is
+     * permissible as the first character in a Java identifier.
+     * <p>
+     * A character may start a Java identifier if and only if
+     * one of the following conditions is true:
+     * <ul>
+     * <li> {@link #isLetter(char) isLetter(ch)} returns {@code true}
+     * <li> {@link #getType(char) getType(ch)} returns {@code LETTER_NUMBER}
+     * <li> {@code ch} is a currency symbol (such as {@code '$'})
+     * <li> {@code ch} is a connecting punctuation character (such as {@code '_'}).
+     * </ul>
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #isJavaIdentifierStart(int)} method.
+     *
+     * @param ch the character to be tested.
+     *
+     * @return {@code true} if the character may start a Java identifier;
+     * {@code false} otherwise.
+     *
+     * @see Character#isJavaIdentifierPart(char)
+     * @see Character#isLetter(char)
+     * @see Character#isUnicodeIdentifierStart(char)
+     * @see javax.lang.model.SourceVersion#isIdentifier(CharSequence)
+     * @since 1.1
+     */
+    // true：该字符可位于Java标识符起始位置
+    public static boolean isJavaIdentifierStart(char ch) {
+        return isJavaIdentifierStart((int) ch);
+    }
+    
+    /**
+     * Determines if the character (Unicode code point) is
+     * permissible as the first character in a Java identifier.
+     * <p>
+     * A character may start a Java identifier if and only if
+     * one of the following conditions is true:
+     * <ul>
+     * <li> {@link #isLetter(int) isLetter(codePoint)}
+     * returns {@code true}
+     * <li> {@link #getType(int) getType(codePoint)}
+     * returns {@code LETTER_NUMBER}
+     * <li> the referenced character is a currency symbol (such as {@code '$'})
+     * <li> the referenced character is a connecting punctuation character
+     * (such as {@code '_'}).
+     * </ul>
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return {@code true} if the character may start a Java identifier;
+     * {@code false} otherwise.
+     *
+     * @see Character#isJavaIdentifierPart(int)
+     * @see Character#isLetter(int)
+     * @see Character#isUnicodeIdentifierStart(int)
+     * @see javax.lang.model.SourceVersion#isIdentifier(CharSequence)
+     * @since 1.5
+     */
+    // true：该字符可位于Java标识符起始位置
+    public static boolean isJavaIdentifierStart(int codePoint) {
+        return CharacterData.of(codePoint).isJavaIdentifierStart(codePoint);
+    }
+    
+    /**
+     * Determines if the specified character may be part of a Java
+     * identifier as other than the first character.
+     * <p>
+     * A character may be part of a Java identifier if any of the following
+     * are true:
+     * <ul>
+     * <li>  it is a letter
+     * <li>  it is a currency symbol (such as {@code '$'})
+     * <li>  it is a connecting punctuation character (such as {@code '_'})
+     * <li>  it is a digit
+     * <li>  it is a numeric letter (such as a Roman numeral character)
+     * <li>  it is a combining mark
+     * <li>  it is a non-spacing mark
+     * <li> {@code isIdentifierIgnorable} returns
+     * {@code true} for the character
+     * </ul>
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #isJavaIdentifierPart(int)} method.
+     *
+     * @param ch the character to be tested.
+     *
+     * @return {@code true} if the character may be part of a
+     * Java identifier; {@code false} otherwise.
+     *
+     * @see Character#isIdentifierIgnorable(char)
+     * @see Character#isJavaIdentifierStart(char)
+     * @see Character#isLetterOrDigit(char)
+     * @see Character#isUnicodeIdentifierPart(char)
+     * @see javax.lang.model.SourceVersion#isIdentifier(CharSequence)
+     * @since 1.1
+     */
+    // true：该字符可位于Java标识符的非起始部分
+    public static boolean isJavaIdentifierPart(char ch) {
+        return isJavaIdentifierPart((int) ch);
+    }
+    
+    /**
+     * Determines if the character (Unicode code point) may be part of a Java
+     * identifier as other than the first character.
+     * <p>
+     * A character may be part of a Java identifier if any of the following
+     * are true:
+     * <ul>
+     * <li>  it is a letter
+     * <li>  it is a currency symbol (such as {@code '$'})
+     * <li>  it is a connecting punctuation character (such as {@code '_'})
+     * <li>  it is a digit
+     * <li>  it is a numeric letter (such as a Roman numeral character)
+     * <li>  it is a combining mark
+     * <li>  it is a non-spacing mark
+     * <li> {@link #isIdentifierIgnorable(int)
+     * isIdentifierIgnorable(codePoint)} returns {@code true} for
+     * the character
+     * </ul>
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return {@code true} if the character may be part of a
+     * Java identifier; {@code false} otherwise.
+     *
+     * @see Character#isIdentifierIgnorable(int)
+     * @see Character#isJavaIdentifierStart(int)
+     * @see Character#isLetterOrDigit(int)
+     * @see Character#isUnicodeIdentifierPart(int)
+     * @see javax.lang.model.SourceVersion#isIdentifier(CharSequence)
+     * @since 1.5
+     */
+    // true：该字符可位于Java标识符的非起始部分
+    public static boolean isJavaIdentifierPart(int codePoint) {
+        return CharacterData.of(codePoint).isJavaIdentifierPart(codePoint);
+    }
+    
+    /**
+     * Determines if the specified character is permissible as the
+     * first character in a Unicode identifier.
+     * <p>
+     * A character may start a Unicode identifier if and only if
+     * one of the following conditions is true:
+     * <ul>
+     * <li> {@link #isLetter(char) isLetter(ch)} returns {@code true}
+     * <li> {@link #getType(char) getType(ch)} returns
+     * {@code LETTER_NUMBER}.
+     * </ul>
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #isUnicodeIdentifierStart(int)} method.
+     *
+     * @param ch the character to be tested.
+     *
+     * @return {@code true} if the character may start a Unicode
+     * identifier; {@code false} otherwise.
+     *
+     * @see Character#isJavaIdentifierStart(char)
+     * @see Character#isLetter(char)
+     * @see Character#isUnicodeIdentifierPart(char)
+     * @since 1.1
+     */
+    // true：该字符可位于Unicode标识符的起始部分
+    public static boolean isUnicodeIdentifierStart(char ch) {
+        return isUnicodeIdentifierStart((int) ch);
+    }
+    
+    /**
+     * Determines if the specified character (Unicode code point) is permissible as the
+     * first character in a Unicode identifier.
+     * <p>
+     * A character may start a Unicode identifier if and only if
+     * one of the following conditions is true:
+     * <ul>
+     * <li> {@link #isLetter(int) isLetter(codePoint)}
+     * returns {@code true}
+     * <li> {@link #getType(int) getType(codePoint)}
+     * returns {@code LETTER_NUMBER}.
+     * </ul>
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return {@code true} if the character may start a Unicode
+     * identifier; {@code false} otherwise.
+     *
+     * @see Character#isJavaIdentifierStart(int)
+     * @see Character#isLetter(int)
+     * @see Character#isUnicodeIdentifierPart(int)
+     * @since 1.5
+     */
+    // true：该字符可位于Unicode标识符的起始部分
+    public static boolean isUnicodeIdentifierStart(int codePoint) {
+        return CharacterData.of(codePoint).isUnicodeIdentifierStart(codePoint);
+    }
+    
+    /**
+     * Determines if the specified character may be part of a Unicode
+     * identifier as other than the first character.
+     * <p>
+     * A character may be part of a Unicode identifier if and only if
+     * one of the following statements is true:
+     * <ul>
+     * <li>  it is a letter
+     * <li>  it is a connecting punctuation character (such as {@code '_'})
+     * <li>  it is a digit
+     * <li>  it is a numeric letter (such as a Roman numeral character)
+     * <li>  it is a combining mark
+     * <li>  it is a non-spacing mark
+     * <li> {@code isIdentifierIgnorable} returns
+     * {@code true} for this character.
+     * </ul>
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #isUnicodeIdentifierPart(int)} method.
+     *
+     * @param ch the character to be tested.
+     *
+     * @return {@code true} if the character may be part of a
+     * Unicode identifier; {@code false} otherwise.
+     *
+     * @see Character#isIdentifierIgnorable(char)
+     * @see Character#isJavaIdentifierPart(char)
+     * @see Character#isLetterOrDigit(char)
+     * @see Character#isUnicodeIdentifierStart(char)
+     * @since 1.1
+     */
+    // true：该字符可位于Unicode标识符的非起始部分
+    public static boolean isUnicodeIdentifierPart(char ch) {
+        return isUnicodeIdentifierPart((int) ch);
+    }
+    
+    /**
+     * Determines if the specified character (Unicode code point) may be part of a Unicode
+     * identifier as other than the first character.
+     * <p>
+     * A character may be part of a Unicode identifier if and only if
+     * one of the following statements is true:
+     * <ul>
+     * <li>  it is a letter
+     * <li>  it is a connecting punctuation character (such as {@code '_'})
+     * <li>  it is a digit
+     * <li>  it is a numeric letter (such as a Roman numeral character)
+     * <li>  it is a combining mark
+     * <li>  it is a non-spacing mark
+     * <li> {@code isIdentifierIgnorable} returns
+     * {@code true} for this character.
+     * </ul>
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return {@code true} if the character may be part of a
+     * Unicode identifier; {@code false} otherwise.
+     *
+     * @see Character#isIdentifierIgnorable(int)
+     * @see Character#isJavaIdentifierPart(int)
+     * @see Character#isLetterOrDigit(int)
+     * @see Character#isUnicodeIdentifierStart(int)
+     * @since 1.5
+     */
+    // true：该字符可位于Unicode标识符的非起始部分
+    public static boolean isUnicodeIdentifierPart(int codePoint) {
+        return CharacterData.of(codePoint).isUnicodeIdentifierPart(codePoint);
+    }
+    
+    /**
+     * Determines if the specified character should be regarded as
+     * an ignorable character in a Java identifier or a Unicode identifier.
+     * <p>
+     * The following Unicode characters are ignorable in a Java identifier
+     * or a Unicode identifier:
+     * <ul>
+     * <li>ISO control characters that are not whitespace
+     * <ul>
+     * <li>{@code '\u005Cu0000'} through {@code '\u005Cu0008'}
+     * <li>{@code '\u005Cu000E'} through {@code '\u005Cu001B'}
+     * <li>{@code '\u005Cu007F'} through {@code '\u005Cu009F'}
+     * </ul>
+     *
+     * <li>all characters that have the {@code FORMAT} general
+     * category value
+     * </ul>
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #isIdentifierIgnorable(int)} method.
+     *
+     * @param ch the character to be tested.
+     *
+     * @return {@code true} if the character is an ignorable control
+     * character that may be part of a Java or Unicode identifier;
+     * {@code false} otherwise.
+     *
+     * @see Character#isJavaIdentifierPart(char)
+     * @see Character#isUnicodeIdentifierPart(char)
+     * @since 1.1
+     */
+    // true：该字符在标识符内是可忽略的
+    public static boolean isIdentifierIgnorable(char ch) {
+        return isIdentifierIgnorable((int) ch);
+    }
+    
+    /**
+     * Determines if the specified character (Unicode code point) should be regarded as
+     * an ignorable character in a Java identifier or a Unicode identifier.
+     * <p>
+     * The following Unicode characters are ignorable in a Java identifier
+     * or a Unicode identifier:
+     * <ul>
+     * <li>ISO control characters that are not whitespace
+     * <ul>
+     * <li>{@code '\u005Cu0000'} through {@code '\u005Cu0008'}
+     * <li>{@code '\u005Cu000E'} through {@code '\u005Cu001B'}
+     * <li>{@code '\u005Cu007F'} through {@code '\u005Cu009F'}
+     * </ul>
+     *
+     * <li>all characters that have the {@code FORMAT} general
+     * category value
+     * </ul>
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return {@code true} if the character is an ignorable control
+     * character that may be part of a Java or Unicode identifier;
+     * {@code false} otherwise.
+     *
+     * @see Character#isJavaIdentifierPart(int)
+     * @see Character#isUnicodeIdentifierPart(int)
+     * @since 1.5
+     */
+    // true：该字符在标识符内是可忽略的
+    public static boolean isIdentifierIgnorable(int codePoint) {
+        return CharacterData.of(codePoint).isIdentifierIgnorable(codePoint);
+    }
+    
+    /**
+     * Determines if the specified character is a lowercase character.
+     * <p>
+     * A character is lowercase if its general category type, provided
+     * by {@code Character.getType(ch)}, is
+     * {@code LOWERCASE_LETTER}, or it has contributory property
+     * Other_Lowercase as defined by the Unicode Standard.
+     * <p>
+     * The following are examples of lowercase characters:
+     * <blockquote><pre>
+     * a b c d e f g h i j k l m n o p q r s t u v w x y z
+     * '&#92;u00DF' '&#92;u00E0' '&#92;u00E1' '&#92;u00E2' '&#92;u00E3' '&#92;u00E4' '&#92;u00E5' '&#92;u00E6'
+     * '&#92;u00E7' '&#92;u00E8' '&#92;u00E9' '&#92;u00EA' '&#92;u00EB' '&#92;u00EC' '&#92;u00ED' '&#92;u00EE'
+     * '&#92;u00EF' '&#92;u00F0' '&#92;u00F1' '&#92;u00F2' '&#92;u00F3' '&#92;u00F4' '&#92;u00F5' '&#92;u00F6'
+     * '&#92;u00F8' '&#92;u00F9' '&#92;u00FA' '&#92;u00FB' '&#92;u00FC' '&#92;u00FD' '&#92;u00FE' '&#92;u00FF'
+     * </pre></blockquote>
+     * <p> Many other Unicode characters are lowercase too.
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #isLowerCase(int)} method.
+     *
+     * @param ch the character to be tested.
+     *
+     * @return {@code true} if the character is lowercase;
+     * {@code false} otherwise.
+     *
+     * @see Character#isLowerCase(char)
+     * @see Character#isTitleCase(char)
+     * @see Character#toLowerCase(char)
+     * @see Character#getType(char)
+     */
+    // true：该字符是小写字符
+    public static boolean isLowerCase(char ch) {
+        return isLowerCase((int) ch);
+    }
+    
+    /**
+     * Determines if the specified character (Unicode code point) is a lowercase character.
+     * <p>
+     * A character is lowercase if its general category type, provided
+     * by {@link Character#getType getType(codePoint)}, is
+     * {@code LOWERCASE_LETTER}, or it has contributory property
+     * Other_Lowercase as defined by the Unicode Standard.
+     * <p>
+     * The following are examples of lowercase characters:
+     * <blockquote><pre>
+     * a b c d e f g h i j k l m n o p q r s t u v w x y z
+     * '&#92;u00DF' '&#92;u00E0' '&#92;u00E1' '&#92;u00E2' '&#92;u00E3' '&#92;u00E4' '&#92;u00E5' '&#92;u00E6'
+     * '&#92;u00E7' '&#92;u00E8' '&#92;u00E9' '&#92;u00EA' '&#92;u00EB' '&#92;u00EC' '&#92;u00ED' '&#92;u00EE'
+     * '&#92;u00EF' '&#92;u00F0' '&#92;u00F1' '&#92;u00F2' '&#92;u00F3' '&#92;u00F4' '&#92;u00F5' '&#92;u00F6'
+     * '&#92;u00F8' '&#92;u00F9' '&#92;u00FA' '&#92;u00FB' '&#92;u00FC' '&#92;u00FD' '&#92;u00FE' '&#92;u00FF'
+     * </pre></blockquote>
+     * <p> Many other Unicode characters are lowercase too.
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return {@code true} if the character is lowercase;
+     * {@code false} otherwise.
+     *
+     * @see Character#isLowerCase(int)
+     * @see Character#isTitleCase(int)
+     * @see Character#toLowerCase(int)
+     * @see Character#getType(int)
+     * @since 1.5
+     */
+    // true：该字符是小写字符
+    public static boolean isLowerCase(int codePoint) {
+        return getType(codePoint) == Character.LOWERCASE_LETTER || CharacterData.of(codePoint).isOtherLowercase(codePoint);
+    }
+    
+    /**
+     * Determines if the specified character is an uppercase character.
+     * <p>
+     * A character is uppercase if its general category type, provided by
+     * {@code Character.getType(ch)}, is {@code UPPERCASE_LETTER}.
+     * or it has contributory property Other_Uppercase as defined by the Unicode Standard.
+     * <p>
+     * The following are examples of uppercase characters:
+     * <blockquote><pre>
+     * A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+     * '&#92;u00C0' '&#92;u00C1' '&#92;u00C2' '&#92;u00C3' '&#92;u00C4' '&#92;u00C5' '&#92;u00C6' '&#92;u00C7'
+     * '&#92;u00C8' '&#92;u00C9' '&#92;u00CA' '&#92;u00CB' '&#92;u00CC' '&#92;u00CD' '&#92;u00CE' '&#92;u00CF'
+     * '&#92;u00D0' '&#92;u00D1' '&#92;u00D2' '&#92;u00D3' '&#92;u00D4' '&#92;u00D5' '&#92;u00D6' '&#92;u00D8'
+     * '&#92;u00D9' '&#92;u00DA' '&#92;u00DB' '&#92;u00DC' '&#92;u00DD' '&#92;u00DE'
+     * </pre></blockquote>
+     * <p> Many other Unicode characters are uppercase too.
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #isUpperCase(int)} method.
+     *
+     * @param ch the character to be tested.
+     *
+     * @return {@code true} if the character is uppercase;
+     * {@code false} otherwise.
+     *
+     * @see Character#isLowerCase(char)
+     * @see Character#isTitleCase(char)
+     * @see Character#toUpperCase(char)
+     * @see Character#getType(char)
+     * @since 1.0
+     */
+    // true：该字符是大写字符
+    public static boolean isUpperCase(char ch) {
+        return isUpperCase((int) ch);
+    }
+    
+    /**
+     * Determines if the specified character (Unicode code point) is an uppercase character.
+     * <p>
+     * A character is uppercase if its general category type, provided by
+     * {@link Character#getType(int) getType(codePoint)}, is {@code UPPERCASE_LETTER},
+     * or it has contributory property Other_Uppercase as defined by the Unicode Standard.
+     * <p>
+     * The following are examples of uppercase characters:
+     * <blockquote><pre>
+     * A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+     * '&#92;u00C0' '&#92;u00C1' '&#92;u00C2' '&#92;u00C3' '&#92;u00C4' '&#92;u00C5' '&#92;u00C6' '&#92;u00C7'
+     * '&#92;u00C8' '&#92;u00C9' '&#92;u00CA' '&#92;u00CB' '&#92;u00CC' '&#92;u00CD' '&#92;u00CE' '&#92;u00CF'
+     * '&#92;u00D0' '&#92;u00D1' '&#92;u00D2' '&#92;u00D3' '&#92;u00D4' '&#92;u00D5' '&#92;u00D6' '&#92;u00D8'
+     * '&#92;u00D9' '&#92;u00DA' '&#92;u00DB' '&#92;u00DC' '&#92;u00DD' '&#92;u00DE'
+     * </pre></blockquote>
+     * <p> Many other Unicode characters are uppercase too.
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return {@code true} if the character is uppercase;
+     * {@code false} otherwise.
+     *
+     * @see Character#isLowerCase(int)
+     * @see Character#isTitleCase(int)
+     * @see Character#toUpperCase(int)
+     * @see Character#getType(int)
+     * @since 1.5
+     */
+    // true：该字符是大写字符
+    public static boolean isUpperCase(int codePoint) {
+        return getType(codePoint) == Character.UPPERCASE_LETTER || CharacterData.of(codePoint).isOtherUppercase(codePoint);
+    }
+    
+    /**
+     * Determines if the specified character is a titlecase character.
+     * <p>
+     * A character is a titlecase character if its general
+     * category type, provided by {@code Character.getType(ch)},
+     * is {@code TITLECASE_LETTER}.
+     * <p>
+     * Some characters look like pairs of Latin letters. For example, there
+     * is an uppercase letter that looks like "LJ" and has a corresponding
+     * lowercase letter that looks like "lj". A third form, which looks like "Lj",
+     * is the appropriate form to use when rendering a word in lowercase
+     * with initial capitals, as for a book title.
+     * <p>
+     * These are some of the Unicode characters for which this method returns
+     * {@code true}:
+     * <ul>
+     * <li>{@code LATIN CAPITAL LETTER D WITH SMALL LETTER Z WITH CARON}
+     * <li>{@code LATIN CAPITAL LETTER L WITH SMALL LETTER J}
+     * <li>{@code LATIN CAPITAL LETTER N WITH SMALL LETTER J}
+     * <li>{@code LATIN CAPITAL LETTER D WITH SMALL LETTER Z}
+     * </ul>
+     * <p> Many other Unicode characters are titlecase too.
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #isTitleCase(int)} method.
+     *
+     * @param ch the character to be tested.
+     *
+     * @return {@code true} if the character is titlecase;
+     * {@code false} otherwise.
+     *
+     * @see Character#isLowerCase(char)
+     * @see Character#isUpperCase(char)
+     * @see Character#toTitleCase(char)
+     * @see Character#getType(char)
+     * @since 1.0.2
+     */
+    // true：该字符是TitleCase
+    public static boolean isTitleCase(char ch) {
+        return isTitleCase((int) ch);
+    }
+    
+    /**
+     * Determines if the specified character (Unicode code point) is a titlecase character.
+     * <p>
+     * A character is a titlecase character if its general
+     * category type, provided by {@link Character#getType(int) getType(codePoint)},
+     * is {@code TITLECASE_LETTER}.
+     * <p>
+     * Some characters look like pairs of Latin letters. For example, there
+     * is an uppercase letter that looks like "LJ" and has a corresponding
+     * lowercase letter that looks like "lj". A third form, which looks like "Lj",
+     * is the appropriate form to use when rendering a word in lowercase
+     * with initial capitals, as for a book title.
+     * <p>
+     * These are some of the Unicode characters for which this method returns
+     * {@code true}:
+     * <ul>
+     * <li>{@code LATIN CAPITAL LETTER D WITH SMALL LETTER Z WITH CARON}
+     * <li>{@code LATIN CAPITAL LETTER L WITH SMALL LETTER J}
+     * <li>{@code LATIN CAPITAL LETTER N WITH SMALL LETTER J}
+     * <li>{@code LATIN CAPITAL LETTER D WITH SMALL LETTER Z}
+     * </ul>
+     * <p> Many other Unicode characters are titlecase too.
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return {@code true} if the character is titlecase;
+     * {@code false} otherwise.
+     *
+     * @see Character#isLowerCase(int)
+     * @see Character#isUpperCase(int)
+     * @see Character#toTitleCase(int)
+     * @see Character#getType(int)
+     * @since 1.5
+     */
+    // true：该字符是TitleCase
+    public static boolean isTitleCase(int codePoint) {
+        return getType(codePoint) == Character.TITLECASE_LETTER;
+    }
+    
+    /**
+     * Determines if the specified character is a digit.
+     * <p>
+     * A character is a digit if its general category type, provided
+     * by {@code Character.getType(ch)}, is
+     * {@code DECIMAL_DIGIT_NUMBER}.
+     * <p>
+     * Some Unicode character ranges that contain digits:
+     * <ul>
+     * <li>{@code '\u005Cu0030'} through {@code '\u005Cu0039'},
+     * ISO-LATIN-1 digits ({@code '0'} through {@code '9'})
+     * <li>{@code '\u005Cu0660'} through {@code '\u005Cu0669'},
+     * Arabic-Indic digits
+     * <li>{@code '\u005Cu06F0'} through {@code '\u005Cu06F9'},
+     * Extended Arabic-Indic digits
+     * <li>{@code '\u005Cu0966'} through {@code '\u005Cu096F'},
+     * Devanagari digits
+     * <li>{@code '\u005CuFF10'} through {@code '\u005CuFF19'},
+     * Fullwidth digits
+     * </ul>
+     *
+     * Many other character ranges contain digits as well.
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #isDigit(int)} method.
+     *
+     * @param ch the character to be tested.
+     *
+     * @return {@code true} if the character is a digit;
+     * {@code false} otherwise.
+     *
+     * @see Character#digit(char, int)
+     * @see Character#forDigit(int, int)
+     * @see Character#getType(char)
+     */
+    // true：该字符是数字字符
+    public static boolean isDigit(char ch) {
+        return isDigit((int) ch);
+    }
+    
+    /**
+     * Determines if the specified character (Unicode code point) is a digit.
+     * <p>
+     * A character is a digit if its general category type, provided
+     * by {@link Character#getType(int) getType(codePoint)}, is
+     * {@code DECIMAL_DIGIT_NUMBER}.
+     * <p>
+     * Some Unicode character ranges that contain digits:
+     * <ul>
+     * <li>{@code '\u005Cu0030'} through {@code '\u005Cu0039'},
+     * ISO-LATIN-1 digits ({@code '0'} through {@code '9'})
+     * <li>{@code '\u005Cu0660'} through {@code '\u005Cu0669'},
+     * Arabic-Indic digits
+     * <li>{@code '\u005Cu06F0'} through {@code '\u005Cu06F9'},
+     * Extended Arabic-Indic digits
+     * <li>{@code '\u005Cu0966'} through {@code '\u005Cu096F'},
+     * Devanagari digits
+     * <li>{@code '\u005CuFF10'} through {@code '\u005CuFF19'},
+     * Fullwidth digits
+     * </ul>
+     *
+     * Many other character ranges contain digits as well.
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return {@code true} if the character is a digit;
+     * {@code false} otherwise.
+     *
+     * @see Character#forDigit(int, int)
+     * @see Character#getType(int)
+     * @since 1.5
+     */
+    // true：该字符是数字字符
+    public static boolean isDigit(int codePoint) {
+        return getType(codePoint) == Character.DECIMAL_DIGIT_NUMBER;
+    }
+    
+    /**
+     * Determines if a character is defined in Unicode.
+     * <p>
+     * A character is defined if at least one of the following is true:
+     * <ul>
+     * <li>It has an entry in the UnicodeData file.
+     * <li>It has a value in a range defined by the UnicodeData file.
+     * </ul>
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #isDefined(int)} method.
+     *
+     * @param ch the character to be tested
+     *
+     * @return {@code true} if the character has a defined meaning
+     * in Unicode; {@code false} otherwise.
+     *
+     * @see Character#isDigit(char)
+     * @see Character#isLetter(char)
+     * @see Character#isLetterOrDigit(char)
+     * @see Character#isLowerCase(char)
+     * @see Character#isTitleCase(char)
+     * @see Character#isUpperCase(char)
+     * @since 1.0.2
+     */
+    // true：该字符在Unicode定义
+    public static boolean isDefined(char ch) {
+        return isDefined((int) ch);
+    }
+    
+    /**
+     * Determines if a character (Unicode code point) is defined in Unicode.
+     * <p>
+     * A character is defined if at least one of the following is true:
+     * <ul>
+     * <li>It has an entry in the UnicodeData file.
+     * <li>It has a value in a range defined by the UnicodeData file.
+     * </ul>
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return {@code true} if the character has a defined meaning
+     * in Unicode; {@code false} otherwise.
+     *
+     * @see Character#isDigit(int)
+     * @see Character#isLetter(int)
+     * @see Character#isLetterOrDigit(int)
+     * @see Character#isLowerCase(int)
+     * @see Character#isTitleCase(int)
+     * @see Character#isUpperCase(int)
+     * @since 1.5
+     */
+    // true：该字符在Unicode定义
+    public static boolean isDefined(int codePoint) {
+        return getType(codePoint) != Character.UNASSIGNED;
+    }
+    
+    /**
+     * Determines if the specified character is a letter.
+     * <p>
+     * A character is considered to be a letter if its general
+     * category type, provided by {@code Character.getType(ch)},
+     * is any of the following:
+     * <ul>
+     * <li> {@code UPPERCASE_LETTER}
+     * <li> {@code LOWERCASE_LETTER}
+     * <li> {@code TITLECASE_LETTER}
+     * <li> {@code MODIFIER_LETTER}
+     * <li> {@code OTHER_LETTER}
+     * </ul>
+     *
+     * Not all letters have case. Many characters are
+     * letters but are neither uppercase nor lowercase nor titlecase.
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #isLetter(int)} method.
+     *
+     * @param ch the character to be tested.
+     *
+     * @return {@code true} if the character is a letter;
+     * {@code false} otherwise.
+     *
+     * @see Character#isDigit(char)
+     * @see Character#isJavaIdentifierStart(char)
+     * @see Character#isJavaLetter(char)
+     * @see Character#isJavaLetterOrDigit(char)
+     * @see Character#isLetterOrDigit(char)
+     * @see Character#isLowerCase(char)
+     * @see Character#isTitleCase(char)
+     * @see Character#isUnicodeIdentifierStart(char)
+     * @see Character#isUpperCase(char)
+     */
+    // true：该字符属于字母
+    public static boolean isLetter(char ch) {
+        return isLetter((int) ch);
+    }
+    
+    /**
+     * Determines if the specified character (Unicode code point) is a letter.
+     * <p>
+     * A character is considered to be a letter if its general
+     * category type, provided by {@link Character#getType(int) getType(codePoint)},
+     * is any of the following:
+     * <ul>
+     * <li> {@code UPPERCASE_LETTER}
+     * <li> {@code LOWERCASE_LETTER}
+     * <li> {@code TITLECASE_LETTER}
+     * <li> {@code MODIFIER_LETTER}
+     * <li> {@code OTHER_LETTER}
+     * </ul>
+     *
+     * Not all letters have case. Many characters are
+     * letters but are neither uppercase nor lowercase nor titlecase.
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return {@code true} if the character is a letter;
+     * {@code false} otherwise.
+     *
+     * @see Character#isDigit(int)
+     * @see Character#isJavaIdentifierStart(int)
+     * @see Character#isLetterOrDigit(int)
+     * @see Character#isLowerCase(int)
+     * @see Character#isTitleCase(int)
+     * @see Character#isUnicodeIdentifierStart(int)
+     * @see Character#isUpperCase(int)
+     * @since 1.5
+     */
+    // true：该字符属于字母
+    public static boolean isLetter(int codePoint) {
+        return ((((1 << Character.UPPERCASE_LETTER) | (1 << Character.LOWERCASE_LETTER) | (1 << Character.TITLECASE_LETTER) | (1 << Character.MODIFIER_LETTER) | (1 << Character.OTHER_LETTER)) >> getType(codePoint)) & 1) != 0;
+    }
+    
+    /**
+     * Determines if the specified character is permissible as the first
+     * character in a Java identifier.
+     * <p>
+     * A character may start a Java identifier if and only if
+     * one of the following is true:
+     * <ul>
+     * <li> {@link #isLetter(char) isLetter(ch)} returns {@code true}
+     * <li> {@link #getType(char) getType(ch)} returns {@code LETTER_NUMBER}
+     * <li> {@code ch} is a currency symbol (such as {@code '$'})
+     * <li> {@code ch} is a connecting punctuation character (such as {@code '_'}).
+     * </ul>
+     *
+     * @param ch the character to be tested.
+     *
+     * @return {@code true} if the character may start a Java
+     * identifier; {@code false} otherwise.
+     *
+     * @see Character#isJavaLetterOrDigit(char)
+     * @see Character#isJavaIdentifierStart(char)
+     * @see Character#isJavaIdentifierPart(char)
+     * @see Character#isLetter(char)
+     * @see Character#isLetterOrDigit(char)
+     * @see Character#isUnicodeIdentifierStart(char)
+     * @since 1.0.2
+     * @deprecated Replaced by isJavaIdentifierStart(char).
+     */
+    @Deprecated(since = "1.1")
+    public static boolean isJavaLetter(char ch) {
+        return isJavaIdentifierStart(ch);
+    }
+    
+    /**
+     * Determines if the specified character is a letter or digit.
+     * <p>
+     * A character is considered to be a letter or digit if either
+     * {@code Character.isLetter(char ch)} or
+     * {@code Character.isDigit(char ch)} returns
+     * {@code true} for the character.
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #isLetterOrDigit(int)} method.
+     *
+     * @param ch the character to be tested.
+     *
+     * @return {@code true} if the character is a letter or digit;
+     * {@code false} otherwise.
+     *
+     * @see Character#isDigit(char)
+     * @see Character#isJavaIdentifierPart(char)
+     * @see Character#isJavaLetter(char)
+     * @see Character#isJavaLetterOrDigit(char)
+     * @see Character#isLetter(char)
+     * @see Character#isUnicodeIdentifierPart(char)
+     * @since 1.0.2
+     */
+    // true：该字符属于字母或数字
+    public static boolean isLetterOrDigit(char ch) {
+        return isLetterOrDigit((int) ch);
+    }
+    
+    /**
+     * Determines if the specified character (Unicode code point) is a letter or digit.
+     * <p>
+     * A character is considered to be a letter or digit if either
+     * {@link #isLetter(int) isLetter(codePoint)} or
+     * {@link #isDigit(int) isDigit(codePoint)} returns
+     * {@code true} for the character.
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return {@code true} if the character is a letter or digit;
+     * {@code false} otherwise.
+     *
+     * @see Character#isDigit(int)
+     * @see Character#isJavaIdentifierPart(int)
+     * @see Character#isLetter(int)
+     * @see Character#isUnicodeIdentifierPart(int)
+     * @since 1.5
+     */
+    // true：该字符属于字母或数字
+    public static boolean isLetterOrDigit(int codePoint) {
+        return ((((1 << Character.UPPERCASE_LETTER) | (1 << Character.LOWERCASE_LETTER) | (1 << Character.TITLECASE_LETTER) | (1 << Character.MODIFIER_LETTER) | (1 << Character.OTHER_LETTER) | (1 << Character.DECIMAL_DIGIT_NUMBER)) >> getType(codePoint)) & 1) != 0;
+    }
+    
+    /**
+     * Determines if the specified character may be part of a Java
+     * identifier as other than the first character.
+     * <p>
+     * A character may be part of a Java identifier if and only if any
+     * of the following are true:
+     * <ul>
+     * <li>  it is a letter
+     * <li>  it is a currency symbol (such as {@code '$'})
+     * <li>  it is a connecting punctuation character (such as {@code '_'})
+     * <li>  it is a digit
+     * <li>  it is a numeric letter (such as a Roman numeral character)
+     * <li>  it is a combining mark
+     * <li>  it is a non-spacing mark
+     * <li> {@code isIdentifierIgnorable} returns
+     * {@code true} for the character.
+     * </ul>
+     *
+     * @param ch the character to be tested.
+     *
+     * @return {@code true} if the character may be part of a
+     * Java identifier; {@code false} otherwise.
+     *
+     * @see Character#isJavaLetter(char)
+     * @see Character#isJavaIdentifierStart(char)
+     * @see Character#isJavaIdentifierPart(char)
+     * @see Character#isLetter(char)
+     * @see Character#isLetterOrDigit(char)
+     * @see Character#isUnicodeIdentifierPart(char)
+     * @see Character#isIdentifierIgnorable(char)
+     * @since 1.0.2
+     * @deprecated Replaced by isJavaIdentifierPart(char).
+     */
+    @Deprecated(since = "1.1")
+    public static boolean isJavaLetterOrDigit(char ch) {
+        return isJavaIdentifierPart(ch);
+    }
+    
+    /**
+     * Determines if the specified character is a Unicode space character.
+     * A character is considered to be a space character if and only if
+     * it is specified to be a space character by the Unicode Standard. This
+     * method returns true if the character's general category type is any of
+     * the following:
+     * <ul>
+     * <li> {@code SPACE_SEPARATOR}
+     * <li> {@code LINE_SEPARATOR}
+     * <li> {@code PARAGRAPH_SEPARATOR}
+     * </ul>
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #isSpaceChar(int)} method.
+     *
+     * @param ch the character to be tested.
+     *
+     * @return {@code true} if the character is a space character; {@code false} otherwise.
+     *
+     * @see Character#isWhitespace(char)
+     * @since 1.1
+     */
+    // true：该字符是Unicode空格
+    public static boolean isSpaceChar(char ch) {
+        return isSpaceChar((int) ch);
+    }
+    
+    /**
+     * Determines if the specified character (Unicode code point) is a
+     * Unicode space character.  A character is considered to be a
+     * space character if and only if it is specified to be a space
+     * character by the Unicode Standard. This method returns true if
+     * the character's general category type is any of the following:
+     *
+     * <ul>
+     * <li> {@link #SPACE_SEPARATOR}
+     * <li> {@link #LINE_SEPARATOR}
+     * <li> {@link #PARAGRAPH_SEPARATOR}
+     * </ul>
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return {@code true} if the character is a space character;
+     * {@code false} otherwise.
+     *
+     * @see Character#isWhitespace(int)
+     * @since 1.5
+     */
+    // true：该字符是Unicode空格
+    public static boolean isSpaceChar(int codePoint) {
+        return ((((1 << Character.SPACE_SEPARATOR) | (1 << Character.LINE_SEPARATOR) | (1 << Character.PARAGRAPH_SEPARATOR)) >> getType(codePoint)) & 1) != 0;
+    }
+    
+    /**
+     * Determines if the specified character is white space according to Java.
+     * A character is a Java whitespace character if and only if it satisfies
+     * one of the following criteria:
+     * <ul>
+     * <li> It is a Unicode space character ({@code SPACE_SEPARATOR},
+     * {@code LINE_SEPARATOR}, or {@code PARAGRAPH_SEPARATOR})
+     * but is not also a non-breaking space ({@code '\u005Cu00A0'},
+     * {@code '\u005Cu2007'}, {@code '\u005Cu202F'}).
+     * <li> It is {@code '\u005Ct'}, U+0009 HORIZONTAL TABULATION.
+     * <li> It is {@code '\u005Cn'}, U+000A LINE FEED.
+     * <li> It is {@code '\u005Cu000B'}, U+000B VERTICAL TABULATION.
+     * <li> It is {@code '\u005Cf'}, U+000C FORM FEED.
+     * <li> It is {@code '\u005Cr'}, U+000D CARRIAGE RETURN.
+     * <li> It is {@code '\u005Cu001C'}, U+001C FILE SEPARATOR.
+     * <li> It is {@code '\u005Cu001D'}, U+001D GROUP SEPARATOR.
+     * <li> It is {@code '\u005Cu001E'}, U+001E RECORD SEPARATOR.
+     * <li> It is {@code '\u005Cu001F'}, U+001F UNIT SEPARATOR.
+     * </ul>
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #isWhitespace(int)} method.
+     *
+     * @param ch the character to be tested.
+     *
+     * @return {@code true} if the character is a Java whitespace
+     * character; {@code false} otherwise.
+     *
+     * @see Character#isSpaceChar(char)
+     * @since 1.1
+     */
+    // true：该字符是Java空白符
+    public static boolean isWhitespace(char ch) {
+        return isWhitespace((int) ch);
+    }
+    
+    /**
+     * Determines if the specified character (Unicode code point) is
+     * white space according to Java.  A character is a Java
+     * whitespace character if and only if it satisfies one of the
+     * following criteria:
+     * <ul>
+     * <li> It is a Unicode space character ({@link #SPACE_SEPARATOR},
+     * {@link #LINE_SEPARATOR}, or {@link #PARAGRAPH_SEPARATOR})
+     * but is not also a non-breaking space ({@code '\u005Cu00A0'},
+     * {@code '\u005Cu2007'}, {@code '\u005Cu202F'}).
+     * <li> It is {@code '\u005Ct'}, U+0009 HORIZONTAL TABULATION.
+     * <li> It is {@code '\u005Cn'}, U+000A LINE FEED.
+     * <li> It is {@code '\u005Cu000B'}, U+000B VERTICAL TABULATION.
+     * <li> It is {@code '\u005Cf'}, U+000C FORM FEED.
+     * <li> It is {@code '\u005Cr'}, U+000D CARRIAGE RETURN.
+     * <li> It is {@code '\u005Cu001C'}, U+001C FILE SEPARATOR.
+     * <li> It is {@code '\u005Cu001D'}, U+001D GROUP SEPARATOR.
+     * <li> It is {@code '\u005Cu001E'}, U+001E RECORD SEPARATOR.
+     * <li> It is {@code '\u005Cu001F'}, U+001F UNIT SEPARATOR.
+     * </ul>
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return {@code true} if the character is a Java whitespace
+     * character; {@code false} otherwise.
+     *
+     * @see Character#isSpaceChar(int)
+     * @since 1.5
+     */
+    // true：该字符是Java空白符
+    public static boolean isWhitespace(int codePoint) {
+        return CharacterData.of(codePoint).isWhitespace(codePoint);
+    }
+    
+    /**
+     * Determines if the specified character is ISO-LATIN-1 white space.
+     * This method returns {@code true} for the following five
+     * characters only:
+     * <table class="striped">
+     * <caption style="display:none">truechars</caption>
+     * <thead>
+     * <tr><th scope="col">Character
+     * <th scope="col">Code
+     * <th scope="col">Name
+     * </thead>
+     * <tbody>
+     * <tr><th scope="row">{@code '\t'}</th>            <td>{@code U+0009}</td>
+     * <td>{@code HORIZONTAL TABULATION}</td></tr>
+     * <tr><th scope="row">{@code '\n'}</th>            <td>{@code U+000A}</td>
+     * <td>{@code NEW LINE}</td></tr>
+     * <tr><th scope="row">{@code '\f'}</th>            <td>{@code U+000C}</td>
+     * <td>{@code FORM FEED}</td></tr>
+     * <tr><th scope="row">{@code '\r'}</th>            <td>{@code U+000D}</td>
+     * <td>{@code CARRIAGE RETURN}</td></tr>
+     * <tr><th scope="row">{@code ' '}</th>  <td>{@code U+0020}</td>
+     * <td>{@code SPACE}</td></tr>
+     * </tbody>
+     * </table>
+     *
+     * @param ch the character to be tested.
+     *
+     * @return {@code true} if the character is ISO-LATIN-1 white
+     * space; {@code false} otherwise.
+     *
+     * @see Character#isSpaceChar(char)
+     * @see Character#isWhitespace(char)
+     *
+     * @deprecated Replaced by isWhitespace(char).
+     */
+    @Deprecated(since = "1.1")
+    public static boolean isSpace(char ch) {
+        return (ch <= 0x0020) && (((((1L << 0x0009) | (1L << 0x000A) | (1L << 0x000C) | (1L << 0x000D) | (1L << 0x0020)) >> ch) & 1L) != 0);
+    }
+    
+    /**
+     * Determines if the specified character is an ISO control
+     * character.  A character is considered to be an ISO control
+     * character if its code is in the range {@code '\u005Cu0000'}
+     * through {@code '\u005Cu001F'} or in the range
+     * {@code '\u005Cu007F'} through {@code '\u005Cu009F'}.
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #isISOControl(int)} method.
+     *
+     * @param ch the character to be tested.
+     *
+     * @return {@code true} if the character is an ISO control character;
+     * {@code false} otherwise.
+     *
+     * @see Character#isSpaceChar(char)
+     * @see Character#isWhitespace(char)
+     * @since 1.1
+     */
+    // true：该字符是ISO控制字符
+    public static boolean isISOControl(char ch) {
+        return isISOControl((int) ch);
+    }
+    
+    /**
+     * Determines if the referenced character (Unicode code point) is an ISO control
+     * character.  A character is considered to be an ISO control
+     * character if its code is in the range {@code '\u005Cu0000'}
+     * through {@code '\u005Cu001F'} or in the range
+     * {@code '\u005Cu007F'} through {@code '\u005Cu009F'}.
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return {@code true} if the character is an ISO control character;
+     * {@code false} otherwise.
+     *
+     * @see Character#isSpaceChar(int)
+     * @see Character#isWhitespace(int)
+     * @since 1.5
+     */
+    // true：该字符是ISO控制字符
+    public static boolean isISOControl(int codePoint) {
+        // Optimized form of:
+        //     (codePoint >= 0x00 && codePoint <= 0x1F) ||
+        //     (codePoint >= 0x7F && codePoint <= 0x9F);
+        return codePoint <= 0x9F && (codePoint >= 0x7F || (codePoint >>> 5 == 0));
+    }
+    
+    /**
+     * Determines whether the character is mirrored according to the
+     * Unicode specification.  Mirrored characters should have their
+     * glyphs horizontally mirrored when displayed in text that is
+     * right-to-left.  For example, {@code '\u005Cu0028'} LEFT
+     * PARENTHESIS is semantically defined to be an <i>opening
+     * parenthesis</i>.  This will appear as a "(" in text that is
+     * left-to-right but as a ")" in text that is right-to-left.
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #isMirrored(int)} method.
+     *
+     * @param ch {@code char} for which the mirrored property is requested
+     *
+     * @return {@code true} if the char is mirrored, {@code false}
+     * if the {@code char} is not mirrored or is not defined.
+     *
+     * @since 1.4
+     */
+    // true：该字符是镜像字符，如<>[]()
+    public static boolean isMirrored(char ch) {
+        return isMirrored((int) ch);
+    }
+    
+    /**
+     * Determines whether the specified character (Unicode code point)
+     * is mirrored according to the Unicode specification.  Mirrored
+     * characters should have their glyphs horizontally mirrored when
+     * displayed in text that is right-to-left.  For example,
+     * {@code '\u005Cu0028'} LEFT PARENTHESIS is semantically
+     * defined to be an <i>opening parenthesis</i>.  This will appear
+     * as a "(" in text that is left-to-right but as a ")" in text
+     * that is right-to-left.
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return {@code true} if the character is mirrored, {@code false}
+     * if the character is not mirrored or is not defined.
+     *
+     * @since 1.5
+     */
+    // true：该字符是镜像字符，如<>[]()
+    public static boolean isMirrored(int codePoint) {
+        return CharacterData.of(codePoint).isMirrored(codePoint);
+    }
+    
+    /*▲ 判断字符属性 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字符属性转换 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Converts the character argument to lowercase using case
+     * mapping information from the UnicodeData file.
+     * <p>
+     * Note that
+     * {@code Character.isLowerCase(Character.toLowerCase(ch))}
+     * does not always return {@code true} for some ranges of
+     * characters, particularly those that are symbols or ideographs.
+     *
+     * <p>In general, {@link String#toLowerCase()} should be used to map
+     * characters to lowercase. {@code String} case mapping methods
+     * have several benefits over {@code Character} case mapping methods.
+     * {@code String} case mapping methods can perform locale-sensitive
+     * mappings, context-sensitive mappings, and 1:M character mappings, whereas
+     * the {@code Character} case mapping methods cannot.
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #toLowerCase(int)} method.
+     *
+     * @param ch the character to be converted.
+     *
+     * @return the lowercase equivalent of the character, if any;
+     * otherwise, the character itself.
+     *
+     * @see Character#isLowerCase(char)
+     * @see String#toLowerCase()
+     */
+    // 转为小写形式
+    public static char toLowerCase(char ch) {
+        return (char) toLowerCase((int) ch);
+    }
+    
+    /**
+     * Converts the character (Unicode code point) argument to
+     * lowercase using case mapping information from the UnicodeData
+     * file.
+     *
+     * <p> Note that
+     * {@code Character.isLowerCase(Character.toLowerCase(codePoint))}
+     * does not always return {@code true} for some ranges of
+     * characters, particularly those that are symbols or ideographs.
+     *
+     * <p>In general, {@link String#toLowerCase()} should be used to map
+     * characters to lowercase. {@code String} case mapping methods
+     * have several benefits over {@code Character} case mapping methods.
+     * {@code String} case mapping methods can perform locale-sensitive
+     * mappings, context-sensitive mappings, and 1:M character mappings, whereas
+     * the {@code Character} case mapping methods cannot.
+     *
+     * @param codePoint the character (Unicode code point) to be converted.
+     *
+     * @return the lowercase equivalent of the character (Unicode code
+     * point), if any; otherwise, the character itself.
+     *
+     * @see Character#isLowerCase(int)
+     * @see String#toLowerCase()
+     * @since 1.5
+     */
+    // 转为小写形式
+    public static int toLowerCase(int codePoint) {
+        return CharacterData.of(codePoint).toLowerCase(codePoint);
+    }
+    
+    /**
+     * Converts the character argument to uppercase using case mapping
+     * information from the UnicodeData file.
+     * <p>
+     * Note that
+     * {@code Character.isUpperCase(Character.toUpperCase(ch))}
+     * does not always return {@code true} for some ranges of
+     * characters, particularly those that are symbols or ideographs.
+     *
+     * <p>In general, {@link String#toUpperCase()} should be used to map
+     * characters to uppercase. {@code String} case mapping methods
+     * have several benefits over {@code Character} case mapping methods.
+     * {@code String} case mapping methods can perform locale-sensitive
+     * mappings, context-sensitive mappings, and 1:M character mappings, whereas
+     * the {@code Character} case mapping methods cannot.
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #toUpperCase(int)} method.
+     *
+     * @param ch the character to be converted.
+     *
+     * @return the uppercase equivalent of the character, if any;
+     * otherwise, the character itself.
+     *
+     * @see Character#isUpperCase(char)
+     * @see String#toUpperCase()
+     */
+    // 转为大写形式
+    public static char toUpperCase(char ch) {
+        return (char) toUpperCase((int) ch);
+    }
+    
+    /**
+     * Converts the character (Unicode code point) argument to
+     * uppercase using case mapping information from the UnicodeData
+     * file.
+     *
+     * <p>Note that
+     * {@code Character.isUpperCase(Character.toUpperCase(codePoint))}
+     * does not always return {@code true} for some ranges of
+     * characters, particularly those that are symbols or ideographs.
+     *
+     * <p>In general, {@link String#toUpperCase()} should be used to map
+     * characters to uppercase. {@code String} case mapping methods
+     * have several benefits over {@code Character} case mapping methods.
+     * {@code String} case mapping methods can perform locale-sensitive
+     * mappings, context-sensitive mappings, and 1:M character mappings, whereas
+     * the {@code Character} case mapping methods cannot.
+     *
+     * @param codePoint the character (Unicode code point) to be converted.
+     *
+     * @return the uppercase equivalent of the character, if any;
+     * otherwise, the character itself.
+     *
+     * @see Character#isUpperCase(int)
+     * @see String#toUpperCase()
+     * @since 1.5
+     */
+    // 转为大写形式
+    public static int toUpperCase(int codePoint) {
+        return CharacterData.of(codePoint).toUpperCase(codePoint);
+    }
+    
+    /**
+     * Converts the character argument to titlecase using case mapping
+     * information from the UnicodeData file. If a character has no
+     * explicit titlecase mapping and is not itself a titlecase char
+     * according to UnicodeData, then the uppercase mapping is
+     * returned as an equivalent titlecase mapping. If the
+     * {@code char} argument is already a titlecase
+     * {@code char}, the same {@code char} value will be
+     * returned.
+     * <p>
+     * Note that
+     * {@code Character.isTitleCase(Character.toTitleCase(ch))}
+     * does not always return {@code true} for some ranges of
+     * characters.
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #toTitleCase(int)} method.
+     *
+     * @param ch the character to be converted.
+     *
+     * @return the titlecase equivalent of the character, if any;
+     * otherwise, the character itself.
+     *
+     * @see Character#isTitleCase(char)
+     * @see Character#toLowerCase(char)
+     * @see Character#toUpperCase(char)
+     * @since 1.0.2
+     */
+    // 转为TitleCase形式
+    public static char toTitleCase(char ch) {
+        return (char) toTitleCase((int) ch);
+    }
+    
+    /**
+     * Converts the character (Unicode code point) argument to titlecase using case mapping
+     * information from the UnicodeData file. If a character has no
+     * explicit titlecase mapping and is not itself a titlecase char
+     * according to UnicodeData, then the uppercase mapping is
+     * returned as an equivalent titlecase mapping. If the
+     * character argument is already a titlecase
+     * character, the same character value will be
+     * returned.
+     *
+     * <p>Note that
+     * {@code Character.isTitleCase(Character.toTitleCase(codePoint))}
+     * does not always return {@code true} for some ranges of
+     * characters.
+     *
+     * @param codePoint the character (Unicode code point) to be converted.
+     *
+     * @return the titlecase equivalent of the character, if any;
+     * otherwise, the character itself.
+     *
+     * @see Character#isTitleCase(int)
+     * @see Character#toLowerCase(int)
+     * @see Character#toUpperCase(int)
+     * @since 1.5
+     */
+    // 转为TitleCase形式
+    public static int toTitleCase(int codePoint) {
+        return CharacterData.of(codePoint).toTitleCase(codePoint);
+    }
+    
+    /**
+     * Converts the character (Unicode code point) argument to uppercase using
+     * information from the UnicodeData file.
+     *
+     * @param codePoint the character (Unicode code point) to be converted.
+     *
+     * @return either the uppercase equivalent of the character, if
+     * any, or an error flag ({@code Character.ERROR})
+     * that indicates that a 1:M {@code char} mapping exists.
+     *
+     * @see Character#isLowerCase(char)
+     * @see Character#isUpperCase(char)
+     * @see Character#toLowerCase(char)
+     * @see Character#toTitleCase(char)
+     * @since 1.4
+     */
+    // 转为大写形式（考虑可能出现的扩展字符）
+    static int toUpperCaseEx(int codePoint) {
+        assert isValidCodePoint(codePoint);
+        return CharacterData.of(codePoint).toUpperCaseEx(codePoint);
+    }
+    
+    /**
+     * Converts the character (Unicode code point) argument to uppercase using case
+     * mapping information from the SpecialCasing file in the Unicode
+     * specification. If a character has no explicit uppercase
+     * mapping, then the {@code char} itself is returned in the
+     * {@code char[]}.
+     *
+     * @param codePoint the character (Unicode code point) to be converted.
+     *
+     * @return a {@code char[]} with the uppercased character.
+     *
+     * @since 1.4
+     */
+    // 将字符ch存入字符数组，如果是索引223处的字符ß，需要特殊处理
+    static char[] toUpperCaseCharArray(int codePoint) {
+        // As of Unicode 6.0, 1:M uppercasings only happen in the BMP.
+        // 从Unicode 6.0开始，一对多（一个16bit单位转换多个16bit单位）的大写转换仅发生在基本平面区
+        assert isBmpCodePoint(codePoint);
+        return CharacterData.of(codePoint).toUpperCaseCharArray(codePoint);
+    }
+    
+    /*▲ 字符属性转换 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 比较 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Compares two {@code char} values numerically.
+     * The value returned is identical to what would be returned by:
+     * <pre>
+     *    Character.valueOf(x).compareTo(Character.valueOf(y))
+     * </pre>
+     *
+     * @param x the first {@code char} to compare
+     * @param y the second {@code char} to compare
+     *
+     * @return the value {@code 0} if {@code x == y};
+     * a value less than {@code 0} if {@code x < y}; and
+     * a value greater than {@code 0} if {@code x > y}
+     *
+     * @since 1.7
+     */
+    // 比较字符x和字符y，返回x-y的结果
+    public static int compare(char x, char y) {
+        return x - y;
+    }
+    
+    /**
+     * Compares two {@code Character} objects numerically.
+     *
+     * @param anotherCharacter the {@code Character} to be compared.
+     *
+     * @return the value {@code 0} if the argument {@code Character}
+     * is equal to this {@code Character}; a value less than
+     * {@code 0} if this {@code Character} is numerically less
+     * than the {@code Character} argument; and a value greater than
+     * {@code 0} if this {@code Character} is numerically greater
+     * than the {@code Character} argument (unsigned comparison).
+     * Note that this is strictly a numerical comparison; it is not
+     * locale-dependent.
+     *
+     * @since 1.2
+     */
+    // 拿当前字符与参数中的字符做比较，返回值<0代表当前字符小于参数中的字符，以此类推
+    public int compareTo(Character anotherCharacter) {
+        return compare(this.value, anotherCharacter.value);
+    }
+    
+    /*▲ 比较 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 码点/码元 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Determines whether the specified code point is a valid <a href="http://www.unicode.org/glossary/#code_point"> Unicode code point value</a>.
+     *
+     * @param codePoint the Unicode code point to be tested
+     *
+     * @return {@code true} if the specified code point value is between {@link #MIN_CODE_POINT} and {@link #MAX_CODE_POINT} inclusive; {@code false} otherwise.
+     *
+     * @since 1.5
+     */
+    // true：codePoint是合法的Unicode编码，其范围是：[0x000000, 0x10FFFF]
+    public static boolean isValidCodePoint(int codePoint) {
+        int plane = codePoint >>> 16;
+        return plane < ((MAX_CODE_POINT + 1) >>> 16);
+    }
+    
+    /**
+     * Determines whether the specified character (Unicode code point) is in the <a href="#BMP">Basic Multilingual Plane (BMP)</a>.
+     * Such code points can be represented using a single {@code char}.
+     *
+     * @param codePoint the character (Unicode code point) to be tested
+     *
+     * @return {@code true} if the specified code point is between {@link #MIN_VALUE} and {@link #MAX_VALUE} inclusive; {@code false} otherwise.
+     *
+     * @since 1.7
+     */
+    // true：codePoint是基本平面区的码点值[0x0000, 0xFFFF]
+    public static boolean isBmpCodePoint(int codePoint) {
+        return codePoint >>> 16 == 0;
+    }
+    
+    /**
+     * Determines whether the specified character (Unicode code point)
+     * is in the <a href="#supplementary">supplementary character</a> range.
+     *
+     * @param codePoint the character (Unicode code point) to be tested
+     *
+     * @return {@code true} if the specified code point is between
+     * {@link #MIN_SUPPLEMENTARY_CODE_POINT} and
+     * {@link #MAX_CODE_POINT} inclusive;
+     * {@code false} otherwise.
+     *
+     * @since 1.5
+     */
+    // true：codePoint是非基本平面区码点值[0x010000, 0x10FFFF]
+    public static boolean isSupplementaryCodePoint(int codePoint) {
+        return codePoint >= MIN_SUPPLEMENTARY_CODE_POINT && codePoint < MAX_CODE_POINT + 1;
+    }
+    
+    /**
+     * Determines if the given {@code char} value is a
+     * <a href="http://www.unicode.org/glossary/#high_surrogate_code_unit">
+     * Unicode high-surrogate code unit</a>
+     * (also known as <i>leading-surrogate code unit</i>).
+     *
+     * <p>Such values do not represent characters by themselves,
+     * but are used in the representation of
+     * <a href="#supplementary">supplementary characters</a>
+     * in the UTF-16 encoding.
+     *
+     * @param ch the {@code char} value to be tested.
+     *
+     * @return {@code true} if the {@code char} value is between
+     * {@link #MIN_HIGH_SURROGATE} and
+     * {@link #MAX_HIGH_SURROGATE} inclusive;
+     * {@code false} otherwise.
+     *
+     * @see Character#isLowSurrogate(char)
+     * @see UnicodeBlock#of(int)
+     * @since 1.5
+     */
+    // true：字符ch位于高代理区[U+D800 ~ U+DBFF]
+    public static boolean isHighSurrogate(char ch) {
+        // Help VM constant-fold; MAX_HIGH_SURROGATE + 1 == MIN_LOW_SURROGATE
+        return ch >= MIN_HIGH_SURROGATE && ch < (MAX_HIGH_SURROGATE + 1);
+    }
+    
+    /**
+     * Determines if the given {@code char} value is a
+     * <a href="http://www.unicode.org/glossary/#low_surrogate_code_unit">
+     * Unicode low-surrogate code unit</a>
+     * (also known as <i>trailing-surrogate code unit</i>).
+     *
+     * <p>Such values do not represent characters by themselves,
+     * but are used in the representation of
+     * <a href="#supplementary">supplementary characters</a>
+     * in the UTF-16 encoding.
+     *
+     * @param ch the {@code char} value to be tested.
+     *
+     * @return {@code true} if the {@code char} value is between
+     * {@link #MIN_LOW_SURROGATE} and
+     * {@link #MAX_LOW_SURROGATE} inclusive;
+     * {@code false} otherwise.
+     *
+     * @see Character#isHighSurrogate(char)
+     * @since 1.5
+     */
+    // true：字符ch位于低代理区[U+DC00 ~ U+DFFF]
+    public static boolean isLowSurrogate(char ch) {
+        return ch >= MIN_LOW_SURROGATE && ch < (MAX_LOW_SURROGATE + 1);
+    }
+    
+    /**
+     * Determines if the given {@code char} value is a Unicode <i>surrogate code unit</i>.
+     *
+     * Such values do not represent characters by themselves,
+     * but are used in the representation of <a href="#supplementary">supplementary characters</a> in the UTF-16 encoding.
+     *
+     * A char value is a surrogate code unit if and only if it is either a {@linkplain #isLowSurrogate(char) low-surrogate code unit} or a {@linkplain #isHighSurrogate(char) high-surrogate code unit}.
+     *
+     * @param ch the {@code char} value to be tested.
+     *
+     * @return {@code true} if the {@code char} value is between {@link #MIN_SURROGATE} and {@link #MAX_SURROGATE} inclusive; {@code false} otherwise.
+     *
+     * @since 1.7
+     */
+    // true：字符ch位于Unicode代理区['\uD800', '\uDFFF']
+    public static boolean isSurrogate(char ch) {
+        return ch >= MIN_SURROGATE && ch < (MAX_SURROGATE + 1);
+    }
+    
+    /**
+     * Determines whether the specified pair of {@code char}
+     * values is a valid
+     * <a href="http://www.unicode.org/glossary/#surrogate_pair">
+     * Unicode surrogate pair</a>.
+     *
+     * <p>This method is equivalent to the expression:
+     * <blockquote><pre>{@code
+     * isHighSurrogate(high) && isLowSurrogate(low)
+     * }</pre></blockquote>
+     *
+     * @param high the high-surrogate code value to be tested
+     * @param low  the low-surrogate code value to be tested
+     *
+     * @return {@code true} if the specified high and
+     * low-surrogate code values represent a valid surrogate pair;
+     * {@code false} otherwise.
+     *
+     * @since 1.5
+     */
+    // true：字符high和字符low分别是高低代理区的字符
+    public static boolean isSurrogatePair(char high, char low) {
+        return isHighSurrogate(high) && isLowSurrogate(low);
+    }
+    
+    /**
+     * Determines the number of {@code char} values needed to
+     * represent the specified character (Unicode code point). If the
+     * specified character is equal to or greater than 0x10000, then
+     * the method returns 2. Otherwise, the method returns 1.
+     *
+     * <p>This method doesn't validate the specified character to be a
+     * valid Unicode code point. The caller must validate the
+     * character value using {@link #isValidCodePoint(int) isValidCodePoint}
+     * if necessary.
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return 2 if the character is a valid supplementary character; 1 otherwise.
+     *
+     * @see Character#isSupplementaryCodePoint(int)
+     * @since 1.5
+     */
+    // 返回该Unicode符号所占的char的个数
+    public static int charCount(int codePoint) {
+        return codePoint >= MIN_SUPPLEMENTARY_CODE_POINT ? 2 : 1;
+    }
+    
+    /**
+     * Converts the specified surrogate pair to its supplementary code point value.
+     * This method does not validate the specified surrogate pair.
+     * The caller must validate it using {@link #isSurrogatePair(char, char) isSurrogatePair} if necessary.
+     *
+     * @param high the high-surrogate code unit
+     * @param low  the low-surrogate code unit
+     *
+     * @return the supplementary code point composed from the
+     * specified surrogate pair.
+     *
+     * @since 1.5
+     */
+    // 高、低代理区的码点值 ---> Unicode符号编码值
+    public static int toCodePoint(char high, char low) {
+        /*
+         * X = 0x10000 + (高代理-0xD800)<<10 + 低代理-0xDC00
+         *   = (高代理<<10 + 低代理) + 0x10000 - 0xD800<<10 - 0xDC00
+         */
+        return ((high << 10) + low) + (MIN_SUPPLEMENTARY_CODE_POINT - (MIN_HIGH_SURROGATE << 10) - MIN_LOW_SURROGATE);
+    }
+    
+    /**
+     * Returns the code point at the given index of the
+     * {@code CharSequence}. If the {@code char} value at
+     * the given index in the {@code CharSequence} is in the
+     * high-surrogate range, the following index is less than the
+     * length of the {@code CharSequence}, and the
+     * {@code char} value at the following index is in the
+     * low-surrogate range, then the supplementary code point
+     * corresponding to this surrogate pair is returned. Otherwise,
+     * the {@code char} value at the given index is returned.
+     *
+     * @param seq   a sequence of {@code char} values (Unicode code
+     *              units)
+     * @param index the index to the {@code char} values (Unicode
+     *              code units) in {@code seq} to be converted
+     *
+     * @return the Unicode code point at the given index
+     *
+     * @throws NullPointerException      if {@code seq} is null.
+     * @throws IndexOutOfBoundsException if the value
+     *                                   {@code index} is negative or not less than
+     *                                   {@link CharSequence#length() seq.length()}.
+     * @since 1.5
+     */
+    // 返回索引index处码元的码点值，如果该码元位于Unicode编码的高代理区，则需返回完整的Unicode编码
+    public static int codePointAt(CharSequence seq, int index) {
+        char c1 = seq.charAt(index);
+        if(isHighSurrogate(c1) && ++index < seq.length()) {
+            char c2 = seq.charAt(index);
+            if(isLowSurrogate(c2)) {
+                // 高、低代理区的码点值 ---> Unicode符号编码值
+                return toCodePoint(c1, c2);
+            }
+        }
+        return c1;
+    }
+    
+    // 返回索引index处码元的码点值，如果该码元位于Unicode编码的高代理区，则需返回完整的Unicode编码
+    static int codePointAtImpl(char[] a, int index, int limit) {
+        char c1 = a[index];
+        if(isHighSurrogate(c1) && ++index < limit) {
+            char c2 = a[index];
+            if(isLowSurrogate(c2)) {
+                // 高、低代理区的码点值 ---> Unicode符号编码值
+                return toCodePoint(c1, c2);
+            }
+        }
+        return c1;
+    }
+    
+    /**
+     * Returns the code point at the given index of the
+     * {@code char} array. If the {@code char} value at
+     * the given index in the {@code char} array is in the
+     * high-surrogate range, the following index is less than the
+     * length of the {@code char} array, and the
+     * {@code char} value at the following index is in the
+     * low-surrogate range, then the supplementary code point
+     * corresponding to this surrogate pair is returned. Otherwise,
+     * the {@code char} value at the given index is returned.
+     *
+     * @param a     the {@code char} array
+     * @param index the index to the {@code char} values (Unicode
+     *              code units) in the {@code char} array to be converted
+     *
+     * @return the Unicode code point at the given index
+     *
+     * @throws NullPointerException      if {@code a} is null.
+     * @throws IndexOutOfBoundsException if the value
+     *                                   {@code index} is negative or not less than
+     *                                   the length of the {@code char} array.
+     * @since 1.5
+     */
+    // 返回索引index处码元的码点值，如果该码元位于Unicode编码的高代理区，则需返回完整的Unicode编码
+    public static int codePointAt(char[] a, int index) {
+        return codePointAtImpl(a, index, a.length);
+    }
+    
+    /**
+     * Returns the code point at the given index of the
+     * {@code char} array, where only array elements with
+     * {@code index} less than {@code limit} can be used. If
+     * the {@code char} value at the given index in the
+     * {@code char} array is in the high-surrogate range, the
+     * following index is less than the {@code limit}, and the
+     * {@code char} value at the following index is in the
+     * low-surrogate range, then the supplementary code point
+     * corresponding to this surrogate pair is returned. Otherwise,
+     * the {@code char} value at the given index is returned.
+     *
+     * @param a     the {@code char} array
+     * @param index the index to the {@code char} values (Unicode
+     *              code units) in the {@code char} array to be converted
+     * @param limit the index after the last array element that
+     *              can be used in the {@code char} array
+     *
+     * @return the Unicode code point at the given index
+     *
+     * @throws NullPointerException      if {@code a} is null.
+     * @throws IndexOutOfBoundsException if the {@code index}
+     *                                   argument is negative or not less than the {@code limit}
+     *                                   argument, or if the {@code limit} argument is negative or
+     *                                   greater than the length of the {@code char} array.
+     * @since 1.5
+     */
+    // 返回索引index处码元的码点值，如果该码元位于Unicode编码的高代理区，则需返回完整的Unicode编码
+    public static int codePointAt(char[] a, int index, int limit) {
+        if(index >= limit || limit < 0 || limit > a.length) {
+            throw new IndexOutOfBoundsException();
+        }
+        return codePointAtImpl(a, index, limit);
+    }
+    
+    /**
+     * Returns the code point preceding the given index of the
+     * {@code CharSequence}. If the {@code char} value at
+     * {@code (index - 1)} in the {@code CharSequence} is in
+     * the low-surrogate range, {@code (index - 2)} is not
+     * negative, and the {@code char} value at {@code (index - 2)}
+     * in the {@code CharSequence} is in the
+     * high-surrogate range, then the supplementary code point
+     * corresponding to this surrogate pair is returned. Otherwise,
+     * the {@code char} value at {@code (index - 1)} is
+     * returned.
+     *
+     * @param seq   the {@code CharSequence} instance
+     * @param index the index following the code point that should be returned
+     *
+     * @return the Unicode code point value before the given index.
+     *
+     * @throws NullPointerException      if {@code seq} is null.
+     * @throws IndexOutOfBoundsException if the {@code index}
+     *                                   argument is less than 1 or greater than {@link
+     *                                   CharSequence#length() seq.length()}.
+     * @since 1.5
+     */
+    // 返回索引index-1处码元的码点值，如果该码元位于Unicode编码的低代理区，则需返回完整的Unicode编码
+    public static int codePointBefore(CharSequence seq, int index) {
+        char c2 = seq.charAt(--index);
+        if(isLowSurrogate(c2) && index > 0) {
+            char c1 = seq.charAt(--index);
+            if(isHighSurrogate(c1)) {
+                // 高、低代理区的码点值 ---> Unicode符号编码值
+                return toCodePoint(c1, c2);
+            }
+        }
+        return c2;
+    }
+    
+    // 返回索引index-1处码元的码点值，如果该码元位于Unicode编码的低代理区，则需返回完整的Unicode编码
+    static int codePointBeforeImpl(char[] a, int index, int start) {
+        char c2 = a[--index];
+        if(isLowSurrogate(c2) && index > start) {
+            char c1 = a[--index];
+            if(isHighSurrogate(c1)) {
+                // 高、低代理区的码点值 ---> Unicode符号编码值
+                return toCodePoint(c1, c2);
+            }
+        }
+        return c2;
+    }
+    
+    /**
+     * Returns the code point preceding the given index of the
+     * {@code char} array. If the {@code char} value at
+     * {@code (index - 1)} in the {@code char} array is in
+     * the low-surrogate range, {@code (index - 2)} is not
+     * negative, and the {@code char} value at {@code (index - 2)}
+     * in the {@code char} array is in the
+     * high-surrogate range, then the supplementary code point
+     * corresponding to this surrogate pair is returned. Otherwise,
+     * the {@code char} value at {@code (index - 1)} is
+     * returned.
+     *
+     * @param a     the {@code char} array
+     * @param index the index following the code point that should be returned
+     *
+     * @return the Unicode code point value before the given index.
+     *
+     * @throws NullPointerException      if {@code a} is null.
+     * @throws IndexOutOfBoundsException if the {@code index}
+     *                                   argument is less than 1 or greater than the length of the
+     *                                   {@code char} array
+     * @since 1.5
+     */
+    // 返回索引index-1处码元的码点值，如果该码元位于Unicode编码的低代理区，则需返回完整的Unicode编码
+    public static int codePointBefore(char[] a, int index) {
+        return codePointBeforeImpl(a, index, 0);
+    }
+    
+    /**
+     * Returns the code point preceding the given index of the
+     * {@code char} array, where only array elements with
+     * {@code index} greater than or equal to {@code start}
+     * can be used. If the {@code char} value at {@code (index - 1)}
+     * in the {@code char} array is in the
+     * low-surrogate range, {@code (index - 2)} is not less than
+     * {@code start}, and the {@code char} value at
+     * {@code (index - 2)} in the {@code char} array is in
+     * the high-surrogate range, then the supplementary code point
+     * corresponding to this surrogate pair is returned. Otherwise,
+     * the {@code char} value at {@code (index - 1)} is
+     * returned.
+     *
+     * @param a     the {@code char} array
+     * @param index the index following the code point that should be returned
+     * @param start the index of the first array element in the
+     *              {@code char} array
+     *
+     * @return the Unicode code point value before the given index.
+     *
+     * @throws NullPointerException      if {@code a} is null.
+     * @throws IndexOutOfBoundsException if the {@code index}
+     *                                   argument is not greater than the {@code start} argument or
+     *                                   is greater than the length of the {@code char} array, or
+     *                                   if the {@code start} argument is negative or not less than
+     *                                   the length of the {@code char} array.
+     * @since 1.5
+     */
+    // 返回索引index-1处码元的码点值，如果该码元位于Unicode编码的低代理区，则需返回完整的Unicode编码
+    public static int codePointBefore(char[] a, int index, int start) {
+        if(index <= start || start < 0 || start >= a.length) {
+            throw new IndexOutOfBoundsException();
+        }
+        return codePointBeforeImpl(a, index, start);
+    }
+    
+    /**
+     * Returns the leading surrogate (a
+     * <a href="http://www.unicode.org/glossary/#high_surrogate_code_unit">
+     * high surrogate code unit</a>) of the
+     * <a href="http://www.unicode.org/glossary/#surrogate_pair">
+     * surrogate pair</a>
+     * representing the specified supplementary character (Unicode
+     * code point) in the UTF-16 encoding.  If the specified character
+     * is not a
+     * <a href="Character.html#supplementary">supplementary character</a>,
+     * an unspecified {@code char} is returned.
+     *
+     * <p>If
+     * {@link #isSupplementaryCodePoint isSupplementaryCodePoint(x)}
+     * is {@code true}, then
+     * {@link #isHighSurrogate isHighSurrogate}{@code (highSurrogate(x))} and
+     * {@link #toCodePoint toCodePoint}{@code (highSurrogate(x), }{@link #lowSurrogate lowSurrogate}{@code (x)) == x}
+     * are also always {@code true}.
+     *
+     * @param codePoint a supplementary character (Unicode code point)
+     *
+     * @return the leading surrogate code unit used to represent the
+     * character in the UTF-16 encoding
+     *
+     * @since 1.7
+     */
+    // 非基本平面的字符X的码点值 ---> 基本平面高代理区的码点值
+    public static char highSurrogate(int codePoint) {
+        /*
+         * 非基本平面的字符X的码点值 ---> 基本平面代理区的码点值
+         *   1> Y = X-0x10000
+         *   2> 高代理 = Y>>10 + 0xD800 // 右移了10位
+         *   3> 低代理 = Y&0x3FF + 0xDC00 // 保留了低十位
+         */
+        return (char) ((codePoint >>> 10) + (MIN_HIGH_SURROGATE - (MIN_SUPPLEMENTARY_CODE_POINT >>> 10)));
+    }
+    
+    /**
+     * Returns the trailing surrogate (a
+     * <a href="http://www.unicode.org/glossary/#low_surrogate_code_unit">
+     * low surrogate code unit</a>) of the
+     * <a href="http://www.unicode.org/glossary/#surrogate_pair">
+     * surrogate pair</a>
+     * representing the specified supplementary character (Unicode
+     * code point) in the UTF-16 encoding.  If the specified character
+     * is not a
+     * <a href="Character.html#supplementary">supplementary character</a>,
+     * an unspecified {@code char} is returned.
+     *
+     * <p>If
+     * {@link #isSupplementaryCodePoint isSupplementaryCodePoint(x)}
+     * is {@code true}, then
+     * {@link #isLowSurrogate isLowSurrogate}{@code (lowSurrogate(x))} and
+     * {@link #toCodePoint toCodePoint}{@code (}{@link #highSurrogate highSurrogate}{@code (x), lowSurrogate(x)) == x}
+     * are also always {@code true}.
+     *
+     * @param codePoint a supplementary character (Unicode code point)
+     *
+     * @return the trailing surrogate code unit used to represent the
+     * character in the UTF-16 encoding
+     *
+     * @since 1.7
+     */
+    // 非基本平面的字符的码点值 ---> 基本平面低代理区的码点值
+    public static char lowSurrogate(int codePoint) {
+        /*
+         * 非基本平面的字符X的码点值 ---> 基本平面代理区的码点值
+         *   1> Y = X-0x10000
+         *   2> 高代理 = Y>>10 + 0xD800 // 右移了10位
+         *   3> 低代理 = Y&0x3FF + 0xDC00 // 保留了低十位
+         */
+        return (char) ((codePoint & 0x3ff) + MIN_LOW_SURROGATE);
+    }
+    
+    // 将非基本平面区的Unicode码点值codePoint拆分为高、低代理区码点值存入dst数组（按大端法存储）
+    static void toSurrogates(int codePoint, char[] dst, int index) {
+        // We write elements "backwards" to guarantee all-or-nothing
+        dst[index + 1] = lowSurrogate(codePoint);   // 返回低代理处的码元（char）
+        dst[index] = highSurrogate(codePoint);      // 返回高代理处的码元（char）
+    }
+    
+    /**
+     * Returns the number of Unicode code points in the text range of
+     * the specified char sequence. The text range begins at the
+     * specified {@code beginIndex} and extends to the
+     * {@code char} at index {@code endIndex - 1}. Thus the
+     * length (in {@code char}s) of the text range is
+     * {@code endIndex-beginIndex}. Unpaired surrogates within
+     * the text range count as one code point each.
+     *
+     * @param seq        the char sequence
+     * @param beginIndex the index to the first {@code char} of
+     *                   the text range.
+     * @param endIndex   the index after the last {@code char} of
+     *                   the text range.
+     *
+     * @return the number of Unicode code points in the specified text
+     * range
+     *
+     * @throws NullPointerException      if {@code seq} is null.
+     * @throws IndexOutOfBoundsException if the
+     *                                   {@code beginIndex} is negative, or {@code endIndex}
+     *                                   is larger than the length of the given sequence, or
+     *                                   {@code beginIndex} is larger than {@code endIndex}.
+     * @since 1.5
+     */
+    // 返回[beginIndex, endIndex)范围内的Unicode符号数量
+    public static int codePointCount(CharSequence seq, int beginIndex, int endIndex) {
+        int length = seq.length();
+        if(beginIndex < 0 || endIndex > length || beginIndex > endIndex) {
+            throw new IndexOutOfBoundsException();
+        }
+        int n = endIndex - beginIndex;
+        for(int i = beginIndex; i < endIndex; ) {
+            if(isHighSurrogate(seq.charAt(i++)) && i < endIndex && isLowSurrogate(seq.charAt(i))) {
+                n--;
+                i++;
+            }
+        }
+        return n;
+    }
+    
+    /**
+     * Returns the number of Unicode code points in a subarray of the
+     * {@code char} array argument. The {@code offset}
+     * argument is the index of the first {@code char} of the
+     * subarray and the {@code count} argument specifies the
+     * length of the subarray in {@code char}s. Unpaired
+     * surrogates within the subarray count as one code point each.
+     *
+     * @param a      the {@code char} array
+     * @param offset the index of the first {@code char} in the
+     *               given {@code char} array
+     * @param count  the length of the subarray in {@code char}s
+     *
+     * @return the number of Unicode code points in the specified subarray
+     *
+     * @throws NullPointerException      if {@code a} is null.
+     * @throws IndexOutOfBoundsException if {@code offset} or
+     *                                   {@code count} is negative, or if {@code offset +
+     *                                   count} is larger than the length of the given array.
+     * @since 1.5
+     */
+    // 返回[offset, offset+count)范围内的Unicode符号数量
+    public static int codePointCount(char[] a, int offset, int count) {
+        if(count > a.length - offset || offset < 0 || count < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        return codePointCountImpl(a, offset, count);
+    }
+    
+    // 返回[offset, offset+count)范围内的Unicode符号数量
+    static int codePointCountImpl(char[] a, int offset, int count) {
+        int endIndex = offset + count;
+        int n = count;
+        for(int i = offset; i < endIndex; ) {
+            if(isHighSurrogate(a[i++]) && i < endIndex && isLowSurrogate(a[i])) {
+                n--;
+                i++;
+            }
+        }
+        return n;
+    }
+    
+    /**
+     * Converts the specified character (Unicode code point) to its
+     * UTF-16 representation. If the specified code point is a BMP
+     * (Basic Multilingual Plane or Plane 0) value, the same value is
+     * stored in {@code dst[dstIndex]}, and 1 is returned. If the
+     * specified code point is a supplementary character, its
+     * surrogate values are stored in {@code dst[dstIndex]}
+     * (high-surrogate) and {@code dst[dstIndex+1]}
+     * (low-surrogate), and 2 is returned.
+     *
+     * @param codePoint the character (Unicode code point) to be converted.
+     * @param dst       an array of {@code char} in which the
+     *                  {@code codePoint}'s UTF-16 value is stored.
+     * @param dstIndex  the start index into the {@code dst}
+     *                  array where the converted value is stored.
+     *
+     * @return 1 if the code point is a BMP code point, 2 if the
+     * code point is a supplementary code point.
+     *
+     * @throws IllegalArgumentException  if the specified
+     *                                   {@code codePoint} is not a valid Unicode code point.
+     * @throws NullPointerException      if the specified {@code dst} is null.
+     * @throws IndexOutOfBoundsException if {@code dstIndex}
+     *                                   is negative or not less than {@code dst.length}, or if
+     *                                   {@code dst} at {@code dstIndex} doesn't have enough
+     *                                   array element(s) to store the resulting {@code char}
+     *                                   value(s). (If {@code dstIndex} is equal to
+     *                                   {@code dst.length-1} and the specified
+     *                                   {@code codePoint} is a supplementary character, the
+     *                                   high-surrogate value is not stored in
+     *                                   {@code dst[dstIndex]}.)
+     * @since 1.5
+     */
+    // Unicode码点值 ---> char，对于增补平面区码点值，需要拆分成高、低代理单元再存储
+    public static int toChars(int codePoint, char[] dst, int dstIndex) {
+        // Unicode码点值位于基本平面区域
+        if(isBmpCodePoint(codePoint)) {
+            // 一个char足以容纳，直接转换
+            dst[dstIndex] = (char) codePoint;
+            return 1;
+        } else if(isValidCodePoint(codePoint)) {
+            // 将增补平面区的Unicode码点值codePoint拆分为高、低代理区码点值存入dst数组（按大端法存储）
+            toSurrogates(codePoint, dst, dstIndex);
+            return 2;
+        } else {
+            throw new IllegalArgumentException(String.format("Not a valid Unicode code point: 0x%X", codePoint));
+        }
+        
+        // 返回成功存入的char的个数
+    }
+    
+    /**
+     * Converts the specified character (Unicode code point) to its
+     * UTF-16 representation stored in a {@code char} array. If
+     * the specified code point is a BMP (Basic Multilingual Plane or
+     * Plane 0) value, the resulting {@code char} array has
+     * the same value as {@code codePoint}. If the specified code
+     * point is a supplementary code point, the resulting
+     * {@code char} array has the corresponding surrogate pair.
+     *
+     * @param codePoint a Unicode code point
+     *
+     * @return a {@code char} array having
+     * {@code codePoint}'s UTF-16 representation.
+     *
+     * @throws IllegalArgumentException if the specified
+     *                                  {@code codePoint} is not a valid Unicode code point.
+     * @since 1.5
+     */
+    // Unicode码点值 ---> char，对于增补平面区码点值，需要拆分成高、低代理单元再存储
+    public static char[] toChars(int codePoint) {
+        // Unicode码点值位于基本平面区域
+        if(isBmpCodePoint(codePoint)) {
+            // 一个char足以容纳，直接转换
+            return new char[]{(char) codePoint};
+        } else if(isValidCodePoint(codePoint)) {
+            char[] result = new char[2];
+            // 将增补平面区的Unicode码点值codePoint拆分为高、低代理区码点值存入dst数组（按大端法存储）
+            toSurrogates(codePoint, result, 0);
+            return result;
+        } else {
+            throw new IllegalArgumentException(String.format("Not a valid Unicode code point: 0x%X", codePoint));
+        }
+        
+        // 返回解码完成后的char数组
+    }
+    
+    /**
+     * Returns the code point value of the Unicode character specified by the given Unicode character name.
+     * <p>
+     * Note: if a character is not assigned a name by the <i>UnicodeData</i>
+     * file (part of the Unicode Character Database maintained by the Unicode
+     * Consortium), its name is defined as the result of expression
+     *
+     * <blockquote>{@code
+     * Character.UnicodeBlock.of(codePoint).toString().replace('_', ' ')
+     * + " "
+     * + Integer.toHexString(codePoint).toUpperCase(Locale.ROOT);
+     *
+     * }</blockquote>
+     * <p>
+     * The {@code name} matching is case insensitive, with any leading and
+     * trailing whitespace character removed.
+     *
+     * @param name the Unicode character name
+     *
+     * @return the code point value of the character specified by its name.
+     *
+     * @throws IllegalArgumentException if the specified {@code name}
+     *                                  is not a valid Unicode character name.
+     * @throws NullPointerException     if {@code name} is {@code null}
+     * @since 9
+     */
+    // 由Unicode字符区域名称获取对应的码点值，如Character.codePointOf("CJK UNIFIED IDEOGRAPHS 54C8")==0x54c8
+    public static int codePointOf(String name) {
+        name = name.trim().toUpperCase(Locale.ROOT);
+        
+        // 此处一般获取到的值为-1，因为没有预置特定的uniName.dat文件
+        int cp = CharacterName.getInstance().getCodePoint(name);
+        if(cp != -1)
+            return cp;
+        try {
+            // 随后一个空格的索引，空格后紧接的就是该字符串包含的Unicode编码码点值信息
+            int off = name.lastIndexOf(' ');
+            if(off != -1) {
+                // 按16进制解析此的Unicode编码的码点值
+                cp = Integer.parseInt(name, off + 1, name.length(), 16);
+                
+                // Unicode字符编码的码点值合法，且能正确识别出其对应的字符集名称
+                if(isValidCodePoint(cp) && name.equals(getName(cp)))
+                    return cp;
+            }
+        } catch(Exception x) {
+        }
+        
+        throw new IllegalArgumentException("Unrecognized character name :" + name);
+    }
+    
+    /**
+     * Returns the Unicode name of the specified character
+     * {@code codePoint}, or null if the code point is
+     * {@link #UNASSIGNED unassigned}.
+     * <p>
+     * Note: if the specified character is not assigned a name by
+     * the <i>UnicodeData</i> file (part of the Unicode Character
+     * Database maintained by the Unicode Consortium), the returned
+     * name is the same as the result of expression.
+     *
+     * <blockquote>{@code
+     * Character.UnicodeBlock.of(codePoint).toString().replace('_', ' ')
+     * + " "
+     * + Integer.toHexString(codePoint).toUpperCase(Locale.ROOT);
+     *
+     * }</blockquote>
+     *
+     * @param codePoint the character (Unicode code point)
+     *
+     * @return the Unicode name of the specified character, or null if
+     * the code point is unassigned.
+     *
+     * @throws IllegalArgumentException if the specified
+     *                                  {@code codePoint} is not a valid Unicode
+     *                                  code point.
+     * @since 1.7
+     */
+    // 由码点值获取对应的Unicode字符区域名称，如Character.getName(0x54c8)=="CJK UNIFIED IDEOGRAPHS 54C8"
+    public static String getName(int codePoint) {
+        if(!isValidCodePoint(codePoint)) {
+            throw new IllegalArgumentException(String.format("Not a valid Unicode code point: 0x%X", codePoint));
+        }
+        
+        // 先从特定的uniName.dat文件中加载信息（一般不预置此文件，所以加载不到名称）
+        // 可参见http://hg.openjdk.java.net/jdk-updates/jdk11u/file/ce50a4dcc8d5/make/jdk/src/classes/build/tools/generatecharacter/CharacterName.java处生成uniName.dat文件的方法
+        String name = CharacterName.getInstance().getName(codePoint);
+        if(name != null)
+            return name;
+        
+        // 判断字符类型是否合法（在"Unicode符号分类代号"范围内）
+        if(getType(codePoint) == UNASSIGNED)
+            return null;
+        
+        // 从Unicode字符集合辑中加载字符集名称信息
+        UnicodeBlock block = UnicodeBlock.of(codePoint);
+        if(block != null)
+            return block.toString().replace('_', ' ') + " " + Integer.toHexString(codePoint).toUpperCase(Locale.ROOT);
+        
+        // 永远不会到达这里，因为Character内部有实现的UnicodeBlock
+        return Integer.toHexString(codePoint).toUpperCase(Locale.ROOT);
+    }
+    
+    /*▲ 码点/码元 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼  ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the index within the given char sequence that is offset from the given {@code index} by {@code codePointOffset} code points.
+     * Unpaired surrogates within the text range given by {@code index} and {@code codePointOffset} count as one code point each.
+     *
+     * @param seq             the char sequence
+     * @param index           the index to be offset
+     * @param codePointOffset the offset in code points
+     *
+     * @return the index within the char sequence
+     *
+     * @throws NullPointerException      if {@code seq} is null.
+     * @throws IndexOutOfBoundsException if {@code index} is negative or larger then the length of the char sequence,
+     *                                   or if {@code codePointOffset} is positive and the subsequence starting with {@code index} has fewer than {@code codePointOffset} code points,
+     *                                   or if {@code codePointOffset} is negative and the subsequence before {@code index} has fewer than the absolute value of {@code codePointOffset} code points.
+     * @since 1.5
+     */
+    /*
+     * 返回从index偏移codePointOffset个Unicode符号后新的索引值，codePointOffset的正负决定了偏移方向
+     *
+     * 考虑多字节符号：
+     * String s = "\u54c8\uD86E\uDC1D\u54c8";   // \uD86E\uDC1D代表一个Unicode符号
+     * s.offsetByCodePoints(0, 1) == 1
+     * s.offsetByCodePoints(0, 2) == 3
+     */
+    public static int offsetByCodePoints(CharSequence seq, int index, int codePointOffset) {
+        int length = seq.length();
+        
+        if(index < 0 || index > length) {
+            throw new IndexOutOfBoundsException();
+        }
+        
+        int x = index;
+        if(codePointOffset >= 0) {
+            int i;
+            for(i = 0; x < length && i < codePointOffset; i++) {
+                if(isHighSurrogate(seq.charAt(x++)) && x < length && isLowSurrogate(seq.charAt(x))) {
+                    x++;
+                }
+            }
+            if(i < codePointOffset) {
+                throw new IndexOutOfBoundsException();
+            }
+        } else {
+            int i;
+            for(i = codePointOffset; x > 0 && i < 0; i++) {
+                if(isLowSurrogate(seq.charAt(--x)) && x > 0 && isHighSurrogate(seq.charAt(x - 1))) {
+                    x--;
+                }
+            }
+            if(i < 0) {
+                throw new IndexOutOfBoundsException();
+            }
+        }
+        return x;
+    }
+    
+    /*
+     * 返回index偏移codePointOffset个Unicode符号后新的索引值
+     * codePointOffset的正负决定了偏移方向
+     *
+     * 与int offsetByCodePoints(CharSequence seq, int index, int codePointOffset)的区别是：
+     * 此方法中索引x的活动范围由[index, start+count)给出，而不是传统的[0, length)。
+     */
+    static int offsetByCodePointsImpl(char[] a, int start, int count, int index, int codePointOffset) {
+        int x = index;
+        if(codePointOffset >= 0) {
+            int limit = start + count;
+            int i;
+            for(i = 0; x < limit && i < codePointOffset; i++) {
+                if(isHighSurrogate(a[x++]) && x < limit && isLowSurrogate(a[x])) {
+                    x++;
+                }
+            }
+            if(i < codePointOffset) {
+                throw new IndexOutOfBoundsException();
+            }
+        } else {
+            int i;
+            for(i = codePointOffset; x > start && i < 0; i++) {
+                if(isLowSurrogate(a[--x]) && x > start && isHighSurrogate(a[x - 1])) {
+                    x--;
+                }
+            }
+            if(i < 0) {
+                throw new IndexOutOfBoundsException();
+            }
+        }
+        return x;
+    }
+    
+    /**
+     * Returns the index within the given {@code char} subarray
+     * that is offset from the given {@code index} by
+     * {@code codePointOffset} code points. The
+     * {@code start} and {@code count} arguments specify a
+     * subarray of the {@code char} array. Unpaired surrogates
+     * within the text range given by {@code index} and
+     * {@code codePointOffset} count as one code point each.
+     *
+     * @param a               the {@code char} array
+     * @param start           the index of the first {@code char} of the
+     *                        subarray
+     * @param count           the length of the subarray in {@code char}s
+     * @param index           the index to be offset
+     * @param codePointOffset the offset in code points
+     *
+     * @return the index within the subarray
+     *
+     * @throws NullPointerException      if {@code a} is null.
+     * @throws IndexOutOfBoundsException if {@code start} or {@code count} is negative,
+     *                                   or if {@code start + count} is larger than the length of
+     *                                   the given array,
+     *                                   or if {@code index} is less than {@code start} or
+     *                                   larger then {@code start + count},
+     *                                   or if {@code codePointOffset} is positive and the text range
+     *                                   starting with {@code index} and ending with {@code start + count - 1}
+     *                                   has fewer than {@code codePointOffset} code
+     *                                   points,
+     *                                   or if {@code codePointOffset} is negative and the text range
+     *                                   starting with {@code start} and ending with {@code index - 1}
+     *                                   has fewer than the absolute value of
+     *                                   {@code codePointOffset} code points.
+     * @since 1.5
+     */
+    // 返回index偏移codePointOffset个Unicode符号后新的索引值，具体信息参见#offsetByCodePointsImpl方法
+    public static int offsetByCodePoints(char[] a, int start, int count, int index, int codePointOffset) {
+        if(count > a.length - start || start < 0 || count < 0 || index < start || index > start + count) {
+            throw new IndexOutOfBoundsException();
+        }
+        return offsetByCodePointsImpl(a, start, count, index, codePointOffset);
+    }
+    
+    /*▲  ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼  ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the numeric value of the character {@code ch} in the
+     * specified radix.
+     * <p>
+     * If the radix is not in the range {@code MIN_RADIX} &le;
+     * {@code radix} &le; {@code MAX_RADIX} or if the
+     * value of {@code ch} is not a valid digit in the specified
+     * radix, {@code -1} is returned. A character is a valid digit
+     * if at least one of the following is true:
+     * <ul>
+     * <li>The method {@code isDigit} is {@code true} of the character
+     * and the Unicode decimal digit value of the character (or its
+     * single-character decomposition) is less than the specified radix.
+     * In this case the decimal digit value is returned.
+     * <li>The character is one of the uppercase Latin letters
+     * {@code 'A'} through {@code 'Z'} and its code is less than
+     * {@code radix + 'A' - 10}.
+     * In this case, {@code ch - 'A' + 10}
+     * is returned.
+     * <li>The character is one of the lowercase Latin letters
+     * {@code 'a'} through {@code 'z'} and its code is less than
+     * {@code radix + 'a' - 10}.
+     * In this case, {@code ch - 'a' + 10}
+     * is returned.
+     * <li>The character is one of the fullwidth uppercase Latin letters A
+     * ({@code '\u005CuFF21'}) through Z ({@code '\u005CuFF3A'})
+     * and its code is less than
+     * {@code radix + '\u005CuFF21' - 10}.
+     * In this case, {@code ch - '\u005CuFF21' + 10}
+     * is returned.
+     * <li>The character is one of the fullwidth lowercase Latin letters a
+     * ({@code '\u005CuFF41'}) through z ({@code '\u005CuFF5A'})
+     * and its code is less than
+     * {@code radix + '\u005CuFF41' - 10}.
+     * In this case, {@code ch - '\u005CuFF41' + 10}
+     * is returned.
+     * </ul>
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #digit(int, int)} method.
+     *
+     * @param ch    the character to be converted.
+     * @param radix the radix.
+     *
+     * @return the numeric value represented by the character in the specified radix.
+     *
+     * @see Character#forDigit(int, int)
+     * @see Character#isDigit(char)
+     */
+    // 返回字符ch在radix进制中代表的数值
+    public static int digit(char ch, int radix) {
+        return digit((int) ch, radix);
+    }
+    
+    /**
+     * Returns the numeric value of the specified character (Unicode
+     * code point) in the specified radix.
+     *
+     * <p>If the radix is not in the range {@code MIN_RADIX} &le;
+     * {@code radix} &le; {@code MAX_RADIX} or if the
+     * character is not a valid digit in the specified
+     * radix, {@code -1} is returned. A character is a valid digit
+     * if at least one of the following is true:
+     * <ul>
+     * <li>The method {@link #isDigit(int) isDigit(codePoint)} is {@code true} of the character
+     * and the Unicode decimal digit value of the character (or its
+     * single-character decomposition) is less than the specified radix.
+     * In this case the decimal digit value is returned.
+     * <li>The character is one of the uppercase Latin letters
+     * {@code 'A'} through {@code 'Z'} and its code is less than
+     * {@code radix + 'A' - 10}.
+     * In this case, {@code codePoint - 'A' + 10}
+     * is returned.
+     * <li>The character is one of the lowercase Latin letters
+     * {@code 'a'} through {@code 'z'} and its code is less than
+     * {@code radix + 'a' - 10}.
+     * In this case, {@code codePoint - 'a' + 10}
+     * is returned.
+     * <li>The character is one of the fullwidth uppercase Latin letters A
+     * ({@code '\u005CuFF21'}) through Z ({@code '\u005CuFF3A'})
+     * and its code is less than
+     * {@code radix + '\u005CuFF21' - 10}.
+     * In this case,
+     * {@code codePoint - '\u005CuFF21' + 10}
+     * is returned.
+     * <li>The character is one of the fullwidth lowercase Latin letters a
+     * ({@code '\u005CuFF41'}) through z ({@code '\u005CuFF5A'})
+     * and its code is less than
+     * {@code radix + '\u005CuFF41'- 10}.
+     * In this case,
+     * {@code codePoint - '\u005CuFF41' + 10}
+     * is returned.
+     * </ul>
+     *
+     * @param codePoint the character (Unicode code point) to be converted.
+     * @param radix     the radix.
+     *
+     * @return the numeric value represented by the character in the specified radix.
+     *
+     * @see Character#forDigit(int, int)
+     * @see Character#isDigit(int)
+     * @since 1.5
+     */
+    // 返回码点值为codePoint的Unicode字符在radix进制中代表的数值
+    public static int digit(int codePoint, int radix) {
+        return CharacterData.of(codePoint)  // 先根据码点值获取字符信息
+            .digit(codePoint, radix);
+    }
+    
+    /**
+     * Determines the character representation for a specific digit in
+     * the specified radix. If the value of {@code radix} is not a
+     * valid radix, or the value of {@code digit} is not a valid
+     * digit in the specified radix, the null character
+     * ({@code '\u005Cu0000'}) is returned.
+     * <p>
+     * The {@code radix} argument is valid if it is greater than or
+     * equal to {@code MIN_RADIX} and less than or equal to
+     * {@code MAX_RADIX}. The {@code digit} argument is valid if
+     * {@code 0 <= digit < radix}.
+     * <p>
+     * If the digit is less than 10, then
+     * {@code '0' + digit} is returned. Otherwise, the value
+     * {@code 'a' + digit - 10} is returned.
+     *
+     * @param digit the number to convert to a character.
+     * @param radix the radix.
+     *
+     * @return the {@code char} representation of the specified digit
+     * in the specified radix.
+     *
+     * @see Character#MIN_RADIX
+     * @see Character#MAX_RADIX
+     * @see Character#digit(char, int)
+     */
+    // 返回数字digit在radix进制下的字母表示，如forDigit(10, 16)=='a'
+    public static char forDigit(int digit, int radix) {
+        if((digit >= radix) || (digit < 0)) {
+            return '\0';
+        }
+        if((radix < Character.MIN_RADIX) || (radix > Character.MAX_RADIX)) {
+            return '\0';
+        }
+        if(digit < 10) {
+            return (char) ('0' + digit);
+        }
+        return (char) ('a' + (digit - 10));
+    }
+    
+    /**
+     * Returns the {@code int} value that the specified Unicode
+     * character represents. For example, the character
+     * {@code '\u005Cu216C'} (the roman numeral fifty) will return
+     * an int with a value of 50.
+     * <p>
+     * The letters A-Z in their uppercase ({@code '\u005Cu0041'} through
+     * {@code '\u005Cu005A'}), lowercase
+     * ({@code '\u005Cu0061'} through {@code '\u005Cu007A'}), and
+     * full width variant ({@code '\u005CuFF21'} through
+     * {@code '\u005CuFF3A'} and {@code '\u005CuFF41'} through
+     * {@code '\u005CuFF5A'}) forms have numeric values from 10
+     * through 35. This is independent of the Unicode specification,
+     * which does not assign numeric values to these {@code char}
+     * values.
+     * <p>
+     * If the character does not have a numeric value, then -1 is returned.
+     * If the character has a numeric value that cannot be represented as a
+     * nonnegative integer (for example, a fractional value), then -2
+     * is returned.
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #getNumericValue(int)} method.
+     *
+     * @param ch the character to be converted.
+     *
+     * @return the numeric value of the character, as a nonnegative {@code int} value;
+     * -2 if the character has a numeric value but the value can not be represented as a nonnegative {@code int} value;
+     * -1 if the character has no numeric value.
+     *
+     * @see Character#forDigit(int, int)
+     * @see Character#isDigit(char)
+     * @since 1.1
+     */
+    // 返回字符ch在进制运算中表示的数值，如输入'3'返回3，输入'A'或'a'返回10
+    public static int getNumericValue(char ch) {
+        return getNumericValue((int) ch);
+    }
+    
+    /**
+     * Returns the {@code int} value that the specified
+     * character (Unicode code point) represents. For example, the character
+     * {@code '\u005Cu216C'} (the Roman numeral fifty) will return
+     * an {@code int} with a value of 50.
+     * <p>
+     * The letters A-Z in their uppercase ({@code '\u005Cu0041'} through
+     * {@code '\u005Cu005A'}), lowercase
+     * ({@code '\u005Cu0061'} through {@code '\u005Cu007A'}), and
+     * full width variant ({@code '\u005CuFF21'} through
+     * {@code '\u005CuFF3A'} and {@code '\u005CuFF41'} through
+     * {@code '\u005CuFF5A'}) forms have numeric values from 10
+     * through 35. This is independent of the Unicode specification,
+     * which does not assign numeric values to these {@code char}
+     * values.
+     * <p>
+     * If the character does not have a numeric value, then -1 is returned.
+     * If the character has a numeric value that cannot be represented as a
+     * nonnegative integer (for example, a fractional value), then -2
+     * is returned.
+     *
+     * @param codePoint the character (Unicode code point) to be converted.
+     *
+     * @return the numeric value of the character, as a nonnegative {@code int}
+     * value; -2 if the character has a numeric value but the value
+     * can not be represented as a nonnegative {@code int} value;
+     * -1 if the character has no numeric value.
+     *
+     * @see Character#forDigit(int, int)
+     * @see Character#isDigit(int)
+     * @since 1.5
+     */
+    // 返回码点值为codePoint的Unicode字符在进制运算中表示的数值，如输入'3'返回3，输入'A'或'a'返回10
+    public static int getNumericValue(int codePoint) {
+        return CharacterData.of(codePoint).getNumericValue(codePoint);
+    }
+    
+    /*▲  ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字符串化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a {@code String} object representing the
+     * specified {@code char}.  The result is a string of length
+     * 1 consisting solely of the specified {@code char}.
+     *
+     * @param c the {@code char} to be converted
+     *
+     * @return the string representation of the specified {@code char}
+     *
+     * @apiNote This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #toString(int)} method.
+     * @since 1.4
+     */
+    // 转换char ---> String
+    public static String toString(char c) {
+        return String.valueOf(c);
+    }
+    
+    /**
+     * Returns a {@code String} object representing the specified character (Unicode code point).
+     * The result is a string of length 1 or 2, consisting solely of the specified {@code codePoint}.
+     *
+     * @param codePoint the {@code codePoint} to be converted
+     *
+     * @return the string representation of the specified {@code codePoint}
+     *
+     * @throws IllegalArgumentException if the specified
+     *                                  {@code codePoint} is not a {@linkplain #isValidCodePoint
+     *                                  valid Unicode code point}.
+     * @since 11
+     */
+    // 转换Unicode符号的codePoint为字节表示，再包装到String返回
+    public static String toString(int codePoint) {
+        return String.valueOfCodePoint(codePoint);
+    }
+    
+    /*▲ 字符串化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /**
+     * Returns a value indicating a character's general category.
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #getType(int)} method.
+     *
+     * @param ch the character to be tested.
+     *
+     * @return a value of type {@code int} representing the
+     * character's general category.
+     *
+     * @see Character#COMBINING_SPACING_MARK
+     * @see Character#CONNECTOR_PUNCTUATION
+     * @see Character#CONTROL
+     * @see Character#CURRENCY_SYMBOL
+     * @see Character#DASH_PUNCTUATION
+     * @see Character#DECIMAL_DIGIT_NUMBER
+     * @see Character#ENCLOSING_MARK
+     * @see Character#END_PUNCTUATION
+     * @see Character#FINAL_QUOTE_PUNCTUATION
+     * @see Character#FORMAT
+     * @see Character#INITIAL_QUOTE_PUNCTUATION
+     * @see Character#LETTER_NUMBER
+     * @see Character#LINE_SEPARATOR
+     * @see Character#LOWERCASE_LETTER
+     * @see Character#MATH_SYMBOL
+     * @see Character#MODIFIER_LETTER
+     * @see Character#MODIFIER_SYMBOL
+     * @see Character#NON_SPACING_MARK
+     * @see Character#OTHER_LETTER
+     * @see Character#OTHER_NUMBER
+     * @see Character#OTHER_PUNCTUATION
+     * @see Character#OTHER_SYMBOL
+     * @see Character#PARAGRAPH_SEPARATOR
+     * @see Character#PRIVATE_USE
+     * @see Character#SPACE_SEPARATOR
+     * @see Character#START_PUNCTUATION
+     * @see Character#SURROGATE
+     * @see Character#TITLECASE_LETTER
+     * @see Character#UNASSIGNED
+     * @see Character#UPPERCASE_LETTER
+     * @since 1.1
+     */
+    // 获取字符类型
+    public static int getType(char ch) {
+        return getType((int) ch);
+    }
+    
+    /**
+     * Returns a value indicating a character's general category.
+     *
+     * @param codePoint the character (Unicode code point) to be tested.
+     *
+     * @return a value of type {@code int} representing the
+     * character's general category.
+     *
+     * @see Character#COMBINING_SPACING_MARK COMBINING_SPACING_MARK
+     * @see Character#CONNECTOR_PUNCTUATION CONNECTOR_PUNCTUATION
+     * @see Character#CONTROL CONTROL
+     * @see Character#CURRENCY_SYMBOL CURRENCY_SYMBOL
+     * @see Character#DASH_PUNCTUATION DASH_PUNCTUATION
+     * @see Character#DECIMAL_DIGIT_NUMBER DECIMAL_DIGIT_NUMBER
+     * @see Character#ENCLOSING_MARK ENCLOSING_MARK
+     * @see Character#END_PUNCTUATION END_PUNCTUATION
+     * @see Character#FINAL_QUOTE_PUNCTUATION FINAL_QUOTE_PUNCTUATION
+     * @see Character#FORMAT FORMAT
+     * @see Character#INITIAL_QUOTE_PUNCTUATION INITIAL_QUOTE_PUNCTUATION
+     * @see Character#LETTER_NUMBER LETTER_NUMBER
+     * @see Character#LINE_SEPARATOR LINE_SEPARATOR
+     * @see Character#LOWERCASE_LETTER LOWERCASE_LETTER
+     * @see Character#MATH_SYMBOL MATH_SYMBOL
+     * @see Character#MODIFIER_LETTER MODIFIER_LETTER
+     * @see Character#MODIFIER_SYMBOL MODIFIER_SYMBOL
+     * @see Character#NON_SPACING_MARK NON_SPACING_MARK
+     * @see Character#OTHER_LETTER OTHER_LETTER
+     * @see Character#OTHER_NUMBER OTHER_NUMBER
+     * @see Character#OTHER_PUNCTUATION OTHER_PUNCTUATION
+     * @see Character#OTHER_SYMBOL OTHER_SYMBOL
+     * @see Character#PARAGRAPH_SEPARATOR PARAGRAPH_SEPARATOR
+     * @see Character#PRIVATE_USE PRIVATE_USE
+     * @see Character#SPACE_SEPARATOR SPACE_SEPARATOR
+     * @see Character#START_PUNCTUATION START_PUNCTUATION
+     * @see Character#SURROGATE SURROGATE
+     * @see Character#TITLECASE_LETTER TITLECASE_LETTER
+     * @see Character#UNASSIGNED UNASSIGNED
+     * @see Character#UPPERCASE_LETTER UPPERCASE_LETTER
+     * @since 1.5
+     */
+    // 获取字符类型，该类型由Unicode国际规范指定，可参见Character类中的"Unicode符号分类代号"
+    public static int getType(int codePoint) {
+        return CharacterData.of(codePoint).getType(codePoint);
+    }
+    
+    /**
+     * Returns the Unicode directionality property for the given
+     * character.  Character directionality is used to calculate the
+     * visual ordering of text. The directionality value of undefined
+     * {@code char} values is {@code DIRECTIONALITY_UNDEFINED}.
+     *
+     * <p><b>Note:</b> This method cannot handle <a
+     * href="#supplementary"> supplementary characters</a>. To support
+     * all Unicode characters, including supplementary characters, use
+     * the {@link #getDirectionality(int)} method.
+     *
+     * @param ch {@code char} for which the directionality property
+     *           is requested.
+     *
+     * @return the directionality property of the {@code char} value.
+     *
+     * @see Character#DIRECTIONALITY_UNDEFINED
+     * @see Character#DIRECTIONALITY_LEFT_TO_RIGHT
+     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT
+     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC
+     * @see Character#DIRECTIONALITY_EUROPEAN_NUMBER
+     * @see Character#DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR
+     * @see Character#DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR
+     * @see Character#DIRECTIONALITY_ARABIC_NUMBER
+     * @see Character#DIRECTIONALITY_COMMON_NUMBER_SEPARATOR
+     * @see Character#DIRECTIONALITY_NONSPACING_MARK
+     * @see Character#DIRECTIONALITY_BOUNDARY_NEUTRAL
+     * @see Character#DIRECTIONALITY_PARAGRAPH_SEPARATOR
+     * @see Character#DIRECTIONALITY_SEGMENT_SEPARATOR
+     * @see Character#DIRECTIONALITY_WHITESPACE
+     * @see Character#DIRECTIONALITY_OTHER_NEUTRALS
+     * @see Character#DIRECTIONALITY_LEFT_TO_RIGHT_EMBEDDING
+     * @see Character#DIRECTIONALITY_LEFT_TO_RIGHT_OVERRIDE
+     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING
+     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE
+     * @see Character#DIRECTIONALITY_POP_DIRECTIONAL_FORMAT
+     * @see Character#DIRECTIONALITY_LEFT_TO_RIGHT_ISOLATE
+     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT_ISOLATE
+     * @see Character#DIRECTIONALITY_FIRST_STRONG_ISOLATE
+     * @see Character#DIRECTIONALITY_POP_DIRECTIONAL_ISOLATE
+     * @since 1.4
+     */
+    // 获取Unicode字符ch的方向属性（文本有不同的书写方向，参见Character类中的"Unicode双向字符类型"）
+    public static byte getDirectionality(char ch) {
+        return getDirectionality((int) ch);
+    }
+    
+    /**
+     * Returns the Unicode directionality property for the given
+     * character (Unicode code point).  Character directionality is
+     * used to calculate the visual ordering of text. The
+     * directionality value of undefined character is {@link
+     * #DIRECTIONALITY_UNDEFINED}.
+     *
+     * @param codePoint the character (Unicode code point) for which
+     *                  the directionality property is requested.
+     *
+     * @return the directionality property of the character.
+     *
+     * @see Character#DIRECTIONALITY_UNDEFINED DIRECTIONALITY_UNDEFINED
+     * @see Character#DIRECTIONALITY_LEFT_TO_RIGHT DIRECTIONALITY_LEFT_TO_RIGHT
+     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT DIRECTIONALITY_RIGHT_TO_LEFT
+     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC
+     * @see Character#DIRECTIONALITY_EUROPEAN_NUMBER DIRECTIONALITY_EUROPEAN_NUMBER
+     * @see Character#DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR
+     * @see Character#DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR
+     * @see Character#DIRECTIONALITY_ARABIC_NUMBER DIRECTIONALITY_ARABIC_NUMBER
+     * @see Character#DIRECTIONALITY_COMMON_NUMBER_SEPARATOR DIRECTIONALITY_COMMON_NUMBER_SEPARATOR
+     * @see Character#DIRECTIONALITY_NONSPACING_MARK DIRECTIONALITY_NONSPACING_MARK
+     * @see Character#DIRECTIONALITY_BOUNDARY_NEUTRAL DIRECTIONALITY_BOUNDARY_NEUTRAL
+     * @see Character#DIRECTIONALITY_PARAGRAPH_SEPARATOR DIRECTIONALITY_PARAGRAPH_SEPARATOR
+     * @see Character#DIRECTIONALITY_SEGMENT_SEPARATOR DIRECTIONALITY_SEGMENT_SEPARATOR
+     * @see Character#DIRECTIONALITY_WHITESPACE DIRECTIONALITY_WHITESPACE
+     * @see Character#DIRECTIONALITY_OTHER_NEUTRALS DIRECTIONALITY_OTHER_NEUTRALS
+     * @see Character#DIRECTIONALITY_LEFT_TO_RIGHT_EMBEDDING DIRECTIONALITY_LEFT_TO_RIGHT_EMBEDDING
+     * @see Character#DIRECTIONALITY_LEFT_TO_RIGHT_OVERRIDE DIRECTIONALITY_LEFT_TO_RIGHT_OVERRIDE
+     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING
+     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE
+     * @see Character#DIRECTIONALITY_POP_DIRECTIONAL_FORMAT DIRECTIONALITY_POP_DIRECTIONAL_FORMAT
+     * @see Character#DIRECTIONALITY_LEFT_TO_RIGHT_ISOLATE DIRECTIONALITY_LEFT_TO_RIGHT_ISOLATE
+     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT_ISOLATE DIRECTIONALITY_RIGHT_TO_LEFT_ISOLATE
+     * @see Character#DIRECTIONALITY_FIRST_STRONG_ISOLATE DIRECTIONALITY_FIRST_STRONG_ISOLATE
+     * @see Character#DIRECTIONALITY_POP_DIRECTIONAL_ISOLATE DIRECTIONALITY_POP_DIRECTIONAL_ISOLATE
+     * @since 1.5
+     */
+    // 获取码点值为codePoint的Unicode字符的方向属性（文本有不同的书写方向，参见Character类中的"Unicode双向字符类型"）
+    public static byte getDirectionality(int codePoint) {
+        return CharacterData.of(codePoint).getDirectionality(codePoint);
+    }
+    
+    /**
+     * Returns the value obtained by reversing the order of the bytes in the specified {@code char} value.
+     *
+     * @param ch The {@code char} of which to reverse the byte order.
+     *
+     * @return the value obtained by reversing (or, equivalently, swapping) the bytes in the specified {@code char} value.
+     *
+     * @since 1.5
+     */
+    // 以字节为单位逆置字节顺序
+    @HotSpotIntrinsicCandidate
+    public static char reverseBytes(char ch) {
+        return (char) (((ch & 0xFF00) >> 8) | (ch << 8));
+    }
+    
+    
+    
+    /*▼ Object ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a hash code for a {@code char} value; compatible with {@code Character.hashCode()}.
+     *
+     * @param value The {@code char} for which to return a hash code.
+     *
+     * @return a hash code value for a {@code char} value.
+     *
+     * @since 1.8
+     */
+    // 返回字符value的hash值
+    public static int hashCode(char value) {
+        return (int) value;
+    }
+    
+    /**
+     * Returns a hash code for this {@code Character}; equal to the result
+     * of invoking {@code charValue()}.
+     *
+     * @return a hash code value for this {@code Character}
+     */
+    // 返回当前字符的hash值
+    @Override
+    public int hashCode() {
+        return Character.hashCode(value);
+    }
+    
+    /**
+     * Compares this object against the specified object.
+     * The result is {@code true} if and only if the argument is not
+     * {@code null} and is a {@code Character} object that
+     * represents the same {@code char} value as this object.
+     *
+     * @param obj the object to compare with.
+     *
+     * @return {@code true} if the objects are the same;
+     * {@code false} otherwise.
+     */
+    // 判等
+    public boolean equals(Object obj) {
+        if(obj instanceof Character) {
+            return value == ((Character) obj).charValue();
+        }
+        return false;
+    }
+    
+    /**
+     * Returns a {@code String} object representing this
+     * {@code Character}'s value.  The result is a string of
+     * length 1 whose sole component is the primitive
+     * {@code char} value represented by this
+     * {@code Character} object.
+     *
+     * @return a string representation of this object.
+     */
+    // 字符串化
+    public String toString() {
+        char buf[] = {value};
+        return String.valueOf(buf);
+    }
+    
+    /*▲ Object ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    // 字符缓存，缓存了[0, 127]范围内的char，避免每次包装char都new对象
+    private static class CharacterCache {
+        static final Character cache[] = new Character[127 + 1];
+        
+        static {
+            for(int i = 0; i < cache.length; i++) {
+                cache[i] = new Character((char) i);
+            }
+        }
+        
+        private CharacterCache() {
+        }
+    }
+    
+    
+    /**
+     * A family of character subsets representing the character scripts defined in the <a href="http://www.unicode.org/reports/tr24/"> <i>Unicode Standard Annex #24: Script Names</i></a>.
+     * Every Unicode character is assigned to a single Unicode script, either a specific script, such as {@link UnicodeScript#LATIN Latin}, or one of the following three special values,
+     * {@link UnicodeScript#INHERITED Inherited},
+     * {@link UnicodeScript#COMMON Common} or
+     * {@link UnicodeScript#UNKNOWN Unknown}.
+     *
+     * @since 1.7
+     */
+    // Unicode字符区域合辑，不包括Unicode私有保留区域
+    public enum UnicodeScript {
         /**
          * Unicode script "Common".
          */
         COMMON,
-
+        
         /**
          * Unicode script "Latin".
          */
         LATIN,
-
+        
         /**
          * Unicode script "Greek".
          */
         GREEK,
-
+        
         /**
          * Unicode script "Cyrillic".
          */
         CYRILLIC,
-
+        
         /**
          * Unicode script "Armenian".
          */
         ARMENIAN,
-
+        
         /**
          * Unicode script "Hebrew".
          */
         HEBREW,
-
+        
         /**
          * Unicode script "Arabic".
          */
         ARABIC,
-
+        
         /**
          * Unicode script "Syriac".
          */
         SYRIAC,
-
+        
         /**
          * Unicode script "Thaana".
          */
         THAANA,
-
+        
         /**
          * Unicode script "Devanagari".
          */
         DEVANAGARI,
-
+        
         /**
          * Unicode script "Bengali".
          */
         BENGALI,
-
+        
         /**
          * Unicode script "Gurmukhi".
          */
         GURMUKHI,
-
+        
         /**
          * Unicode script "Gujarati".
          */
         GUJARATI,
-
+        
         /**
          * Unicode script "Oriya".
          */
         ORIYA,
-
+        
         /**
          * Unicode script "Tamil".
          */
         TAMIL,
-
+        
         /**
          * Unicode script "Telugu".
          */
         TELUGU,
-
+        
         /**
          * Unicode script "Kannada".
          */
         KANNADA,
-
+        
         /**
          * Unicode script "Malayalam".
          */
         MALAYALAM,
-
+        
         /**
          * Unicode script "Sinhala".
          */
         SINHALA,
-
+        
         /**
          * Unicode script "Thai".
          */
         THAI,
-
+        
         /**
          * Unicode script "Lao".
          */
         LAO,
-
+        
         /**
          * Unicode script "Tibetan".
          */
         TIBETAN,
-
+        
         /**
          * Unicode script "Myanmar".
          */
         MYANMAR,
-
+        
         /**
          * Unicode script "Georgian".
          */
         GEORGIAN,
-
+        
         /**
          * Unicode script "Hangul".
          */
         HANGUL,
-
+        
         /**
          * Unicode script "Ethiopic".
          */
         ETHIOPIC,
-
+        
         /**
          * Unicode script "Cherokee".
          */
         CHEROKEE,
-
+        
         /**
          * Unicode script "Canadian_Aboriginal".
          */
         CANADIAN_ABORIGINAL,
-
+        
         /**
          * Unicode script "Ogham".
          */
         OGHAM,
-
+        
         /**
          * Unicode script "Runic".
          */
         RUNIC,
-
+        
         /**
          * Unicode script "Khmer".
          */
         KHMER,
-
+        
         /**
          * Unicode script "Mongolian".
          */
         MONGOLIAN,
-
+        
         /**
          * Unicode script "Hiragana".
          */
         HIRAGANA,
-
+        
         /**
          * Unicode script "Katakana".
          */
         KATAKANA,
-
+        
         /**
          * Unicode script "Bopomofo".
          */
         BOPOMOFO,
-
+        
         /**
          * Unicode script "Han".
          */
         HAN,
-
+        
         /**
          * Unicode script "Yi".
          */
         YI,
-
+        
         /**
          * Unicode script "Old_Italic".
          */
         OLD_ITALIC,
-
+        
         /**
          * Unicode script "Gothic".
          */
         GOTHIC,
-
+        
         /**
          * Unicode script "Deseret".
          */
         DESERET,
-
+        
         /**
          * Unicode script "Inherited".
          */
         INHERITED,
-
+        
         /**
          * Unicode script "Tagalog".
          */
         TAGALOG,
-
+        
         /**
          * Unicode script "Hanunoo".
          */
         HANUNOO,
-
+        
         /**
          * Unicode script "Buhid".
          */
         BUHID,
-
+        
         /**
          * Unicode script "Tagbanwa".
          */
         TAGBANWA,
-
+        
         /**
          * Unicode script "Limbu".
          */
         LIMBU,
-
+        
         /**
          * Unicode script "Tai_Le".
          */
         TAI_LE,
-
+        
         /**
          * Unicode script "Linear_B".
          */
         LINEAR_B,
-
+        
         /**
          * Unicode script "Ugaritic".
          */
         UGARITIC,
-
+        
         /**
          * Unicode script "Shavian".
          */
         SHAVIAN,
-
+        
         /**
          * Unicode script "Osmanya".
          */
         OSMANYA,
-
+        
         /**
          * Unicode script "Cypriot".
          */
         CYPRIOT,
-
+        
         /**
          * Unicode script "Braille".
          */
         BRAILLE,
-
+        
         /**
          * Unicode script "Buginese".
          */
         BUGINESE,
-
+        
         /**
          * Unicode script "Coptic".
          */
         COPTIC,
-
+        
         /**
          * Unicode script "New_Tai_Lue".
          */
         NEW_TAI_LUE,
-
+        
         /**
          * Unicode script "Glagolitic".
          */
         GLAGOLITIC,
-
+        
         /**
          * Unicode script "Tifinagh".
          */
         TIFINAGH,
-
+        
         /**
          * Unicode script "Syloti_Nagri".
          */
         SYLOTI_NAGRI,
-
+        
         /**
          * Unicode script "Old_Persian".
          */
         OLD_PERSIAN,
-
+        
         /**
          * Unicode script "Kharoshthi".
          */
         KHAROSHTHI,
-
+        
         /**
          * Unicode script "Balinese".
          */
         BALINESE,
-
+        
         /**
          * Unicode script "Cuneiform".
          */
         CUNEIFORM,
-
+        
         /**
          * Unicode script "Phoenician".
          */
         PHOENICIAN,
-
+        
         /**
          * Unicode script "Phags_Pa".
          */
         PHAGS_PA,
-
+        
         /**
          * Unicode script "Nko".
          */
         NKO,
-
+        
         /**
          * Unicode script "Sundanese".
          */
         SUNDANESE,
-
+        
         /**
          * Unicode script "Batak".
          */
         BATAK,
-
+        
         /**
          * Unicode script "Lepcha".
          */
         LEPCHA,
-
+        
         /**
          * Unicode script "Ol_Chiki".
          */
         OL_CHIKI,
-
+        
         /**
          * Unicode script "Vai".
          */
         VAI,
-
+        
         /**
          * Unicode script "Saurashtra".
          */
         SAURASHTRA,
-
+        
         /**
          * Unicode script "Kayah_Li".
          */
         KAYAH_LI,
-
+        
         /**
          * Unicode script "Rejang".
          */
         REJANG,
-
+        
         /**
          * Unicode script "Lycian".
          */
         LYCIAN,
-
+        
         /**
          * Unicode script "Carian".
          */
         CARIAN,
-
+        
         /**
          * Unicode script "Lydian".
          */
         LYDIAN,
-
+        
         /**
          * Unicode script "Cham".
          */
         CHAM,
-
+        
         /**
          * Unicode script "Tai_Tham".
          */
         TAI_THAM,
-
+        
         /**
          * Unicode script "Tai_Viet".
          */
         TAI_VIET,
-
+        
         /**
          * Unicode script "Avestan".
          */
         AVESTAN,
-
+        
         /**
          * Unicode script "Egyptian_Hieroglyphs".
          */
         EGYPTIAN_HIEROGLYPHS,
-
+        
         /**
          * Unicode script "Samaritan".
          */
         SAMARITAN,
-
+        
         /**
          * Unicode script "Mandaic".
          */
         MANDAIC,
-
+        
         /**
          * Unicode script "Lisu".
          */
         LISU,
-
+        
         /**
          * Unicode script "Bamum".
          */
         BAMUM,
-
+        
         /**
          * Unicode script "Javanese".
          */
         JAVANESE,
-
+        
         /**
          * Unicode script "Meetei_Mayek".
          */
         MEETEI_MAYEK,
-
+        
         /**
          * Unicode script "Imperial_Aramaic".
          */
         IMPERIAL_ARAMAIC,
-
+        
         /**
          * Unicode script "Old_South_Arabian".
          */
         OLD_SOUTH_ARABIAN,
-
+        
         /**
          * Unicode script "Inscriptional_Parthian".
          */
         INSCRIPTIONAL_PARTHIAN,
-
+        
         /**
          * Unicode script "Inscriptional_Pahlavi".
          */
         INSCRIPTIONAL_PAHLAVI,
-
+        
         /**
          * Unicode script "Old_Turkic".
          */
         OLD_TURKIC,
-
+        
         /**
          * Unicode script "Brahmi".
          */
         BRAHMI,
-
+        
         /**
          * Unicode script "Kaithi".
          */
         KAITHI,
-
+        
         /**
          * Unicode script "Meroitic Hieroglyphs".
+         *
          * @since 1.8
          */
         MEROITIC_HIEROGLYPHS,
-
+        
         /**
          * Unicode script "Meroitic Cursive".
+         *
          * @since 1.8
          */
         MEROITIC_CURSIVE,
-
+        
         /**
          * Unicode script "Sora Sompeng".
+         *
          * @since 1.8
          */
         SORA_SOMPENG,
-
+        
         /**
          * Unicode script "Chakma".
+         *
          * @since 1.8
          */
         CHAKMA,
-
+        
         /**
          * Unicode script "Sharada".
+         *
          * @since 1.8
          */
         SHARADA,
-
+        
         /**
          * Unicode script "Takri".
+         *
          * @since 1.8
          */
         TAKRI,
-
+        
         /**
          * Unicode script "Miao".
+         *
          * @since 1.8
          */
         MIAO,
-
+        
         /**
          * Unicode script "Caucasian Albanian".
+         *
          * @since 9
          */
         CAUCASIAN_ALBANIAN,
-
+        
         /**
          * Unicode script "Bassa Vah".
+         *
          * @since 9
          */
         BASSA_VAH,
-
+        
         /**
          * Unicode script "Duployan".
+         *
          * @since 9
          */
         DUPLOYAN,
-
+        
         /**
          * Unicode script "Elbasan".
+         *
          * @since 9
          */
         ELBASAN,
-
+        
         /**
          * Unicode script "Grantha".
+         *
          * @since 9
          */
         GRANTHA,
-
+        
         /**
          * Unicode script "Pahawh Hmong".
+         *
          * @since 9
          */
         PAHAWH_HMONG,
-
+        
         /**
          * Unicode script "Khojki".
+         *
          * @since 9
          */
         KHOJKI,
-
+        
         /**
          * Unicode script "Linear A".
+         *
          * @since 9
          */
         LINEAR_A,
-
+        
         /**
          * Unicode script "Mahajani".
+         *
          * @since 9
          */
         MAHAJANI,
-
+        
         /**
          * Unicode script "Manichaean".
+         *
          * @since 9
          */
         MANICHAEAN,
-
+        
         /**
          * Unicode script "Mende Kikakui".
+         *
          * @since 9
          */
         MENDE_KIKAKUI,
-
+        
         /**
          * Unicode script "Modi".
+         *
          * @since 9
          */
         MODI,
-
+        
         /**
          * Unicode script "Mro".
+         *
          * @since 9
          */
         MRO,
-
+        
         /**
          * Unicode script "Old North Arabian".
+         *
          * @since 9
          */
         OLD_NORTH_ARABIAN,
-
+        
         /**
          * Unicode script "Nabataean".
+         *
          * @since 9
          */
         NABATAEAN,
-
+        
         /**
          * Unicode script "Palmyrene".
+         *
          * @since 9
          */
         PALMYRENE,
-
+        
         /**
          * Unicode script "Pau Cin Hau".
+         *
          * @since 9
          */
         PAU_CIN_HAU,
-
+        
         /**
          * Unicode script "Old Permic".
+         *
          * @since 9
          */
         OLD_PERMIC,
-
+        
         /**
          * Unicode script "Psalter Pahlavi".
+         *
          * @since 9
          */
         PSALTER_PAHLAVI,
-
+        
         /**
          * Unicode script "Siddham".
+         *
          * @since 9
          */
         SIDDHAM,
-
+        
         /**
          * Unicode script "Khudawadi".
+         *
          * @since 9
          */
         KHUDAWADI,
-
+        
         /**
          * Unicode script "Tirhuta".
+         *
          * @since 9
          */
         TIRHUTA,
-
+        
         /**
          * Unicode script "Warang Citi".
+         *
          * @since 9
          */
         WARANG_CITI,
-
-         /**
+        
+        /**
          * Unicode script "Ahom".
+         *
          * @since 9
          */
         AHOM,
-
+        
         /**
          * Unicode script "Anatolian Hieroglyphs".
+         *
          * @since 9
          */
         ANATOLIAN_HIEROGLYPHS,
-
+        
         /**
          * Unicode script "Hatran".
+         *
          * @since 9
          */
         HATRAN,
-
+        
         /**
          * Unicode script "Multani".
+         *
          * @since 9
          */
         MULTANI,
-
+        
         /**
          * Unicode script "Old Hungarian".
+         *
          * @since 9
          */
         OLD_HUNGARIAN,
-
+        
         /**
          * Unicode script "SignWriting".
+         *
          * @since 9
          */
         SIGNWRITING,
-
+        
         /**
-          * Unicode script "Adlam".
-          * @since 11
-          */
+         * Unicode script "Adlam".
+         *
+         * @since 11
+         */
         ADLAM,
-
+        
         /**
-          * Unicode script "Bhaiksuki".
-          * @since 11
-          */
+         * Unicode script "Bhaiksuki".
+         *
+         * @since 11
+         */
         BHAIKSUKI,
-
+        
         /**
-          * Unicode script "Marchen".
-          * @since 11
-          */
+         * Unicode script "Marchen".
+         *
+         * @since 11
+         */
         MARCHEN,
-
+        
         /**
-          * Unicode script "Newa".
-          * @since 11
-          */
+         * Unicode script "Newa".
+         *
+         * @since 11
+         */
         NEWA,
-
+        
         /**
-          * Unicode script "Osage".
-          * @since 11
-          */
+         * Unicode script "Osage".
+         *
+         * @since 11
+         */
         OSAGE,
-
+        
         /**
-          * Unicode script "Tangut".
-          * @since 11
-          */
+         * Unicode script "Tangut".
+         *
+         * @since 11
+         */
         TANGUT,
-
+        
         /**
-          * Unicode script "Masaram Gondi".
-          * @since 11
-          */
+         * Unicode script "Masaram Gondi".
+         *
+         * @since 11
+         */
         MASARAM_GONDI,
-
+        
         /**
-          * Unicode script "Nushu".
-          * @since 11
-          */
+         * Unicode script "Nushu".
+         *
+         * @since 11
+         */
         NUSHU,
-
+        
         /**
-          * Unicode script "Soyombo".
-          * @since 11
-          */
+         * Unicode script "Soyombo".
+         *
+         * @since 11
+         */
         SOYOMBO,
-
+        
         /**
-          * Unicode script "Zanabazar Square".
-          * @since 11
-          */
+         * Unicode script "Zanabazar Square".
+         *
+         * @since 11
+         */
         ZANABAZAR_SQUARE,
-
+        
         /**
          * Unicode script "Unknown".
          */
         UNKNOWN;
-
+        
         private static final int[] scriptStarts = {
             0x0000,   // 0000..0040; COMMON
             0x0041,   // 0041..005A; LATIN
@@ -6152,7 +6010,7 @@ class Character implements java.io.Serializable, Comparable<Character> {
             0xE0100,  // E0100..E01EF; INHERITED
             0xE01F0   // E01F0..10FFFF; UNKNOWN
         };
-
+        
         private static final UnicodeScript[] scripts = {
             COMMON,                   // 0000..0040
             LATIN,                    // 0041..005A
@@ -7669,10 +7527,12 @@ class Character implements java.io.Serializable, Comparable<Character> {
             INHERITED,                // E0100..E01EF
             UNKNOWN                   // E01F0..10FFFF
         };
-
-        private static HashMap<String, Character.UnicodeScript> aliases;
+        
+        private static HashMap<String, UnicodeScript> aliases;
+        
+        // 为每种字符集映射一个简写名称
         static {
-            aliases = new HashMap<>((int)(142 / 0.75f + 1.0f));
+            aliases = new HashMap<>((int) (142 / 0.75f + 1.0f));
             aliases.put("ADLM", ADLAM);
             aliases.put("AGHB", CAUCASIAN_ALBANIAN);
             aliases.put("AHOM", AHOM);
@@ -7818,2866 +7678,2692 @@ class Character implements java.io.Serializable, Comparable<Character> {
             aliases.put("ZYYY", COMMON);
             aliases.put("ZZZZ", UNKNOWN);
         }
-
+        
         /**
-         * Returns the enum constant representing the Unicode script of which
-         * the given character (Unicode code point) is assigned to.
+         * Returns the UnicodeScript constant with the given Unicode script name or the script name alias.
+         * Script names and their aliases are determined by The Unicode Standard.
+         * The files {@code Scripts<version>.txt} and {@code PropertyValueAliases<version>.txt} define script names and the script name aliases for a particular version of the standard.
+         * The {@link Character} class specifies the version of the standard that it supports.
          *
-         * @param   codePoint the character (Unicode code point) in question.
-         * @return  The {@code UnicodeScript} constant representing the
-         *          Unicode script of which this character is assigned to.
+         * Character case is ignored for all of the valid script names.
+         * The en_US locale's case mapping rules are used to provide case-insensitive string comparisons for script name validation.
          *
-         * @throws  IllegalArgumentException if the specified
-         * {@code codePoint} is an invalid Unicode code point.
-         * @see Character#isValidCodePoint(int)
+         * @param scriptName A {@code UnicodeScript} name.
          *
+         * @return The {@code UnicodeScript} constant identified
+         * by {@code scriptName}
+         *
+         * @throws IllegalArgumentException if {@code scriptName} is an
+         *                                  invalid name
+         * @throws NullPointerException     if {@code scriptName} is null
          */
+        // 返回Unicode脚本名称或脚本名称别名的UnicodeScript常量。脚本名称及其别名由Unicode标准确定。
+        public static final UnicodeScript forName(String scriptName) {
+            scriptName = scriptName.toUpperCase(Locale.ENGLISH);
+            //.replace(' ', '_'));
+            UnicodeScript sc = aliases.get(scriptName);
+            if(sc != null)
+                return sc;
+            
+            return valueOf(scriptName);
+        }
+        
+        /**
+         * Returns the enum constant representing the Unicode script of which the given character (Unicode code point) is assigned to.
+         *
+         * @param codePoint the character (Unicode code point) in question.
+         *
+         * @return The {@code UnicodeScript} constant representing the Unicode script of which this character is assigned to.
+         *
+         * @throws IllegalArgumentException if the specified {@code codePoint} is an invalid Unicode code point.
+         *
+         * @see Character#isValidCodePoint(int)
+         */
+        // 返回Unicode代码点codePoint所对应的Unicode脚本枚举常量。
         public static UnicodeScript of(int codePoint) {
-            if (!isValidCodePoint(codePoint))
-                throw new IllegalArgumentException(
-                    String.format("Not a valid Unicode code point: 0x%X", codePoint));
+            if(!isValidCodePoint(codePoint))
+                throw new IllegalArgumentException(String.format("Not a valid Unicode code point: 0x%X", codePoint));
+            
             int type = getType(codePoint);
+            
             // leave SURROGATE and PRIVATE_USE for table lookup
-            if (type == UNASSIGNED)
+            if(type == UNASSIGNED)
                 return UNKNOWN;
+            
             int index = Arrays.binarySearch(scriptStarts, codePoint);
-            if (index < 0)
+            if(index < 0)
                 index = -index - 2;
             return scripts[index];
         }
-
+    }
+    
+    
+    /**
+     * Instances of this class represent particular subsets of the Unicode character set.
+     * The only family of subsets defined in the {@code Character} class is {@link UnicodeBlock}.
+     * Other portions of the Java API may define other subsets for their own purposes.
+     *
+     * @since 1.2
+     */
+    /*
+     * 此类的实例表示Unicode字符区域的特定子集。
+     * Character类中定义的唯一子集族是Character.UnicodeBlock。
+     * Java API的其他部分可以为其自身目的而定义其他子集。
+     */
+    public static class Subset  {
+        
+        private String name;
+        
         /**
-         * Returns the UnicodeScript constant with the given Unicode script
-         * name or the script name alias. Script names and their aliases are
-         * determined by The Unicode Standard. The files {@code Scripts<version>.txt}
-         * and {@code PropertyValueAliases<version>.txt} define script names
-         * and the script name aliases for a particular version of the
-         * standard. The {@link Character} class specifies the version of
-         * the standard that it supports.
-         * <p>
-         * Character case is ignored for all of the valid script names.
-         * The en_US locale's case mapping rules are used to provide
-         * case-insensitive string comparisons for script name validation.
+         * Constructs a new {@code Subset} instance.
          *
-         * @param scriptName A {@code UnicodeScript} name.
-         * @return The {@code UnicodeScript} constant identified
-         *         by {@code scriptName}
-         * @throws IllegalArgumentException if {@code scriptName} is an
-         *         invalid name
-         * @throws NullPointerException if {@code scriptName} is null
+         * @param  name  The name of this subset
+         * @throws NullPointerException if name is {@code null}
          */
-        public static final UnicodeScript forName(String scriptName) {
-            scriptName = scriptName.toUpperCase(Locale.ENGLISH);
-                                 //.replace(' ', '_'));
-            UnicodeScript sc = aliases.get(scriptName);
-            if (sc != null)
-                return sc;
-            return valueOf(scriptName);
-        }
-    }
-
-    /**
-     * The value of the {@code Character}.
-     *
-     * @serial
-     */
-    private final char value;
-
-    /** use serialVersionUID from JDK 1.0.2 for interoperability */
-    private static final long serialVersionUID = 3786198910865385080L;
-
-    /**
-     * Constructs a newly allocated {@code Character} object that
-     * represents the specified {@code char} value.
-     *
-     * @param  value   the value to be represented by the
-     *                  {@code Character} object.
-     *
-     * @deprecated
-     * It is rarely appropriate to use this constructor. The static factory
-     * {@link #valueOf(char)} is generally a better choice, as it is
-     * likely to yield significantly better space and time performance.
-     */
-    @Deprecated(since="9")
-    public Character(char value) {
-        this.value = value;
-    }
-
-    private static class CharacterCache {
-        private CharacterCache(){}
-
-        static final Character cache[] = new Character[127 + 1];
-
-        static {
-            for (int i = 0; i < cache.length; i++)
-                cache[i] = new Character((char)i);
-        }
-    }
-
-    /**
-     * Returns a {@code Character} instance representing the specified
-     * {@code char} value.
-     * If a new {@code Character} instance is not required, this method
-     * should generally be used in preference to the constructor
-     * {@link #Character(char)}, as this method is likely to yield
-     * significantly better space and time performance by caching
-     * frequently requested values.
-     *
-     * This method will always cache values in the range {@code
-     * '\u005Cu0000'} to {@code '\u005Cu007F'}, inclusive, and may
-     * cache other values outside of this range.
-     *
-     * @param  c a char value.
-     * @return a {@code Character} instance representing {@code c}.
-     * @since  1.5
-     */
-    @HotSpotIntrinsicCandidate
-    public static Character valueOf(char c) {
-        if (c <= 127) { // must cache
-            return CharacterCache.cache[(int)c];
-        }
-        return new Character(c);
-    }
-
-    /**
-     * Returns the value of this {@code Character} object.
-     * @return  the primitive {@code char} value represented by
-     *          this object.
-     */
-    @HotSpotIntrinsicCandidate
-    public char charValue() {
-        return value;
-    }
-
-    /**
-     * Returns a hash code for this {@code Character}; equal to the result
-     * of invoking {@code charValue()}.
-     *
-     * @return a hash code value for this {@code Character}
-     */
-    @Override
-    public int hashCode() {
-        return Character.hashCode(value);
-    }
-
-    /**
-     * Returns a hash code for a {@code char} value; compatible with
-     * {@code Character.hashCode()}.
-     *
-     * @since 1.8
-     *
-     * @param value The {@code char} for which to return a hash code.
-     * @return a hash code value for a {@code char} value.
-     */
-    public static int hashCode(char value) {
-        return (int)value;
-    }
-
-    /**
-     * Compares this object against the specified object.
-     * The result is {@code true} if and only if the argument is not
-     * {@code null} and is a {@code Character} object that
-     * represents the same {@code char} value as this object.
-     *
-     * @param   obj   the object to compare with.
-     * @return  {@code true} if the objects are the same;
-     *          {@code false} otherwise.
-     */
-    public boolean equals(Object obj) {
-        if (obj instanceof Character) {
-            return value == ((Character)obj).charValue();
-        }
-        return false;
-    }
-
-    /**
-     * Returns a {@code String} object representing this
-     * {@code Character}'s value.  The result is a string of
-     * length 1 whose sole component is the primitive
-     * {@code char} value represented by this
-     * {@code Character} object.
-     *
-     * @return  a string representation of this object.
-     */
-    public String toString() {
-        char buf[] = {value};
-        return String.valueOf(buf);
-    }
-
-    /**
-     * Returns a {@code String} object representing the
-     * specified {@code char}.  The result is a string of length
-     * 1 consisting solely of the specified {@code char}.
-     *
-     * @apiNote This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #toString(int)} method.
-     *
-     * @param c the {@code char} to be converted
-     * @return the string representation of the specified {@code char}
-     * @since 1.4
-     */
-    public static String toString(char c) {
-        return String.valueOf(c);
-    }
-
-    /**
-     * Returns a {@code String} object representing the
-     * specified character (Unicode code point).  The result is a string of
-     * length 1 or 2, consisting solely of the specified {@code codePoint}.
-     *
-     * @param codePoint the {@code codePoint} to be converted
-     * @return the string representation of the specified {@code codePoint}
-     * @throws IllegalArgumentException if the specified
-     *      {@code codePoint} is not a {@linkplain #isValidCodePoint
-     *      valid Unicode code point}.
-     * @since 11
-     */
-    public static String toString(int codePoint) {
-        return String.valueOfCodePoint(codePoint);
-    }
-
-    /**
-     * Determines whether the specified code point is a valid
-     * <a href="http://www.unicode.org/glossary/#code_point">
-     * Unicode code point value</a>.
-     *
-     * @param  codePoint the Unicode code point to be tested
-     * @return {@code true} if the specified code point value is between
-     *         {@link #MIN_CODE_POINT} and
-     *         {@link #MAX_CODE_POINT} inclusive;
-     *         {@code false} otherwise.
-     * @since  1.5
-     */
-    public static boolean isValidCodePoint(int codePoint) {
-        // Optimized form of:
-        //     codePoint >= MIN_CODE_POINT && codePoint <= MAX_CODE_POINT
-        int plane = codePoint >>> 16;
-        return plane < ((MAX_CODE_POINT + 1) >>> 16);
-    }
-
-    /**
-     * Determines whether the specified character (Unicode code point)
-     * is in the <a href="#BMP">Basic Multilingual Plane (BMP)</a>.
-     * Such code points can be represented using a single {@code char}.
-     *
-     * @param  codePoint the character (Unicode code point) to be tested
-     * @return {@code true} if the specified code point is between
-     *         {@link #MIN_VALUE} and {@link #MAX_VALUE} inclusive;
-     *         {@code false} otherwise.
-     * @since  1.7
-     */
-    public static boolean isBmpCodePoint(int codePoint) {
-        return codePoint >>> 16 == 0;
-        // Optimized form of:
-        //     codePoint >= MIN_VALUE && codePoint <= MAX_VALUE
-        // We consistently use logical shift (>>>) to facilitate
-        // additional runtime optimizations.
-    }
-
-    /**
-     * Determines whether the specified character (Unicode code point)
-     * is in the <a href="#supplementary">supplementary character</a> range.
-     *
-     * @param  codePoint the character (Unicode code point) to be tested
-     * @return {@code true} if the specified code point is between
-     *         {@link #MIN_SUPPLEMENTARY_CODE_POINT} and
-     *         {@link #MAX_CODE_POINT} inclusive;
-     *         {@code false} otherwise.
-     * @since  1.5
-     */
-    public static boolean isSupplementaryCodePoint(int codePoint) {
-        return codePoint >= MIN_SUPPLEMENTARY_CODE_POINT
-            && codePoint <  MAX_CODE_POINT + 1;
-    }
-
-    /**
-     * Determines if the given {@code char} value is a
-     * <a href="http://www.unicode.org/glossary/#high_surrogate_code_unit">
-     * Unicode high-surrogate code unit</a>
-     * (also known as <i>leading-surrogate code unit</i>).
-     *
-     * <p>Such values do not represent characters by themselves,
-     * but are used in the representation of
-     * <a href="#supplementary">supplementary characters</a>
-     * in the UTF-16 encoding.
-     *
-     * @param  ch the {@code char} value to be tested.
-     * @return {@code true} if the {@code char} value is between
-     *         {@link #MIN_HIGH_SURROGATE} and
-     *         {@link #MAX_HIGH_SURROGATE} inclusive;
-     *         {@code false} otherwise.
-     * @see    Character#isLowSurrogate(char)
-     * @see    Character.UnicodeBlock#of(int)
-     * @since  1.5
-     */
-    public static boolean isHighSurrogate(char ch) {
-        // Help VM constant-fold; MAX_HIGH_SURROGATE + 1 == MIN_LOW_SURROGATE
-        return ch >= MIN_HIGH_SURROGATE && ch < (MAX_HIGH_SURROGATE + 1);
-    }
-
-    /**
-     * Determines if the given {@code char} value is a
-     * <a href="http://www.unicode.org/glossary/#low_surrogate_code_unit">
-     * Unicode low-surrogate code unit</a>
-     * (also known as <i>trailing-surrogate code unit</i>).
-     *
-     * <p>Such values do not represent characters by themselves,
-     * but are used in the representation of
-     * <a href="#supplementary">supplementary characters</a>
-     * in the UTF-16 encoding.
-     *
-     * @param  ch the {@code char} value to be tested.
-     * @return {@code true} if the {@code char} value is between
-     *         {@link #MIN_LOW_SURROGATE} and
-     *         {@link #MAX_LOW_SURROGATE} inclusive;
-     *         {@code false} otherwise.
-     * @see    Character#isHighSurrogate(char)
-     * @since  1.5
-     */
-    public static boolean isLowSurrogate(char ch) {
-        return ch >= MIN_LOW_SURROGATE && ch < (MAX_LOW_SURROGATE + 1);
-    }
-
-    /**
-     * Determines if the given {@code char} value is a Unicode
-     * <i>surrogate code unit</i>.
-     *
-     * <p>Such values do not represent characters by themselves,
-     * but are used in the representation of
-     * <a href="#supplementary">supplementary characters</a>
-     * in the UTF-16 encoding.
-     *
-     * <p>A char value is a surrogate code unit if and only if it is either
-     * a {@linkplain #isLowSurrogate(char) low-surrogate code unit} or
-     * a {@linkplain #isHighSurrogate(char) high-surrogate code unit}.
-     *
-     * @param  ch the {@code char} value to be tested.
-     * @return {@code true} if the {@code char} value is between
-     *         {@link #MIN_SURROGATE} and
-     *         {@link #MAX_SURROGATE} inclusive;
-     *         {@code false} otherwise.
-     * @since  1.7
-     */
-    public static boolean isSurrogate(char ch) {
-        return ch >= MIN_SURROGATE && ch < (MAX_SURROGATE + 1);
-    }
-
-    /**
-     * Determines whether the specified pair of {@code char}
-     * values is a valid
-     * <a href="http://www.unicode.org/glossary/#surrogate_pair">
-     * Unicode surrogate pair</a>.
-
-     * <p>This method is equivalent to the expression:
-     * <blockquote><pre>{@code
-     * isHighSurrogate(high) && isLowSurrogate(low)
-     * }</pre></blockquote>
-     *
-     * @param  high the high-surrogate code value to be tested
-     * @param  low the low-surrogate code value to be tested
-     * @return {@code true} if the specified high and
-     * low-surrogate code values represent a valid surrogate pair;
-     * {@code false} otherwise.
-     * @since  1.5
-     */
-    public static boolean isSurrogatePair(char high, char low) {
-        return isHighSurrogate(high) && isLowSurrogate(low);
-    }
-
-    /**
-     * Determines the number of {@code char} values needed to
-     * represent the specified character (Unicode code point). If the
-     * specified character is equal to or greater than 0x10000, then
-     * the method returns 2. Otherwise, the method returns 1.
-     *
-     * <p>This method doesn't validate the specified character to be a
-     * valid Unicode code point. The caller must validate the
-     * character value using {@link #isValidCodePoint(int) isValidCodePoint}
-     * if necessary.
-     *
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return  2 if the character is a valid supplementary character; 1 otherwise.
-     * @see     Character#isSupplementaryCodePoint(int)
-     * @since   1.5
-     */
-    public static int charCount(int codePoint) {
-        return codePoint >= MIN_SUPPLEMENTARY_CODE_POINT ? 2 : 1;
-    }
-
-    /**
-     * Converts the specified surrogate pair to its supplementary code
-     * point value. This method does not validate the specified
-     * surrogate pair. The caller must validate it using {@link
-     * #isSurrogatePair(char, char) isSurrogatePair} if necessary.
-     *
-     * @param  high the high-surrogate code unit
-     * @param  low the low-surrogate code unit
-     * @return the supplementary code point composed from the
-     *         specified surrogate pair.
-     * @since  1.5
-     */
-    public static int toCodePoint(char high, char low) {
-        // Optimized form of:
-        // return ((high - MIN_HIGH_SURROGATE) << 10)
-        //         + (low - MIN_LOW_SURROGATE)
-        //         + MIN_SUPPLEMENTARY_CODE_POINT;
-        return ((high << 10) + low) + (MIN_SUPPLEMENTARY_CODE_POINT
-                                       - (MIN_HIGH_SURROGATE << 10)
-                                       - MIN_LOW_SURROGATE);
-    }
-
-    /**
-     * Returns the code point at the given index of the
-     * {@code CharSequence}. If the {@code char} value at
-     * the given index in the {@code CharSequence} is in the
-     * high-surrogate range, the following index is less than the
-     * length of the {@code CharSequence}, and the
-     * {@code char} value at the following index is in the
-     * low-surrogate range, then the supplementary code point
-     * corresponding to this surrogate pair is returned. Otherwise,
-     * the {@code char} value at the given index is returned.
-     *
-     * @param seq a sequence of {@code char} values (Unicode code
-     * units)
-     * @param index the index to the {@code char} values (Unicode
-     * code units) in {@code seq} to be converted
-     * @return the Unicode code point at the given index
-     * @throws NullPointerException if {@code seq} is null.
-     * @throws IndexOutOfBoundsException if the value
-     * {@code index} is negative or not less than
-     * {@link CharSequence#length() seq.length()}.
-     * @since  1.5
-     */
-    public static int codePointAt(CharSequence seq, int index) {
-        char c1 = seq.charAt(index);
-        if (isHighSurrogate(c1) && ++index < seq.length()) {
-            char c2 = seq.charAt(index);
-            if (isLowSurrogate(c2)) {
-                return toCodePoint(c1, c2);
+        protected Subset(String name) {
+            if (name == null) {
+                throw new NullPointerException("name");
             }
+            this.name = name;
         }
-        return c1;
-    }
-
-    /**
-     * Returns the code point at the given index of the
-     * {@code char} array. If the {@code char} value at
-     * the given index in the {@code char} array is in the
-     * high-surrogate range, the following index is less than the
-     * length of the {@code char} array, and the
-     * {@code char} value at the following index is in the
-     * low-surrogate range, then the supplementary code point
-     * corresponding to this surrogate pair is returned. Otherwise,
-     * the {@code char} value at the given index is returned.
-     *
-     * @param a the {@code char} array
-     * @param index the index to the {@code char} values (Unicode
-     * code units) in the {@code char} array to be converted
-     * @return the Unicode code point at the given index
-     * @throws NullPointerException if {@code a} is null.
-     * @throws IndexOutOfBoundsException if the value
-     * {@code index} is negative or not less than
-     * the length of the {@code char} array.
-     * @since  1.5
-     */
-    public static int codePointAt(char[] a, int index) {
-        return codePointAtImpl(a, index, a.length);
-    }
-
-    /**
-     * Returns the code point at the given index of the
-     * {@code char} array, where only array elements with
-     * {@code index} less than {@code limit} can be used. If
-     * the {@code char} value at the given index in the
-     * {@code char} array is in the high-surrogate range, the
-     * following index is less than the {@code limit}, and the
-     * {@code char} value at the following index is in the
-     * low-surrogate range, then the supplementary code point
-     * corresponding to this surrogate pair is returned. Otherwise,
-     * the {@code char} value at the given index is returned.
-     *
-     * @param a the {@code char} array
-     * @param index the index to the {@code char} values (Unicode
-     * code units) in the {@code char} array to be converted
-     * @param limit the index after the last array element that
-     * can be used in the {@code char} array
-     * @return the Unicode code point at the given index
-     * @throws NullPointerException if {@code a} is null.
-     * @throws IndexOutOfBoundsException if the {@code index}
-     * argument is negative or not less than the {@code limit}
-     * argument, or if the {@code limit} argument is negative or
-     * greater than the length of the {@code char} array.
-     * @since  1.5
-     */
-    public static int codePointAt(char[] a, int index, int limit) {
-        if (index >= limit || limit < 0 || limit > a.length) {
-            throw new IndexOutOfBoundsException();
+        
+        /**
+         * Compares two {@code Subset} objects for equality.
+         * This method returns {@code true} if and only if
+         * {@code this} and the argument refer to the same
+         * object; since this method is {@code final}, this
+         * guarantee holds for all subclasses.
+         */
+        public final boolean equals(Object obj) {
+            return (this == obj);
         }
-        return codePointAtImpl(a, index, limit);
-    }
-
-    // throws ArrayIndexOutOfBoundsException if index out of bounds
-    static int codePointAtImpl(char[] a, int index, int limit) {
-        char c1 = a[index];
-        if (isHighSurrogate(c1) && ++index < limit) {
-            char c2 = a[index];
-            if (isLowSurrogate(c2)) {
-                return toCodePoint(c1, c2);
-            }
+        
+        /**
+         * Returns the standard hash code as defined by the
+         * {@link Object#hashCode} method.  This method
+         * is {@code final} in order to ensure that the
+         * {@code equals} and {@code hashCode} methods will
+         * be consistent in all subclasses.
+         */
+        public final int hashCode() {
+            return super.hashCode();
         }
-        return c1;
-    }
-
-    /**
-     * Returns the code point preceding the given index of the
-     * {@code CharSequence}. If the {@code char} value at
-     * {@code (index - 1)} in the {@code CharSequence} is in
-     * the low-surrogate range, {@code (index - 2)} is not
-     * negative, and the {@code char} value at {@code (index - 2)}
-     * in the {@code CharSequence} is in the
-     * high-surrogate range, then the supplementary code point
-     * corresponding to this surrogate pair is returned. Otherwise,
-     * the {@code char} value at {@code (index - 1)} is
-     * returned.
-     *
-     * @param seq the {@code CharSequence} instance
-     * @param index the index following the code point that should be returned
-     * @return the Unicode code point value before the given index.
-     * @throws NullPointerException if {@code seq} is null.
-     * @throws IndexOutOfBoundsException if the {@code index}
-     * argument is less than 1 or greater than {@link
-     * CharSequence#length() seq.length()}.
-     * @since  1.5
-     */
-    public static int codePointBefore(CharSequence seq, int index) {
-        char c2 = seq.charAt(--index);
-        if (isLowSurrogate(c2) && index > 0) {
-            char c1 = seq.charAt(--index);
-            if (isHighSurrogate(c1)) {
-                return toCodePoint(c1, c2);
-            }
-        }
-        return c2;
-    }
-
-    /**
-     * Returns the code point preceding the given index of the
-     * {@code char} array. If the {@code char} value at
-     * {@code (index - 1)} in the {@code char} array is in
-     * the low-surrogate range, {@code (index - 2)} is not
-     * negative, and the {@code char} value at {@code (index - 2)}
-     * in the {@code char} array is in the
-     * high-surrogate range, then the supplementary code point
-     * corresponding to this surrogate pair is returned. Otherwise,
-     * the {@code char} value at {@code (index - 1)} is
-     * returned.
-     *
-     * @param a the {@code char} array
-     * @param index the index following the code point that should be returned
-     * @return the Unicode code point value before the given index.
-     * @throws NullPointerException if {@code a} is null.
-     * @throws IndexOutOfBoundsException if the {@code index}
-     * argument is less than 1 or greater than the length of the
-     * {@code char} array
-     * @since  1.5
-     */
-    public static int codePointBefore(char[] a, int index) {
-        return codePointBeforeImpl(a, index, 0);
-    }
-
-    /**
-     * Returns the code point preceding the given index of the
-     * {@code char} array, where only array elements with
-     * {@code index} greater than or equal to {@code start}
-     * can be used. If the {@code char} value at {@code (index - 1)}
-     * in the {@code char} array is in the
-     * low-surrogate range, {@code (index - 2)} is not less than
-     * {@code start}, and the {@code char} value at
-     * {@code (index - 2)} in the {@code char} array is in
-     * the high-surrogate range, then the supplementary code point
-     * corresponding to this surrogate pair is returned. Otherwise,
-     * the {@code char} value at {@code (index - 1)} is
-     * returned.
-     *
-     * @param a the {@code char} array
-     * @param index the index following the code point that should be returned
-     * @param start the index of the first array element in the
-     * {@code char} array
-     * @return the Unicode code point value before the given index.
-     * @throws NullPointerException if {@code a} is null.
-     * @throws IndexOutOfBoundsException if the {@code index}
-     * argument is not greater than the {@code start} argument or
-     * is greater than the length of the {@code char} array, or
-     * if the {@code start} argument is negative or not less than
-     * the length of the {@code char} array.
-     * @since  1.5
-     */
-    public static int codePointBefore(char[] a, int index, int start) {
-        if (index <= start || start < 0 || start >= a.length) {
-            throw new IndexOutOfBoundsException();
-        }
-        return codePointBeforeImpl(a, index, start);
-    }
-
-    // throws ArrayIndexOutOfBoundsException if index-1 out of bounds
-    static int codePointBeforeImpl(char[] a, int index, int start) {
-        char c2 = a[--index];
-        if (isLowSurrogate(c2) && index > start) {
-            char c1 = a[--index];
-            if (isHighSurrogate(c1)) {
-                return toCodePoint(c1, c2);
-            }
-        }
-        return c2;
-    }
-
-    /**
-     * Returns the leading surrogate (a
-     * <a href="http://www.unicode.org/glossary/#high_surrogate_code_unit">
-     * high surrogate code unit</a>) of the
-     * <a href="http://www.unicode.org/glossary/#surrogate_pair">
-     * surrogate pair</a>
-     * representing the specified supplementary character (Unicode
-     * code point) in the UTF-16 encoding.  If the specified character
-     * is not a
-     * <a href="Character.html#supplementary">supplementary character</a>,
-     * an unspecified {@code char} is returned.
-     *
-     * <p>If
-     * {@link #isSupplementaryCodePoint isSupplementaryCodePoint(x)}
-     * is {@code true}, then
-     * {@link #isHighSurrogate isHighSurrogate}{@code (highSurrogate(x))} and
-     * {@link #toCodePoint toCodePoint}{@code (highSurrogate(x), }{@link #lowSurrogate lowSurrogate}{@code (x)) == x}
-     * are also always {@code true}.
-     *
-     * @param   codePoint a supplementary character (Unicode code point)
-     * @return  the leading surrogate code unit used to represent the
-     *          character in the UTF-16 encoding
-     * @since   1.7
-     */
-    public static char highSurrogate(int codePoint) {
-        return (char) ((codePoint >>> 10)
-            + (MIN_HIGH_SURROGATE - (MIN_SUPPLEMENTARY_CODE_POINT >>> 10)));
-    }
-
-    /**
-     * Returns the trailing surrogate (a
-     * <a href="http://www.unicode.org/glossary/#low_surrogate_code_unit">
-     * low surrogate code unit</a>) of the
-     * <a href="http://www.unicode.org/glossary/#surrogate_pair">
-     * surrogate pair</a>
-     * representing the specified supplementary character (Unicode
-     * code point) in the UTF-16 encoding.  If the specified character
-     * is not a
-     * <a href="Character.html#supplementary">supplementary character</a>,
-     * an unspecified {@code char} is returned.
-     *
-     * <p>If
-     * {@link #isSupplementaryCodePoint isSupplementaryCodePoint(x)}
-     * is {@code true}, then
-     * {@link #isLowSurrogate isLowSurrogate}{@code (lowSurrogate(x))} and
-     * {@link #toCodePoint toCodePoint}{@code (}{@link #highSurrogate highSurrogate}{@code (x), lowSurrogate(x)) == x}
-     * are also always {@code true}.
-     *
-     * @param   codePoint a supplementary character (Unicode code point)
-     * @return  the trailing surrogate code unit used to represent the
-     *          character in the UTF-16 encoding
-     * @since   1.7
-     */
-    public static char lowSurrogate(int codePoint) {
-        return (char) ((codePoint & 0x3ff) + MIN_LOW_SURROGATE);
-    }
-
-    /**
-     * Converts the specified character (Unicode code point) to its
-     * UTF-16 representation. If the specified code point is a BMP
-     * (Basic Multilingual Plane or Plane 0) value, the same value is
-     * stored in {@code dst[dstIndex]}, and 1 is returned. If the
-     * specified code point is a supplementary character, its
-     * surrogate values are stored in {@code dst[dstIndex]}
-     * (high-surrogate) and {@code dst[dstIndex+1]}
-     * (low-surrogate), and 2 is returned.
-     *
-     * @param  codePoint the character (Unicode code point) to be converted.
-     * @param  dst an array of {@code char} in which the
-     * {@code codePoint}'s UTF-16 value is stored.
-     * @param dstIndex the start index into the {@code dst}
-     * array where the converted value is stored.
-     * @return 1 if the code point is a BMP code point, 2 if the
-     * code point is a supplementary code point.
-     * @throws IllegalArgumentException if the specified
-     * {@code codePoint} is not a valid Unicode code point.
-     * @throws NullPointerException if the specified {@code dst} is null.
-     * @throws IndexOutOfBoundsException if {@code dstIndex}
-     * is negative or not less than {@code dst.length}, or if
-     * {@code dst} at {@code dstIndex} doesn't have enough
-     * array element(s) to store the resulting {@code char}
-     * value(s). (If {@code dstIndex} is equal to
-     * {@code dst.length-1} and the specified
-     * {@code codePoint} is a supplementary character, the
-     * high-surrogate value is not stored in
-     * {@code dst[dstIndex]}.)
-     * @since  1.5
-     */
-    public static int toChars(int codePoint, char[] dst, int dstIndex) {
-        if (isBmpCodePoint(codePoint)) {
-            dst[dstIndex] = (char) codePoint;
-            return 1;
-        } else if (isValidCodePoint(codePoint)) {
-            toSurrogates(codePoint, dst, dstIndex);
-            return 2;
-        } else {
-            throw new IllegalArgumentException(
-                String.format("Not a valid Unicode code point: 0x%X", codePoint));
-        }
-    }
-
-    /**
-     * Converts the specified character (Unicode code point) to its
-     * UTF-16 representation stored in a {@code char} array. If
-     * the specified code point is a BMP (Basic Multilingual Plane or
-     * Plane 0) value, the resulting {@code char} array has
-     * the same value as {@code codePoint}. If the specified code
-     * point is a supplementary code point, the resulting
-     * {@code char} array has the corresponding surrogate pair.
-     *
-     * @param  codePoint a Unicode code point
-     * @return a {@code char} array having
-     *         {@code codePoint}'s UTF-16 representation.
-     * @throws IllegalArgumentException if the specified
-     * {@code codePoint} is not a valid Unicode code point.
-     * @since  1.5
-     */
-    public static char[] toChars(int codePoint) {
-        if (isBmpCodePoint(codePoint)) {
-            return new char[] { (char) codePoint };
-        } else if (isValidCodePoint(codePoint)) {
-            char[] result = new char[2];
-            toSurrogates(codePoint, result, 0);
-            return result;
-        } else {
-            throw new IllegalArgumentException(
-                String.format("Not a valid Unicode code point: 0x%X", codePoint));
-        }
-    }
-
-    static void toSurrogates(int codePoint, char[] dst, int index) {
-        // We write elements "backwards" to guarantee all-or-nothing
-        dst[index+1] = lowSurrogate(codePoint);
-        dst[index] = highSurrogate(codePoint);
-    }
-
-    /**
-     * Returns the number of Unicode code points in the text range of
-     * the specified char sequence. The text range begins at the
-     * specified {@code beginIndex} and extends to the
-     * {@code char} at index {@code endIndex - 1}. Thus the
-     * length (in {@code char}s) of the text range is
-     * {@code endIndex-beginIndex}. Unpaired surrogates within
-     * the text range count as one code point each.
-     *
-     * @param seq the char sequence
-     * @param beginIndex the index to the first {@code char} of
-     * the text range.
-     * @param endIndex the index after the last {@code char} of
-     * the text range.
-     * @return the number of Unicode code points in the specified text
-     * range
-     * @throws NullPointerException if {@code seq} is null.
-     * @throws IndexOutOfBoundsException if the
-     * {@code beginIndex} is negative, or {@code endIndex}
-     * is larger than the length of the given sequence, or
-     * {@code beginIndex} is larger than {@code endIndex}.
-     * @since  1.5
-     */
-    public static int codePointCount(CharSequence seq, int beginIndex, int endIndex) {
-        int length = seq.length();
-        if (beginIndex < 0 || endIndex > length || beginIndex > endIndex) {
-            throw new IndexOutOfBoundsException();
-        }
-        int n = endIndex - beginIndex;
-        for (int i = beginIndex; i < endIndex; ) {
-            if (isHighSurrogate(seq.charAt(i++)) && i < endIndex &&
-                isLowSurrogate(seq.charAt(i))) {
-                n--;
-                i++;
-            }
-        }
-        return n;
-    }
-
-    /**
-     * Returns the number of Unicode code points in a subarray of the
-     * {@code char} array argument. The {@code offset}
-     * argument is the index of the first {@code char} of the
-     * subarray and the {@code count} argument specifies the
-     * length of the subarray in {@code char}s. Unpaired
-     * surrogates within the subarray count as one code point each.
-     *
-     * @param a the {@code char} array
-     * @param offset the index of the first {@code char} in the
-     * given {@code char} array
-     * @param count the length of the subarray in {@code char}s
-     * @return the number of Unicode code points in the specified subarray
-     * @throws NullPointerException if {@code a} is null.
-     * @throws IndexOutOfBoundsException if {@code offset} or
-     * {@code count} is negative, or if {@code offset +
-     * count} is larger than the length of the given array.
-     * @since  1.5
-     */
-    public static int codePointCount(char[] a, int offset, int count) {
-        if (count > a.length - offset || offset < 0 || count < 0) {
-            throw new IndexOutOfBoundsException();
-        }
-        return codePointCountImpl(a, offset, count);
-    }
-
-    static int codePointCountImpl(char[] a, int offset, int count) {
-        int endIndex = offset + count;
-        int n = count;
-        for (int i = offset; i < endIndex; ) {
-            if (isHighSurrogate(a[i++]) && i < endIndex &&
-                isLowSurrogate(a[i])) {
-                n--;
-                i++;
-            }
-        }
-        return n;
-    }
-
-    /**
-     * Returns the index within the given char sequence that is offset
-     * from the given {@code index} by {@code codePointOffset}
-     * code points. Unpaired surrogates within the text range given by
-     * {@code index} and {@code codePointOffset} count as
-     * one code point each.
-     *
-     * @param seq the char sequence
-     * @param index the index to be offset
-     * @param codePointOffset the offset in code points
-     * @return the index within the char sequence
-     * @throws NullPointerException if {@code seq} is null.
-     * @throws IndexOutOfBoundsException if {@code index}
-     *   is negative or larger then the length of the char sequence,
-     *   or if {@code codePointOffset} is positive and the
-     *   subsequence starting with {@code index} has fewer than
-     *   {@code codePointOffset} code points, or if
-     *   {@code codePointOffset} is negative and the subsequence
-     *   before {@code index} has fewer than the absolute value
-     *   of {@code codePointOffset} code points.
-     * @since 1.5
-     */
-    public static int offsetByCodePoints(CharSequence seq, int index,
-                                         int codePointOffset) {
-        int length = seq.length();
-        if (index < 0 || index > length) {
-            throw new IndexOutOfBoundsException();
-        }
-
-        int x = index;
-        if (codePointOffset >= 0) {
-            int i;
-            for (i = 0; x < length && i < codePointOffset; i++) {
-                if (isHighSurrogate(seq.charAt(x++)) && x < length &&
-                    isLowSurrogate(seq.charAt(x))) {
-                    x++;
-                }
-            }
-            if (i < codePointOffset) {
-                throw new IndexOutOfBoundsException();
-            }
-        } else {
-            int i;
-            for (i = codePointOffset; x > 0 && i < 0; i++) {
-                if (isLowSurrogate(seq.charAt(--x)) && x > 0 &&
-                    isHighSurrogate(seq.charAt(x-1))) {
-                    x--;
-                }
-            }
-            if (i < 0) {
-                throw new IndexOutOfBoundsException();
-            }
-        }
-        return x;
-    }
-
-    /**
-     * Returns the index within the given {@code char} subarray
-     * that is offset from the given {@code index} by
-     * {@code codePointOffset} code points. The
-     * {@code start} and {@code count} arguments specify a
-     * subarray of the {@code char} array. Unpaired surrogates
-     * within the text range given by {@code index} and
-     * {@code codePointOffset} count as one code point each.
-     *
-     * @param a the {@code char} array
-     * @param start the index of the first {@code char} of the
-     * subarray
-     * @param count the length of the subarray in {@code char}s
-     * @param index the index to be offset
-     * @param codePointOffset the offset in code points
-     * @return the index within the subarray
-     * @throws NullPointerException if {@code a} is null.
-     * @throws IndexOutOfBoundsException
-     *   if {@code start} or {@code count} is negative,
-     *   or if {@code start + count} is larger than the length of
-     *   the given array,
-     *   or if {@code index} is less than {@code start} or
-     *   larger then {@code start + count},
-     *   or if {@code codePointOffset} is positive and the text range
-     *   starting with {@code index} and ending with {@code start + count - 1}
-     *   has fewer than {@code codePointOffset} code
-     *   points,
-     *   or if {@code codePointOffset} is negative and the text range
-     *   starting with {@code start} and ending with {@code index - 1}
-     *   has fewer than the absolute value of
-     *   {@code codePointOffset} code points.
-     * @since 1.5
-     */
-    public static int offsetByCodePoints(char[] a, int start, int count,
-                                         int index, int codePointOffset) {
-        if (count > a.length-start || start < 0 || count < 0
-            || index < start || index > start+count) {
-            throw new IndexOutOfBoundsException();
-        }
-        return offsetByCodePointsImpl(a, start, count, index, codePointOffset);
-    }
-
-    static int offsetByCodePointsImpl(char[]a, int start, int count,
-                                      int index, int codePointOffset) {
-        int x = index;
-        if (codePointOffset >= 0) {
-            int limit = start + count;
-            int i;
-            for (i = 0; x < limit && i < codePointOffset; i++) {
-                if (isHighSurrogate(a[x++]) && x < limit &&
-                    isLowSurrogate(a[x])) {
-                    x++;
-                }
-            }
-            if (i < codePointOffset) {
-                throw new IndexOutOfBoundsException();
-            }
-        } else {
-            int i;
-            for (i = codePointOffset; x > start && i < 0; i++) {
-                if (isLowSurrogate(a[--x]) && x > start &&
-                    isHighSurrogate(a[x-1])) {
-                    x--;
-                }
-            }
-            if (i < 0) {
-                throw new IndexOutOfBoundsException();
-            }
-        }
-        return x;
-    }
-
-    /**
-     * Determines if the specified character is a lowercase character.
-     * <p>
-     * A character is lowercase if its general category type, provided
-     * by {@code Character.getType(ch)}, is
-     * {@code LOWERCASE_LETTER}, or it has contributory property
-     * Other_Lowercase as defined by the Unicode Standard.
-     * <p>
-     * The following are examples of lowercase characters:
-     * <blockquote><pre>
-     * a b c d e f g h i j k l m n o p q r s t u v w x y z
-     * '&#92;u00DF' '&#92;u00E0' '&#92;u00E1' '&#92;u00E2' '&#92;u00E3' '&#92;u00E4' '&#92;u00E5' '&#92;u00E6'
-     * '&#92;u00E7' '&#92;u00E8' '&#92;u00E9' '&#92;u00EA' '&#92;u00EB' '&#92;u00EC' '&#92;u00ED' '&#92;u00EE'
-     * '&#92;u00EF' '&#92;u00F0' '&#92;u00F1' '&#92;u00F2' '&#92;u00F3' '&#92;u00F4' '&#92;u00F5' '&#92;u00F6'
-     * '&#92;u00F8' '&#92;u00F9' '&#92;u00FA' '&#92;u00FB' '&#92;u00FC' '&#92;u00FD' '&#92;u00FE' '&#92;u00FF'
-     * </pre></blockquote>
-     * <p> Many other Unicode characters are lowercase too.
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #isLowerCase(int)} method.
-     *
-     * @param   ch   the character to be tested.
-     * @return  {@code true} if the character is lowercase;
-     *          {@code false} otherwise.
-     * @see     Character#isLowerCase(char)
-     * @see     Character#isTitleCase(char)
-     * @see     Character#toLowerCase(char)
-     * @see     Character#getType(char)
-     */
-    public static boolean isLowerCase(char ch) {
-        return isLowerCase((int)ch);
-    }
-
-    /**
-     * Determines if the specified character (Unicode code point) is a
-     * lowercase character.
-     * <p>
-     * A character is lowercase if its general category type, provided
-     * by {@link Character#getType getType(codePoint)}, is
-     * {@code LOWERCASE_LETTER}, or it has contributory property
-     * Other_Lowercase as defined by the Unicode Standard.
-     * <p>
-     * The following are examples of lowercase characters:
-     * <blockquote><pre>
-     * a b c d e f g h i j k l m n o p q r s t u v w x y z
-     * '&#92;u00DF' '&#92;u00E0' '&#92;u00E1' '&#92;u00E2' '&#92;u00E3' '&#92;u00E4' '&#92;u00E5' '&#92;u00E6'
-     * '&#92;u00E7' '&#92;u00E8' '&#92;u00E9' '&#92;u00EA' '&#92;u00EB' '&#92;u00EC' '&#92;u00ED' '&#92;u00EE'
-     * '&#92;u00EF' '&#92;u00F0' '&#92;u00F1' '&#92;u00F2' '&#92;u00F3' '&#92;u00F4' '&#92;u00F5' '&#92;u00F6'
-     * '&#92;u00F8' '&#92;u00F9' '&#92;u00FA' '&#92;u00FB' '&#92;u00FC' '&#92;u00FD' '&#92;u00FE' '&#92;u00FF'
-     * </pre></blockquote>
-     * <p> Many other Unicode characters are lowercase too.
-     *
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return  {@code true} if the character is lowercase;
-     *          {@code false} otherwise.
-     * @see     Character#isLowerCase(int)
-     * @see     Character#isTitleCase(int)
-     * @see     Character#toLowerCase(int)
-     * @see     Character#getType(int)
-     * @since   1.5
-     */
-    public static boolean isLowerCase(int codePoint) {
-        return getType(codePoint) == Character.LOWERCASE_LETTER ||
-               CharacterData.of(codePoint).isOtherLowercase(codePoint);
-    }
-
-    /**
-     * Determines if the specified character is an uppercase character.
-     * <p>
-     * A character is uppercase if its general category type, provided by
-     * {@code Character.getType(ch)}, is {@code UPPERCASE_LETTER}.
-     * or it has contributory property Other_Uppercase as defined by the Unicode Standard.
-     * <p>
-     * The following are examples of uppercase characters:
-     * <blockquote><pre>
-     * A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
-     * '&#92;u00C0' '&#92;u00C1' '&#92;u00C2' '&#92;u00C3' '&#92;u00C4' '&#92;u00C5' '&#92;u00C6' '&#92;u00C7'
-     * '&#92;u00C8' '&#92;u00C9' '&#92;u00CA' '&#92;u00CB' '&#92;u00CC' '&#92;u00CD' '&#92;u00CE' '&#92;u00CF'
-     * '&#92;u00D0' '&#92;u00D1' '&#92;u00D2' '&#92;u00D3' '&#92;u00D4' '&#92;u00D5' '&#92;u00D6' '&#92;u00D8'
-     * '&#92;u00D9' '&#92;u00DA' '&#92;u00DB' '&#92;u00DC' '&#92;u00DD' '&#92;u00DE'
-     * </pre></blockquote>
-     * <p> Many other Unicode characters are uppercase too.
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #isUpperCase(int)} method.
-     *
-     * @param   ch   the character to be tested.
-     * @return  {@code true} if the character is uppercase;
-     *          {@code false} otherwise.
-     * @see     Character#isLowerCase(char)
-     * @see     Character#isTitleCase(char)
-     * @see     Character#toUpperCase(char)
-     * @see     Character#getType(char)
-     * @since   1.0
-     */
-    public static boolean isUpperCase(char ch) {
-        return isUpperCase((int)ch);
-    }
-
-    /**
-     * Determines if the specified character (Unicode code point) is an uppercase character.
-     * <p>
-     * A character is uppercase if its general category type, provided by
-     * {@link Character#getType(int) getType(codePoint)}, is {@code UPPERCASE_LETTER},
-     * or it has contributory property Other_Uppercase as defined by the Unicode Standard.
-     * <p>
-     * The following are examples of uppercase characters:
-     * <blockquote><pre>
-     * A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
-     * '&#92;u00C0' '&#92;u00C1' '&#92;u00C2' '&#92;u00C3' '&#92;u00C4' '&#92;u00C5' '&#92;u00C6' '&#92;u00C7'
-     * '&#92;u00C8' '&#92;u00C9' '&#92;u00CA' '&#92;u00CB' '&#92;u00CC' '&#92;u00CD' '&#92;u00CE' '&#92;u00CF'
-     * '&#92;u00D0' '&#92;u00D1' '&#92;u00D2' '&#92;u00D3' '&#92;u00D4' '&#92;u00D5' '&#92;u00D6' '&#92;u00D8'
-     * '&#92;u00D9' '&#92;u00DA' '&#92;u00DB' '&#92;u00DC' '&#92;u00DD' '&#92;u00DE'
-     * </pre></blockquote>
-     * <p> Many other Unicode characters are uppercase too.
-     *
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return  {@code true} if the character is uppercase;
-     *          {@code false} otherwise.
-     * @see     Character#isLowerCase(int)
-     * @see     Character#isTitleCase(int)
-     * @see     Character#toUpperCase(int)
-     * @see     Character#getType(int)
-     * @since   1.5
-     */
-    public static boolean isUpperCase(int codePoint) {
-        return getType(codePoint) == Character.UPPERCASE_LETTER ||
-               CharacterData.of(codePoint).isOtherUppercase(codePoint);
-    }
-
-    /**
-     * Determines if the specified character is a titlecase character.
-     * <p>
-     * A character is a titlecase character if its general
-     * category type, provided by {@code Character.getType(ch)},
-     * is {@code TITLECASE_LETTER}.
-     * <p>
-     * Some characters look like pairs of Latin letters. For example, there
-     * is an uppercase letter that looks like "LJ" and has a corresponding
-     * lowercase letter that looks like "lj". A third form, which looks like "Lj",
-     * is the appropriate form to use when rendering a word in lowercase
-     * with initial capitals, as for a book title.
-     * <p>
-     * These are some of the Unicode characters for which this method returns
-     * {@code true}:
-     * <ul>
-     * <li>{@code LATIN CAPITAL LETTER D WITH SMALL LETTER Z WITH CARON}
-     * <li>{@code LATIN CAPITAL LETTER L WITH SMALL LETTER J}
-     * <li>{@code LATIN CAPITAL LETTER N WITH SMALL LETTER J}
-     * <li>{@code LATIN CAPITAL LETTER D WITH SMALL LETTER Z}
-     * </ul>
-     * <p> Many other Unicode characters are titlecase too.
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #isTitleCase(int)} method.
-     *
-     * @param   ch   the character to be tested.
-     * @return  {@code true} if the character is titlecase;
-     *          {@code false} otherwise.
-     * @see     Character#isLowerCase(char)
-     * @see     Character#isUpperCase(char)
-     * @see     Character#toTitleCase(char)
-     * @see     Character#getType(char)
-     * @since   1.0.2
-     */
-    public static boolean isTitleCase(char ch) {
-        return isTitleCase((int)ch);
-    }
-
-    /**
-     * Determines if the specified character (Unicode code point) is a titlecase character.
-     * <p>
-     * A character is a titlecase character if its general
-     * category type, provided by {@link Character#getType(int) getType(codePoint)},
-     * is {@code TITLECASE_LETTER}.
-     * <p>
-     * Some characters look like pairs of Latin letters. For example, there
-     * is an uppercase letter that looks like "LJ" and has a corresponding
-     * lowercase letter that looks like "lj". A third form, which looks like "Lj",
-     * is the appropriate form to use when rendering a word in lowercase
-     * with initial capitals, as for a book title.
-     * <p>
-     * These are some of the Unicode characters for which this method returns
-     * {@code true}:
-     * <ul>
-     * <li>{@code LATIN CAPITAL LETTER D WITH SMALL LETTER Z WITH CARON}
-     * <li>{@code LATIN CAPITAL LETTER L WITH SMALL LETTER J}
-     * <li>{@code LATIN CAPITAL LETTER N WITH SMALL LETTER J}
-     * <li>{@code LATIN CAPITAL LETTER D WITH SMALL LETTER Z}
-     * </ul>
-     * <p> Many other Unicode characters are titlecase too.
-     *
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return  {@code true} if the character is titlecase;
-     *          {@code false} otherwise.
-     * @see     Character#isLowerCase(int)
-     * @see     Character#isUpperCase(int)
-     * @see     Character#toTitleCase(int)
-     * @see     Character#getType(int)
-     * @since   1.5
-     */
-    public static boolean isTitleCase(int codePoint) {
-        return getType(codePoint) == Character.TITLECASE_LETTER;
-    }
-
-    /**
-     * Determines if the specified character is a digit.
-     * <p>
-     * A character is a digit if its general category type, provided
-     * by {@code Character.getType(ch)}, is
-     * {@code DECIMAL_DIGIT_NUMBER}.
-     * <p>
-     * Some Unicode character ranges that contain digits:
-     * <ul>
-     * <li>{@code '\u005Cu0030'} through {@code '\u005Cu0039'},
-     *     ISO-LATIN-1 digits ({@code '0'} through {@code '9'})
-     * <li>{@code '\u005Cu0660'} through {@code '\u005Cu0669'},
-     *     Arabic-Indic digits
-     * <li>{@code '\u005Cu06F0'} through {@code '\u005Cu06F9'},
-     *     Extended Arabic-Indic digits
-     * <li>{@code '\u005Cu0966'} through {@code '\u005Cu096F'},
-     *     Devanagari digits
-     * <li>{@code '\u005CuFF10'} through {@code '\u005CuFF19'},
-     *     Fullwidth digits
-     * </ul>
-     *
-     * Many other character ranges contain digits as well.
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #isDigit(int)} method.
-     *
-     * @param   ch   the character to be tested.
-     * @return  {@code true} if the character is a digit;
-     *          {@code false} otherwise.
-     * @see     Character#digit(char, int)
-     * @see     Character#forDigit(int, int)
-     * @see     Character#getType(char)
-     */
-    public static boolean isDigit(char ch) {
-        return isDigit((int)ch);
-    }
-
-    /**
-     * Determines if the specified character (Unicode code point) is a digit.
-     * <p>
-     * A character is a digit if its general category type, provided
-     * by {@link Character#getType(int) getType(codePoint)}, is
-     * {@code DECIMAL_DIGIT_NUMBER}.
-     * <p>
-     * Some Unicode character ranges that contain digits:
-     * <ul>
-     * <li>{@code '\u005Cu0030'} through {@code '\u005Cu0039'},
-     *     ISO-LATIN-1 digits ({@code '0'} through {@code '9'})
-     * <li>{@code '\u005Cu0660'} through {@code '\u005Cu0669'},
-     *     Arabic-Indic digits
-     * <li>{@code '\u005Cu06F0'} through {@code '\u005Cu06F9'},
-     *     Extended Arabic-Indic digits
-     * <li>{@code '\u005Cu0966'} through {@code '\u005Cu096F'},
-     *     Devanagari digits
-     * <li>{@code '\u005CuFF10'} through {@code '\u005CuFF19'},
-     *     Fullwidth digits
-     * </ul>
-     *
-     * Many other character ranges contain digits as well.
-     *
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return  {@code true} if the character is a digit;
-     *          {@code false} otherwise.
-     * @see     Character#forDigit(int, int)
-     * @see     Character#getType(int)
-     * @since   1.5
-     */
-    public static boolean isDigit(int codePoint) {
-        return getType(codePoint) == Character.DECIMAL_DIGIT_NUMBER;
-    }
-
-    /**
-     * Determines if a character is defined in Unicode.
-     * <p>
-     * A character is defined if at least one of the following is true:
-     * <ul>
-     * <li>It has an entry in the UnicodeData file.
-     * <li>It has a value in a range defined by the UnicodeData file.
-     * </ul>
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #isDefined(int)} method.
-     *
-     * @param   ch   the character to be tested
-     * @return  {@code true} if the character has a defined meaning
-     *          in Unicode; {@code false} otherwise.
-     * @see     Character#isDigit(char)
-     * @see     Character#isLetter(char)
-     * @see     Character#isLetterOrDigit(char)
-     * @see     Character#isLowerCase(char)
-     * @see     Character#isTitleCase(char)
-     * @see     Character#isUpperCase(char)
-     * @since   1.0.2
-     */
-    public static boolean isDefined(char ch) {
-        return isDefined((int)ch);
-    }
-
-    /**
-     * Determines if a character (Unicode code point) is defined in Unicode.
-     * <p>
-     * A character is defined if at least one of the following is true:
-     * <ul>
-     * <li>It has an entry in the UnicodeData file.
-     * <li>It has a value in a range defined by the UnicodeData file.
-     * </ul>
-     *
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return  {@code true} if the character has a defined meaning
-     *          in Unicode; {@code false} otherwise.
-     * @see     Character#isDigit(int)
-     * @see     Character#isLetter(int)
-     * @see     Character#isLetterOrDigit(int)
-     * @see     Character#isLowerCase(int)
-     * @see     Character#isTitleCase(int)
-     * @see     Character#isUpperCase(int)
-     * @since   1.5
-     */
-    public static boolean isDefined(int codePoint) {
-        return getType(codePoint) != Character.UNASSIGNED;
-    }
-
-    /**
-     * Determines if the specified character is a letter.
-     * <p>
-     * A character is considered to be a letter if its general
-     * category type, provided by {@code Character.getType(ch)},
-     * is any of the following:
-     * <ul>
-     * <li> {@code UPPERCASE_LETTER}
-     * <li> {@code LOWERCASE_LETTER}
-     * <li> {@code TITLECASE_LETTER}
-     * <li> {@code MODIFIER_LETTER}
-     * <li> {@code OTHER_LETTER}
-     * </ul>
-     *
-     * Not all letters have case. Many characters are
-     * letters but are neither uppercase nor lowercase nor titlecase.
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #isLetter(int)} method.
-     *
-     * @param   ch   the character to be tested.
-     * @return  {@code true} if the character is a letter;
-     *          {@code false} otherwise.
-     * @see     Character#isDigit(char)
-     * @see     Character#isJavaIdentifierStart(char)
-     * @see     Character#isJavaLetter(char)
-     * @see     Character#isJavaLetterOrDigit(char)
-     * @see     Character#isLetterOrDigit(char)
-     * @see     Character#isLowerCase(char)
-     * @see     Character#isTitleCase(char)
-     * @see     Character#isUnicodeIdentifierStart(char)
-     * @see     Character#isUpperCase(char)
-     */
-    public static boolean isLetter(char ch) {
-        return isLetter((int)ch);
-    }
-
-    /**
-     * Determines if the specified character (Unicode code point) is a letter.
-     * <p>
-     * A character is considered to be a letter if its general
-     * category type, provided by {@link Character#getType(int) getType(codePoint)},
-     * is any of the following:
-     * <ul>
-     * <li> {@code UPPERCASE_LETTER}
-     * <li> {@code LOWERCASE_LETTER}
-     * <li> {@code TITLECASE_LETTER}
-     * <li> {@code MODIFIER_LETTER}
-     * <li> {@code OTHER_LETTER}
-     * </ul>
-     *
-     * Not all letters have case. Many characters are
-     * letters but are neither uppercase nor lowercase nor titlecase.
-     *
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return  {@code true} if the character is a letter;
-     *          {@code false} otherwise.
-     * @see     Character#isDigit(int)
-     * @see     Character#isJavaIdentifierStart(int)
-     * @see     Character#isLetterOrDigit(int)
-     * @see     Character#isLowerCase(int)
-     * @see     Character#isTitleCase(int)
-     * @see     Character#isUnicodeIdentifierStart(int)
-     * @see     Character#isUpperCase(int)
-     * @since   1.5
-     */
-    public static boolean isLetter(int codePoint) {
-        return ((((1 << Character.UPPERCASE_LETTER) |
-            (1 << Character.LOWERCASE_LETTER) |
-            (1 << Character.TITLECASE_LETTER) |
-            (1 << Character.MODIFIER_LETTER) |
-            (1 << Character.OTHER_LETTER)) >> getType(codePoint)) & 1)
-            != 0;
-    }
-
-    /**
-     * Determines if the specified character is a letter or digit.
-     * <p>
-     * A character is considered to be a letter or digit if either
-     * {@code Character.isLetter(char ch)} or
-     * {@code Character.isDigit(char ch)} returns
-     * {@code true} for the character.
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #isLetterOrDigit(int)} method.
-     *
-     * @param   ch   the character to be tested.
-     * @return  {@code true} if the character is a letter or digit;
-     *          {@code false} otherwise.
-     * @see     Character#isDigit(char)
-     * @see     Character#isJavaIdentifierPart(char)
-     * @see     Character#isJavaLetter(char)
-     * @see     Character#isJavaLetterOrDigit(char)
-     * @see     Character#isLetter(char)
-     * @see     Character#isUnicodeIdentifierPart(char)
-     * @since   1.0.2
-     */
-    public static boolean isLetterOrDigit(char ch) {
-        return isLetterOrDigit((int)ch);
-    }
-
-    /**
-     * Determines if the specified character (Unicode code point) is a letter or digit.
-     * <p>
-     * A character is considered to be a letter or digit if either
-     * {@link #isLetter(int) isLetter(codePoint)} or
-     * {@link #isDigit(int) isDigit(codePoint)} returns
-     * {@code true} for the character.
-     *
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return  {@code true} if the character is a letter or digit;
-     *          {@code false} otherwise.
-     * @see     Character#isDigit(int)
-     * @see     Character#isJavaIdentifierPart(int)
-     * @see     Character#isLetter(int)
-     * @see     Character#isUnicodeIdentifierPart(int)
-     * @since   1.5
-     */
-    public static boolean isLetterOrDigit(int codePoint) {
-        return ((((1 << Character.UPPERCASE_LETTER) |
-            (1 << Character.LOWERCASE_LETTER) |
-            (1 << Character.TITLECASE_LETTER) |
-            (1 << Character.MODIFIER_LETTER) |
-            (1 << Character.OTHER_LETTER) |
-            (1 << Character.DECIMAL_DIGIT_NUMBER)) >> getType(codePoint)) & 1)
-            != 0;
-    }
-
-    /**
-     * Determines if the specified character is permissible as the first
-     * character in a Java identifier.
-     * <p>
-     * A character may start a Java identifier if and only if
-     * one of the following is true:
-     * <ul>
-     * <li> {@link #isLetter(char) isLetter(ch)} returns {@code true}
-     * <li> {@link #getType(char) getType(ch)} returns {@code LETTER_NUMBER}
-     * <li> {@code ch} is a currency symbol (such as {@code '$'})
-     * <li> {@code ch} is a connecting punctuation character (such as {@code '_'}).
-     * </ul>
-     *
-     * @param   ch the character to be tested.
-     * @return  {@code true} if the character may start a Java
-     *          identifier; {@code false} otherwise.
-     * @see     Character#isJavaLetterOrDigit(char)
-     * @see     Character#isJavaIdentifierStart(char)
-     * @see     Character#isJavaIdentifierPart(char)
-     * @see     Character#isLetter(char)
-     * @see     Character#isLetterOrDigit(char)
-     * @see     Character#isUnicodeIdentifierStart(char)
-     * @since   1.0.2
-     * @deprecated Replaced by isJavaIdentifierStart(char).
-     */
-    @Deprecated(since="1.1")
-    public static boolean isJavaLetter(char ch) {
-        return isJavaIdentifierStart(ch);
-    }
-
-    /**
-     * Determines if the specified character may be part of a Java
-     * identifier as other than the first character.
-     * <p>
-     * A character may be part of a Java identifier if and only if any
-     * of the following are true:
-     * <ul>
-     * <li>  it is a letter
-     * <li>  it is a currency symbol (such as {@code '$'})
-     * <li>  it is a connecting punctuation character (such as {@code '_'})
-     * <li>  it is a digit
-     * <li>  it is a numeric letter (such as a Roman numeral character)
-     * <li>  it is a combining mark
-     * <li>  it is a non-spacing mark
-     * <li> {@code isIdentifierIgnorable} returns
-     * {@code true} for the character.
-     * </ul>
-     *
-     * @param   ch the character to be tested.
-     * @return  {@code true} if the character may be part of a
-     *          Java identifier; {@code false} otherwise.
-     * @see     Character#isJavaLetter(char)
-     * @see     Character#isJavaIdentifierStart(char)
-     * @see     Character#isJavaIdentifierPart(char)
-     * @see     Character#isLetter(char)
-     * @see     Character#isLetterOrDigit(char)
-     * @see     Character#isUnicodeIdentifierPart(char)
-     * @see     Character#isIdentifierIgnorable(char)
-     * @since   1.0.2
-     * @deprecated Replaced by isJavaIdentifierPart(char).
-     */
-    @Deprecated(since="1.1")
-    public static boolean isJavaLetterOrDigit(char ch) {
-        return isJavaIdentifierPart(ch);
-    }
-
-    /**
-     * Determines if the specified character (Unicode code point) is an alphabet.
-     * <p>
-     * A character is considered to be alphabetic if its general category type,
-     * provided by {@link Character#getType(int) getType(codePoint)}, is any of
-     * the following:
-     * <ul>
-     * <li> {@code UPPERCASE_LETTER}
-     * <li> {@code LOWERCASE_LETTER}
-     * <li> {@code TITLECASE_LETTER}
-     * <li> {@code MODIFIER_LETTER}
-     * <li> {@code OTHER_LETTER}
-     * <li> {@code LETTER_NUMBER}
-     * </ul>
-     * or it has contributory property Other_Alphabetic as defined by the
-     * Unicode Standard.
-     *
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return  {@code true} if the character is a Unicode alphabet
-     *          character, {@code false} otherwise.
-     * @since   1.7
-     */
-    public static boolean isAlphabetic(int codePoint) {
-        return (((((1 << Character.UPPERCASE_LETTER) |
-            (1 << Character.LOWERCASE_LETTER) |
-            (1 << Character.TITLECASE_LETTER) |
-            (1 << Character.MODIFIER_LETTER) |
-            (1 << Character.OTHER_LETTER) |
-            (1 << Character.LETTER_NUMBER)) >> getType(codePoint)) & 1) != 0) ||
-            CharacterData.of(codePoint).isOtherAlphabetic(codePoint);
-    }
-
-    /**
-     * Determines if the specified character (Unicode code point) is a CJKV
-     * (Chinese, Japanese, Korean and Vietnamese) ideograph, as defined by
-     * the Unicode Standard.
-     *
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return  {@code true} if the character is a Unicode ideograph
-     *          character, {@code false} otherwise.
-     * @since   1.7
-     */
-    public static boolean isIdeographic(int codePoint) {
-        return CharacterData.of(codePoint).isIdeographic(codePoint);
-    }
-
-    /**
-     * Determines if the specified character is
-     * permissible as the first character in a Java identifier.
-     * <p>
-     * A character may start a Java identifier if and only if
-     * one of the following conditions is true:
-     * <ul>
-     * <li> {@link #isLetter(char) isLetter(ch)} returns {@code true}
-     * <li> {@link #getType(char) getType(ch)} returns {@code LETTER_NUMBER}
-     * <li> {@code ch} is a currency symbol (such as {@code '$'})
-     * <li> {@code ch} is a connecting punctuation character (such as {@code '_'}).
-     * </ul>
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #isJavaIdentifierStart(int)} method.
-     *
-     * @param   ch the character to be tested.
-     * @return  {@code true} if the character may start a Java identifier;
-     *          {@code false} otherwise.
-     * @see     Character#isJavaIdentifierPart(char)
-     * @see     Character#isLetter(char)
-     * @see     Character#isUnicodeIdentifierStart(char)
-     * @see     javax.lang.model.SourceVersion#isIdentifier(CharSequence)
-     * @since   1.1
-     */
-    public static boolean isJavaIdentifierStart(char ch) {
-        return isJavaIdentifierStart((int)ch);
-    }
-
-    /**
-     * Determines if the character (Unicode code point) is
-     * permissible as the first character in a Java identifier.
-     * <p>
-     * A character may start a Java identifier if and only if
-     * one of the following conditions is true:
-     * <ul>
-     * <li> {@link #isLetter(int) isLetter(codePoint)}
-     *      returns {@code true}
-     * <li> {@link #getType(int) getType(codePoint)}
-     *      returns {@code LETTER_NUMBER}
-     * <li> the referenced character is a currency symbol (such as {@code '$'})
-     * <li> the referenced character is a connecting punctuation character
-     *      (such as {@code '_'}).
-     * </ul>
-     *
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return  {@code true} if the character may start a Java identifier;
-     *          {@code false} otherwise.
-     * @see     Character#isJavaIdentifierPart(int)
-     * @see     Character#isLetter(int)
-     * @see     Character#isUnicodeIdentifierStart(int)
-     * @see     javax.lang.model.SourceVersion#isIdentifier(CharSequence)
-     * @since   1.5
-     */
-    public static boolean isJavaIdentifierStart(int codePoint) {
-        return CharacterData.of(codePoint).isJavaIdentifierStart(codePoint);
-    }
-
-    /**
-     * Determines if the specified character may be part of a Java
-     * identifier as other than the first character.
-     * <p>
-     * A character may be part of a Java identifier if any of the following
-     * are true:
-     * <ul>
-     * <li>  it is a letter
-     * <li>  it is a currency symbol (such as {@code '$'})
-     * <li>  it is a connecting punctuation character (such as {@code '_'})
-     * <li>  it is a digit
-     * <li>  it is a numeric letter (such as a Roman numeral character)
-     * <li>  it is a combining mark
-     * <li>  it is a non-spacing mark
-     * <li> {@code isIdentifierIgnorable} returns
-     * {@code true} for the character
-     * </ul>
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #isJavaIdentifierPart(int)} method.
-     *
-     * @param   ch      the character to be tested.
-     * @return {@code true} if the character may be part of a
-     *          Java identifier; {@code false} otherwise.
-     * @see     Character#isIdentifierIgnorable(char)
-     * @see     Character#isJavaIdentifierStart(char)
-     * @see     Character#isLetterOrDigit(char)
-     * @see     Character#isUnicodeIdentifierPart(char)
-     * @see     javax.lang.model.SourceVersion#isIdentifier(CharSequence)
-     * @since   1.1
-     */
-    public static boolean isJavaIdentifierPart(char ch) {
-        return isJavaIdentifierPart((int)ch);
-    }
-
-    /**
-     * Determines if the character (Unicode code point) may be part of a Java
-     * identifier as other than the first character.
-     * <p>
-     * A character may be part of a Java identifier if any of the following
-     * are true:
-     * <ul>
-     * <li>  it is a letter
-     * <li>  it is a currency symbol (such as {@code '$'})
-     * <li>  it is a connecting punctuation character (such as {@code '_'})
-     * <li>  it is a digit
-     * <li>  it is a numeric letter (such as a Roman numeral character)
-     * <li>  it is a combining mark
-     * <li>  it is a non-spacing mark
-     * <li> {@link #isIdentifierIgnorable(int)
-     * isIdentifierIgnorable(codePoint)} returns {@code true} for
-     * the character
-     * </ul>
-     *
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return {@code true} if the character may be part of a
-     *          Java identifier; {@code false} otherwise.
-     * @see     Character#isIdentifierIgnorable(int)
-     * @see     Character#isJavaIdentifierStart(int)
-     * @see     Character#isLetterOrDigit(int)
-     * @see     Character#isUnicodeIdentifierPart(int)
-     * @see     javax.lang.model.SourceVersion#isIdentifier(CharSequence)
-     * @since   1.5
-     */
-    public static boolean isJavaIdentifierPart(int codePoint) {
-        return CharacterData.of(codePoint).isJavaIdentifierPart(codePoint);
-    }
-
-    /**
-     * Determines if the specified character is permissible as the
-     * first character in a Unicode identifier.
-     * <p>
-     * A character may start a Unicode identifier if and only if
-     * one of the following conditions is true:
-     * <ul>
-     * <li> {@link #isLetter(char) isLetter(ch)} returns {@code true}
-     * <li> {@link #getType(char) getType(ch)} returns
-     *      {@code LETTER_NUMBER}.
-     * </ul>
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #isUnicodeIdentifierStart(int)} method.
-     *
-     * @param   ch      the character to be tested.
-     * @return  {@code true} if the character may start a Unicode
-     *          identifier; {@code false} otherwise.
-     * @see     Character#isJavaIdentifierStart(char)
-     * @see     Character#isLetter(char)
-     * @see     Character#isUnicodeIdentifierPart(char)
-     * @since   1.1
-     */
-    public static boolean isUnicodeIdentifierStart(char ch) {
-        return isUnicodeIdentifierStart((int)ch);
-    }
-
-    /**
-     * Determines if the specified character (Unicode code point) is permissible as the
-     * first character in a Unicode identifier.
-     * <p>
-     * A character may start a Unicode identifier if and only if
-     * one of the following conditions is true:
-     * <ul>
-     * <li> {@link #isLetter(int) isLetter(codePoint)}
-     *      returns {@code true}
-     * <li> {@link #getType(int) getType(codePoint)}
-     *      returns {@code LETTER_NUMBER}.
-     * </ul>
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return  {@code true} if the character may start a Unicode
-     *          identifier; {@code false} otherwise.
-     * @see     Character#isJavaIdentifierStart(int)
-     * @see     Character#isLetter(int)
-     * @see     Character#isUnicodeIdentifierPart(int)
-     * @since   1.5
-     */
-    public static boolean isUnicodeIdentifierStart(int codePoint) {
-        return CharacterData.of(codePoint).isUnicodeIdentifierStart(codePoint);
-    }
-
-    /**
-     * Determines if the specified character may be part of a Unicode
-     * identifier as other than the first character.
-     * <p>
-     * A character may be part of a Unicode identifier if and only if
-     * one of the following statements is true:
-     * <ul>
-     * <li>  it is a letter
-     * <li>  it is a connecting punctuation character (such as {@code '_'})
-     * <li>  it is a digit
-     * <li>  it is a numeric letter (such as a Roman numeral character)
-     * <li>  it is a combining mark
-     * <li>  it is a non-spacing mark
-     * <li> {@code isIdentifierIgnorable} returns
-     * {@code true} for this character.
-     * </ul>
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #isUnicodeIdentifierPart(int)} method.
-     *
-     * @param   ch      the character to be tested.
-     * @return  {@code true} if the character may be part of a
-     *          Unicode identifier; {@code false} otherwise.
-     * @see     Character#isIdentifierIgnorable(char)
-     * @see     Character#isJavaIdentifierPart(char)
-     * @see     Character#isLetterOrDigit(char)
-     * @see     Character#isUnicodeIdentifierStart(char)
-     * @since   1.1
-     */
-    public static boolean isUnicodeIdentifierPart(char ch) {
-        return isUnicodeIdentifierPart((int)ch);
-    }
-
-    /**
-     * Determines if the specified character (Unicode code point) may be part of a Unicode
-     * identifier as other than the first character.
-     * <p>
-     * A character may be part of a Unicode identifier if and only if
-     * one of the following statements is true:
-     * <ul>
-     * <li>  it is a letter
-     * <li>  it is a connecting punctuation character (such as {@code '_'})
-     * <li>  it is a digit
-     * <li>  it is a numeric letter (such as a Roman numeral character)
-     * <li>  it is a combining mark
-     * <li>  it is a non-spacing mark
-     * <li> {@code isIdentifierIgnorable} returns
-     * {@code true} for this character.
-     * </ul>
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return  {@code true} if the character may be part of a
-     *          Unicode identifier; {@code false} otherwise.
-     * @see     Character#isIdentifierIgnorable(int)
-     * @see     Character#isJavaIdentifierPart(int)
-     * @see     Character#isLetterOrDigit(int)
-     * @see     Character#isUnicodeIdentifierStart(int)
-     * @since   1.5
-     */
-    public static boolean isUnicodeIdentifierPart(int codePoint) {
-        return CharacterData.of(codePoint).isUnicodeIdentifierPart(codePoint);
-    }
-
-    /**
-     * Determines if the specified character should be regarded as
-     * an ignorable character in a Java identifier or a Unicode identifier.
-     * <p>
-     * The following Unicode characters are ignorable in a Java identifier
-     * or a Unicode identifier:
-     * <ul>
-     * <li>ISO control characters that are not whitespace
-     * <ul>
-     * <li>{@code '\u005Cu0000'} through {@code '\u005Cu0008'}
-     * <li>{@code '\u005Cu000E'} through {@code '\u005Cu001B'}
-     * <li>{@code '\u005Cu007F'} through {@code '\u005Cu009F'}
-     * </ul>
-     *
-     * <li>all characters that have the {@code FORMAT} general
-     * category value
-     * </ul>
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #isIdentifierIgnorable(int)} method.
-     *
-     * @param   ch      the character to be tested.
-     * @return  {@code true} if the character is an ignorable control
-     *          character that may be part of a Java or Unicode identifier;
-     *           {@code false} otherwise.
-     * @see     Character#isJavaIdentifierPart(char)
-     * @see     Character#isUnicodeIdentifierPart(char)
-     * @since   1.1
-     */
-    public static boolean isIdentifierIgnorable(char ch) {
-        return isIdentifierIgnorable((int)ch);
-    }
-
-    /**
-     * Determines if the specified character (Unicode code point) should be regarded as
-     * an ignorable character in a Java identifier or a Unicode identifier.
-     * <p>
-     * The following Unicode characters are ignorable in a Java identifier
-     * or a Unicode identifier:
-     * <ul>
-     * <li>ISO control characters that are not whitespace
-     * <ul>
-     * <li>{@code '\u005Cu0000'} through {@code '\u005Cu0008'}
-     * <li>{@code '\u005Cu000E'} through {@code '\u005Cu001B'}
-     * <li>{@code '\u005Cu007F'} through {@code '\u005Cu009F'}
-     * </ul>
-     *
-     * <li>all characters that have the {@code FORMAT} general
-     * category value
-     * </ul>
-     *
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return  {@code true} if the character is an ignorable control
-     *          character that may be part of a Java or Unicode identifier;
-     *          {@code false} otherwise.
-     * @see     Character#isJavaIdentifierPart(int)
-     * @see     Character#isUnicodeIdentifierPart(int)
-     * @since   1.5
-     */
-    public static boolean isIdentifierIgnorable(int codePoint) {
-        return CharacterData.of(codePoint).isIdentifierIgnorable(codePoint);
-    }
-
-    /**
-     * Converts the character argument to lowercase using case
-     * mapping information from the UnicodeData file.
-     * <p>
-     * Note that
-     * {@code Character.isLowerCase(Character.toLowerCase(ch))}
-     * does not always return {@code true} for some ranges of
-     * characters, particularly those that are symbols or ideographs.
-     *
-     * <p>In general, {@link String#toLowerCase()} should be used to map
-     * characters to lowercase. {@code String} case mapping methods
-     * have several benefits over {@code Character} case mapping methods.
-     * {@code String} case mapping methods can perform locale-sensitive
-     * mappings, context-sensitive mappings, and 1:M character mappings, whereas
-     * the {@code Character} case mapping methods cannot.
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #toLowerCase(int)} method.
-     *
-     * @param   ch   the character to be converted.
-     * @return  the lowercase equivalent of the character, if any;
-     *          otherwise, the character itself.
-     * @see     Character#isLowerCase(char)
-     * @see     String#toLowerCase()
-     */
-    public static char toLowerCase(char ch) {
-        return (char)toLowerCase((int)ch);
-    }
-
-    /**
-     * Converts the character (Unicode code point) argument to
-     * lowercase using case mapping information from the UnicodeData
-     * file.
-     *
-     * <p> Note that
-     * {@code Character.isLowerCase(Character.toLowerCase(codePoint))}
-     * does not always return {@code true} for some ranges of
-     * characters, particularly those that are symbols or ideographs.
-     *
-     * <p>In general, {@link String#toLowerCase()} should be used to map
-     * characters to lowercase. {@code String} case mapping methods
-     * have several benefits over {@code Character} case mapping methods.
-     * {@code String} case mapping methods can perform locale-sensitive
-     * mappings, context-sensitive mappings, and 1:M character mappings, whereas
-     * the {@code Character} case mapping methods cannot.
-     *
-     * @param   codePoint   the character (Unicode code point) to be converted.
-     * @return  the lowercase equivalent of the character (Unicode code
-     *          point), if any; otherwise, the character itself.
-     * @see     Character#isLowerCase(int)
-     * @see     String#toLowerCase()
-     *
-     * @since   1.5
-     */
-    public static int toLowerCase(int codePoint) {
-        return CharacterData.of(codePoint).toLowerCase(codePoint);
-    }
-
-    /**
-     * Converts the character argument to uppercase using case mapping
-     * information from the UnicodeData file.
-     * <p>
-     * Note that
-     * {@code Character.isUpperCase(Character.toUpperCase(ch))}
-     * does not always return {@code true} for some ranges of
-     * characters, particularly those that are symbols or ideographs.
-     *
-     * <p>In general, {@link String#toUpperCase()} should be used to map
-     * characters to uppercase. {@code String} case mapping methods
-     * have several benefits over {@code Character} case mapping methods.
-     * {@code String} case mapping methods can perform locale-sensitive
-     * mappings, context-sensitive mappings, and 1:M character mappings, whereas
-     * the {@code Character} case mapping methods cannot.
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #toUpperCase(int)} method.
-     *
-     * @param   ch   the character to be converted.
-     * @return  the uppercase equivalent of the character, if any;
-     *          otherwise, the character itself.
-     * @see     Character#isUpperCase(char)
-     * @see     String#toUpperCase()
-     */
-    public static char toUpperCase(char ch) {
-        return (char)toUpperCase((int)ch);
-    }
-
-    /**
-     * Converts the character (Unicode code point) argument to
-     * uppercase using case mapping information from the UnicodeData
-     * file.
-     *
-     * <p>Note that
-     * {@code Character.isUpperCase(Character.toUpperCase(codePoint))}
-     * does not always return {@code true} for some ranges of
-     * characters, particularly those that are symbols or ideographs.
-     *
-     * <p>In general, {@link String#toUpperCase()} should be used to map
-     * characters to uppercase. {@code String} case mapping methods
-     * have several benefits over {@code Character} case mapping methods.
-     * {@code String} case mapping methods can perform locale-sensitive
-     * mappings, context-sensitive mappings, and 1:M character mappings, whereas
-     * the {@code Character} case mapping methods cannot.
-     *
-     * @param   codePoint   the character (Unicode code point) to be converted.
-     * @return  the uppercase equivalent of the character, if any;
-     *          otherwise, the character itself.
-     * @see     Character#isUpperCase(int)
-     * @see     String#toUpperCase()
-     *
-     * @since   1.5
-     */
-    public static int toUpperCase(int codePoint) {
-        return CharacterData.of(codePoint).toUpperCase(codePoint);
-    }
-
-    /**
-     * Converts the character argument to titlecase using case mapping
-     * information from the UnicodeData file. If a character has no
-     * explicit titlecase mapping and is not itself a titlecase char
-     * according to UnicodeData, then the uppercase mapping is
-     * returned as an equivalent titlecase mapping. If the
-     * {@code char} argument is already a titlecase
-     * {@code char}, the same {@code char} value will be
-     * returned.
-     * <p>
-     * Note that
-     * {@code Character.isTitleCase(Character.toTitleCase(ch))}
-     * does not always return {@code true} for some ranges of
-     * characters.
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #toTitleCase(int)} method.
-     *
-     * @param   ch   the character to be converted.
-     * @return  the titlecase equivalent of the character, if any;
-     *          otherwise, the character itself.
-     * @see     Character#isTitleCase(char)
-     * @see     Character#toLowerCase(char)
-     * @see     Character#toUpperCase(char)
-     * @since   1.0.2
-     */
-    public static char toTitleCase(char ch) {
-        return (char)toTitleCase((int)ch);
-    }
-
-    /**
-     * Converts the character (Unicode code point) argument to titlecase using case mapping
-     * information from the UnicodeData file. If a character has no
-     * explicit titlecase mapping and is not itself a titlecase char
-     * according to UnicodeData, then the uppercase mapping is
-     * returned as an equivalent titlecase mapping. If the
-     * character argument is already a titlecase
-     * character, the same character value will be
-     * returned.
-     *
-     * <p>Note that
-     * {@code Character.isTitleCase(Character.toTitleCase(codePoint))}
-     * does not always return {@code true} for some ranges of
-     * characters.
-     *
-     * @param   codePoint   the character (Unicode code point) to be converted.
-     * @return  the titlecase equivalent of the character, if any;
-     *          otherwise, the character itself.
-     * @see     Character#isTitleCase(int)
-     * @see     Character#toLowerCase(int)
-     * @see     Character#toUpperCase(int)
-     * @since   1.5
-     */
-    public static int toTitleCase(int codePoint) {
-        return CharacterData.of(codePoint).toTitleCase(codePoint);
-    }
-
-    /**
-     * Returns the numeric value of the character {@code ch} in the
-     * specified radix.
-     * <p>
-     * If the radix is not in the range {@code MIN_RADIX} &le;
-     * {@code radix} &le; {@code MAX_RADIX} or if the
-     * value of {@code ch} is not a valid digit in the specified
-     * radix, {@code -1} is returned. A character is a valid digit
-     * if at least one of the following is true:
-     * <ul>
-     * <li>The method {@code isDigit} is {@code true} of the character
-     *     and the Unicode decimal digit value of the character (or its
-     *     single-character decomposition) is less than the specified radix.
-     *     In this case the decimal digit value is returned.
-     * <li>The character is one of the uppercase Latin letters
-     *     {@code 'A'} through {@code 'Z'} and its code is less than
-     *     {@code radix + 'A' - 10}.
-     *     In this case, {@code ch - 'A' + 10}
-     *     is returned.
-     * <li>The character is one of the lowercase Latin letters
-     *     {@code 'a'} through {@code 'z'} and its code is less than
-     *     {@code radix + 'a' - 10}.
-     *     In this case, {@code ch - 'a' + 10}
-     *     is returned.
-     * <li>The character is one of the fullwidth uppercase Latin letters A
-     *     ({@code '\u005CuFF21'}) through Z ({@code '\u005CuFF3A'})
-     *     and its code is less than
-     *     {@code radix + '\u005CuFF21' - 10}.
-     *     In this case, {@code ch - '\u005CuFF21' + 10}
-     *     is returned.
-     * <li>The character is one of the fullwidth lowercase Latin letters a
-     *     ({@code '\u005CuFF41'}) through z ({@code '\u005CuFF5A'})
-     *     and its code is less than
-     *     {@code radix + '\u005CuFF41' - 10}.
-     *     In this case, {@code ch - '\u005CuFF41' + 10}
-     *     is returned.
-     * </ul>
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #digit(int, int)} method.
-     *
-     * @param   ch      the character to be converted.
-     * @param   radix   the radix.
-     * @return  the numeric value represented by the character in the
-     *          specified radix.
-     * @see     Character#forDigit(int, int)
-     * @see     Character#isDigit(char)
-     */
-    public static int digit(char ch, int radix) {
-        return digit((int)ch, radix);
-    }
-
-    /**
-     * Returns the numeric value of the specified character (Unicode
-     * code point) in the specified radix.
-     *
-     * <p>If the radix is not in the range {@code MIN_RADIX} &le;
-     * {@code radix} &le; {@code MAX_RADIX} or if the
-     * character is not a valid digit in the specified
-     * radix, {@code -1} is returned. A character is a valid digit
-     * if at least one of the following is true:
-     * <ul>
-     * <li>The method {@link #isDigit(int) isDigit(codePoint)} is {@code true} of the character
-     *     and the Unicode decimal digit value of the character (or its
-     *     single-character decomposition) is less than the specified radix.
-     *     In this case the decimal digit value is returned.
-     * <li>The character is one of the uppercase Latin letters
-     *     {@code 'A'} through {@code 'Z'} and its code is less than
-     *     {@code radix + 'A' - 10}.
-     *     In this case, {@code codePoint - 'A' + 10}
-     *     is returned.
-     * <li>The character is one of the lowercase Latin letters
-     *     {@code 'a'} through {@code 'z'} and its code is less than
-     *     {@code radix + 'a' - 10}.
-     *     In this case, {@code codePoint - 'a' + 10}
-     *     is returned.
-     * <li>The character is one of the fullwidth uppercase Latin letters A
-     *     ({@code '\u005CuFF21'}) through Z ({@code '\u005CuFF3A'})
-     *     and its code is less than
-     *     {@code radix + '\u005CuFF21' - 10}.
-     *     In this case,
-     *     {@code codePoint - '\u005CuFF21' + 10}
-     *     is returned.
-     * <li>The character is one of the fullwidth lowercase Latin letters a
-     *     ({@code '\u005CuFF41'}) through z ({@code '\u005CuFF5A'})
-     *     and its code is less than
-     *     {@code radix + '\u005CuFF41'- 10}.
-     *     In this case,
-     *     {@code codePoint - '\u005CuFF41' + 10}
-     *     is returned.
-     * </ul>
-     *
-     * @param   codePoint the character (Unicode code point) to be converted.
-     * @param   radix   the radix.
-     * @return  the numeric value represented by the character in the
-     *          specified radix.
-     * @see     Character#forDigit(int, int)
-     * @see     Character#isDigit(int)
-     * @since   1.5
-     */
-    public static int digit(int codePoint, int radix) {
-        return CharacterData.of(codePoint).digit(codePoint, radix);
-    }
-
-    /**
-     * Returns the {@code int} value that the specified Unicode
-     * character represents. For example, the character
-     * {@code '\u005Cu216C'} (the roman numeral fifty) will return
-     * an int with a value of 50.
-     * <p>
-     * The letters A-Z in their uppercase ({@code '\u005Cu0041'} through
-     * {@code '\u005Cu005A'}), lowercase
-     * ({@code '\u005Cu0061'} through {@code '\u005Cu007A'}), and
-     * full width variant ({@code '\u005CuFF21'} through
-     * {@code '\u005CuFF3A'} and {@code '\u005CuFF41'} through
-     * {@code '\u005CuFF5A'}) forms have numeric values from 10
-     * through 35. This is independent of the Unicode specification,
-     * which does not assign numeric values to these {@code char}
-     * values.
-     * <p>
-     * If the character does not have a numeric value, then -1 is returned.
-     * If the character has a numeric value that cannot be represented as a
-     * nonnegative integer (for example, a fractional value), then -2
-     * is returned.
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #getNumericValue(int)} method.
-     *
-     * @param   ch      the character to be converted.
-     * @return  the numeric value of the character, as a nonnegative {@code int}
-     *          value; -2 if the character has a numeric value but the value
-     *          can not be represented as a nonnegative {@code int} value;
-     *          -1 if the character has no numeric value.
-     * @see     Character#forDigit(int, int)
-     * @see     Character#isDigit(char)
-     * @since   1.1
-     */
-    public static int getNumericValue(char ch) {
-        return getNumericValue((int)ch);
-    }
-
-    /**
-     * Returns the {@code int} value that the specified
-     * character (Unicode code point) represents. For example, the character
-     * {@code '\u005Cu216C'} (the Roman numeral fifty) will return
-     * an {@code int} with a value of 50.
-     * <p>
-     * The letters A-Z in their uppercase ({@code '\u005Cu0041'} through
-     * {@code '\u005Cu005A'}), lowercase
-     * ({@code '\u005Cu0061'} through {@code '\u005Cu007A'}), and
-     * full width variant ({@code '\u005CuFF21'} through
-     * {@code '\u005CuFF3A'} and {@code '\u005CuFF41'} through
-     * {@code '\u005CuFF5A'}) forms have numeric values from 10
-     * through 35. This is independent of the Unicode specification,
-     * which does not assign numeric values to these {@code char}
-     * values.
-     * <p>
-     * If the character does not have a numeric value, then -1 is returned.
-     * If the character has a numeric value that cannot be represented as a
-     * nonnegative integer (for example, a fractional value), then -2
-     * is returned.
-     *
-     * @param   codePoint the character (Unicode code point) to be converted.
-     * @return  the numeric value of the character, as a nonnegative {@code int}
-     *          value; -2 if the character has a numeric value but the value
-     *          can not be represented as a nonnegative {@code int} value;
-     *          -1 if the character has no numeric value.
-     * @see     Character#forDigit(int, int)
-     * @see     Character#isDigit(int)
-     * @since   1.5
-     */
-    public static int getNumericValue(int codePoint) {
-        return CharacterData.of(codePoint).getNumericValue(codePoint);
-    }
-
-    /**
-     * Determines if the specified character is ISO-LATIN-1 white space.
-     * This method returns {@code true} for the following five
-     * characters only:
-     * <table class="striped">
-     * <caption style="display:none">truechars</caption>
-     * <thead>
-     * <tr><th scope="col">Character
-     *     <th scope="col">Code
-     *     <th scope="col">Name
-     * </thead>
-     * <tbody>
-     * <tr><th scope="row">{@code '\t'}</th>            <td>{@code U+0009}</td>
-     *     <td>{@code HORIZONTAL TABULATION}</td></tr>
-     * <tr><th scope="row">{@code '\n'}</th>            <td>{@code U+000A}</td>
-     *     <td>{@code NEW LINE}</td></tr>
-     * <tr><th scope="row">{@code '\f'}</th>            <td>{@code U+000C}</td>
-     *     <td>{@code FORM FEED}</td></tr>
-     * <tr><th scope="row">{@code '\r'}</th>            <td>{@code U+000D}</td>
-     *     <td>{@code CARRIAGE RETURN}</td></tr>
-     * <tr><th scope="row">{@code ' '}</th>  <td>{@code U+0020}</td>
-     *     <td>{@code SPACE}</td></tr>
-     * </tbody>
-     * </table>
-     *
-     * @param      ch   the character to be tested.
-     * @return     {@code true} if the character is ISO-LATIN-1 white
-     *             space; {@code false} otherwise.
-     * @see        Character#isSpaceChar(char)
-     * @see        Character#isWhitespace(char)
-     * @deprecated Replaced by isWhitespace(char).
-     */
-    @Deprecated(since="1.1")
-    public static boolean isSpace(char ch) {
-        return (ch <= 0x0020) &&
-            (((((1L << 0x0009) |
-            (1L << 0x000A) |
-            (1L << 0x000C) |
-            (1L << 0x000D) |
-            (1L << 0x0020)) >> ch) & 1L) != 0);
-    }
-
-
-    /**
-     * Determines if the specified character is a Unicode space character.
-     * A character is considered to be a space character if and only if
-     * it is specified to be a space character by the Unicode Standard. This
-     * method returns true if the character's general category type is any of
-     * the following:
-     * <ul>
-     * <li> {@code SPACE_SEPARATOR}
-     * <li> {@code LINE_SEPARATOR}
-     * <li> {@code PARAGRAPH_SEPARATOR}
-     * </ul>
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #isSpaceChar(int)} method.
-     *
-     * @param   ch      the character to be tested.
-     * @return  {@code true} if the character is a space character;
-     *          {@code false} otherwise.
-     * @see     Character#isWhitespace(char)
-     * @since   1.1
-     */
-    public static boolean isSpaceChar(char ch) {
-        return isSpaceChar((int)ch);
-    }
-
-    /**
-     * Determines if the specified character (Unicode code point) is a
-     * Unicode space character.  A character is considered to be a
-     * space character if and only if it is specified to be a space
-     * character by the Unicode Standard. This method returns true if
-     * the character's general category type is any of the following:
-     *
-     * <ul>
-     * <li> {@link #SPACE_SEPARATOR}
-     * <li> {@link #LINE_SEPARATOR}
-     * <li> {@link #PARAGRAPH_SEPARATOR}
-     * </ul>
-     *
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return  {@code true} if the character is a space character;
-     *          {@code false} otherwise.
-     * @see     Character#isWhitespace(int)
-     * @since   1.5
-     */
-    public static boolean isSpaceChar(int codePoint) {
-        return ((((1 << Character.SPACE_SEPARATOR) |
-                  (1 << Character.LINE_SEPARATOR) |
-                  (1 << Character.PARAGRAPH_SEPARATOR)) >> getType(codePoint)) & 1)
-            != 0;
-    }
-
-    /**
-     * Determines if the specified character is white space according to Java.
-     * A character is a Java whitespace character if and only if it satisfies
-     * one of the following criteria:
-     * <ul>
-     * <li> It is a Unicode space character ({@code SPACE_SEPARATOR},
-     *      {@code LINE_SEPARATOR}, or {@code PARAGRAPH_SEPARATOR})
-     *      but is not also a non-breaking space ({@code '\u005Cu00A0'},
-     *      {@code '\u005Cu2007'}, {@code '\u005Cu202F'}).
-     * <li> It is {@code '\u005Ct'}, U+0009 HORIZONTAL TABULATION.
-     * <li> It is {@code '\u005Cn'}, U+000A LINE FEED.
-     * <li> It is {@code '\u005Cu000B'}, U+000B VERTICAL TABULATION.
-     * <li> It is {@code '\u005Cf'}, U+000C FORM FEED.
-     * <li> It is {@code '\u005Cr'}, U+000D CARRIAGE RETURN.
-     * <li> It is {@code '\u005Cu001C'}, U+001C FILE SEPARATOR.
-     * <li> It is {@code '\u005Cu001D'}, U+001D GROUP SEPARATOR.
-     * <li> It is {@code '\u005Cu001E'}, U+001E RECORD SEPARATOR.
-     * <li> It is {@code '\u005Cu001F'}, U+001F UNIT SEPARATOR.
-     * </ul>
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #isWhitespace(int)} method.
-     *
-     * @param   ch the character to be tested.
-     * @return  {@code true} if the character is a Java whitespace
-     *          character; {@code false} otherwise.
-     * @see     Character#isSpaceChar(char)
-     * @since   1.1
-     */
-    public static boolean isWhitespace(char ch) {
-        return isWhitespace((int)ch);
-    }
-
-    /**
-     * Determines if the specified character (Unicode code point) is
-     * white space according to Java.  A character is a Java
-     * whitespace character if and only if it satisfies one of the
-     * following criteria:
-     * <ul>
-     * <li> It is a Unicode space character ({@link #SPACE_SEPARATOR},
-     *      {@link #LINE_SEPARATOR}, or {@link #PARAGRAPH_SEPARATOR})
-     *      but is not also a non-breaking space ({@code '\u005Cu00A0'},
-     *      {@code '\u005Cu2007'}, {@code '\u005Cu202F'}).
-     * <li> It is {@code '\u005Ct'}, U+0009 HORIZONTAL TABULATION.
-     * <li> It is {@code '\u005Cn'}, U+000A LINE FEED.
-     * <li> It is {@code '\u005Cu000B'}, U+000B VERTICAL TABULATION.
-     * <li> It is {@code '\u005Cf'}, U+000C FORM FEED.
-     * <li> It is {@code '\u005Cr'}, U+000D CARRIAGE RETURN.
-     * <li> It is {@code '\u005Cu001C'}, U+001C FILE SEPARATOR.
-     * <li> It is {@code '\u005Cu001D'}, U+001D GROUP SEPARATOR.
-     * <li> It is {@code '\u005Cu001E'}, U+001E RECORD SEPARATOR.
-     * <li> It is {@code '\u005Cu001F'}, U+001F UNIT SEPARATOR.
-     * </ul>
-     *
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return  {@code true} if the character is a Java whitespace
-     *          character; {@code false} otherwise.
-     * @see     Character#isSpaceChar(int)
-     * @since   1.5
-     */
-    public static boolean isWhitespace(int codePoint) {
-        return CharacterData.of(codePoint).isWhitespace(codePoint);
-    }
-
-    /**
-     * Determines if the specified character is an ISO control
-     * character.  A character is considered to be an ISO control
-     * character if its code is in the range {@code '\u005Cu0000'}
-     * through {@code '\u005Cu001F'} or in the range
-     * {@code '\u005Cu007F'} through {@code '\u005Cu009F'}.
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #isISOControl(int)} method.
-     *
-     * @param   ch      the character to be tested.
-     * @return  {@code true} if the character is an ISO control character;
-     *          {@code false} otherwise.
-     *
-     * @see     Character#isSpaceChar(char)
-     * @see     Character#isWhitespace(char)
-     * @since   1.1
-     */
-    public static boolean isISOControl(char ch) {
-        return isISOControl((int)ch);
-    }
-
-    /**
-     * Determines if the referenced character (Unicode code point) is an ISO control
-     * character.  A character is considered to be an ISO control
-     * character if its code is in the range {@code '\u005Cu0000'}
-     * through {@code '\u005Cu001F'} or in the range
-     * {@code '\u005Cu007F'} through {@code '\u005Cu009F'}.
-     *
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return  {@code true} if the character is an ISO control character;
-     *          {@code false} otherwise.
-     * @see     Character#isSpaceChar(int)
-     * @see     Character#isWhitespace(int)
-     * @since   1.5
-     */
-    public static boolean isISOControl(int codePoint) {
-        // Optimized form of:
-        //     (codePoint >= 0x00 && codePoint <= 0x1F) ||
-        //     (codePoint >= 0x7F && codePoint <= 0x9F);
-        return codePoint <= 0x9F &&
-            (codePoint >= 0x7F || (codePoint >>> 5 == 0));
-    }
-
-    /**
-     * Returns a value indicating a character's general category.
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #getType(int)} method.
-     *
-     * @param   ch      the character to be tested.
-     * @return  a value of type {@code int} representing the
-     *          character's general category.
-     * @see     Character#COMBINING_SPACING_MARK
-     * @see     Character#CONNECTOR_PUNCTUATION
-     * @see     Character#CONTROL
-     * @see     Character#CURRENCY_SYMBOL
-     * @see     Character#DASH_PUNCTUATION
-     * @see     Character#DECIMAL_DIGIT_NUMBER
-     * @see     Character#ENCLOSING_MARK
-     * @see     Character#END_PUNCTUATION
-     * @see     Character#FINAL_QUOTE_PUNCTUATION
-     * @see     Character#FORMAT
-     * @see     Character#INITIAL_QUOTE_PUNCTUATION
-     * @see     Character#LETTER_NUMBER
-     * @see     Character#LINE_SEPARATOR
-     * @see     Character#LOWERCASE_LETTER
-     * @see     Character#MATH_SYMBOL
-     * @see     Character#MODIFIER_LETTER
-     * @see     Character#MODIFIER_SYMBOL
-     * @see     Character#NON_SPACING_MARK
-     * @see     Character#OTHER_LETTER
-     * @see     Character#OTHER_NUMBER
-     * @see     Character#OTHER_PUNCTUATION
-     * @see     Character#OTHER_SYMBOL
-     * @see     Character#PARAGRAPH_SEPARATOR
-     * @see     Character#PRIVATE_USE
-     * @see     Character#SPACE_SEPARATOR
-     * @see     Character#START_PUNCTUATION
-     * @see     Character#SURROGATE
-     * @see     Character#TITLECASE_LETTER
-     * @see     Character#UNASSIGNED
-     * @see     Character#UPPERCASE_LETTER
-     * @since   1.1
-     */
-    public static int getType(char ch) {
-        return getType((int)ch);
-    }
-
-    /**
-     * Returns a value indicating a character's general category.
-     *
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return  a value of type {@code int} representing the
-     *          character's general category.
-     * @see     Character#COMBINING_SPACING_MARK COMBINING_SPACING_MARK
-     * @see     Character#CONNECTOR_PUNCTUATION CONNECTOR_PUNCTUATION
-     * @see     Character#CONTROL CONTROL
-     * @see     Character#CURRENCY_SYMBOL CURRENCY_SYMBOL
-     * @see     Character#DASH_PUNCTUATION DASH_PUNCTUATION
-     * @see     Character#DECIMAL_DIGIT_NUMBER DECIMAL_DIGIT_NUMBER
-     * @see     Character#ENCLOSING_MARK ENCLOSING_MARK
-     * @see     Character#END_PUNCTUATION END_PUNCTUATION
-     * @see     Character#FINAL_QUOTE_PUNCTUATION FINAL_QUOTE_PUNCTUATION
-     * @see     Character#FORMAT FORMAT
-     * @see     Character#INITIAL_QUOTE_PUNCTUATION INITIAL_QUOTE_PUNCTUATION
-     * @see     Character#LETTER_NUMBER LETTER_NUMBER
-     * @see     Character#LINE_SEPARATOR LINE_SEPARATOR
-     * @see     Character#LOWERCASE_LETTER LOWERCASE_LETTER
-     * @see     Character#MATH_SYMBOL MATH_SYMBOL
-     * @see     Character#MODIFIER_LETTER MODIFIER_LETTER
-     * @see     Character#MODIFIER_SYMBOL MODIFIER_SYMBOL
-     * @see     Character#NON_SPACING_MARK NON_SPACING_MARK
-     * @see     Character#OTHER_LETTER OTHER_LETTER
-     * @see     Character#OTHER_NUMBER OTHER_NUMBER
-     * @see     Character#OTHER_PUNCTUATION OTHER_PUNCTUATION
-     * @see     Character#OTHER_SYMBOL OTHER_SYMBOL
-     * @see     Character#PARAGRAPH_SEPARATOR PARAGRAPH_SEPARATOR
-     * @see     Character#PRIVATE_USE PRIVATE_USE
-     * @see     Character#SPACE_SEPARATOR SPACE_SEPARATOR
-     * @see     Character#START_PUNCTUATION START_PUNCTUATION
-     * @see     Character#SURROGATE SURROGATE
-     * @see     Character#TITLECASE_LETTER TITLECASE_LETTER
-     * @see     Character#UNASSIGNED UNASSIGNED
-     * @see     Character#UPPERCASE_LETTER UPPERCASE_LETTER
-     * @since   1.5
-     */
-    public static int getType(int codePoint) {
-        return CharacterData.of(codePoint).getType(codePoint);
-    }
-
-    /**
-     * Determines the character representation for a specific digit in
-     * the specified radix. If the value of {@code radix} is not a
-     * valid radix, or the value of {@code digit} is not a valid
-     * digit in the specified radix, the null character
-     * ({@code '\u005Cu0000'}) is returned.
-     * <p>
-     * The {@code radix} argument is valid if it is greater than or
-     * equal to {@code MIN_RADIX} and less than or equal to
-     * {@code MAX_RADIX}. The {@code digit} argument is valid if
-     * {@code 0 <= digit < radix}.
-     * <p>
-     * If the digit is less than 10, then
-     * {@code '0' + digit} is returned. Otherwise, the value
-     * {@code 'a' + digit - 10} is returned.
-     *
-     * @param   digit   the number to convert to a character.
-     * @param   radix   the radix.
-     * @return  the {@code char} representation of the specified digit
-     *          in the specified radix.
-     * @see     Character#MIN_RADIX
-     * @see     Character#MAX_RADIX
-     * @see     Character#digit(char, int)
-     */
-    public static char forDigit(int digit, int radix) {
-        if ((digit >= radix) || (digit < 0)) {
-            return '\0';
-        }
-        if ((radix < Character.MIN_RADIX) || (radix > Character.MAX_RADIX)) {
-            return '\0';
-        }
-        if (digit < 10) {
-            return (char)('0' + digit);
-        }
-        return (char)('a' - 10 + digit);
-    }
-
-    /**
-     * Returns the Unicode directionality property for the given
-     * character.  Character directionality is used to calculate the
-     * visual ordering of text. The directionality value of undefined
-     * {@code char} values is {@code DIRECTIONALITY_UNDEFINED}.
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #getDirectionality(int)} method.
-     *
-     * @param  ch {@code char} for which the directionality property
-     *            is requested.
-     * @return the directionality property of the {@code char} value.
-     *
-     * @see Character#DIRECTIONALITY_UNDEFINED
-     * @see Character#DIRECTIONALITY_LEFT_TO_RIGHT
-     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT
-     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC
-     * @see Character#DIRECTIONALITY_EUROPEAN_NUMBER
-     * @see Character#DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR
-     * @see Character#DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR
-     * @see Character#DIRECTIONALITY_ARABIC_NUMBER
-     * @see Character#DIRECTIONALITY_COMMON_NUMBER_SEPARATOR
-     * @see Character#DIRECTIONALITY_NONSPACING_MARK
-     * @see Character#DIRECTIONALITY_BOUNDARY_NEUTRAL
-     * @see Character#DIRECTIONALITY_PARAGRAPH_SEPARATOR
-     * @see Character#DIRECTIONALITY_SEGMENT_SEPARATOR
-     * @see Character#DIRECTIONALITY_WHITESPACE
-     * @see Character#DIRECTIONALITY_OTHER_NEUTRALS
-     * @see Character#DIRECTIONALITY_LEFT_TO_RIGHT_EMBEDDING
-     * @see Character#DIRECTIONALITY_LEFT_TO_RIGHT_OVERRIDE
-     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING
-     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE
-     * @see Character#DIRECTIONALITY_POP_DIRECTIONAL_FORMAT
-     * @see Character#DIRECTIONALITY_LEFT_TO_RIGHT_ISOLATE
-     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT_ISOLATE
-     * @see Character#DIRECTIONALITY_FIRST_STRONG_ISOLATE
-     * @see Character#DIRECTIONALITY_POP_DIRECTIONAL_ISOLATE
-     * @since 1.4
-     */
-    public static byte getDirectionality(char ch) {
-        return getDirectionality((int)ch);
-    }
-
-    /**
-     * Returns the Unicode directionality property for the given
-     * character (Unicode code point).  Character directionality is
-     * used to calculate the visual ordering of text. The
-     * directionality value of undefined character is {@link
-     * #DIRECTIONALITY_UNDEFINED}.
-     *
-     * @param   codePoint the character (Unicode code point) for which
-     *          the directionality property is requested.
-     * @return the directionality property of the character.
-     *
-     * @see Character#DIRECTIONALITY_UNDEFINED DIRECTIONALITY_UNDEFINED
-     * @see Character#DIRECTIONALITY_LEFT_TO_RIGHT DIRECTIONALITY_LEFT_TO_RIGHT
-     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT DIRECTIONALITY_RIGHT_TO_LEFT
-     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC
-     * @see Character#DIRECTIONALITY_EUROPEAN_NUMBER DIRECTIONALITY_EUROPEAN_NUMBER
-     * @see Character#DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR
-     * @see Character#DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR
-     * @see Character#DIRECTIONALITY_ARABIC_NUMBER DIRECTIONALITY_ARABIC_NUMBER
-     * @see Character#DIRECTIONALITY_COMMON_NUMBER_SEPARATOR DIRECTIONALITY_COMMON_NUMBER_SEPARATOR
-     * @see Character#DIRECTIONALITY_NONSPACING_MARK DIRECTIONALITY_NONSPACING_MARK
-     * @see Character#DIRECTIONALITY_BOUNDARY_NEUTRAL DIRECTIONALITY_BOUNDARY_NEUTRAL
-     * @see Character#DIRECTIONALITY_PARAGRAPH_SEPARATOR DIRECTIONALITY_PARAGRAPH_SEPARATOR
-     * @see Character#DIRECTIONALITY_SEGMENT_SEPARATOR DIRECTIONALITY_SEGMENT_SEPARATOR
-     * @see Character#DIRECTIONALITY_WHITESPACE DIRECTIONALITY_WHITESPACE
-     * @see Character#DIRECTIONALITY_OTHER_NEUTRALS DIRECTIONALITY_OTHER_NEUTRALS
-     * @see Character#DIRECTIONALITY_LEFT_TO_RIGHT_EMBEDDING DIRECTIONALITY_LEFT_TO_RIGHT_EMBEDDING
-     * @see Character#DIRECTIONALITY_LEFT_TO_RIGHT_OVERRIDE DIRECTIONALITY_LEFT_TO_RIGHT_OVERRIDE
-     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING
-     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE
-     * @see Character#DIRECTIONALITY_POP_DIRECTIONAL_FORMAT DIRECTIONALITY_POP_DIRECTIONAL_FORMAT
-     * @see Character#DIRECTIONALITY_LEFT_TO_RIGHT_ISOLATE DIRECTIONALITY_LEFT_TO_RIGHT_ISOLATE
-     * @see Character#DIRECTIONALITY_RIGHT_TO_LEFT_ISOLATE DIRECTIONALITY_RIGHT_TO_LEFT_ISOLATE
-     * @see Character#DIRECTIONALITY_FIRST_STRONG_ISOLATE DIRECTIONALITY_FIRST_STRONG_ISOLATE
-     * @see Character#DIRECTIONALITY_POP_DIRECTIONAL_ISOLATE DIRECTIONALITY_POP_DIRECTIONAL_ISOLATE
-     * @since    1.5
-     */
-    public static byte getDirectionality(int codePoint) {
-        return CharacterData.of(codePoint).getDirectionality(codePoint);
-    }
-
-    /**
-     * Determines whether the character is mirrored according to the
-     * Unicode specification.  Mirrored characters should have their
-     * glyphs horizontally mirrored when displayed in text that is
-     * right-to-left.  For example, {@code '\u005Cu0028'} LEFT
-     * PARENTHESIS is semantically defined to be an <i>opening
-     * parenthesis</i>.  This will appear as a "(" in text that is
-     * left-to-right but as a ")" in text that is right-to-left.
-     *
-     * <p><b>Note:</b> This method cannot handle <a
-     * href="#supplementary"> supplementary characters</a>. To support
-     * all Unicode characters, including supplementary characters, use
-     * the {@link #isMirrored(int)} method.
-     *
-     * @param  ch {@code char} for which the mirrored property is requested
-     * @return {@code true} if the char is mirrored, {@code false}
-     *         if the {@code char} is not mirrored or is not defined.
-     * @since 1.4
-     */
-    public static boolean isMirrored(char ch) {
-        return isMirrored((int)ch);
-    }
-
-    /**
-     * Determines whether the specified character (Unicode code point)
-     * is mirrored according to the Unicode specification.  Mirrored
-     * characters should have their glyphs horizontally mirrored when
-     * displayed in text that is right-to-left.  For example,
-     * {@code '\u005Cu0028'} LEFT PARENTHESIS is semantically
-     * defined to be an <i>opening parenthesis</i>.  This will appear
-     * as a "(" in text that is left-to-right but as a ")" in text
-     * that is right-to-left.
-     *
-     * @param   codePoint the character (Unicode code point) to be tested.
-     * @return  {@code true} if the character is mirrored, {@code false}
-     *          if the character is not mirrored or is not defined.
-     * @since   1.5
-     */
-    public static boolean isMirrored(int codePoint) {
-        return CharacterData.of(codePoint).isMirrored(codePoint);
-    }
-
-    /**
-     * Compares two {@code Character} objects numerically.
-     *
-     * @param   anotherCharacter   the {@code Character} to be compared.
-
-     * @return  the value {@code 0} if the argument {@code Character}
-     *          is equal to this {@code Character}; a value less than
-     *          {@code 0} if this {@code Character} is numerically less
-     *          than the {@code Character} argument; and a value greater than
-     *          {@code 0} if this {@code Character} is numerically greater
-     *          than the {@code Character} argument (unsigned comparison).
-     *          Note that this is strictly a numerical comparison; it is not
-     *          locale-dependent.
-     * @since   1.2
-     */
-    public int compareTo(Character anotherCharacter) {
-        return compare(this.value, anotherCharacter.value);
-    }
-
-    /**
-     * Compares two {@code char} values numerically.
-     * The value returned is identical to what would be returned by:
-     * <pre>
-     *    Character.valueOf(x).compareTo(Character.valueOf(y))
-     * </pre>
-     *
-     * @param  x the first {@code char} to compare
-     * @param  y the second {@code char} to compare
-     * @return the value {@code 0} if {@code x == y};
-     *         a value less than {@code 0} if {@code x < y}; and
-     *         a value greater than {@code 0} if {@code x > y}
-     * @since 1.7
-     */
-    public static int compare(char x, char y) {
-        return x - y;
-    }
-
-    /**
-     * Converts the character (Unicode code point) argument to uppercase using
-     * information from the UnicodeData file.
-     *
-     * @param   codePoint   the character (Unicode code point) to be converted.
-     * @return  either the uppercase equivalent of the character, if
-     *          any, or an error flag ({@code Character.ERROR})
-     *          that indicates that a 1:M {@code char} mapping exists.
-     * @see     Character#isLowerCase(char)
-     * @see     Character#isUpperCase(char)
-     * @see     Character#toLowerCase(char)
-     * @see     Character#toTitleCase(char)
-     * @since 1.4
-     */
-    static int toUpperCaseEx(int codePoint) {
-        assert isValidCodePoint(codePoint);
-        return CharacterData.of(codePoint).toUpperCaseEx(codePoint);
-    }
-
-    /**
-     * Converts the character (Unicode code point) argument to uppercase using case
-     * mapping information from the SpecialCasing file in the Unicode
-     * specification. If a character has no explicit uppercase
-     * mapping, then the {@code char} itself is returned in the
-     * {@code char[]}.
-     *
-     * @param   codePoint   the character (Unicode code point) to be converted.
-     * @return a {@code char[]} with the uppercased character.
-     * @since 1.4
-     */
-    static char[] toUpperCaseCharArray(int codePoint) {
-        // As of Unicode 6.0, 1:M uppercasings only happen in the BMP.
-        assert isBmpCodePoint(codePoint);
-        return CharacterData.of(codePoint).toUpperCaseCharArray(codePoint);
-    }
-
-    /**
-     * The number of bits used to represent a {@code char} value in unsigned
-     * binary form, constant {@code 16}.
-     *
-     * @since 1.5
-     */
-    public static final int SIZE = 16;
-
-    /**
-     * The number of bytes used to represent a {@code char} value in unsigned
-     * binary form.
-     *
-     * @since 1.8
-     */
-    public static final int BYTES = SIZE / Byte.SIZE;
-
-    /**
-     * Returns the value obtained by reversing the order of the bytes in the
-     * specified {@code char} value.
-     *
-     * @param ch The {@code char} of which to reverse the byte order.
-     * @return the value obtained by reversing (or, equivalently, swapping)
-     *     the bytes in the specified {@code char} value.
-     * @since 1.5
-     */
-    @HotSpotIntrinsicCandidate
-    public static char reverseBytes(char ch) {
-        return (char) (((ch & 0xFF00) >> 8) | (ch << 8));
-    }
-
-    /**
-     * Returns the Unicode name of the specified character
-     * {@code codePoint}, or null if the code point is
-     * {@link #UNASSIGNED unassigned}.
-     * <p>
-     * Note: if the specified character is not assigned a name by
-     * the <i>UnicodeData</i> file (part of the Unicode Character
-     * Database maintained by the Unicode Consortium), the returned
-     * name is the same as the result of expression.
-     *
-     * <blockquote>{@code
-     *     Character.UnicodeBlock.of(codePoint).toString().replace('_', ' ')
-     *     + " "
-     *     + Integer.toHexString(codePoint).toUpperCase(Locale.ROOT);
-     *
-     * }</blockquote>
-     *
-     * @param  codePoint the character (Unicode code point)
-     *
-     * @return the Unicode name of the specified character, or null if
-     *         the code point is unassigned.
-     *
-     * @throws IllegalArgumentException if the specified
-     *            {@code codePoint} is not a valid Unicode
-     *            code point.
-     *
-     * @since 1.7
-     */
-    public static String getName(int codePoint) {
-        if (!isValidCodePoint(codePoint)) {
-            throw new IllegalArgumentException(
-                String.format("Not a valid Unicode code point: 0x%X", codePoint));
-        }
-        String name = CharacterName.getInstance().getName(codePoint);
-        if (name != null)
+        
+        /**
+         * Returns the name of this subset.
+         */
+        public final String toString() {
             return name;
-        if (getType(codePoint) == UNASSIGNED)
-            return null;
-        UnicodeBlock block = UnicodeBlock.of(codePoint);
-        if (block != null)
-            return block.toString().replace('_', ' ') + " "
-                   + Integer.toHexString(codePoint).toUpperCase(Locale.ROOT);
-        // should never come here
-        return Integer.toHexString(codePoint).toUpperCase(Locale.ROOT);
+        }
     }
-
+    
+    // See http://www.unicode.org/Public/UNIDATA/Blocks.txt for the latest specification of Unicode Blocks.
+    
     /**
-     * Returns the code point value of the Unicode character specified by
-     * the given Unicode character name.
-     * <p>
-     * Note: if a character is not assigned a name by the <i>UnicodeData</i>
-     * file (part of the Unicode Character Database maintained by the Unicode
-     * Consortium), its name is defined as the result of expression
+     * A family of character subsets representing the character blocks in the
+     * Unicode specification. Character blocks generally define characters used for a specific script or purpose. A character is contained by at most one Unicode block.
      *
-     * <blockquote>{@code
-     *     Character.UnicodeBlock.of(codePoint).toString().replace('_', ' ')
-     *     + " "
-     *     + Integer.toHexString(codePoint).toUpperCase(Locale.ROOT);
-     *
-     * }</blockquote>
-     * <p>
-     * The {@code name} matching is case insensitive, with any leading and
-     * trailing whitespace character removed.
-     *
-     * @param  name the Unicode character name
-     *
-     * @return the code point value of the character specified by its name.
-     *
-     * @throws IllegalArgumentException if the specified {@code name}
-     *         is not a valid Unicode character name.
-     * @throws NullPointerException if {@code name} is {@code null}
-     *
-     * @since 9
+     * @since 1.2
      */
-    public static int codePointOf(String name) {
-        name = name.trim().toUpperCase(Locale.ROOT);
-        int cp = CharacterName.getInstance().getCodePoint(name);
-        if (cp != -1)
-            return cp;
-        try {
-            int off = name.lastIndexOf(' ');
-            if (off != -1) {
-                cp = Integer.parseInt(name, off + 1, name.length(), 16);
-                if (isValidCodePoint(cp) && name.equals(getName(cp)))
-                    return cp;
+    // Unicode字符区域，包括Unicode私有保留区域。不同类别的符号会划分到不同的Unicode字符区域
+    public static final class UnicodeBlock extends Subset {
+        
+        // 别名系统的存在是因为历史原因，有些Unicode字符区域名称不唯一
+        
+        /*▼ Unicode字符区域别名系统 ████████████████████████████████████████████████████████████████████████████████┓ */
+        
+        /**
+         * Constant for the "Basic Latin" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock BASIC_LATIN = new UnicodeBlock("BASIC_LATIN", "BASIC LATIN", "BASICLATIN");
+        /**
+         * Constant for the "Latin-1 Supplement" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock LATIN_1_SUPPLEMENT = new UnicodeBlock("LATIN_1_SUPPLEMENT", "LATIN-1 SUPPLEMENT", "LATIN-1SUPPLEMENT");
+        /**
+         * Constant for the "Latin Extended-A" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock LATIN_EXTENDED_A = new UnicodeBlock("LATIN_EXTENDED_A", "LATIN EXTENDED-A", "LATINEXTENDED-A");
+        /**
+         * Constant for the "Latin Extended-B" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock LATIN_EXTENDED_B = new UnicodeBlock("LATIN_EXTENDED_B", "LATIN EXTENDED-B", "LATINEXTENDED-B");
+        /**
+         * Constant for the "IPA Extensions" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock IPA_EXTENSIONS = new UnicodeBlock("IPA_EXTENSIONS", "IPA EXTENSIONS", "IPAEXTENSIONS");
+        /**
+         * Constant for the "Spacing Modifier Letters" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock SPACING_MODIFIER_LETTERS = new UnicodeBlock("SPACING_MODIFIER_LETTERS", "SPACING MODIFIER LETTERS", "SPACINGMODIFIERLETTERS");
+        /**
+         * Constant for the "Combining Diacritical Marks" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock COMBINING_DIACRITICAL_MARKS = new UnicodeBlock("COMBINING_DIACRITICAL_MARKS", "COMBINING DIACRITICAL MARKS", "COMBININGDIACRITICALMARKS");
+        /**
+         * Constant for the "Greek and Coptic" Unicode character block.
+         * <p>
+         * This block was previously known as the "Greek" block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock GREEK = new UnicodeBlock("GREEK", "GREEK AND COPTIC", "GREEKANDCOPTIC");
+        /**
+         * Constant for the "Cyrillic" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock CYRILLIC = new UnicodeBlock("CYRILLIC");
+        /**
+         * Constant for the "Armenian" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock ARMENIAN = new UnicodeBlock("ARMENIAN");
+        /**
+         * Constant for the "Hebrew" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock HEBREW = new UnicodeBlock("HEBREW");
+        /**
+         * Constant for the "Arabic" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock ARABIC = new UnicodeBlock("ARABIC");
+        /**
+         * Constant for the "Devanagari" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock DEVANAGARI = new UnicodeBlock("DEVANAGARI");
+        /**
+         * Constant for the "Bengali" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock BENGALI = new UnicodeBlock("BENGALI");
+        /**
+         * Constant for the "Gurmukhi" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock GURMUKHI = new UnicodeBlock("GURMUKHI");
+        /**
+         * Constant for the "Gujarati" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock GUJARATI = new UnicodeBlock("GUJARATI");
+        /**
+         * Constant for the "Oriya" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock ORIYA = new UnicodeBlock("ORIYA");
+        /**
+         * Constant for the "Tamil" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock TAMIL = new UnicodeBlock("TAMIL");
+        /**
+         * Constant for the "Telugu" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock TELUGU = new UnicodeBlock("TELUGU");
+        /**
+         * Constant for the "Kannada" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock KANNADA = new UnicodeBlock("KANNADA");
+        /**
+         * Constant for the "Malayalam" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock MALAYALAM = new UnicodeBlock("MALAYALAM");
+        /**
+         * Constant for the "Thai" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock THAI = new UnicodeBlock("THAI");
+        /**
+         * Constant for the "Lao" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock LAO = new UnicodeBlock("LAO");
+        /**
+         * Constant for the "Tibetan" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock TIBETAN = new UnicodeBlock("TIBETAN");
+        /**
+         * Constant for the "Georgian" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock GEORGIAN = new UnicodeBlock("GEORGIAN");
+        /**
+         * Constant for the "Hangul Jamo" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock HANGUL_JAMO = new UnicodeBlock("HANGUL_JAMO", "HANGUL JAMO", "HANGULJAMO");
+        /**
+         * Constant for the "Latin Extended Additional" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock LATIN_EXTENDED_ADDITIONAL = new UnicodeBlock("LATIN_EXTENDED_ADDITIONAL", "LATIN EXTENDED ADDITIONAL", "LATINEXTENDEDADDITIONAL");
+        /**
+         * Constant for the "Greek Extended" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock GREEK_EXTENDED = new UnicodeBlock("GREEK_EXTENDED", "GREEK EXTENDED", "GREEKEXTENDED");
+        /**
+         * Constant for the "General Punctuation" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock GENERAL_PUNCTUATION = new UnicodeBlock("GENERAL_PUNCTUATION", "GENERAL PUNCTUATION", "GENERALPUNCTUATION");
+        /**
+         * Constant for the "Superscripts and Subscripts" Unicode character
+         * block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock SUPERSCRIPTS_AND_SUBSCRIPTS = new UnicodeBlock("SUPERSCRIPTS_AND_SUBSCRIPTS", "SUPERSCRIPTS AND SUBSCRIPTS", "SUPERSCRIPTSANDSUBSCRIPTS");
+        /**
+         * Constant for the "Currency Symbols" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock CURRENCY_SYMBOLS = new UnicodeBlock("CURRENCY_SYMBOLS", "CURRENCY SYMBOLS", "CURRENCYSYMBOLS");
+        /**
+         * Constant for the "Combining Diacritical Marks for Symbols" Unicode
+         * character block.
+         * <p>
+         * This block was previously known as "Combining Marks for Symbols".
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock COMBINING_MARKS_FOR_SYMBOLS = new UnicodeBlock("COMBINING_MARKS_FOR_SYMBOLS", "COMBINING DIACRITICAL MARKS FOR SYMBOLS", "COMBININGDIACRITICALMARKSFORSYMBOLS", "COMBINING MARKS FOR SYMBOLS", "COMBININGMARKSFORSYMBOLS");
+        /**
+         * Constant for the "Letterlike Symbols" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock LETTERLIKE_SYMBOLS = new UnicodeBlock("LETTERLIKE_SYMBOLS", "LETTERLIKE SYMBOLS", "LETTERLIKESYMBOLS");
+        /**
+         * Constant for the "Number Forms" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock NUMBER_FORMS = new UnicodeBlock("NUMBER_FORMS", "NUMBER FORMS", "NUMBERFORMS");
+        /**
+         * Constant for the "Arrows" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock ARROWS = new UnicodeBlock("ARROWS");
+        /**
+         * Constant for the "Mathematical Operators" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock MATHEMATICAL_OPERATORS = new UnicodeBlock("MATHEMATICAL_OPERATORS", "MATHEMATICAL OPERATORS", "MATHEMATICALOPERATORS");
+        /**
+         * Constant for the "Miscellaneous Technical" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock MISCELLANEOUS_TECHNICAL = new UnicodeBlock("MISCELLANEOUS_TECHNICAL", "MISCELLANEOUS TECHNICAL", "MISCELLANEOUSTECHNICAL");
+        /**
+         * Constant for the "Control Pictures" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock CONTROL_PICTURES = new UnicodeBlock("CONTROL_PICTURES", "CONTROL PICTURES", "CONTROLPICTURES");
+        /**
+         * Constant for the "Optical Character Recognition" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock OPTICAL_CHARACTER_RECOGNITION = new UnicodeBlock("OPTICAL_CHARACTER_RECOGNITION", "OPTICAL CHARACTER RECOGNITION", "OPTICALCHARACTERRECOGNITION");
+        /**
+         * Constant for the "Enclosed Alphanumerics" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock ENCLOSED_ALPHANUMERICS = new UnicodeBlock("ENCLOSED_ALPHANUMERICS", "ENCLOSED ALPHANUMERICS", "ENCLOSEDALPHANUMERICS");
+        /**
+         * Constant for the "Box Drawing" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock BOX_DRAWING = new UnicodeBlock("BOX_DRAWING", "BOX DRAWING", "BOXDRAWING");
+        /**
+         * Constant for the "Block Elements" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock BLOCK_ELEMENTS = new UnicodeBlock("BLOCK_ELEMENTS", "BLOCK ELEMENTS", "BLOCKELEMENTS");
+        /**
+         * Constant for the "Geometric Shapes" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock GEOMETRIC_SHAPES = new UnicodeBlock("GEOMETRIC_SHAPES", "GEOMETRIC SHAPES", "GEOMETRICSHAPES");
+        /**
+         * Constant for the "Miscellaneous Symbols" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock MISCELLANEOUS_SYMBOLS = new UnicodeBlock("MISCELLANEOUS_SYMBOLS", "MISCELLANEOUS SYMBOLS", "MISCELLANEOUSSYMBOLS");
+        /**
+         * Constant for the "Dingbats" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock DINGBATS = new UnicodeBlock("DINGBATS");
+        /**
+         * Constant for the "CJK Symbols and Punctuation" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock CJK_SYMBOLS_AND_PUNCTUATION = new UnicodeBlock("CJK_SYMBOLS_AND_PUNCTUATION", "CJK SYMBOLS AND PUNCTUATION", "CJKSYMBOLSANDPUNCTUATION");
+        /**
+         * Constant for the "Hiragana" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock HIRAGANA = new UnicodeBlock("HIRAGANA");
+        /**
+         * Constant for the "Katakana" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock KATAKANA = new UnicodeBlock("KATAKANA");
+        /**
+         * Constant for the "Bopomofo" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock BOPOMOFO = new UnicodeBlock("BOPOMOFO");
+        /**
+         * Constant for the "Hangul Compatibility Jamo" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock HANGUL_COMPATIBILITY_JAMO = new UnicodeBlock("HANGUL_COMPATIBILITY_JAMO", "HANGUL COMPATIBILITY JAMO", "HANGULCOMPATIBILITYJAMO");
+        /**
+         * Constant for the "Kanbun" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock KANBUN = new UnicodeBlock("KANBUN");
+        /**
+         * Constant for the "Enclosed CJK Letters and Months" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock ENCLOSED_CJK_LETTERS_AND_MONTHS = new UnicodeBlock("ENCLOSED_CJK_LETTERS_AND_MONTHS", "ENCLOSED CJK LETTERS AND MONTHS", "ENCLOSEDCJKLETTERSANDMONTHS");
+        /**
+         * Constant for the "CJK Compatibility" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock CJK_COMPATIBILITY = new UnicodeBlock("CJK_COMPATIBILITY", "CJK COMPATIBILITY", "CJKCOMPATIBILITY");
+        /**
+         * Constant for the "CJK Unified Ideographs" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock CJK_UNIFIED_IDEOGRAPHS = new UnicodeBlock("CJK_UNIFIED_IDEOGRAPHS", "CJK UNIFIED IDEOGRAPHS", "CJKUNIFIEDIDEOGRAPHS");
+        /**
+         * Constant for the "Hangul Syllables" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock HANGUL_SYLLABLES = new UnicodeBlock("HANGUL_SYLLABLES", "HANGUL SYLLABLES", "HANGULSYLLABLES");
+        /**
+         * Constant for the "Private Use Area" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock PRIVATE_USE_AREA = new UnicodeBlock("PRIVATE_USE_AREA", "PRIVATE USE AREA", "PRIVATEUSEAREA");
+        /**
+         * Constant for the "CJK Compatibility Ideographs" Unicode character
+         * block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock CJK_COMPATIBILITY_IDEOGRAPHS = new UnicodeBlock("CJK_COMPATIBILITY_IDEOGRAPHS", "CJK COMPATIBILITY IDEOGRAPHS", "CJKCOMPATIBILITYIDEOGRAPHS");
+        /**
+         * Constant for the "Alphabetic Presentation Forms" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock ALPHABETIC_PRESENTATION_FORMS = new UnicodeBlock("ALPHABETIC_PRESENTATION_FORMS", "ALPHABETIC PRESENTATION FORMS", "ALPHABETICPRESENTATIONFORMS");
+        /**
+         * Constant for the "Arabic Presentation Forms-A" Unicode character
+         * block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock ARABIC_PRESENTATION_FORMS_A = new UnicodeBlock("ARABIC_PRESENTATION_FORMS_A", "ARABIC PRESENTATION FORMS-A", "ARABICPRESENTATIONFORMS-A");
+        /**
+         * Constant for the "Combining Half Marks" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock COMBINING_HALF_MARKS = new UnicodeBlock("COMBINING_HALF_MARKS", "COMBINING HALF MARKS", "COMBININGHALFMARKS");
+        /**
+         * Constant for the "CJK Compatibility Forms" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock CJK_COMPATIBILITY_FORMS = new UnicodeBlock("CJK_COMPATIBILITY_FORMS", "CJK COMPATIBILITY FORMS", "CJKCOMPATIBILITYFORMS");
+        /**
+         * Constant for the "Small Form Variants" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock SMALL_FORM_VARIANTS = new UnicodeBlock("SMALL_FORM_VARIANTS", "SMALL FORM VARIANTS", "SMALLFORMVARIANTS");
+        /**
+         * Constant for the "Arabic Presentation Forms-B" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock ARABIC_PRESENTATION_FORMS_B = new UnicodeBlock("ARABIC_PRESENTATION_FORMS_B", "ARABIC PRESENTATION FORMS-B", "ARABICPRESENTATIONFORMS-B");
+        /**
+         * Constant for the "Halfwidth and Fullwidth Forms" Unicode character
+         * block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock HALFWIDTH_AND_FULLWIDTH_FORMS = new UnicodeBlock("HALFWIDTH_AND_FULLWIDTH_FORMS", "HALFWIDTH AND FULLWIDTH FORMS", "HALFWIDTHANDFULLWIDTHFORMS");
+        /**
+         * Constant for the "Specials" Unicode character block.
+         *
+         * @since 1.2
+         */
+        public static final UnicodeBlock SPECIALS = new UnicodeBlock("SPECIALS");
+        /**
+         * @deprecated Instead of {@code SURROGATES_AREA}, use {@link #HIGH_SURROGATES},
+         * {@link #HIGH_PRIVATE_USE_SURROGATES}, and {@link #LOW_SURROGATES}.
+         * These constants match the block definitions of the Unicode Standard.
+         * The {@link #of(char)} and {@link #of(int)} methods return the
+         * standard constants.
+         */
+        @Deprecated(since = "1.5")
+        public static final UnicodeBlock SURROGATES_AREA = new UnicodeBlock("SURROGATES_AREA");
+        /**
+         * Constant for the "Syriac" Unicode character block.
+         *
+         * @since 1.4
+         */
+        public static final UnicodeBlock SYRIAC = new UnicodeBlock("SYRIAC");
+        /**
+         * Constant for the "Thaana" Unicode character block.
+         *
+         * @since 1.4
+         */
+        public static final UnicodeBlock THAANA = new UnicodeBlock("THAANA");
+        /**
+         * Constant for the "Sinhala" Unicode character block.
+         *
+         * @since 1.4
+         */
+        public static final UnicodeBlock SINHALA = new UnicodeBlock("SINHALA");
+        /**
+         * Constant for the "Myanmar" Unicode character block.
+         *
+         * @since 1.4
+         */
+        public static final UnicodeBlock MYANMAR = new UnicodeBlock("MYANMAR");
+        /**
+         * Constant for the "Ethiopic" Unicode character block.
+         *
+         * @since 1.4
+         */
+        public static final UnicodeBlock ETHIOPIC = new UnicodeBlock("ETHIOPIC");
+        /**
+         * Constant for the "Cherokee" Unicode character block.
+         *
+         * @since 1.4
+         */
+        public static final UnicodeBlock CHEROKEE = new UnicodeBlock("CHEROKEE");
+        /**
+         * Constant for the "Unified Canadian Aboriginal Syllabics" Unicode character block.
+         *
+         * @since 1.4
+         */
+        public static final UnicodeBlock UNIFIED_CANADIAN_ABORIGINAL_SYLLABICS = new UnicodeBlock("UNIFIED_CANADIAN_ABORIGINAL_SYLLABICS", "UNIFIED CANADIAN ABORIGINAL SYLLABICS", "UNIFIEDCANADIANABORIGINALSYLLABICS");
+        /**
+         * Constant for the "Ogham" Unicode character block.
+         *
+         * @since 1.4
+         */
+        public static final UnicodeBlock OGHAM = new UnicodeBlock("OGHAM");
+        /**
+         * Constant for the "Runic" Unicode character block.
+         *
+         * @since 1.4
+         */
+        public static final UnicodeBlock RUNIC = new UnicodeBlock("RUNIC");
+        /**
+         * Constant for the "Khmer" Unicode character block.
+         *
+         * @since 1.4
+         */
+        public static final UnicodeBlock KHMER = new UnicodeBlock("KHMER");
+        /**
+         * Constant for the "Mongolian" Unicode character block.
+         *
+         * @since 1.4
+         */
+        public static final UnicodeBlock MONGOLIAN = new UnicodeBlock("MONGOLIAN");
+        /**
+         * Constant for the "Braille Patterns" Unicode character block.
+         *
+         * @since 1.4
+         */
+        public static final UnicodeBlock BRAILLE_PATTERNS = new UnicodeBlock("BRAILLE_PATTERNS", "BRAILLE PATTERNS", "BRAILLEPATTERNS");
+        /**
+         * Constant for the "CJK Radicals Supplement" Unicode character block.
+         *
+         * @since 1.4
+         */
+        public static final UnicodeBlock CJK_RADICALS_SUPPLEMENT = new UnicodeBlock("CJK_RADICALS_SUPPLEMENT", "CJK RADICALS SUPPLEMENT", "CJKRADICALSSUPPLEMENT");
+        /**
+         * Constant for the "Kangxi Radicals" Unicode character block.
+         *
+         * @since 1.4
+         */
+        public static final UnicodeBlock KANGXI_RADICALS = new UnicodeBlock("KANGXI_RADICALS", "KANGXI RADICALS", "KANGXIRADICALS");
+        /**
+         * Constant for the "Ideographic Description Characters" Unicode character block.
+         *
+         * @since 1.4
+         */
+        public static final UnicodeBlock IDEOGRAPHIC_DESCRIPTION_CHARACTERS = new UnicodeBlock("IDEOGRAPHIC_DESCRIPTION_CHARACTERS", "IDEOGRAPHIC DESCRIPTION CHARACTERS", "IDEOGRAPHICDESCRIPTIONCHARACTERS");
+        /**
+         * Constant for the "Bopomofo Extended" Unicode character block.
+         *
+         * @since 1.4
+         */
+        public static final UnicodeBlock BOPOMOFO_EXTENDED = new UnicodeBlock("BOPOMOFO_EXTENDED", "BOPOMOFO EXTENDED", "BOPOMOFOEXTENDED");
+        /**
+         * Constant for the "CJK Unified Ideographs Extension A" Unicode character block.
+         *
+         * @since 1.4
+         */
+        public static final UnicodeBlock CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A = new UnicodeBlock("CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A", "CJK UNIFIED IDEOGRAPHS EXTENSION A", "CJKUNIFIEDIDEOGRAPHSEXTENSIONA");
+        /**
+         * Constant for the "Yi Syllables" Unicode character block.
+         *
+         * @since 1.4
+         */
+        public static final UnicodeBlock YI_SYLLABLES = new UnicodeBlock("YI_SYLLABLES", "YI SYLLABLES", "YISYLLABLES");
+        /**
+         * Constant for the "Yi Radicals" Unicode character block.
+         *
+         * @since 1.4
+         */
+        public static final UnicodeBlock YI_RADICALS = new UnicodeBlock("YI_RADICALS", "YI RADICALS", "YIRADICALS");
+        /**
+         * Constant for the "Cyrillic Supplement" Unicode character block.
+         * This block was previously known as the "Cyrillic Supplementary" block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock CYRILLIC_SUPPLEMENTARY = new UnicodeBlock("CYRILLIC_SUPPLEMENTARY", "CYRILLIC SUPPLEMENTARY", "CYRILLICSUPPLEMENTARY", "CYRILLIC SUPPLEMENT", "CYRILLICSUPPLEMENT");
+        /**
+         * Constant for the "Tagalog" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock TAGALOG = new UnicodeBlock("TAGALOG");
+        /**
+         * Constant for the "Hanunoo" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock HANUNOO = new UnicodeBlock("HANUNOO");
+        /**
+         * Constant for the "Buhid" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock BUHID = new UnicodeBlock("BUHID");
+        /**
+         * Constant for the "Tagbanwa" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock TAGBANWA = new UnicodeBlock("TAGBANWA");
+        /**
+         * Constant for the "Limbu" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock LIMBU = new UnicodeBlock("LIMBU");
+        /**
+         * Constant for the "Tai Le" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock TAI_LE = new UnicodeBlock("TAI_LE", "TAI LE", "TAILE");
+        /**
+         * Constant for the "Khmer Symbols" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock KHMER_SYMBOLS = new UnicodeBlock("KHMER_SYMBOLS", "KHMER SYMBOLS", "KHMERSYMBOLS");
+        /**
+         * Constant for the "Phonetic Extensions" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock PHONETIC_EXTENSIONS = new UnicodeBlock("PHONETIC_EXTENSIONS", "PHONETIC EXTENSIONS", "PHONETICEXTENSIONS");
+        /**
+         * Constant for the "Miscellaneous Mathematical Symbols-A" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock MISCELLANEOUS_MATHEMATICAL_SYMBOLS_A = new UnicodeBlock("MISCELLANEOUS_MATHEMATICAL_SYMBOLS_A", "MISCELLANEOUS MATHEMATICAL SYMBOLS-A", "MISCELLANEOUSMATHEMATICALSYMBOLS-A");
+        /**
+         * Constant for the "Supplemental Arrows-A" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock SUPPLEMENTAL_ARROWS_A = new UnicodeBlock("SUPPLEMENTAL_ARROWS_A", "SUPPLEMENTAL ARROWS-A", "SUPPLEMENTALARROWS-A");
+        /**
+         * Constant for the "Supplemental Arrows-B" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock SUPPLEMENTAL_ARROWS_B = new UnicodeBlock("SUPPLEMENTAL_ARROWS_B", "SUPPLEMENTAL ARROWS-B", "SUPPLEMENTALARROWS-B");
+        /**
+         * Constant for the "Miscellaneous Mathematical Symbols-B" Unicode
+         * character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock MISCELLANEOUS_MATHEMATICAL_SYMBOLS_B = new UnicodeBlock("MISCELLANEOUS_MATHEMATICAL_SYMBOLS_B", "MISCELLANEOUS MATHEMATICAL SYMBOLS-B", "MISCELLANEOUSMATHEMATICALSYMBOLS-B");
+        /**
+         * Constant for the "Supplemental Mathematical Operators" Unicode
+         * character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock SUPPLEMENTAL_MATHEMATICAL_OPERATORS = new UnicodeBlock("SUPPLEMENTAL_MATHEMATICAL_OPERATORS", "SUPPLEMENTAL MATHEMATICAL OPERATORS", "SUPPLEMENTALMATHEMATICALOPERATORS");
+        /**
+         * Constant for the "Miscellaneous Symbols and Arrows" Unicode character
+         * block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock MISCELLANEOUS_SYMBOLS_AND_ARROWS = new UnicodeBlock("MISCELLANEOUS_SYMBOLS_AND_ARROWS", "MISCELLANEOUS SYMBOLS AND ARROWS", "MISCELLANEOUSSYMBOLSANDARROWS");
+        /**
+         * Constant for the "Katakana Phonetic Extensions" Unicode character
+         * block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock KATAKANA_PHONETIC_EXTENSIONS = new UnicodeBlock("KATAKANA_PHONETIC_EXTENSIONS", "KATAKANA PHONETIC EXTENSIONS", "KATAKANAPHONETICEXTENSIONS");
+        /**
+         * Constant for the "Yijing Hexagram Symbols" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock YIJING_HEXAGRAM_SYMBOLS = new UnicodeBlock("YIJING_HEXAGRAM_SYMBOLS", "YIJING HEXAGRAM SYMBOLS", "YIJINGHEXAGRAMSYMBOLS");
+        /**
+         * Constant for the "Variation Selectors" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock VARIATION_SELECTORS = new UnicodeBlock("VARIATION_SELECTORS", "VARIATION SELECTORS", "VARIATIONSELECTORS");
+        /**
+         * Constant for the "Linear B Syllabary" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock LINEAR_B_SYLLABARY = new UnicodeBlock("LINEAR_B_SYLLABARY", "LINEAR B SYLLABARY", "LINEARBSYLLABARY");
+        /**
+         * Constant for the "Linear B Ideograms" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock LINEAR_B_IDEOGRAMS = new UnicodeBlock("LINEAR_B_IDEOGRAMS", "LINEAR B IDEOGRAMS", "LINEARBIDEOGRAMS");
+        /**
+         * Constant for the "Aegean Numbers" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock AEGEAN_NUMBERS = new UnicodeBlock("AEGEAN_NUMBERS", "AEGEAN NUMBERS", "AEGEANNUMBERS");
+        /**
+         * Constant for the "Old Italic" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock OLD_ITALIC = new UnicodeBlock("OLD_ITALIC", "OLD ITALIC", "OLDITALIC");
+        /**
+         * Constant for the "Gothic" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock GOTHIC = new UnicodeBlock("GOTHIC");
+        /**
+         * Constant for the "Ugaritic" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock UGARITIC = new UnicodeBlock("UGARITIC");
+        /**
+         * Constant for the "Deseret" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock DESERET = new UnicodeBlock("DESERET");
+        /**
+         * Constant for the "Shavian" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock SHAVIAN = new UnicodeBlock("SHAVIAN");
+        /**
+         * Constant for the "Osmanya" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock OSMANYA = new UnicodeBlock("OSMANYA");
+        /**
+         * Constant for the "Cypriot Syllabary" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock CYPRIOT_SYLLABARY = new UnicodeBlock("CYPRIOT_SYLLABARY", "CYPRIOT SYLLABARY", "CYPRIOTSYLLABARY");
+        /**
+         * Constant for the "Byzantine Musical Symbols" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock BYZANTINE_MUSICAL_SYMBOLS = new UnicodeBlock("BYZANTINE_MUSICAL_SYMBOLS", "BYZANTINE MUSICAL SYMBOLS", "BYZANTINEMUSICALSYMBOLS");
+        /**
+         * Constant for the "Musical Symbols" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock MUSICAL_SYMBOLS = new UnicodeBlock("MUSICAL_SYMBOLS", "MUSICAL SYMBOLS", "MUSICALSYMBOLS");
+        /**
+         * Constant for the "Tai Xuan Jing Symbols" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock TAI_XUAN_JING_SYMBOLS = new UnicodeBlock("TAI_XUAN_JING_SYMBOLS", "TAI XUAN JING SYMBOLS", "TAIXUANJINGSYMBOLS");
+        /**
+         * Constant for the "Mathematical Alphanumeric Symbols" Unicode
+         * character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock MATHEMATICAL_ALPHANUMERIC_SYMBOLS = new UnicodeBlock("MATHEMATICAL_ALPHANUMERIC_SYMBOLS", "MATHEMATICAL ALPHANUMERIC SYMBOLS", "MATHEMATICALALPHANUMERICSYMBOLS");
+        /**
+         * Constant for the "CJK Unified Ideographs Extension B" Unicode
+         * character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B = new UnicodeBlock("CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B", "CJK UNIFIED IDEOGRAPHS EXTENSION B", "CJKUNIFIEDIDEOGRAPHSEXTENSIONB");
+        /**
+         * Constant for the "CJK Compatibility Ideographs Supplement" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock CJK_COMPATIBILITY_IDEOGRAPHS_SUPPLEMENT = new UnicodeBlock("CJK_COMPATIBILITY_IDEOGRAPHS_SUPPLEMENT", "CJK COMPATIBILITY IDEOGRAPHS SUPPLEMENT", "CJKCOMPATIBILITYIDEOGRAPHSSUPPLEMENT");
+        /**
+         * Constant for the "Tags" Unicode character block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock TAGS = new UnicodeBlock("TAGS");
+        /**
+         * Constant for the "Variation Selectors Supplement" Unicode character
+         * block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock VARIATION_SELECTORS_SUPPLEMENT = new UnicodeBlock("VARIATION_SELECTORS_SUPPLEMENT", "VARIATION SELECTORS SUPPLEMENT", "VARIATIONSELECTORSSUPPLEMENT");
+        /**
+         * Constant for the "Supplementary Private Use Area-A" Unicode character
+         * block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock SUPPLEMENTARY_PRIVATE_USE_AREA_A = new UnicodeBlock("SUPPLEMENTARY_PRIVATE_USE_AREA_A", "SUPPLEMENTARY PRIVATE USE AREA-A", "SUPPLEMENTARYPRIVATEUSEAREA-A");
+        /**
+         * Constant for the "Supplementary Private Use Area-B" Unicode character
+         * block.
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock SUPPLEMENTARY_PRIVATE_USE_AREA_B = new UnicodeBlock("SUPPLEMENTARY_PRIVATE_USE_AREA_B", "SUPPLEMENTARY PRIVATE USE AREA-B", "SUPPLEMENTARYPRIVATEUSEAREA-B");
+        /**
+         * Constant for the "High Surrogates" Unicode character block.
+         * This block represents codepoint values in the high surrogate
+         * range: U+D800 through U+DB7F
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock HIGH_SURROGATES = new UnicodeBlock("HIGH_SURROGATES", "HIGH SURROGATES", "HIGHSURROGATES");
+        /**
+         * Constant for the "High Private Use Surrogates" Unicode character
+         * block.
+         * This block represents codepoint values in the private use high
+         * surrogate range: U+DB80 through U+DBFF
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock HIGH_PRIVATE_USE_SURROGATES = new UnicodeBlock("HIGH_PRIVATE_USE_SURROGATES", "HIGH PRIVATE USE SURROGATES", "HIGHPRIVATEUSESURROGATES");
+        /**
+         * Constant for the "Low Surrogates" Unicode character block.
+         * This block represents codepoint values in the low surrogate
+         * range: U+DC00 through U+DFFF
+         *
+         * @since 1.5
+         */
+        public static final UnicodeBlock LOW_SURROGATES = new UnicodeBlock("LOW_SURROGATES", "LOW SURROGATES", "LOWSURROGATES");
+        /**
+         * Constant for the "Arabic Supplement" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock ARABIC_SUPPLEMENT = new UnicodeBlock("ARABIC_SUPPLEMENT", "ARABIC SUPPLEMENT", "ARABICSUPPLEMENT");
+        /**
+         * Constant for the "NKo" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock NKO = new UnicodeBlock("NKO");
+        /**
+         * Constant for the "Samaritan" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock SAMARITAN = new UnicodeBlock("SAMARITAN");
+        /**
+         * Constant for the "Mandaic" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock MANDAIC = new UnicodeBlock("MANDAIC");
+        /**
+         * Constant for the "Ethiopic Supplement" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock ETHIOPIC_SUPPLEMENT = new UnicodeBlock("ETHIOPIC_SUPPLEMENT", "ETHIOPIC SUPPLEMENT", "ETHIOPICSUPPLEMENT");
+        /**
+         * Constant for the "Unified Canadian Aboriginal Syllabics Extended"
+         * Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock UNIFIED_CANADIAN_ABORIGINAL_SYLLABICS_EXTENDED = new UnicodeBlock("UNIFIED_CANADIAN_ABORIGINAL_SYLLABICS_EXTENDED", "UNIFIED CANADIAN ABORIGINAL SYLLABICS EXTENDED", "UNIFIEDCANADIANABORIGINALSYLLABICSEXTENDED");
+        /**
+         * Constant for the "New Tai Lue" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock NEW_TAI_LUE = new UnicodeBlock("NEW_TAI_LUE", "NEW TAI LUE", "NEWTAILUE");
+        /**
+         * Constant for the "Buginese" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock BUGINESE = new UnicodeBlock("BUGINESE");
+        /**
+         * Constant for the "Tai Tham" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock TAI_THAM = new UnicodeBlock("TAI_THAM", "TAI THAM", "TAITHAM");
+        /**
+         * Constant for the "Balinese" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock BALINESE = new UnicodeBlock("BALINESE");
+        /**
+         * Constant for the "Sundanese" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock SUNDANESE = new UnicodeBlock("SUNDANESE");
+        /**
+         * Constant for the "Batak" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock BATAK = new UnicodeBlock("BATAK");
+        /**
+         * Constant for the "Lepcha" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock LEPCHA = new UnicodeBlock("LEPCHA");
+        /**
+         * Constant for the "Ol Chiki" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock OL_CHIKI = new UnicodeBlock("OL_CHIKI", "OL CHIKI", "OLCHIKI");
+        /**
+         * Constant for the "Vedic Extensions" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock VEDIC_EXTENSIONS = new UnicodeBlock("VEDIC_EXTENSIONS", "VEDIC EXTENSIONS", "VEDICEXTENSIONS");
+        /**
+         * Constant for the "Phonetic Extensions Supplement" Unicode character
+         * block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock PHONETIC_EXTENSIONS_SUPPLEMENT = new UnicodeBlock("PHONETIC_EXTENSIONS_SUPPLEMENT", "PHONETIC EXTENSIONS SUPPLEMENT", "PHONETICEXTENSIONSSUPPLEMENT");
+        /**
+         * Constant for the "Combining Diacritical Marks Supplement" Unicode
+         * character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock COMBINING_DIACRITICAL_MARKS_SUPPLEMENT = new UnicodeBlock("COMBINING_DIACRITICAL_MARKS_SUPPLEMENT", "COMBINING DIACRITICAL MARKS SUPPLEMENT", "COMBININGDIACRITICALMARKSSUPPLEMENT");
+        /**
+         * Constant for the "Glagolitic" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock GLAGOLITIC = new UnicodeBlock("GLAGOLITIC");
+        /**
+         * Constant for the "Latin Extended-C" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock LATIN_EXTENDED_C = new UnicodeBlock("LATIN_EXTENDED_C", "LATIN EXTENDED-C", "LATINEXTENDED-C");
+        /**
+         * Constant for the "Coptic" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock COPTIC = new UnicodeBlock("COPTIC");
+        /**
+         * Constant for the "Georgian Supplement" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock GEORGIAN_SUPPLEMENT = new UnicodeBlock("GEORGIAN_SUPPLEMENT", "GEORGIAN SUPPLEMENT", "GEORGIANSUPPLEMENT");
+        /**
+         * Constant for the "Tifinagh" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock TIFINAGH = new UnicodeBlock("TIFINAGH");
+        /**
+         * Constant for the "Ethiopic Extended" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock ETHIOPIC_EXTENDED = new UnicodeBlock("ETHIOPIC_EXTENDED", "ETHIOPIC EXTENDED", "ETHIOPICEXTENDED");
+        /**
+         * Constant for the "Cyrillic Extended-A" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock CYRILLIC_EXTENDED_A = new UnicodeBlock("CYRILLIC_EXTENDED_A", "CYRILLIC EXTENDED-A", "CYRILLICEXTENDED-A");
+        /**
+         * Constant for the "Supplemental Punctuation" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock SUPPLEMENTAL_PUNCTUATION = new UnicodeBlock("SUPPLEMENTAL_PUNCTUATION", "SUPPLEMENTAL PUNCTUATION", "SUPPLEMENTALPUNCTUATION");
+        /**
+         * Constant for the "CJK Strokes" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock CJK_STROKES = new UnicodeBlock("CJK_STROKES", "CJK STROKES", "CJKSTROKES");
+        /**
+         * Constant for the "Lisu" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock LISU = new UnicodeBlock("LISU");
+        /**
+         * Constant for the "Vai" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock VAI = new UnicodeBlock("VAI");
+        /**
+         * Constant for the "Cyrillic Extended-B" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock CYRILLIC_EXTENDED_B = new UnicodeBlock("CYRILLIC_EXTENDED_B", "CYRILLIC EXTENDED-B", "CYRILLICEXTENDED-B");
+        /**
+         * Constant for the "Bamum" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock BAMUM = new UnicodeBlock("BAMUM");
+        /**
+         * Constant for the "Modifier Tone Letters" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock MODIFIER_TONE_LETTERS = new UnicodeBlock("MODIFIER_TONE_LETTERS", "MODIFIER TONE LETTERS", "MODIFIERTONELETTERS");
+        /**
+         * Constant for the "Latin Extended-D" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock LATIN_EXTENDED_D = new UnicodeBlock("LATIN_EXTENDED_D", "LATIN EXTENDED-D", "LATINEXTENDED-D");
+        /**
+         * Constant for the "Syloti Nagri" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock SYLOTI_NAGRI = new UnicodeBlock("SYLOTI_NAGRI", "SYLOTI NAGRI", "SYLOTINAGRI");
+        /**
+         * Constant for the "Common Indic Number Forms" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock COMMON_INDIC_NUMBER_FORMS = new UnicodeBlock("COMMON_INDIC_NUMBER_FORMS", "COMMON INDIC NUMBER FORMS", "COMMONINDICNUMBERFORMS");
+        /**
+         * Constant for the "Phags-pa" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock PHAGS_PA = new UnicodeBlock("PHAGS_PA", "PHAGS-PA");
+        /**
+         * Constant for the "Saurashtra" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock SAURASHTRA = new UnicodeBlock("SAURASHTRA");
+        /**
+         * Constant for the "Devanagari Extended" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock DEVANAGARI_EXTENDED = new UnicodeBlock("DEVANAGARI_EXTENDED", "DEVANAGARI EXTENDED", "DEVANAGARIEXTENDED");
+        /**
+         * Constant for the "Kayah Li" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock KAYAH_LI = new UnicodeBlock("KAYAH_LI", "KAYAH LI", "KAYAHLI");
+        /**
+         * Constant for the "Rejang" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock REJANG = new UnicodeBlock("REJANG");
+        /**
+         * Constant for the "Hangul Jamo Extended-A" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock HANGUL_JAMO_EXTENDED_A = new UnicodeBlock("HANGUL_JAMO_EXTENDED_A", "HANGUL JAMO EXTENDED-A", "HANGULJAMOEXTENDED-A");
+        /**
+         * Constant for the "Javanese" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock JAVANESE = new UnicodeBlock("JAVANESE");
+        /**
+         * Constant for the "Cham" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock CHAM = new UnicodeBlock("CHAM");
+        /**
+         * Constant for the "Myanmar Extended-A" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock MYANMAR_EXTENDED_A = new UnicodeBlock("MYANMAR_EXTENDED_A", "MYANMAR EXTENDED-A", "MYANMAREXTENDED-A");
+        /**
+         * Constant for the "Tai Viet" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock TAI_VIET = new UnicodeBlock("TAI_VIET", "TAI VIET", "TAIVIET");
+        /**
+         * Constant for the "Ethiopic Extended-A" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock ETHIOPIC_EXTENDED_A = new UnicodeBlock("ETHIOPIC_EXTENDED_A", "ETHIOPIC EXTENDED-A", "ETHIOPICEXTENDED-A");
+        /**
+         * Constant for the "Meetei Mayek" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock MEETEI_MAYEK = new UnicodeBlock("MEETEI_MAYEK", "MEETEI MAYEK", "MEETEIMAYEK");
+        /**
+         * Constant for the "Hangul Jamo Extended-B" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock HANGUL_JAMO_EXTENDED_B = new UnicodeBlock("HANGUL_JAMO_EXTENDED_B", "HANGUL JAMO EXTENDED-B", "HANGULJAMOEXTENDED-B");
+        /**
+         * Constant for the "Vertical Forms" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock VERTICAL_FORMS = new UnicodeBlock("VERTICAL_FORMS", "VERTICAL FORMS", "VERTICALFORMS");
+        /**
+         * Constant for the "Ancient Greek Numbers" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock ANCIENT_GREEK_NUMBERS = new UnicodeBlock("ANCIENT_GREEK_NUMBERS", "ANCIENT GREEK NUMBERS", "ANCIENTGREEKNUMBERS");
+        /**
+         * Constant for the "Ancient Symbols" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock ANCIENT_SYMBOLS = new UnicodeBlock("ANCIENT_SYMBOLS", "ANCIENT SYMBOLS", "ANCIENTSYMBOLS");
+        /**
+         * Constant for the "Phaistos Disc" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock PHAISTOS_DISC = new UnicodeBlock("PHAISTOS_DISC", "PHAISTOS DISC", "PHAISTOSDISC");
+        /**
+         * Constant for the "Lycian" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock LYCIAN = new UnicodeBlock("LYCIAN");
+        /**
+         * Constant for the "Carian" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock CARIAN = new UnicodeBlock("CARIAN");
+        /**
+         * Constant for the "Old Persian" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock OLD_PERSIAN = new UnicodeBlock("OLD_PERSIAN", "OLD PERSIAN", "OLDPERSIAN");
+        /**
+         * Constant for the "Imperial Aramaic" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock IMPERIAL_ARAMAIC = new UnicodeBlock("IMPERIAL_ARAMAIC", "IMPERIAL ARAMAIC", "IMPERIALARAMAIC");
+        /**
+         * Constant for the "Phoenician" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock PHOENICIAN = new UnicodeBlock("PHOENICIAN");
+        /**
+         * Constant for the "Lydian" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock LYDIAN = new UnicodeBlock("LYDIAN");
+        /**
+         * Constant for the "Kharoshthi" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock KHAROSHTHI = new UnicodeBlock("KHAROSHTHI");
+        /**
+         * Constant for the "Old South Arabian" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock OLD_SOUTH_ARABIAN = new UnicodeBlock("OLD_SOUTH_ARABIAN", "OLD SOUTH ARABIAN", "OLDSOUTHARABIAN");
+        /**
+         * Constant for the "Avestan" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock AVESTAN = new UnicodeBlock("AVESTAN");
+        /**
+         * Constant for the "Inscriptional Parthian" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock INSCRIPTIONAL_PARTHIAN = new UnicodeBlock("INSCRIPTIONAL_PARTHIAN", "INSCRIPTIONAL PARTHIAN", "INSCRIPTIONALPARTHIAN");
+        /**
+         * Constant for the "Inscriptional Pahlavi" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock INSCRIPTIONAL_PAHLAVI = new UnicodeBlock("INSCRIPTIONAL_PAHLAVI", "INSCRIPTIONAL PAHLAVI", "INSCRIPTIONALPAHLAVI");
+        /**
+         * Constant for the "Old Turkic" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock OLD_TURKIC = new UnicodeBlock("OLD_TURKIC", "OLD TURKIC", "OLDTURKIC");
+        /**
+         * Constant for the "Rumi Numeral Symbols" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock RUMI_NUMERAL_SYMBOLS = new UnicodeBlock("RUMI_NUMERAL_SYMBOLS", "RUMI NUMERAL SYMBOLS", "RUMINUMERALSYMBOLS");
+        /**
+         * Constant for the "Brahmi" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock BRAHMI = new UnicodeBlock("BRAHMI");
+        /**
+         * Constant for the "Kaithi" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock KAITHI = new UnicodeBlock("KAITHI");
+        /**
+         * Constant for the "Cuneiform" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock CUNEIFORM = new UnicodeBlock("CUNEIFORM");
+        /**
+         * Constant for the "Cuneiform Numbers and Punctuation" Unicode
+         * character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock CUNEIFORM_NUMBERS_AND_PUNCTUATION = new UnicodeBlock("CUNEIFORM_NUMBERS_AND_PUNCTUATION", "CUNEIFORM NUMBERS AND PUNCTUATION", "CUNEIFORMNUMBERSANDPUNCTUATION");
+        /**
+         * Constant for the "Egyptian Hieroglyphs" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock EGYPTIAN_HIEROGLYPHS = new UnicodeBlock("EGYPTIAN_HIEROGLYPHS", "EGYPTIAN HIEROGLYPHS", "EGYPTIANHIEROGLYPHS");
+        /**
+         * Constant for the "Bamum Supplement" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock BAMUM_SUPPLEMENT = new UnicodeBlock("BAMUM_SUPPLEMENT", "BAMUM SUPPLEMENT", "BAMUMSUPPLEMENT");
+        /**
+         * Constant for the "Kana Supplement" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock KANA_SUPPLEMENT = new UnicodeBlock("KANA_SUPPLEMENT", "KANA SUPPLEMENT", "KANASUPPLEMENT");
+        /**
+         * Constant for the "Ancient Greek Musical Notation" Unicode character
+         * block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock ANCIENT_GREEK_MUSICAL_NOTATION = new UnicodeBlock("ANCIENT_GREEK_MUSICAL_NOTATION", "ANCIENT GREEK MUSICAL NOTATION", "ANCIENTGREEKMUSICALNOTATION");
+        /**
+         * Constant for the "Counting Rod Numerals" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock COUNTING_ROD_NUMERALS = new UnicodeBlock("COUNTING_ROD_NUMERALS", "COUNTING ROD NUMERALS", "COUNTINGRODNUMERALS");
+        /**
+         * Constant for the "Mahjong Tiles" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock MAHJONG_TILES = new UnicodeBlock("MAHJONG_TILES", "MAHJONG TILES", "MAHJONGTILES");
+        /**
+         * Constant for the "Domino Tiles" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock DOMINO_TILES = new UnicodeBlock("DOMINO_TILES", "DOMINO TILES", "DOMINOTILES");
+        /**
+         * Constant for the "Playing Cards" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock PLAYING_CARDS = new UnicodeBlock("PLAYING_CARDS", "PLAYING CARDS", "PLAYINGCARDS");
+        /**
+         * Constant for the "Enclosed Alphanumeric Supplement" Unicode character
+         * block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock ENCLOSED_ALPHANUMERIC_SUPPLEMENT = new UnicodeBlock("ENCLOSED_ALPHANUMERIC_SUPPLEMENT", "ENCLOSED ALPHANUMERIC SUPPLEMENT", "ENCLOSEDALPHANUMERICSUPPLEMENT");
+        /**
+         * Constant for the "Enclosed Ideographic Supplement" Unicode character
+         * block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock ENCLOSED_IDEOGRAPHIC_SUPPLEMENT = new UnicodeBlock("ENCLOSED_IDEOGRAPHIC_SUPPLEMENT", "ENCLOSED IDEOGRAPHIC SUPPLEMENT", "ENCLOSEDIDEOGRAPHICSUPPLEMENT");
+        /**
+         * Constant for the "Miscellaneous Symbols And Pictographs" Unicode
+         * character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock MISCELLANEOUS_SYMBOLS_AND_PICTOGRAPHS = new UnicodeBlock("MISCELLANEOUS_SYMBOLS_AND_PICTOGRAPHS", "MISCELLANEOUS SYMBOLS AND PICTOGRAPHS", "MISCELLANEOUSSYMBOLSANDPICTOGRAPHS");
+        /**
+         * Constant for the "Emoticons" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock EMOTICONS = new UnicodeBlock("EMOTICONS");
+        /**
+         * Constant for the "Transport And Map Symbols" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock TRANSPORT_AND_MAP_SYMBOLS = new UnicodeBlock("TRANSPORT_AND_MAP_SYMBOLS", "TRANSPORT AND MAP SYMBOLS", "TRANSPORTANDMAPSYMBOLS");
+        /**
+         * Constant for the "Alchemical Symbols" Unicode character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock ALCHEMICAL_SYMBOLS = new UnicodeBlock("ALCHEMICAL_SYMBOLS", "ALCHEMICAL SYMBOLS", "ALCHEMICALSYMBOLS");
+        /**
+         * Constant for the "CJK Unified Ideographs Extension C" Unicode
+         * character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock CJK_UNIFIED_IDEOGRAPHS_EXTENSION_C = new UnicodeBlock("CJK_UNIFIED_IDEOGRAPHS_EXTENSION_C", "CJK UNIFIED IDEOGRAPHS EXTENSION C", "CJKUNIFIEDIDEOGRAPHSEXTENSIONC");
+        /**
+         * Constant for the "CJK Unified Ideographs Extension D" Unicode
+         * character block.
+         *
+         * @since 1.7
+         */
+        public static final UnicodeBlock CJK_UNIFIED_IDEOGRAPHS_EXTENSION_D = new UnicodeBlock("CJK_UNIFIED_IDEOGRAPHS_EXTENSION_D", "CJK UNIFIED IDEOGRAPHS EXTENSION D", "CJKUNIFIEDIDEOGRAPHSEXTENSIOND");
+        /**
+         * Constant for the "Arabic Extended-A" Unicode character block.
+         *
+         * @since 1.8
+         */
+        public static final UnicodeBlock ARABIC_EXTENDED_A = new UnicodeBlock("ARABIC_EXTENDED_A", "ARABIC EXTENDED-A", "ARABICEXTENDED-A");
+        /**
+         * Constant for the "Sundanese Supplement" Unicode character block.
+         *
+         * @since 1.8
+         */
+        public static final UnicodeBlock SUNDANESE_SUPPLEMENT = new UnicodeBlock("SUNDANESE_SUPPLEMENT", "SUNDANESE SUPPLEMENT", "SUNDANESESUPPLEMENT");
+        /**
+         * Constant for the "Meetei Mayek Extensions" Unicode character block.
+         *
+         * @since 1.8
+         */
+        public static final UnicodeBlock MEETEI_MAYEK_EXTENSIONS = new UnicodeBlock("MEETEI_MAYEK_EXTENSIONS", "MEETEI MAYEK EXTENSIONS", "MEETEIMAYEKEXTENSIONS");
+        /**
+         * Constant for the "Meroitic Hieroglyphs" Unicode character block.
+         *
+         * @since 1.8
+         */
+        public static final UnicodeBlock MEROITIC_HIEROGLYPHS = new UnicodeBlock("MEROITIC_HIEROGLYPHS", "MEROITIC HIEROGLYPHS", "MEROITICHIEROGLYPHS");
+        /**
+         * Constant for the "Meroitic Cursive" Unicode character block.
+         *
+         * @since 1.8
+         */
+        public static final UnicodeBlock MEROITIC_CURSIVE = new UnicodeBlock("MEROITIC_CURSIVE", "MEROITIC CURSIVE", "MEROITICCURSIVE");
+        /**
+         * Constant for the "Sora Sompeng" Unicode character block.
+         *
+         * @since 1.8
+         */
+        public static final UnicodeBlock SORA_SOMPENG = new UnicodeBlock("SORA_SOMPENG", "SORA SOMPENG", "SORASOMPENG");
+        /**
+         * Constant for the "Chakma" Unicode character block.
+         *
+         * @since 1.8
+         */
+        public static final UnicodeBlock CHAKMA = new UnicodeBlock("CHAKMA");
+        /**
+         * Constant for the "Sharada" Unicode character block.
+         *
+         * @since 1.8
+         */
+        public static final UnicodeBlock SHARADA = new UnicodeBlock("SHARADA");
+        /**
+         * Constant for the "Takri" Unicode character block.
+         *
+         * @since 1.8
+         */
+        public static final UnicodeBlock TAKRI = new UnicodeBlock("TAKRI");
+        /**
+         * Constant for the "Miao" Unicode character block.
+         *
+         * @since 1.8
+         */
+        public static final UnicodeBlock MIAO = new UnicodeBlock("MIAO");
+        /**
+         * Constant for the "Arabic Mathematical Alphabetic Symbols" Unicode
+         * character block.
+         *
+         * @since 1.8
+         */
+        public static final UnicodeBlock ARABIC_MATHEMATICAL_ALPHABETIC_SYMBOLS = new UnicodeBlock("ARABIC_MATHEMATICAL_ALPHABETIC_SYMBOLS", "ARABIC MATHEMATICAL ALPHABETIC SYMBOLS", "ARABICMATHEMATICALALPHABETICSYMBOLS");
+        /**
+         * Constant for the "Combining Diacritical Marks Extended" Unicode
+         * character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock COMBINING_DIACRITICAL_MARKS_EXTENDED = new UnicodeBlock("COMBINING_DIACRITICAL_MARKS_EXTENDED", "COMBINING DIACRITICAL MARKS EXTENDED", "COMBININGDIACRITICALMARKSEXTENDED");
+        /**
+         * Constant for the "Myanmar Extended-B" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock MYANMAR_EXTENDED_B = new UnicodeBlock("MYANMAR_EXTENDED_B", "MYANMAR EXTENDED-B", "MYANMAREXTENDED-B");
+        /**
+         * Constant for the "Latin Extended-E" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock LATIN_EXTENDED_E = new UnicodeBlock("LATIN_EXTENDED_E", "LATIN EXTENDED-E", "LATINEXTENDED-E");
+        /**
+         * Constant for the "Coptic Epact Numbers" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock COPTIC_EPACT_NUMBERS = new UnicodeBlock("COPTIC_EPACT_NUMBERS", "COPTIC EPACT NUMBERS", "COPTICEPACTNUMBERS");
+        /**
+         * Constant for the "Old Permic" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock OLD_PERMIC = new UnicodeBlock("OLD_PERMIC", "OLD PERMIC", "OLDPERMIC");
+        /**
+         * Constant for the "Elbasan" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock ELBASAN = new UnicodeBlock("ELBASAN");
+        /**
+         * Constant for the "Caucasian Albanian" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock CAUCASIAN_ALBANIAN = new UnicodeBlock("CAUCASIAN_ALBANIAN", "CAUCASIAN ALBANIAN", "CAUCASIANALBANIAN");
+        /**
+         * Constant for the "Linear A" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock LINEAR_A = new UnicodeBlock("LINEAR_A", "LINEAR A", "LINEARA");
+        /**
+         * Constant for the "Palmyrene" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock PALMYRENE = new UnicodeBlock("PALMYRENE");
+        /**
+         * Constant for the "Nabataean" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock NABATAEAN = new UnicodeBlock("NABATAEAN");
+        /**
+         * Constant for the "Old North Arabian" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock OLD_NORTH_ARABIAN = new UnicodeBlock("OLD_NORTH_ARABIAN", "OLD NORTH ARABIAN", "OLDNORTHARABIAN");
+        /**
+         * Constant for the "Manichaean" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock MANICHAEAN = new UnicodeBlock("MANICHAEAN");
+        /**
+         * Constant for the "Psalter Pahlavi" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock PSALTER_PAHLAVI = new UnicodeBlock("PSALTER_PAHLAVI", "PSALTER PAHLAVI", "PSALTERPAHLAVI");
+        /**
+         * Constant for the "Mahajani" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock MAHAJANI = new UnicodeBlock("MAHAJANI");
+        /**
+         * Constant for the "Sinhala Archaic Numbers" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock SINHALA_ARCHAIC_NUMBERS = new UnicodeBlock("SINHALA_ARCHAIC_NUMBERS", "SINHALA ARCHAIC NUMBERS", "SINHALAARCHAICNUMBERS");
+        /**
+         * Constant for the "Khojki" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock KHOJKI = new UnicodeBlock("KHOJKI");
+        /**
+         * Constant for the "Khudawadi" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock KHUDAWADI = new UnicodeBlock("KHUDAWADI");
+        /**
+         * Constant for the "Grantha" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock GRANTHA = new UnicodeBlock("GRANTHA");
+        /**
+         * Constant for the "Tirhuta" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock TIRHUTA = new UnicodeBlock("TIRHUTA");
+        /**
+         * Constant for the "Siddham" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock SIDDHAM = new UnicodeBlock("SIDDHAM");
+        /**
+         * Constant for the "Modi" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock MODI = new UnicodeBlock("MODI");
+        /**
+         * Constant for the "Warang Citi" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock WARANG_CITI = new UnicodeBlock("WARANG_CITI", "WARANG CITI", "WARANGCITI");
+        /**
+         * Constant for the "Pau Cin Hau" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock PAU_CIN_HAU = new UnicodeBlock("PAU_CIN_HAU", "PAU CIN HAU", "PAUCINHAU");
+        /**
+         * Constant for the "Mro" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock MRO = new UnicodeBlock("MRO");
+        /**
+         * Constant for the "Bassa Vah" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock BASSA_VAH = new UnicodeBlock("BASSA_VAH", "BASSA VAH", "BASSAVAH");
+        /**
+         * Constant for the "Pahawh Hmong" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock PAHAWH_HMONG = new UnicodeBlock("PAHAWH_HMONG", "PAHAWH HMONG", "PAHAWHHMONG");
+        /**
+         * Constant for the "Duployan" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock DUPLOYAN = new UnicodeBlock("DUPLOYAN");
+        /**
+         * Constant for the "Shorthand Format Controls" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock SHORTHAND_FORMAT_CONTROLS = new UnicodeBlock("SHORTHAND_FORMAT_CONTROLS", "SHORTHAND FORMAT CONTROLS", "SHORTHANDFORMATCONTROLS");
+        /**
+         * Constant for the "Mende Kikakui" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock MENDE_KIKAKUI = new UnicodeBlock("MENDE_KIKAKUI", "MENDE KIKAKUI", "MENDEKIKAKUI");
+        /**
+         * Constant for the "Ornamental Dingbats" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock ORNAMENTAL_DINGBATS = new UnicodeBlock("ORNAMENTAL_DINGBATS", "ORNAMENTAL DINGBATS", "ORNAMENTALDINGBATS");
+        /**
+         * Constant for the "Geometric Shapes Extended" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock GEOMETRIC_SHAPES_EXTENDED = new UnicodeBlock("GEOMETRIC_SHAPES_EXTENDED", "GEOMETRIC SHAPES EXTENDED", "GEOMETRICSHAPESEXTENDED");
+        /**
+         * Constant for the "Supplemental Arrows-C" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock SUPPLEMENTAL_ARROWS_C = new UnicodeBlock("SUPPLEMENTAL_ARROWS_C", "SUPPLEMENTAL ARROWS-C", "SUPPLEMENTALARROWS-C");
+        /**
+         * Constant for the "Cherokee Supplement" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock CHEROKEE_SUPPLEMENT = new UnicodeBlock("CHEROKEE_SUPPLEMENT", "CHEROKEE SUPPLEMENT", "CHEROKEESUPPLEMENT");
+        /**
+         * Constant for the "Hatran" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock HATRAN = new UnicodeBlock("HATRAN");
+        /**
+         * Constant for the "Old Hungarian" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock OLD_HUNGARIAN = new UnicodeBlock("OLD_HUNGARIAN", "OLD HUNGARIAN", "OLDHUNGARIAN");
+        /**
+         * Constant for the "Multani" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock MULTANI = new UnicodeBlock("MULTANI");
+        /**
+         * Constant for the "Ahom" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock AHOM = new UnicodeBlock("AHOM");
+        /**
+         * Constant for the "Early Dynastic Cuneiform" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock EARLY_DYNASTIC_CUNEIFORM = new UnicodeBlock("EARLY_DYNASTIC_CUNEIFORM", "EARLY DYNASTIC CUNEIFORM", "EARLYDYNASTICCUNEIFORM");
+        /**
+         * Constant for the "Anatolian Hieroglyphs" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock ANATOLIAN_HIEROGLYPHS = new UnicodeBlock("ANATOLIAN_HIEROGLYPHS", "ANATOLIAN HIEROGLYPHS", "ANATOLIANHIEROGLYPHS");
+        /**
+         * Constant for the "Sutton SignWriting" Unicode character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock SUTTON_SIGNWRITING = new UnicodeBlock("SUTTON_SIGNWRITING", "SUTTON SIGNWRITING", "SUTTONSIGNWRITING");
+        /**
+         * Constant for the "Supplemental Symbols and Pictographs" Unicode
+         * character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock SUPPLEMENTAL_SYMBOLS_AND_PICTOGRAPHS = new UnicodeBlock("SUPPLEMENTAL_SYMBOLS_AND_PICTOGRAPHS", "SUPPLEMENTAL SYMBOLS AND PICTOGRAPHS", "SUPPLEMENTALSYMBOLSANDPICTOGRAPHS");
+        /**
+         * Constant for the "CJK Unified Ideographs Extension E" Unicode
+         * character block.
+         *
+         * @since 9
+         */
+        public static final UnicodeBlock CJK_UNIFIED_IDEOGRAPHS_EXTENSION_E = new UnicodeBlock("CJK_UNIFIED_IDEOGRAPHS_EXTENSION_E", "CJK UNIFIED IDEOGRAPHS EXTENSION E", "CJKUNIFIEDIDEOGRAPHSEXTENSIONE");
+        /**
+         * Constant for the "Syriac Supplement" Unicode
+         * character block.
+         *
+         * @since 11
+         */
+        public static final UnicodeBlock SYRIAC_SUPPLEMENT = new UnicodeBlock("SYRIAC_SUPPLEMENT", "SYRIAC SUPPLEMENT", "SYRIACSUPPLEMENT");
+        /**
+         * Constant for the "Cyrillic Extended-C" Unicode
+         * character block.
+         *
+         * @since 11
+         */
+        public static final UnicodeBlock CYRILLIC_EXTENDED_C = new UnicodeBlock("CYRILLIC_EXTENDED_C", "CYRILLIC EXTENDED-C", "CYRILLICEXTENDED-C");
+        /**
+         * Constant for the "Osage" Unicode
+         * character block.
+         *
+         * @since 11
+         */
+        public static final UnicodeBlock OSAGE = new UnicodeBlock("OSAGE");
+        /**
+         * Constant for the "Newa" Unicode
+         * character block.
+         *
+         * @since 11
+         */
+        public static final UnicodeBlock NEWA = new UnicodeBlock("NEWA");
+        /**
+         * Constant for the "Mongolian Supplement" Unicode
+         * character block.
+         *
+         * @since 11
+         */
+        public static final UnicodeBlock MONGOLIAN_SUPPLEMENT = new UnicodeBlock("MONGOLIAN_SUPPLEMENT", "MONGOLIAN SUPPLEMENT", "MONGOLIANSUPPLEMENT");
+        /**
+         * Constant for the "Marchen" Unicode
+         * character block.
+         *
+         * @since 11
+         */
+        public static final UnicodeBlock MARCHEN = new UnicodeBlock("MARCHEN");
+        /**
+         * Constant for the "Ideographic Symbols and Punctuation" Unicode
+         * character block.
+         *
+         * @since 11
+         */
+        public static final UnicodeBlock IDEOGRAPHIC_SYMBOLS_AND_PUNCTUATION = new UnicodeBlock("IDEOGRAPHIC_SYMBOLS_AND_PUNCTUATION", "IDEOGRAPHIC SYMBOLS AND PUNCTUATION", "IDEOGRAPHICSYMBOLSANDPUNCTUATION");
+        /**
+         * Constant for the "Tangut" Unicode
+         * character block.
+         *
+         * @since 11
+         */
+        public static final UnicodeBlock TANGUT = new UnicodeBlock("TANGUT");
+        /**
+         * Constant for the "Tangut Components" Unicode
+         * character block.
+         *
+         * @since 11
+         */
+        public static final UnicodeBlock TANGUT_COMPONENTS = new UnicodeBlock("TANGUT_COMPONENTS", "TANGUT COMPONENTS", "TANGUTCOMPONENTS");
+        /**
+         * Constant for the "Kana Extended-A" Unicode
+         * character block.
+         *
+         * @since 11
+         */
+        public static final UnicodeBlock KANA_EXTENDED_A = new UnicodeBlock("KANA_EXTENDED_A", "KANA EXTENDED-A", "KANAEXTENDED-A");
+        /**
+         * Constant for the "Glagolitic Supplement" Unicode
+         * character block.
+         *
+         * @since 11
+         */
+        public static final UnicodeBlock GLAGOLITIC_SUPPLEMENT = new UnicodeBlock("GLAGOLITIC_SUPPLEMENT", "GLAGOLITIC SUPPLEMENT", "GLAGOLITICSUPPLEMENT");
+        /**
+         * Constant for the "Adlam" Unicode
+         * character block.
+         *
+         * @since 11
+         */
+        public static final UnicodeBlock ADLAM = new UnicodeBlock("ADLAM");
+        /**
+         * Constant for the "Masaram Gondi" Unicode
+         * character block.
+         *
+         * @since 11
+         */
+        public static final UnicodeBlock MASARAM_GONDI = new UnicodeBlock("MASARAM_GONDI", "MASARAM GONDI", "MASARAMGONDI");
+        /**
+         * Constant for the "Zanabazar Square" Unicode
+         * character block.
+         *
+         * @since 11
+         */
+        public static final UnicodeBlock ZANABAZAR_SQUARE = new UnicodeBlock("ZANABAZAR_SQUARE", "ZANABAZAR SQUARE", "ZANABAZARSQUARE");
+        /**
+         * Constant for the "Nushu" Unicode
+         * character block.
+         *
+         * @since 11
+         */
+        public static final UnicodeBlock NUSHU = new UnicodeBlock("NUSHU");
+        /**
+         * Constant for the "Soyombo" Unicode
+         * character block.
+         *
+         * @since 11
+         */
+        public static final UnicodeBlock SOYOMBO = new UnicodeBlock("SOYOMBO");
+        /**
+         * Constant for the "Bhaiksuki" Unicode
+         * character block.
+         *
+         * @since 11
+         */
+        public static final UnicodeBlock BHAIKSUKI = new UnicodeBlock("BHAIKSUKI");
+        /**
+         * Constant for the "CJK Unified Ideographs Extension F" Unicode
+         * character block.
+         *
+         * @since 11
+         */
+        public static final UnicodeBlock CJK_UNIFIED_IDEOGRAPHS_EXTENSION_F = new UnicodeBlock("CJK_UNIFIED_IDEOGRAPHS_EXTENSION_F", "CJK UNIFIED IDEOGRAPHS EXTENSION F", "CJKUNIFIEDIDEOGRAPHSEXTENSIONF");
+        
+        /*▲ Unicode字符集别名系统 ████████████████████████████████████████████████████████████████████████████████┛ */
+        
+        // Unicode字符集的Unicode编码范围的起始值
+        private static final int blockStarts[] = {
+            0x0000,   // 0000..007F; Basic Latin
+            0x0080,   // 0080..00FF; Latin-1 Supplement
+            0x0100,   // 0100..017F; Latin Extended-A
+            0x0180,   // 0180..024F; Latin Extended-B
+            0x0250,   // 0250..02AF; IPA Extensions
+            0x02B0,   // 02B0..02FF; Spacing Modifier Letters
+            0x0300,   // 0300..036F; Combining Diacritical Marks
+            0x0370,   // 0370..03FF; Greek and Coptic
+            0x0400,   // 0400..04FF; Cyrillic
+            0x0500,   // 0500..052F; Cyrillic Supplement
+            0x0530,   // 0530..058F; Armenian
+            0x0590,   // 0590..05FF; Hebrew
+            0x0600,   // 0600..06FF; Arabic
+            0x0700,   // 0700..074F; Syriac
+            0x0750,   // 0750..077F; Arabic Supplement
+            0x0780,   // 0780..07BF; Thaana
+            0x07C0,   // 07C0..07FF; NKo
+            0x0800,   // 0800..083F; Samaritan
+            0x0840,   // 0840..085F; Mandaic
+            0x0860,   // 0860..086F; Syriac Supplement
+            0x0870,   //             unassigned
+            0x08A0,   // 08A0..08FF; Arabic Extended-A
+            0x0900,   // 0900..097F; Devanagari
+            0x0980,   // 0980..09FF; Bengali
+            0x0A00,   // 0A00..0A7F; Gurmukhi
+            0x0A80,   // 0A80..0AFF; Gujarati
+            0x0B00,   // 0B00..0B7F; Oriya
+            0x0B80,   // 0B80..0BFF; Tamil
+            0x0C00,   // 0C00..0C7F; Telugu
+            0x0C80,   // 0C80..0CFF; Kannada
+            0x0D00,   // 0D00..0D7F; Malayalam
+            0x0D80,   // 0D80..0DFF; Sinhala
+            0x0E00,   // 0E00..0E7F; Thai
+            0x0E80,   // 0E80..0EFF; Lao
+            0x0F00,   // 0F00..0FFF; Tibetan
+            0x1000,   // 1000..109F; Myanmar
+            0x10A0,   // 10A0..10FF; Georgian
+            0x1100,   // 1100..11FF; Hangul Jamo
+            0x1200,   // 1200..137F; Ethiopic
+            0x1380,   // 1380..139F; Ethiopic Supplement
+            0x13A0,   // 13A0..13FF; Cherokee
+            0x1400,   // 1400..167F; Unified Canadian Aboriginal Syllabics
+            0x1680,   // 1680..169F; Ogham
+            0x16A0,   // 16A0..16FF; Runic
+            0x1700,   // 1700..171F; Tagalog
+            0x1720,   // 1720..173F; Hanunoo
+            0x1740,   // 1740..175F; Buhid
+            0x1760,   // 1760..177F; Tagbanwa
+            0x1780,   // 1780..17FF; Khmer
+            0x1800,   // 1800..18AF; Mongolian
+            0x18B0,   // 18B0..18FF; Unified Canadian Aboriginal Syllabics Extended
+            0x1900,   // 1900..194F; Limbu
+            0x1950,   // 1950..197F; Tai Le
+            0x1980,   // 1980..19DF; New Tai Lue
+            0x19E0,   // 19E0..19FF; Khmer Symbols
+            0x1A00,   // 1A00..1A1F; Buginese
+            0x1A20,   // 1A20..1AAF; Tai Tham
+            0x1AB0,   // 1AB0..1AFF; Combining Diacritical Marks Extended
+            0x1B00,   // 1B00..1B7F; Balinese
+            0x1B80,   // 1B80..1BBF; Sundanese
+            0x1BC0,   // 1BC0..1BFF; Batak
+            0x1C00,   // 1C00..1C4F; Lepcha
+            0x1C50,   // 1C50..1C7F; Ol Chiki
+            0x1C80,   // 1C80..1C8F; Cyrillic Extended-C
+            0x1C90,   //             unassigned
+            0x1CC0,   // 1CC0..1CCF; Sundanese Supplement
+            0x1CD0,   // 1CD0..1CFF; Vedic Extensions
+            0x1D00,   // 1D00..1D7F; Phonetic Extensions
+            0x1D80,   // 1D80..1DBF; Phonetic Extensions Supplement
+            0x1DC0,   // 1DC0..1DFF; Combining Diacritical Marks Supplement
+            0x1E00,   // 1E00..1EFF; Latin Extended Additional
+            0x1F00,   // 1F00..1FFF; Greek Extended
+            0x2000,   // 2000..206F; General Punctuation
+            0x2070,   // 2070..209F; Superscripts and Subscripts
+            0x20A0,   // 20A0..20CF; Currency Symbols
+            0x20D0,   // 20D0..20FF; Combining Diacritical Marks for Symbols
+            0x2100,   // 2100..214F; Letterlike Symbols
+            0x2150,   // 2150..218F; Number Forms
+            0x2190,   // 2190..21FF; Arrows
+            0x2200,   // 2200..22FF; Mathematical Operators
+            0x2300,   // 2300..23FF; Miscellaneous Technical
+            0x2400,   // 2400..243F; Control Pictures
+            0x2440,   // 2440..245F; Optical Character Recognition
+            0x2460,   // 2460..24FF; Enclosed Alphanumerics
+            0x2500,   // 2500..257F; Box Drawing
+            0x2580,   // 2580..259F; Block Elements
+            0x25A0,   // 25A0..25FF; Geometric Shapes
+            0x2600,   // 2600..26FF; Miscellaneous Symbols
+            0x2700,   // 2700..27BF; Dingbats
+            0x27C0,   // 27C0..27EF; Miscellaneous Mathematical Symbols-A
+            0x27F0,   // 27F0..27FF; Supplemental Arrows-A
+            0x2800,   // 2800..28FF; Braille Patterns
+            0x2900,   // 2900..297F; Supplemental Arrows-B
+            0x2980,   // 2980..29FF; Miscellaneous Mathematical Symbols-B
+            0x2A00,   // 2A00..2AFF; Supplemental Mathematical Operators
+            0x2B00,   // 2B00..2BFF; Miscellaneous Symbols and Arrows
+            0x2C00,   // 2C00..2C5F; Glagolitic
+            0x2C60,   // 2C60..2C7F; Latin Extended-C
+            0x2C80,   // 2C80..2CFF; Coptic
+            0x2D00,   // 2D00..2D2F; Georgian Supplement
+            0x2D30,   // 2D30..2D7F; Tifinagh
+            0x2D80,   // 2D80..2DDF; Ethiopic Extended
+            0x2DE0,   // 2DE0..2DFF; Cyrillic Extended-A
+            0x2E00,   // 2E00..2E7F; Supplemental Punctuation
+            0x2E80,   // 2E80..2EFF; CJK Radicals Supplement
+            0x2F00,   // 2F00..2FDF; Kangxi Radicals
+            0x2FE0,   //             unassigned
+            0x2FF0,   // 2FF0..2FFF; Ideographic Description Characters
+            0x3000,   // 3000..303F; CJK Symbols and Punctuation
+            0x3040,   // 3040..309F; Hiragana
+            0x30A0,   // 30A0..30FF; Katakana
+            0x3100,   // 3100..312F; Bopomofo
+            0x3130,   // 3130..318F; Hangul Compatibility Jamo
+            0x3190,   // 3190..319F; Kanbun
+            0x31A0,   // 31A0..31BF; Bopomofo Extended
+            0x31C0,   // 31C0..31EF; CJK Strokes
+            0x31F0,   // 31F0..31FF; Katakana Phonetic Extensions
+            0x3200,   // 3200..32FF; Enclosed CJK Letters and Months
+            0x3300,   // 3300..33FF; CJK Compatibility
+            0x3400,   // 3400..4DBF; CJK Unified Ideographs Extension A
+            0x4DC0,   // 4DC0..4DFF; Yijing Hexagram Symbols
+            0x4E00,   // 4E00..9FFF; CJK Unified Ideographs
+            0xA000,   // A000..A48F; Yi Syllables
+            0xA490,   // A490..A4CF; Yi Radicals
+            0xA4D0,   // A4D0..A4FF; Lisu
+            0xA500,   // A500..A63F; Vai
+            0xA640,   // A640..A69F; Cyrillic Extended-B
+            0xA6A0,   // A6A0..A6FF; Bamum
+            0xA700,   // A700..A71F; Modifier Tone Letters
+            0xA720,   // A720..A7FF; Latin Extended-D
+            0xA800,   // A800..A82F; Syloti Nagri
+            0xA830,   // A830..A83F; Common Indic Number Forms
+            0xA840,   // A840..A87F; Phags-pa
+            0xA880,   // A880..A8DF; Saurashtra
+            0xA8E0,   // A8E0..A8FF; Devanagari Extended
+            0xA900,   // A900..A92F; Kayah Li
+            0xA930,   // A930..A95F; Rejang
+            0xA960,   // A960..A97F; Hangul Jamo Extended-A
+            0xA980,   // A980..A9DF; Javanese
+            0xA9E0,   // A9E0..A9FF; Myanmar Extended-B
+            0xAA00,   // AA00..AA5F; Cham
+            0xAA60,   // AA60..AA7F; Myanmar Extended-A
+            0xAA80,   // AA80..AADF; Tai Viet
+            0xAAE0,   // AAE0..AAFF; Meetei Mayek Extensions
+            0xAB00,   // AB00..AB2F; Ethiopic Extended-A
+            0xAB30,   // AB30..AB6F; Latin Extended-E
+            0xAB70,   // AB70..ABBF; Cherokee Supplement
+            0xABC0,   // ABC0..ABFF; Meetei Mayek
+            0xAC00,   // AC00..D7AF; Hangul Syllables
+            0xD7B0,   // D7B0..D7FF; Hangul Jamo Extended-B
+            0xD800,   // D800..DB7F; High Surrogates
+            0xDB80,   // DB80..DBFF; High Private Use Surrogates
+            0xDC00,   // DC00..DFFF; Low Surrogates
+            0xE000,   // E000..F8FF; Private Use Area
+            0xF900,   // F900..FAFF; CJK Compatibility Ideographs
+            0xFB00,   // FB00..FB4F; Alphabetic Presentation Forms
+            0xFB50,   // FB50..FDFF; Arabic Presentation Forms-A
+            0xFE00,   // FE00..FE0F; Variation Selectors
+            0xFE10,   // FE10..FE1F; Vertical Forms
+            0xFE20,   // FE20..FE2F; Combining Half Marks
+            0xFE30,   // FE30..FE4F; CJK Compatibility Forms
+            0xFE50,   // FE50..FE6F; Small Form Variants
+            0xFE70,   // FE70..FEFF; Arabic Presentation Forms-B
+            0xFF00,   // FF00..FFEF; Halfwidth and Fullwidth Forms
+            0xFFF0,   // FFF0..FFFF; Specials
+            0x10000,  // 10000..1007F; Linear B Syllabary
+            0x10080,  // 10080..100FF; Linear B Ideograms
+            0x10100,  // 10100..1013F; Aegean Numbers
+            0x10140,  // 10140..1018F; Ancient Greek Numbers
+            0x10190,  // 10190..101CF; Ancient Symbols
+            0x101D0,  // 101D0..101FF; Phaistos Disc
+            0x10200,  //               unassigned
+            0x10280,  // 10280..1029F; Lycian
+            0x102A0,  // 102A0..102DF; Carian
+            0x102E0,  // 102E0..102FF; Coptic Epact Numbers
+            0x10300,  // 10300..1032F; Old Italic
+            0x10330,  // 10330..1034F; Gothic
+            0x10350,  // 10350..1037F; Old Permic
+            0x10380,  // 10380..1039F; Ugaritic
+            0x103A0,  // 103A0..103DF; Old Persian
+            0x103E0,  //               unassigned
+            0x10400,  // 10400..1044F; Deseret
+            0x10450,  // 10450..1047F; Shavian
+            0x10480,  // 10480..104AF; Osmanya
+            0x104B0,  // 104B0..104FF; Osage
+            0x10500,  // 10500..1052F; Elbasan
+            0x10530,  // 10530..1056F; Caucasian Albanian
+            0x10570,  //               unassigned
+            0x10600,  // 10600..1077F; Linear A
+            0x10780,  //               unassigned
+            0x10800,  // 10800..1083F; Cypriot Syllabary
+            0x10840,  // 10840..1085F; Imperial Aramaic
+            0x10860,  // 10860..1087F; Palmyrene
+            0x10880,  // 10880..108AF; Nabataean
+            0x108B0,  //               unassigned
+            0x108E0,  // 108E0..108FF; Hatran
+            0x10900,  // 10900..1091F; Phoenician
+            0x10920,  // 10920..1093F; Lydian
+            0x10940,  //               unassigned
+            0x10980,  // 10980..1099F; Meroitic Hieroglyphs
+            0x109A0,  // 109A0..109FF; Meroitic Cursive
+            0x10A00,  // 10A00..10A5F; Kharoshthi
+            0x10A60,  // 10A60..10A7F; Old South Arabian
+            0x10A80,  // 10A80..10A9F; Old North Arabian
+            0x10AA0,  //               unassigned
+            0x10AC0,  // 10AC0..10AFF; Manichaean
+            0x10B00,  // 10B00..10B3F; Avestan
+            0x10B40,  // 10B40..10B5F; Inscriptional Parthian
+            0x10B60,  // 10B60..10B7F; Inscriptional Pahlavi
+            0x10B80,  // 10B80..10BAF; Psalter Pahlavi
+            0x10BB0,  //               unassigned
+            0x10C00,  // 10C00..10C4F; Old Turkic
+            0x10C50,  //               unassigned
+            0x10C80,  // 10C80..10CFF; Old Hungarian
+            0x10D00,  //               unassigned
+            0x10E60,  // 10E60..10E7F; Rumi Numeral Symbols
+            0x10E80,  //               unassigned
+            0x11000,  // 11000..1107F; Brahmi
+            0x11080,  // 11080..110CF; Kaithi
+            0x110D0,  // 110D0..110FF; Sora Sompeng
+            0x11100,  // 11100..1114F; Chakma
+            0x11150,  // 11150..1117F; Mahajani
+            0x11180,  // 11180..111DF; Sharada
+            0x111E0,  // 111E0..111FF; Sinhala Archaic Numbers
+            0x11200,  // 11200..1124F; Khojki
+            0x11250,  //               unassigned
+            0x11280,  // 11280..112AF; Multani
+            0x112B0,  // 112B0..112FF; Khudawadi
+            0x11300,  // 11300..1137F; Grantha
+            0x11380,  //               unassigned
+            0x11400,  // 11400..1147F; Newa
+            0x11480,  // 11480..114DF; Tirhuta
+            0x114E0,  //               unassigned
+            0x11580,  // 11580..115FF; Siddham
+            0x11600,  // 11600..1165F; Modi
+            0x11660, //  11660..1167F; Mongolian Supplement
+            0x11680,  // 11680..116CF; Takri
+            0x116D0,  //               unassigned
+            0x11700,  // 11700..1173F; Ahom
+            0x11740,  //               unassigned
+            0x118A0,  // 118A0..118FF; Warang Citi
+            0x11900,  //               unassigned
+            0x11A00,  // 11A00..11A4F; Zanabazar Square
+            0x11A50,  // 11A50..11AAF; Soyombo
+            0x11AB0,  //               unassigned
+            0x11AC0,  // 11AC0..11AFF; Pau Cin Hau
+            0x11B00,  //               unassigned
+            0x11C00,  // 11C00..11C6F; Bhaiksuki
+            0x11C70,  // 11C70..11CBF; Marchen
+            0x11CC0,  //               unassigned
+            0x11D00,  // 11D00..11D5F; Masaram Gondi
+            0x11D60,  //               unassigned
+            0x12000,  // 12000..123FF; Cuneiform
+            0x12400,  // 12400..1247F; Cuneiform Numbers and Punctuation
+            0x12480,  // 12480..1254F; Early Dynastic Cuneiform
+            0x12550,  //               unassigned
+            0x13000,  // 13000..1342F; Egyptian Hieroglyphs
+            0x13430,  //               unassigned
+            0x14400,  // 14400..1467F; Anatolian Hieroglyphs
+            0x14680,  //               unassigned
+            0x16800,  // 16800..16A3F; Bamum Supplement
+            0x16A40,  // 16A40..16A6F; Mro
+            0x16A70,  //               unassigned
+            0x16AD0,  // 16AD0..16AFF; Bassa Vah
+            0x16B00,  // 16B00..16B8F; Pahawh Hmong
+            0x16B90,  //               unassigned
+            0x16F00,  // 16F00..16F9F; Miao
+            0x16FA0,  //               unassigned
+            0x16FE0,  // 16FE0..16FFF; Ideographic Symbols and Punctuation
+            0x17000,  // 17000..187FF; Tangut
+            0x18800,  // 18800..18AFF; Tangut Components
+            0x18B00,  //               unassigned
+            0x1B000,  // 1B000..1B0FF; Kana Supplement
+            0x1B100,  // 1B100..1B12F; Kana Extended-A
+            0x1B130,  //               unassigned
+            0x1B170,  // 1B170..1B2FF; Nushu
+            0x1B300,  //               unassigned
+            0x1BC00,  // 1BC00..1BC9F; Duployan
+            0x1BCA0,  // 1BCA0..1BCAF; Shorthand Format Controls
+            0x1BCB0,  //               unassigned
+            0x1D000,  // 1D000..1D0FF; Byzantine Musical Symbols
+            0x1D100,  // 1D100..1D1FF; Musical Symbols
+            0x1D200,  // 1D200..1D24F; Ancient Greek Musical Notation
+            0x1D250,  //               unassigned
+            0x1D300,  // 1D300..1D35F; Tai Xuan Jing Symbols
+            0x1D360,  // 1D360..1D37F; Counting Rod Numerals
+            0x1D380,  //               unassigned
+            0x1D400,  // 1D400..1D7FF; Mathematical Alphanumeric Symbols
+            0x1D800,  // 1D800..1DAAF; Sutton SignWriting
+            0x1DAB0,  //               unassigned
+            0x1E000,  // 1E000..1E02F; Glagolitic Supplement
+            0x1E030,  //               unassigned
+            0x1E800,  // 1E800..1E8DF; Mende Kikakui
+            0x1E8E0,  //               unassigned
+            0x1E900,  // 1E900..1E95F; Adlam
+            0x1E960,  //               unassigned
+            0x1EE00,  // 1EE00..1EEFF; Arabic Mathematical Alphabetic Symbols
+            0x1EF00,  //               unassigned
+            0x1F000,  // 1F000..1F02F; Mahjong Tiles
+            0x1F030,  // 1F030..1F09F; Domino Tiles
+            0x1F0A0,  // 1F0A0..1F0FF; Playing Cards
+            0x1F100,  // 1F100..1F1FF; Enclosed Alphanumeric Supplement
+            0x1F200,  // 1F200..1F2FF; Enclosed Ideographic Supplement
+            0x1F300,  // 1F300..1F5FF; Miscellaneous Symbols and Pictographs
+            0x1F600,  // 1F600..1F64F; Emoticons
+            0x1F650,  // 1F650..1F67F; Ornamental Dingbats
+            0x1F680,  // 1F680..1F6FF; Transport and Map Symbols
+            0x1F700,  // 1F700..1F77F; Alchemical Symbols
+            0x1F780,  // 1F780..1F7FF; Geometric Shapes Extended
+            0x1F800,  // 1F800..1F8FF; Supplemental Arrows-C
+            0x1F900,  // 1F900..1F9FF; Supplemental Symbols and Pictographs
+            0x1FA00,  //               unassigned
+            0x20000,  // 20000..2A6DF; CJK Unified Ideographs Extension B
+            0x2A6E0,  //               unassigned
+            0x2A700,  // 2A700..2B73F; CJK Unified Ideographs Extension C
+            0x2B740,  // 2B740..2B81F; CJK Unified Ideographs Extension D
+            0x2B820,  // 2B820..2CEAF; CJK Unified Ideographs Extension E
+            0x2CEB0,  // 2CEB0..2EBEF; CJK Unified Ideographs Extension F
+            0x2EBF0,  //               unassigned
+            0x2F800,  // 2F800..2FA1F; CJK Compatibility Ideographs Supplement
+            0x2FA20,  //               unassigned
+            0xE0000,  // E0000..E007F; Tags
+            0xE0080,  //               unassigned
+            0xE0100,  // E0100..E01EF; Variation Selectors Supplement
+            0xE01F0,  //               unassigned
+            0xF0000,  // F0000..FFFFF; Supplementary Private Use Area-A
+            0x100000  // 100000..10FFFF; Supplementary Private Use Area-B
+        };
+        
+        // Unicode字符集中各种字符集的合辑
+        private static final UnicodeBlock[] blocks = {
+            BASIC_LATIN,
+            LATIN_1_SUPPLEMENT,
+            LATIN_EXTENDED_A,
+            LATIN_EXTENDED_B,
+            IPA_EXTENSIONS,
+            SPACING_MODIFIER_LETTERS,
+            COMBINING_DIACRITICAL_MARKS,
+            GREEK,
+            CYRILLIC,
+            CYRILLIC_SUPPLEMENTARY,
+            ARMENIAN,
+            HEBREW,
+            ARABIC,
+            SYRIAC,
+            ARABIC_SUPPLEMENT,
+            THAANA,
+            NKO,
+            SAMARITAN,
+            MANDAIC,
+            SYRIAC_SUPPLEMENT,
+            null,
+            ARABIC_EXTENDED_A,
+            DEVANAGARI,
+            BENGALI,
+            GURMUKHI,
+            GUJARATI,
+            ORIYA,
+            TAMIL,
+            TELUGU,
+            KANNADA,
+            MALAYALAM,
+            SINHALA,
+            THAI,
+            LAO,
+            TIBETAN,
+            MYANMAR,
+            GEORGIAN,
+            HANGUL_JAMO,
+            ETHIOPIC,
+            ETHIOPIC_SUPPLEMENT,
+            CHEROKEE,
+            UNIFIED_CANADIAN_ABORIGINAL_SYLLABICS,
+            OGHAM,
+            RUNIC,
+            TAGALOG,
+            HANUNOO,
+            BUHID,
+            TAGBANWA,
+            KHMER,
+            MONGOLIAN,
+            UNIFIED_CANADIAN_ABORIGINAL_SYLLABICS_EXTENDED,
+            LIMBU,
+            TAI_LE,
+            NEW_TAI_LUE,
+            KHMER_SYMBOLS,
+            BUGINESE,
+            TAI_THAM,
+            COMBINING_DIACRITICAL_MARKS_EXTENDED,
+            BALINESE,
+            SUNDANESE,
+            BATAK,
+            LEPCHA,
+            OL_CHIKI,
+            CYRILLIC_EXTENDED_C,
+            null,
+            SUNDANESE_SUPPLEMENT,
+            VEDIC_EXTENSIONS,
+            PHONETIC_EXTENSIONS,
+            PHONETIC_EXTENSIONS_SUPPLEMENT,
+            COMBINING_DIACRITICAL_MARKS_SUPPLEMENT,
+            LATIN_EXTENDED_ADDITIONAL,
+            GREEK_EXTENDED,
+            GENERAL_PUNCTUATION,
+            SUPERSCRIPTS_AND_SUBSCRIPTS,
+            CURRENCY_SYMBOLS,
+            COMBINING_MARKS_FOR_SYMBOLS,
+            LETTERLIKE_SYMBOLS,
+            NUMBER_FORMS,
+            ARROWS,
+            MATHEMATICAL_OPERATORS,
+            MISCELLANEOUS_TECHNICAL,
+            CONTROL_PICTURES,
+            OPTICAL_CHARACTER_RECOGNITION,
+            ENCLOSED_ALPHANUMERICS,
+            BOX_DRAWING,
+            BLOCK_ELEMENTS,
+            GEOMETRIC_SHAPES,
+            MISCELLANEOUS_SYMBOLS,
+            DINGBATS,
+            MISCELLANEOUS_MATHEMATICAL_SYMBOLS_A,
+            SUPPLEMENTAL_ARROWS_A,
+            BRAILLE_PATTERNS,
+            SUPPLEMENTAL_ARROWS_B,
+            MISCELLANEOUS_MATHEMATICAL_SYMBOLS_B,
+            SUPPLEMENTAL_MATHEMATICAL_OPERATORS,
+            MISCELLANEOUS_SYMBOLS_AND_ARROWS,
+            GLAGOLITIC,
+            LATIN_EXTENDED_C,
+            COPTIC,
+            GEORGIAN_SUPPLEMENT,
+            TIFINAGH,
+            ETHIOPIC_EXTENDED,
+            CYRILLIC_EXTENDED_A,
+            SUPPLEMENTAL_PUNCTUATION,
+            CJK_RADICALS_SUPPLEMENT,
+            KANGXI_RADICALS,
+            null,
+            IDEOGRAPHIC_DESCRIPTION_CHARACTERS,
+            CJK_SYMBOLS_AND_PUNCTUATION,
+            HIRAGANA,
+            KATAKANA,
+            BOPOMOFO,
+            HANGUL_COMPATIBILITY_JAMO,
+            KANBUN,
+            BOPOMOFO_EXTENDED,
+            CJK_STROKES,
+            KATAKANA_PHONETIC_EXTENSIONS,
+            ENCLOSED_CJK_LETTERS_AND_MONTHS,
+            CJK_COMPATIBILITY,
+            CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A,
+            YIJING_HEXAGRAM_SYMBOLS,
+            CJK_UNIFIED_IDEOGRAPHS,
+            YI_SYLLABLES,
+            YI_RADICALS,
+            LISU,
+            VAI,
+            CYRILLIC_EXTENDED_B,
+            BAMUM,
+            MODIFIER_TONE_LETTERS,
+            LATIN_EXTENDED_D,
+            SYLOTI_NAGRI,
+            COMMON_INDIC_NUMBER_FORMS,
+            PHAGS_PA,
+            SAURASHTRA,
+            DEVANAGARI_EXTENDED,
+            KAYAH_LI,
+            REJANG,
+            HANGUL_JAMO_EXTENDED_A,
+            JAVANESE,
+            MYANMAR_EXTENDED_B,
+            CHAM,
+            MYANMAR_EXTENDED_A,
+            TAI_VIET,
+            MEETEI_MAYEK_EXTENSIONS,
+            ETHIOPIC_EXTENDED_A,
+            LATIN_EXTENDED_E,
+            CHEROKEE_SUPPLEMENT,
+            MEETEI_MAYEK,
+            HANGUL_SYLLABLES,
+            HANGUL_JAMO_EXTENDED_B,
+            HIGH_SURROGATES,
+            HIGH_PRIVATE_USE_SURROGATES,
+            LOW_SURROGATES,
+            PRIVATE_USE_AREA,
+            CJK_COMPATIBILITY_IDEOGRAPHS,
+            ALPHABETIC_PRESENTATION_FORMS,
+            ARABIC_PRESENTATION_FORMS_A,
+            VARIATION_SELECTORS,
+            VERTICAL_FORMS,
+            COMBINING_HALF_MARKS,
+            CJK_COMPATIBILITY_FORMS,
+            SMALL_FORM_VARIANTS,
+            ARABIC_PRESENTATION_FORMS_B,
+            HALFWIDTH_AND_FULLWIDTH_FORMS,
+            SPECIALS,
+            LINEAR_B_SYLLABARY,
+            LINEAR_B_IDEOGRAMS,
+            AEGEAN_NUMBERS,
+            ANCIENT_GREEK_NUMBERS,
+            ANCIENT_SYMBOLS,
+            PHAISTOS_DISC,
+            null,
+            LYCIAN,
+            CARIAN,
+            COPTIC_EPACT_NUMBERS,
+            OLD_ITALIC,
+            GOTHIC,
+            OLD_PERMIC,
+            UGARITIC,
+            OLD_PERSIAN,
+            null,
+            DESERET,
+            SHAVIAN,
+            OSMANYA,
+            OSAGE,
+            ELBASAN,
+            CAUCASIAN_ALBANIAN,
+            null,
+            LINEAR_A,
+            null,
+            CYPRIOT_SYLLABARY,
+            IMPERIAL_ARAMAIC,
+            PALMYRENE,
+            NABATAEAN,
+            null,
+            HATRAN,
+            PHOENICIAN,
+            LYDIAN,
+            null,
+            MEROITIC_HIEROGLYPHS,
+            MEROITIC_CURSIVE,
+            KHAROSHTHI,
+            OLD_SOUTH_ARABIAN,
+            OLD_NORTH_ARABIAN,
+            null,
+            MANICHAEAN,
+            AVESTAN,
+            INSCRIPTIONAL_PARTHIAN,
+            INSCRIPTIONAL_PAHLAVI,
+            PSALTER_PAHLAVI,
+            null,
+            OLD_TURKIC,
+            null,
+            OLD_HUNGARIAN,
+            null,
+            RUMI_NUMERAL_SYMBOLS,
+            null,
+            BRAHMI,
+            KAITHI,
+            SORA_SOMPENG,
+            CHAKMA,
+            MAHAJANI,
+            SHARADA,
+            SINHALA_ARCHAIC_NUMBERS,
+            KHOJKI,
+            null,
+            MULTANI,
+            KHUDAWADI,
+            GRANTHA,
+            null,
+            NEWA,
+            TIRHUTA,
+            null,
+            SIDDHAM,
+            MODI,
+            MONGOLIAN_SUPPLEMENT,
+            TAKRI,
+            null,
+            AHOM,
+            null,
+            WARANG_CITI,
+            null,
+            ZANABAZAR_SQUARE,
+            SOYOMBO,
+            null,
+            PAU_CIN_HAU,
+            null,
+            BHAIKSUKI,
+            MARCHEN,
+            null,
+            MASARAM_GONDI,
+            null,
+            CUNEIFORM,
+            CUNEIFORM_NUMBERS_AND_PUNCTUATION,
+            EARLY_DYNASTIC_CUNEIFORM,
+            null,
+            EGYPTIAN_HIEROGLYPHS,
+            null,
+            ANATOLIAN_HIEROGLYPHS,
+            null,
+            BAMUM_SUPPLEMENT,
+            MRO,
+            null,
+            BASSA_VAH,
+            PAHAWH_HMONG,
+            null,
+            MIAO,
+            null,
+            IDEOGRAPHIC_SYMBOLS_AND_PUNCTUATION,
+            TANGUT,
+            TANGUT_COMPONENTS,
+            null,
+            KANA_SUPPLEMENT,
+            KANA_EXTENDED_A,
+            null,
+            NUSHU,
+            null,
+            DUPLOYAN,
+            SHORTHAND_FORMAT_CONTROLS,
+            null,
+            BYZANTINE_MUSICAL_SYMBOLS,
+            MUSICAL_SYMBOLS,
+            ANCIENT_GREEK_MUSICAL_NOTATION,
+            null,
+            TAI_XUAN_JING_SYMBOLS,
+            COUNTING_ROD_NUMERALS,
+            null,
+            MATHEMATICAL_ALPHANUMERIC_SYMBOLS,
+            SUTTON_SIGNWRITING,
+            null,
+            GLAGOLITIC_SUPPLEMENT,
+            null,
+            MENDE_KIKAKUI,
+            null,
+            ADLAM,
+            null,
+            ARABIC_MATHEMATICAL_ALPHABETIC_SYMBOLS,
+            null,
+            MAHJONG_TILES,
+            DOMINO_TILES,
+            PLAYING_CARDS,
+            ENCLOSED_ALPHANUMERIC_SUPPLEMENT,
+            ENCLOSED_IDEOGRAPHIC_SUPPLEMENT,
+            MISCELLANEOUS_SYMBOLS_AND_PICTOGRAPHS,
+            EMOTICONS,
+            ORNAMENTAL_DINGBATS,
+            TRANSPORT_AND_MAP_SYMBOLS,
+            ALCHEMICAL_SYMBOLS,
+            GEOMETRIC_SHAPES_EXTENDED,
+            SUPPLEMENTAL_ARROWS_C,
+            SUPPLEMENTAL_SYMBOLS_AND_PICTOGRAPHS,
+            null,
+            CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B,
+            null,
+            CJK_UNIFIED_IDEOGRAPHS_EXTENSION_C,
+            CJK_UNIFIED_IDEOGRAPHS_EXTENSION_D,
+            CJK_UNIFIED_IDEOGRAPHS_EXTENSION_E,
+            CJK_UNIFIED_IDEOGRAPHS_EXTENSION_F,
+            null,
+            CJK_COMPATIBILITY_IDEOGRAPHS_SUPPLEMENT,
+            null,
+            TAGS,
+            null,
+            VARIATION_SELECTORS_SUPPLEMENT,
+            null,
+            SUPPLEMENTARY_PRIVATE_USE_AREA_A,
+            SUPPLEMENTARY_PRIVATE_USE_AREA_B
+        };
+        
+        // 构造方法中，会将字符区域的名称/别名与自身对象关联映射到一起
+        
+        /**
+         * Creates a UnicodeBlock with the given identifier name.
+         * This name must be the same as the block identifier.
+         */
+        private UnicodeBlock(String idName) {
+            super(idName);
+            map.put(idName, this);
+        }
+        
+        /**
+         * Creates a UnicodeBlock with the given identifier name and alias name.
+         */
+        private UnicodeBlock(String idName, String alias) {
+            this(idName);
+            map.put(alias, this);
+        }
+        
+        /**
+         * Creates a UnicodeBlock with the given identifier name and alias names.
+         */
+        private UnicodeBlock(String idName, String... aliases) {
+            this(idName);
+            for(String alias : aliases)
+                map.put(alias, this);
+        }
+        
+        /**
+         * 638  - 预期的元素个数
+         * 0.75 - HashMap默认的装填因子
+         */
+        private static Map<String, UnicodeBlock> map = new HashMap<>((int) (638 / 0.75f + 1.0f));
+        
+        
+        /**
+         * Returns the object representing the Unicode block containing the
+         * given character, or {@code null} if the character is not a
+         * member of a defined block.
+         *
+         * <p><b>Note:</b> This method cannot handle
+         * <a href="Character.html#supplementary"> supplementary
+         * characters</a>.  To support all Unicode characters, including
+         * supplementary characters, use the {@link #of(int)} method.
+         *
+         * @param   c  The character in question
+         * @return  The {@code UnicodeBlock} instance representing the
+         *          Unicode block of which this character is a member, or
+         *          {@code null} if the character is not a member of any
+         *          Unicode block
+         */
+        public static UnicodeBlock of(char c) {
+            return of((int)c);
+        }
+        
+        /**
+         * Returns the object representing the Unicode block
+         * containing the given character (Unicode code point), or
+         * {@code null} if the character is not a member of a
+         * defined block.
+         *
+         * @param   codePoint the character (Unicode code point) in question.
+         * @return  The {@code UnicodeBlock} instance representing the
+         *          Unicode block of which this character is a member, or
+         *          {@code null} if the character is not a member of any
+         *          Unicode block
+         * @throws  IllegalArgumentException if the specified
+         * {@code codePoint} is an invalid Unicode code point.
+         * @see Character#isValidCodePoint(int)
+         * @since   1.5
+         */
+        // 返回当前Unicode代码点所在的字符区域
+        public static UnicodeBlock of(int codePoint) {
+            // 验证Unicode代码点范围[0x000000, 0x10FFFF]是否合规
+            if (!isValidCodePoint(codePoint)) {
+                throw new IllegalArgumentException(String.format("Not a valid Unicode code point: 0x%X", codePoint));
             }
-        } catch (Exception x) {}
-        throw new IllegalArgumentException("Unrecognized character name :" + name);
+            
+            int top, bottom, current;
+            bottom = 0;
+            top = blockStarts.length;
+            current = top/2;
+            
+            // 永远满足: top > current >= bottom && codePoint >= unicodeBlockStarts[bottom]
+            // 使用折半查找，查找当前Unicode代码点所在的字符集
+            while (top - bottom > 1) {
+                if (codePoint >= blockStarts[current]) {
+                    bottom = current;
+                } else {
+                    top = current;
+                }
+                current = (top + bottom) / 2;
+            }
+            return blocks[current];
+        }
+        
+        /**
+         * Returns the UnicodeBlock with the given name. Block
+         * names are determined by The Unicode Standard. The file
+         * {@code Blocks-<version>.txt} defines blocks for a particular
+         * version of the standard. The {@link Character} class specifies
+         * the version of the standard that it supports.
+         * <p>
+         * This method accepts block names in the following forms:
+         * <ol>
+         * <li> Canonical block names as defined by the Unicode Standard.
+         * For example, the standard defines a "Basic Latin" block. Therefore, this
+         * method accepts "Basic Latin" as a valid block name. The documentation of
+         * each UnicodeBlock provides the canonical name.
+         * <li>Canonical block names with all spaces removed. For example, "BasicLatin"
+         * is a valid block name for the "Basic Latin" block.
+         * <li>The text representation of each constant UnicodeBlock identifier.
+         * For example, this method will return the {@link #BASIC_LATIN} block if
+         * provided with the "BASIC_LATIN" name. This form replaces all spaces and
+         * hyphens in the canonical name with underscores.
+         * </ol>
+         * Finally, character case is ignored for all of the valid block name forms.
+         * For example, "BASIC_LATIN" and "basic_latin" are both valid block names.
+         * The en_US locale's case mapping rules are used to provide case-insensitive
+         * string comparisons for block name validation.
+         * <p>
+         * If the Unicode Standard changes block names, both the previous and
+         * current names will be accepted.
+         *
+         * @param blockName A {@code UnicodeBlock} name.
+         * @return The {@code UnicodeBlock} instance identified
+         *         by {@code blockName}
+         * @throws IllegalArgumentException if {@code blockName} is an
+         *         invalid name
+         * @throws NullPointerException if {@code blockName} is null
+         * @since 1.5
+         */
+        // 返回该字符区域名称/别名对应的字符区域对象
+        public static final UnicodeBlock forName(String blockName) {
+            UnicodeBlock block = map.get(blockName.toUpperCase(Locale.US));
+            if (block == null) {
+                throw new IllegalArgumentException("Not a valid block name: " + blockName);
+            }
+            return block;
+        }
     }
+    
 }
