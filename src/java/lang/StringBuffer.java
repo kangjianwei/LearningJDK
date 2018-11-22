@@ -25,8 +25,13 @@
 
 package java.lang;
 
-import java.util.Arrays;
 import jdk.internal.HotSpotIntrinsicCandidate;
+
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.ObjectStreamField;
+import java.io.Serializable;
 
 /**
  * A thread-safe, mutable sequence of characters.
@@ -90,68 +95,68 @@ import jdk.internal.HotSpotIntrinsicCandidate;
  * this one, as it supports all of the same operations but it is faster, as
  * it performs no synchronization.
  *
- * @apiNote
- * {@code StringBuffer} implements {@code Comparable} but does not override
+ * @author Arthur van Hoff
+ * @apiNote {@code StringBuffer} implements {@code Comparable} but does not override
  * {@link Object#equals equals}. Thus, the natural ordering of {@code StringBuffer}
  * is inconsistent with equals. Care should be exercised if {@code StringBuffer}
  * objects are used as keys in a {@code SortedMap} or elements in a {@code SortedSet}.
  * See {@link Comparable}, {@link java.util.SortedMap SortedMap}, or
  * {@link java.util.SortedSet SortedSet} for more information.
- *
- * @author      Arthur van Hoff
- * @see     java.lang.StringBuilder
- * @see     java.lang.String
- * @since   1.0
+ * @see java.lang.StringBuilder
+ * @see java.lang.String
+ * @since 1.0
  */
- public final class StringBuffer
-    extends AbstractStringBuilder
-    implements java.io.Serializable, Comparable<StringBuffer>, CharSequence
-{
-
+/*
+ * 线程安全的字符序列，适合多线程下操作大量字符，内部实现为字节数组
+ * 线程安全的原理是涉及到修改StringBuffer的操作被synchronized修饰
+ */
+public final class StringBuffer extends AbstractStringBuilder implements Serializable, Comparable<StringBuffer>, CharSequence {
+    
     /**
-     * A cache of the last value returned by toString. Cleared
-     * whenever the StringBuffer is modified.
+     * A cache of the last value returned by toString. Cleared whenever the StringBuffer is modified.
      */
+    // 调用toString()后生成的缓存，用于存储ASB中的字符序列。每次更改ASB都会清理缓存
     private transient String toStringCache;
-
-    /** use serialVersionUID from JDK 1.0.2 for interoperability */
-    static final long serialVersionUID = 3388685877147921107L;
-
+    
+    
+    
+    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Constructs a string buffer with no characters in it and an
-     * initial capacity of 16 characters.
+     * Constructs a string buffer with no characters in it and an initial capacity of 16 characters.
      */
     @HotSpotIntrinsicCandidate
     public StringBuffer() {
         super(16);
     }
-
+    
     /**
      * Constructs a string buffer with no characters in it and
      * the specified initial capacity.
      *
-     * @param      capacity  the initial capacity.
-     * @throws     NegativeArraySizeException  if the {@code capacity}
-     *             argument is less than {@code 0}.
+     * @param capacity the initial capacity.
+     *
+     * @throws NegativeArraySizeException if the {@code capacity}
+     *                                    argument is less than {@code 0}.
      */
     @HotSpotIntrinsicCandidate
     public StringBuffer(int capacity) {
         super(capacity);
     }
-
+    
     /**
      * Constructs a string buffer initialized to the contents of the
      * specified string. The initial capacity of the string buffer is
      * {@code 16} plus the length of the string argument.
      *
-     * @param   str   the initial contents of the buffer.
+     * @param str the initial contents of the buffer.
      */
     @HotSpotIntrinsicCandidate
     public StringBuffer(String str) {
         super(str.length() + 16);
         append(str);
     }
-
+    
     /**
      * Constructs a string buffer that contains the same characters
      * as the specified {@code CharSequence}. The initial capacity of
@@ -162,149 +167,65 @@ import jdk.internal.HotSpotIntrinsicCandidate;
      * less than or equal to zero, then an empty buffer of capacity
      * {@code 16} is returned.
      *
-     * @param      seq   the sequence to copy.
+     * @param seq the sequence to copy.
+     *
      * @since 1.5
      */
     public StringBuffer(CharSequence seq) {
         this(seq.length() + 16);
         append(seq);
     }
-
+    
+    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 添加 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 向StringBuffer末尾添加一个字符序列
     /**
-     * Compares two {@code StringBuffer} instances lexicographically. This method
-     * follows the same rules for lexicographical comparison as defined in the
-     * {@linkplain java.lang.CharSequence#compare(java.lang.CharSequence,
-     * java.lang.CharSequence)  CharSequence.compare(this, another)} method.
-     *
+     * Appends the specified {@code CharSequence} to this
+     * sequence.
      * <p>
-     * For finer-grained, locale-sensitive String comparison, refer to
-     * {@link java.text.Collator}.
+     * The characters of the {@code CharSequence} argument are appended,
+     * in order, increasing the length of this sequence by the length of the
+     * argument.
      *
-     * @implNote
-     * This method synchronizes on {@code this}, the current object, but not
-     * {@code StringBuffer another} with which {@code this StringBuffer} is compared.
+     * <p>The result of this method is exactly the same as if it were an
+     * invocation of this.append(s, 0, s.length());
      *
-     * @param another the {@code StringBuffer} to be compared with
+     * <p>This method synchronizes on {@code this}, the destination
+     * object, but does not synchronize on the source ({@code s}).
      *
-     * @return  the value {@code 0} if this {@code StringBuffer} contains the same
-     * character sequence as that of the argument {@code StringBuffer}; a negative integer
-     * if this {@code StringBuffer} is lexicographically less than the
-     * {@code StringBuffer} argument; or a positive integer if this {@code StringBuffer}
-     * is lexicographically greater than the {@code StringBuffer} argument.
+     * <p>If {@code s} is {@code null}, then the four characters
+     * {@code "null"} are appended.
      *
-     * @since 11
+     * @param s the {@code CharSequence} to append.
+     *
+     * @return a reference to this object.
+     *
+     * @since 1.5
      */
     @Override
-    public synchronized int compareTo(StringBuffer another) {
-        return super.compareTo(another);
-    }
-
-    @Override
-    public synchronized int length() {
-        return count;
-    }
-
-    @Override
-    public synchronized int capacity() {
-        return super.capacity();
-    }
-
-
-    @Override
-    public synchronized void ensureCapacity(int minimumCapacity) {
-        super.ensureCapacity(minimumCapacity);
-    }
-
-    /**
-     * @since      1.5
-     */
-    @Override
-    public synchronized void trimToSize() {
-        super.trimToSize();
-    }
-
-    /**
-     * @throws IndexOutOfBoundsException {@inheritDoc}
-     * @see        #length()
-     */
-    @Override
-    public synchronized void setLength(int newLength) {
+    public synchronized StringBuffer append(CharSequence s) {
         toStringCache = null;
-        super.setLength(newLength);
-    }
-
-    /**
-     * @throws IndexOutOfBoundsException {@inheritDoc}
-     * @see        #length()
-     */
-    @Override
-    public synchronized char charAt(int index) {
-        return super.charAt(index);
-    }
-
-    /**
-     * @throws IndexOutOfBoundsException {@inheritDoc}
-     * @since      1.5
-     */
-    @Override
-    public synchronized int codePointAt(int index) {
-        return super.codePointAt(index);
-    }
-
-    /**
-     * @throws IndexOutOfBoundsException {@inheritDoc}
-     * @since     1.5
-     */
-    @Override
-    public synchronized int codePointBefore(int index) {
-        return super.codePointBefore(index);
-    }
-
-    /**
-     * @throws IndexOutOfBoundsException {@inheritDoc}
-     * @since     1.5
-     */
-    @Override
-    public synchronized int codePointCount(int beginIndex, int endIndex) {
-        return super.codePointCount(beginIndex, endIndex);
-    }
-
-    /**
-     * @throws IndexOutOfBoundsException {@inheritDoc}
-     * @since     1.5
-     */
-    @Override
-    public synchronized int offsetByCodePoints(int index, int codePointOffset) {
-        return super.offsetByCodePoints(index, codePointOffset);
-    }
-
-    /**
-     * @throws IndexOutOfBoundsException {@inheritDoc}
-     */
-    @Override
-    public synchronized void getChars(int srcBegin, int srcEnd, char[] dst,
-                                      int dstBegin)
-    {
-        super.getChars(srcBegin, srcEnd, dst, dstBegin);
-    }
-
-    /**
-     * @throws IndexOutOfBoundsException {@inheritDoc}
-     * @see        #length()
-     */
-    @Override
-    public synchronized void setCharAt(int index, char ch) {
-        toStringCache = null;
-        super.setCharAt(index, ch);
-    }
-
-    @Override
-    public synchronized StringBuffer append(Object obj) {
-        toStringCache = null;
-        super.append(String.valueOf(obj));
+        super.append(s);
         return this;
     }
-
+    
+    // 向StringBuffer末尾添加一个子序列，该子序列取自字符序列s的[start, end)范围
+    /**
+     * @throws IndexOutOfBoundsException {@inheritDoc}
+     * @since 1.5
+     */
+    @Override
+    public synchronized StringBuffer append(CharSequence s, int start, int end) {
+        toStringCache = null;
+        super.append(s, start, end);
+        return this;
+    }
+    
+    // 向StringBuffer末尾添加一个字符串str
     @Override
     @HotSpotIntrinsicCandidate
     public synchronized StringBuffer append(String str) {
@@ -312,7 +233,8 @@ import jdk.internal.HotSpotIntrinsicCandidate;
         super.append(str);
         return this;
     }
-
+    
+    // 向StringBuffer末尾添加一个StringBuffer
     /**
      * Appends the specified {@code StringBuffer} to this sequence.
      * <p>
@@ -333,8 +255,10 @@ import jdk.internal.HotSpotIntrinsicCandidate;
      * This method synchronizes on {@code this}, the destination
      * object, but does not synchronize on the source ({@code sb}).
      *
-     * @param   sb   the {@code StringBuffer} to append.
-     * @return  a reference to this object.
+     * @param sb the {@code StringBuffer} to append.
+     *
+     * @return a reference to this object.
+     *
      * @since 1.4
      */
     public synchronized StringBuffer append(StringBuffer sb) {
@@ -342,7 +266,8 @@ import jdk.internal.HotSpotIntrinsicCandidate;
         super.append(sb);
         return this;
     }
-
+    
+    // 向StringBuffer末尾添加一个StringBuffer序列
     /**
      * @since 1.8
      */
@@ -352,54 +277,16 @@ import jdk.internal.HotSpotIntrinsicCandidate;
         super.append(asb);
         return this;
     }
-
-    /**
-     * Appends the specified {@code CharSequence} to this
-     * sequence.
-     * <p>
-     * The characters of the {@code CharSequence} argument are appended,
-     * in order, increasing the length of this sequence by the length of the
-     * argument.
-     *
-     * <p>The result of this method is exactly the same as if it were an
-     * invocation of this.append(s, 0, s.length());
-     *
-     * <p>This method synchronizes on {@code this}, the destination
-     * object, but does not synchronize on the source ({@code s}).
-     *
-     * <p>If {@code s} is {@code null}, then the four characters
-     * {@code "null"} are appended.
-     *
-     * @param   s the {@code CharSequence} to append.
-     * @return  a reference to this object.
-     * @since 1.5
-     */
-    @Override
-    public synchronized StringBuffer append(CharSequence s) {
-        toStringCache = null;
-        super.append(s);
-        return this;
-    }
-
-    /**
-     * @throws IndexOutOfBoundsException {@inheritDoc}
-     * @since      1.5
-     */
-    @Override
-    public synchronized StringBuffer append(CharSequence s, int start, int end)
-    {
-        toStringCache = null;
-        super.append(s, start, end);
-        return this;
-    }
-
+    
+    // 向StringBuffer末尾添加一个字符序列
     @Override
     public synchronized StringBuffer append(char[] str) {
         toStringCache = null;
         super.append(str);
         return this;
     }
-
+    
+    // 向StringBuffer末尾添加一个子序列，该子序列取自字符数组s的[offset, offset+len)范围
     /**
      * @throws IndexOutOfBoundsException {@inheritDoc}
      */
@@ -409,14 +296,24 @@ import jdk.internal.HotSpotIntrinsicCandidate;
         super.append(str, offset, len);
         return this;
     }
-
+    
+    // 向StringBuffer末尾添加一个Object值的字符串序列
+    @Override
+    public synchronized StringBuffer append(Object obj) {
+        toStringCache = null;
+        super.append(String.valueOf(obj));
+        return this;
+    }
+    
+    // 向StringBuffer末尾添加一个boolean值的字符串序列
     @Override
     public synchronized StringBuffer append(boolean b) {
         toStringCache = null;
         super.append(b);
         return this;
     }
-
+    
+    // 向StringBuffer末尾添加一个char值的字符串序列
     @Override
     @HotSpotIntrinsicCandidate
     public synchronized StringBuffer append(char c) {
@@ -424,7 +321,8 @@ import jdk.internal.HotSpotIntrinsicCandidate;
         super.append(c);
         return this;
     }
-
+    
+    // 向StringBuffer末尾添加一个int值的字符串序列
     @Override
     @HotSpotIntrinsicCandidate
     public synchronized StringBuffer append(int i) {
@@ -432,7 +330,32 @@ import jdk.internal.HotSpotIntrinsicCandidate;
         super.append(i);
         return this;
     }
-
+    
+    // 向StringBuffer末尾添加一个long值的字符串序列
+    @Override
+    public synchronized StringBuffer append(long l) {
+        toStringCache = null;
+        super.append(l);
+        return this;
+    }
+    
+    // 向StringBuffer末尾添加一个float值的字符串序列
+    @Override
+    public synchronized StringBuffer append(float f) {
+        toStringCache = null;
+        super.append(f);
+        return this;
+    }
+    
+    // 向StringBuffer末尾添加一个double值的字符串序列
+    @Override
+    public synchronized StringBuffer append(double d) {
+        toStringCache = null;
+        super.append(d);
+        return this;
+    }
+    
+    // 向StringBuffer末尾添加一个由Unicode码点值表示的char的字符串序列
     /**
      * @since 1.5
      */
@@ -442,135 +365,48 @@ import jdk.internal.HotSpotIntrinsicCandidate;
         super.appendCodePoint(codePoint);
         return this;
     }
-
-    @Override
-    public synchronized StringBuffer append(long lng) {
-        toStringCache = null;
-        super.append(lng);
-        return this;
-    }
-
-    @Override
-    public synchronized StringBuffer append(float f) {
-        toStringCache = null;
-        super.append(f);
-        return this;
-    }
-
-    @Override
-    public synchronized StringBuffer append(double d) {
-        toStringCache = null;
-        super.append(d);
-        return this;
-    }
-
+    
+    /*▲ 添加 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 删除 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * @throws StringIndexOutOfBoundsException {@inheritDoc}
-     * @since      1.2
+     * @since 1.2
      */
+    // 删除[start, end)范围内的char
     @Override
     public synchronized StringBuffer delete(int start, int end) {
         toStringCache = null;
         super.delete(start, end);
         return this;
     }
-
+    
     /**
      * @throws StringIndexOutOfBoundsException {@inheritDoc}
-     * @since      1.2
+     * @since 1.2
      */
+    // 删除索引为index的char
     @Override
     public synchronized StringBuffer deleteCharAt(int index) {
         toStringCache = null;
         super.deleteCharAt(index);
         return this;
     }
-
-    /**
-     * @throws StringIndexOutOfBoundsException {@inheritDoc}
-     * @since      1.2
-     */
-    @Override
-    public synchronized StringBuffer replace(int start, int end, String str) {
-        toStringCache = null;
-        super.replace(start, end, str);
-        return this;
-    }
-
-    /**
-     * @throws StringIndexOutOfBoundsException {@inheritDoc}
-     * @since      1.2
-     */
-    @Override
-    public synchronized String substring(int start) {
-        return substring(start, count);
-    }
-
+    
+    /*▲ 删除 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 插入 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * @throws IndexOutOfBoundsException {@inheritDoc}
-     * @since      1.4
+     * @since 1.5
      */
-    @Override
-    public synchronized CharSequence subSequence(int start, int end) {
-        return super.substring(start, end);
-    }
-
-    /**
-     * @throws StringIndexOutOfBoundsException {@inheritDoc}
-     * @since      1.2
-     */
-    @Override
-    public synchronized String substring(int start, int end) {
-        return super.substring(start, end);
-    }
-
-    /**
-     * @throws StringIndexOutOfBoundsException {@inheritDoc}
-     * @since      1.2
-     */
-    @Override
-    public synchronized StringBuffer insert(int index, char[] str, int offset,
-                                            int len)
-    {
-        toStringCache = null;
-        super.insert(index, str, offset, len);
-        return this;
-    }
-
-    /**
-     * @throws StringIndexOutOfBoundsException {@inheritDoc}
-     */
-    @Override
-    public synchronized StringBuffer insert(int offset, Object obj) {
-        toStringCache = null;
-        super.insert(offset, String.valueOf(obj));
-        return this;
-    }
-
-    /**
-     * @throws StringIndexOutOfBoundsException {@inheritDoc}
-     */
-    @Override
-    public synchronized StringBuffer insert(int offset, String str) {
-        toStringCache = null;
-        super.insert(offset, str);
-        return this;
-    }
-
-    /**
-     * @throws StringIndexOutOfBoundsException {@inheritDoc}
-     */
-    @Override
-    public synchronized StringBuffer insert(int offset, char[] str) {
-        toStringCache = null;
-        super.insert(offset, str);
-        return this;
-    }
-
-    /**
-     * @throws IndexOutOfBoundsException {@inheritDoc}
-     * @since      1.5
-     */
+    // 向StringBuffer的dstOffset索引处插入一个子序列s
     @Override
     public StringBuffer insert(int dstOffset, CharSequence s) {
         // Note, synchronization achieved via invocations of other StringBuffer methods
@@ -579,45 +415,92 @@ import jdk.internal.HotSpotIntrinsicCandidate;
         super.insert(dstOffset, s);
         return this;
     }
-
+    
     /**
      * @throws IndexOutOfBoundsException {@inheritDoc}
-     * @since      1.5
+     * @since 1.5
      */
+    // 向StringBuffer的dstOffset索引处插入一个子序列，该子序列取自字符序列s的[start, end)范围
     @Override
-    public synchronized StringBuffer insert(int dstOffset, CharSequence s,
-            int start, int end)
-    {
+    public synchronized StringBuffer insert(int dstOffset, CharSequence s, int start, int end) {
         toStringCache = null;
         super.insert(dstOffset, s, start, end);
         return this;
     }
-
+    
     /**
      * @throws StringIndexOutOfBoundsException {@inheritDoc}
      */
+    // 向StringBuffer的offset索引处插入一个子符序列str
     @Override
-    public  StringBuffer insert(int offset, boolean b) {
+    public synchronized StringBuffer insert(int offset, char[] str) {
+        toStringCache = null;
+        super.insert(offset, str);
+        return this;
+    }
+    
+    /**
+     * @throws StringIndexOutOfBoundsException {@inheritDoc}
+     * @since 1.2
+     */
+    // 向StringBuffer的index索引处插入一个子序列，该子序列取自字符序列str的[offset, offset+len)范围
+    @Override
+    public synchronized StringBuffer insert(int index, char[] str, int offset, int len) {
+        toStringCache = null;
+        super.insert(index, str, offset, len);
+        return this;
+    }
+    
+    /**
+     * @throws StringIndexOutOfBoundsException {@inheritDoc}
+     */
+    // 向StringBuffer的offset索引处插入一个字符串str
+    @Override
+    public synchronized StringBuffer insert(int offset, String str) {
+        toStringCache = null;
+        super.insert(offset, str);
+        return this;
+    }
+    
+    /**
+     * @throws StringIndexOutOfBoundsException {@inheritDoc}
+     */
+    // 向StringBuffer的offset索引处插入一个Object值的字符串序列
+    @Override
+    public synchronized StringBuffer insert(int offset, Object obj) {
+        toStringCache = null;
+        super.insert(offset, String.valueOf(obj));
+        return this;
+    }
+    
+    /**
+     * @throws StringIndexOutOfBoundsException {@inheritDoc}
+     */
+    // 向StringBuffer的offset索引处插入一个boolean值的字符串序列
+    @Override
+    public StringBuffer insert(int offset, boolean b) {
         // Note, synchronization achieved via invocation of StringBuffer insert(int, String)
         // after conversion of b to String by super class method
         // Ditto for toStringCache clearing
         super.insert(offset, b);
         return this;
     }
-
+    
     /**
      * @throws IndexOutOfBoundsException {@inheritDoc}
      */
+    // 向StringBuffer的offset索引处插入一个char值的字符串序列
     @Override
     public synchronized StringBuffer insert(int offset, char c) {
         toStringCache = null;
         super.insert(offset, c);
         return this;
     }
-
+    
     /**
      * @throws StringIndexOutOfBoundsException {@inheritDoc}
      */
+    // 向StringBuffer的offset索引处插入一个int值的字符串序列
     @Override
     public StringBuffer insert(int offset, int i) {
         // Note, synchronization achieved via invocation of StringBuffer insert(int, String)
@@ -626,10 +509,11 @@ import jdk.internal.HotSpotIntrinsicCandidate;
         super.insert(offset, i);
         return this;
     }
-
+    
     /**
      * @throws StringIndexOutOfBoundsException {@inheritDoc}
      */
+    // 向StringBuffer的offset索引处插入一个long值的字符串序列
     @Override
     public StringBuffer insert(int offset, long l) {
         // Note, synchronization achieved via invocation of StringBuffer insert(int, String)
@@ -638,10 +522,11 @@ import jdk.internal.HotSpotIntrinsicCandidate;
         super.insert(offset, l);
         return this;
     }
-
+    
     /**
      * @throws StringIndexOutOfBoundsException {@inheritDoc}
      */
+    // 向StringBuffer的offset索引处插入一个float值的字符串序列
     @Override
     public StringBuffer insert(int offset, float f) {
         // Note, synchronization achieved via invocation of StringBuffer insert(int, String)
@@ -650,10 +535,11 @@ import jdk.internal.HotSpotIntrinsicCandidate;
         super.insert(offset, f);
         return this;
     }
-
+    
     /**
      * @throws StringIndexOutOfBoundsException {@inheritDoc}
      */
+    // 向StringBuffer的offset索引处插入一个double值的字符串序列
     @Override
     public StringBuffer insert(int offset, double d) {
         // Note, synchronization achieved via invocation of StringBuffer insert(int, String)
@@ -662,89 +548,322 @@ import jdk.internal.HotSpotIntrinsicCandidate;
         super.insert(offset, d);
         return this;
     }
-
+    
+    /*▲ 插入 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 替换 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * @since      1.4
+     * @throws StringIndexOutOfBoundsException {@inheritDoc}
+     * @since 1.2
      */
+    // 用StringBuffer替换ASB在[start, end)范围内的字符序列
+    @Override
+    public synchronized StringBuffer replace(int start, int end, String str) {
+        toStringCache = null;
+        super.replace(start, end, str);
+        return this;
+    }
+    
+    /*▲ 替换 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 求子串 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * @throws StringIndexOutOfBoundsException {@inheritDoc}
+     * @since 1.2
+     */
+    // 求StringBuffer在[start, ∞)范围内的子串
+    @Override
+    public synchronized String substring(int start) {
+        return substring(start, count);
+    }
+    
+    /**
+     * @throws StringIndexOutOfBoundsException {@inheritDoc}
+     * @since 1.2
+     */
+    // 求StringBuffer在[start, start+end)范围内的子串
+    @Override
+    public synchronized String substring(int start, int end) {
+        return super.substring(start, end);
+    }
+    
+    /**
+     * @throws IndexOutOfBoundsException {@inheritDoc}
+     * @since 1.4
+     */
+    // 求StringBuffer在[start, start+end)范围内的子串
+    @Override
+    public synchronized CharSequence subSequence(int start, int end) {
+        return super.substring(start, end);
+    }
+    
+    /*▲ 求子串 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 查找子串位置 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * @since 1.4
+     */
+    // 返回子串str在当前主串StringBuffer中第一次出现的位置
     @Override
     public int indexOf(String str) {
         // Note, synchronization achieved via invocations of other StringBuffer methods
         return super.indexOf(str);
     }
-
+    
     /**
-     * @since      1.4
+     * @since 1.4
      */
+    // 返回子串str在当前主串StringBuffer中第一次出现的位置（从主串fromIndex处向后搜索）
     @Override
     public synchronized int indexOf(String str, int fromIndex) {
         return super.indexOf(str, fromIndex);
     }
-
+    
     /**
-     * @since      1.4
+     * @since 1.4
      */
+    // 返回子串str在当前主串StringBuffer中最后一次出现的位置
     @Override
     public int lastIndexOf(String str) {
         // Note, synchronization achieved via invocations of other StringBuffer methods
         return lastIndexOf(str, count);
     }
-
+    
     /**
-     * @since      1.4
+     * @since 1.4
      */
+    // 返回子串str在当前主串StringBuffer中最后一次出现的位置（从主串fromIndex处向前搜索）
     @Override
     public synchronized int lastIndexOf(String str, int fromIndex) {
         return super.lastIndexOf(str, fromIndex);
     }
-
+    
+    /*▲ 查找子串位置 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 逆置 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * @since   1.0.2
+     * @since 1.0.2
      */
+    // 逆置StringBuffer
     @Override
     public synchronized StringBuffer reverse() {
         toStringCache = null;
         super.reverse();
         return this;
     }
-
+    
+    /*▲ 逆置 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 比较 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Compares two {@code StringBuffer} instances lexicographically. This method
+     * follows the same rules for lexicographical comparison as defined in the
+     * {@linkplain java.lang.CharSequence#compare(java.lang.CharSequence,
+     * java.lang.CharSequence)  CharSequence.compare(this, another)} method.
+     *
+     * <p>
+     * For finer-grained, locale-sensitive String comparison, refer to
+     * {@link java.text.Collator}.
+     *
+     * @param another the {@code StringBuffer} to be compared with
+     *
+     * @return the value {@code 0} if this {@code StringBuffer} contains the same
+     * character sequence as that of the argument {@code StringBuffer}; a negative integer
+     * if this {@code StringBuffer} is lexicographically less than the
+     * {@code StringBuffer} argument; or a positive integer if this {@code StringBuffer}
+     * is lexicographically greater than the {@code StringBuffer} argument.
+     *
+     * @implNote This method synchronizes on {@code this}, the current object, but not
+     * {@code StringBuffer another} with which {@code this StringBuffer} is compared.
+     * @since 11
+     */
+    // 比较两个StringBuffer的内容
     @Override
-    @HotSpotIntrinsicCandidate
-    public synchronized String toString() {
-        if (toStringCache == null) {
-            return toStringCache =
-                    isLatin1() ? StringLatin1.newString(value, 0, count)
-                               : StringUTF16.newString(value, 0, count);
-        }
-        return new String(toStringCache);
+    public synchronized int compareTo(StringBuffer another) {
+        return super.compareTo(another);
     }
-
+    
+    /*▲ 比较 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 获取char/char[] ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * @throws IndexOutOfBoundsException {@inheritDoc}
+     * @see #length()
+     */
+    // 返回StringBuffer内index索引处的char
+    @Override
+    public synchronized char charAt(int index) {
+        return super.charAt(index);
+    }
+    
+    /**
+     * @throws IndexOutOfBoundsException {@inheritDoc}
+     */
+    // 将StringBuffer[srcBegin, srcEnd)内的字节批量转换为char后存入dst
+    @Override
+    public synchronized void getChars(int srcBegin, int srcEnd, char[] dst, int dstBegin) {
+        super.getChars(srcBegin, srcEnd, dst, dstBegin);
+    }
+    
+    /**
+     * @throws IndexOutOfBoundsException {@inheritDoc}
+     * @see #length()
+     */
+    // 将ch存入StringBuffer的index索引处
+    @Override
+    public synchronized void setCharAt(int index, char ch) {
+        toStringCache = null;
+        super.setCharAt(index, ch);
+    }
+    
+    /*▲ 获取char/char[] ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 码点/码元 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * @throws IndexOutOfBoundsException {@inheritDoc}
+     * @since 1.5
+     */
+    // 返回StringBuffer内index索引处的Unicode编码（从前到后试探）
+    @Override
+    public synchronized int codePointAt(int index) {
+        return super.codePointAt(index);
+    }
+    
+    /**
+     * @throws IndexOutOfBoundsException {@inheritDoc}
+     * @since 1.5
+     */
+    // 返回StringBuffer内index-1索引处的Unicode编码（从后往前试探）
+    @Override
+    public synchronized int codePointBefore(int index) {
+        return super.codePointBefore(index);
+    }
+    
+    /**
+     * @throws IndexOutOfBoundsException {@inheritDoc}
+     * @since 1.5
+     */
+    // 统计StringBuffer中指定码元范围内存在多少个Unicode符号
+    @Override
+    public synchronized int codePointCount(int beginIndex, int endIndex) {
+        return super.codePointCount(beginIndex, endIndex);
+    }
+    
+    /**
+     * @throws IndexOutOfBoundsException {@inheritDoc}
+     * @since 1.5
+     */
+    // 返回从index偏移codePointOffset个Unicode符号后新的索引值，codePointOffset的正负决定了偏移方向
+    @Override
+    public synchronized int offsetByCodePoints(int index, int codePointOffset) {
+        return super.offsetByCodePoints(index, codePointOffset);
+    }
+    
+    /*▲ 码点/码元 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 容量 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 返回当前StringBuffer的容量（可以容纳的char的数量）
+    @Override
+    public synchronized int capacity() {
+        return super.capacity();
+    }
+    
+    // 确保StringBuffer内部拥有最小容量minimumCapacity
+    @Override
+    public synchronized void ensureCapacity(int minimumCapacity) {
+        super.ensureCapacity(minimumCapacity);
+    }
+    
+    /**
+     * @since 1.5
+     */
+    // 缩减StringBuffer容量以恰好容纳其内容
+    @Override
+    public synchronized void trimToSize() {
+        super.trimToSize();
+    }
+    
+    /**
+     * @throws IndexOutOfBoundsException {@inheritDoc}
+     * @see #length()
+     */
+    // 扩展StringBuffer容量，多出来的部分用0填充，且设置StringBuffer的长度为newLength
+    @Override
+    public synchronized void setLength(int newLength) {
+        toStringCache = null;
+        super.setLength(newLength);
+    }
+    
+    /*▲ 容量 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ StringBuffer属性 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 返回当前StringBuffe内包含的char的数量
+    @Override
+    public synchronized int length() {
+        return count;
+    }
+    
+    /*▲ StringBuffer属性 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /** use serialVersionUID from JDK 1.0.2 for interoperability */
+    static final long serialVersionUID = 3388685877147921107L;
+    
     /**
      * Serializable fields for StringBuffer.
      *
      * @serialField value  char[]
-     *              The backing character array of this StringBuffer.
+     * The backing character array of this StringBuffer.
      * @serialField count int
-     *              The number of characters in this StringBuffer.
+     * The number of characters in this StringBuffer.
      * @serialField shared  boolean
-     *              A flag indicating whether the backing array is shared.
-     *              The value is ignored upon deserialization.
+     * A flag indicating whether the backing array is shared.
+     * The value is ignored upon deserialization.
      */
-    private static final java.io.ObjectStreamField[] serialPersistentFields =
-    {
-        new java.io.ObjectStreamField("value", char[].class),
-        new java.io.ObjectStreamField("count", Integer.TYPE),
-        new java.io.ObjectStreamField("shared", Boolean.TYPE),
+    private static final ObjectStreamField[] serialPersistentFields = {
+        new ObjectStreamField("value", char[].class),
+        new ObjectStreamField("count", Integer.TYPE),
+        new ObjectStreamField("shared", Boolean.TYPE)
     };
-
+    
     /**
      * readObject is called to restore the state of the StringBuffer from
      * a stream.
      */
-    private synchronized void writeObject(java.io.ObjectOutputStream s)
-        throws java.io.IOException {
-        java.io.ObjectOutputStream.PutField fields = s.putFields();
+    private synchronized void writeObject(ObjectOutputStream s) throws IOException {
+        ObjectOutputStream.PutField fields = s.putFields();
         char[] val = new char[capacity()];
-        if (isLatin1()) {
+        if(isLatin1()) {
             StringLatin1.getChars(value, 0, count, val, 0);
         } else {
             StringUTF16.getChars(value, 0, count, val, 0);
@@ -754,20 +873,34 @@ import jdk.internal.HotSpotIntrinsicCandidate;
         fields.put("shared", false);
         s.writeFields();
     }
-
+    
     /**
      * readObject is called to restore the state of the StringBuffer from
      * a stream.
      */
-    private void readObject(java.io.ObjectInputStream s)
-        throws java.io.IOException, ClassNotFoundException {
-        java.io.ObjectInputStream.GetField fields = s.readFields();
-        char[] val = (char[])fields.get("value", null);
+    private void readObject(ObjectInputStream s) throws IOException, ClassNotFoundException {
+        ObjectInputStream.GetField fields = s.readFields();
+        char[] val = (char[]) fields.get("value", null);
         initBytes(val, 0, val.length);
         count = fields.get("count", 0);
     }
-
+    
+    /*▲ 序列化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    // 将StringBuffer的内部字节存入dst
     synchronized void getBytes(byte dst[], int dstBegin, byte coder) {
         super.getBytes(dst, dstBegin, coder);
     }
+    
+    @Override
+    @HotSpotIntrinsicCandidate
+    public synchronized String toString() {
+        if(toStringCache == null) {
+            return toStringCache = isLatin1() ? StringLatin1.newString(value, 0, count) : StringUTF16.newString(value, 0, count);
+        }
+        return new String(toStringCache);
+    }
+    
 }
