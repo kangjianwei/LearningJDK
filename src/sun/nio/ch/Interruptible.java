@@ -29,8 +29,8 @@
 
 package sun.nio.ch;
 
+// 线程中断回调标记
 public interface Interruptible {
-
-    public void interrupt(Thread t);
-
+    // 线程thread被中断时，可回调此方法
+    void interrupt(Thread thread);
 }
