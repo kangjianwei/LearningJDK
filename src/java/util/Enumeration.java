@@ -41,52 +41,54 @@ package java.util;
  * Enumerations are also used to specify the input streams to a
  * {@code SequenceInputStream}.
  *
- * @apiNote
- * The functionality of this interface is duplicated by the {@link Iterator}
+ * @author Lee Boynton
+ * @apiNote The functionality of this interface is duplicated by the {@link Iterator}
  * interface.  In addition, {@code Iterator} adds an optional remove operation,
  * and has shorter method names.  New implementations should consider using
  * {@code Iterator} in preference to {@code Enumeration}. It is possible to
  * adapt an {@code Enumeration} to an {@code Iterator} by using the
  * {@link #asIterator} method.
- *
- * @see     java.util.Iterator
- * @see     java.io.SequenceInputStream
- * @see     java.util.Enumeration#nextElement()
- * @see     java.util.Hashtable
- * @see     java.util.Hashtable#elements()
- * @see     java.util.Hashtable#keys()
- * @see     java.util.Vector
- * @see     java.util.Vector#elements()
- *
- * @author  Lee Boynton
- * @since   1.0
+ * @see java.util.Iterator
+ * @see java.io.SequenceInputStream
+ * @see java.util.Enumeration#nextElement()
+ * @see java.util.Hashtable
+ * @see java.util.Hashtable#elements()
+ * @see java.util.Hashtable#keys()
+ * @see java.util.Vector
+ * @see java.util.Vector#elements()
+ * @since 1.0
  */
+// 枚举器接口，跟迭代器接口很像，只用于遍历，没有移除功能
 public interface Enumeration<E> {
     /**
      * Tests if this enumeration contains more elements.
      *
-     * @return  {@code true} if and only if this enumeration object
-     *           contains at least one more element to provide;
-     *          {@code false} otherwise.
+     * @return {@code true} if and only if this enumeration object
+     * contains at least one more element to provide;
+     * {@code false} otherwise.
      */
+    // 是否存在更多元素
     boolean hasMoreElements();
-
+    
     /**
      * Returns the next element of this enumeration if this enumeration
      * object has at least one more element to provide.
      *
-     * @return     the next element of this enumeration.
-     * @exception  NoSuchElementException  if no more elements exist.
+     * @return the next element of this enumeration.
+     *
+     * @throws NoSuchElementException if no more elements exist.
      */
+    // 返回下一个元素
     E nextElement();
-
+    
     /**
      * Returns an {@link Iterator} that traverses the remaining elements
      * covered by this enumeration. Traversal is undefined if any methods
      * are called on this enumeration after the call to {@code asIterator}.
      *
-     * @apiNote
-     * This method is intended to help adapt code that produces
+     * @return an Iterator representing the remaining elements of this Enumeration
+     *
+     * @apiNote This method is intended to help adapt code that produces
      * {@code Enumeration} instances to code that consumes {@code Iterator}
      * instances. For example, the {@link java.util.jar.JarFile#entries
      * JarFile.entries()} method returns an {@code Enumeration<JarEntry>}.
@@ -101,25 +103,24 @@ public interface Enumeration<E> {
      * (Note that there is also a {@link java.util.jar.JarFile#stream
      * JarFile.stream()} method that returns a {@code Stream} of entries,
      * which may be more convenient in some cases.)
-     *
-     * @implSpec
-     * The default implementation returns an {@code Iterator} whose
+     * @implSpec The default implementation returns an {@code Iterator} whose
      * {@link Iterator#hasNext hasNext} method calls this Enumeration's
      * {@code hasMoreElements} method, whose {@link Iterator#next next}
      * method calls this Enumeration's {@code nextElement} method, and
      * whose {@link Iterator#remove remove} method throws
      * {@code UnsupportedOperationException}.
-     *
-     * @return an Iterator representing the remaining elements of this Enumeration
-     *
      * @since 9
      */
+    // Enumeration转换为Iterator
     default Iterator<E> asIterator() {
         return new Iterator<>() {
-            @Override public boolean hasNext() {
+            @Override
+            public boolean hasNext() {
                 return hasMoreElements();
             }
-            @Override public E next() {
+            
+            @Override
+            public E next() {
                 return nextElement();
             }
         };
