@@ -33,28 +33,27 @@ import java.util.function.Consumer;
  * differ from enumerations in two ways:
  *
  * <ul>
- *      <li> Iterators allow the caller to remove elements from the
- *           underlying collection during the iteration with well-defined
- *           semantics.
- *      <li> Method names have been improved.
+ * <li> Iterators allow the caller to remove elements from the
+ * underlying collection during the iteration with well-defined
+ * semantics.
+ * <li> Method names have been improved.
  * </ul>
  *
  * <p>This interface is a member of the
  * <a href="{@docRoot}/java.base/java/util/package-summary.html#CollectionsFramework">
  * Java Collections Framework</a>.
  *
- * @apiNote
- * An {@link Enumeration} can be converted into an {@code Iterator} by
- * using the {@link Enumeration#asIterator} method.
- *
  * @param <E> the type of elements returned by this iterator
  *
- * @author  Josh Bloch
+ * @author Josh Bloch
+ * @apiNote An {@link Enumeration} can be converted into an {@code Iterator} by
+ * using the {@link Enumeration#asIterator} method.
  * @see Collection
  * @see ListIterator
  * @see Iterable
  * @since 1.2
  */
+// 迭代器接口，跟枚举器接口很像，可以遍历元素，也可以移除元素。关键是，支持foreach遍历方式
 public interface Iterator<E> {
     /**
      * Returns {@code true} if the iteration has more elements.
@@ -63,16 +62,19 @@ public interface Iterator<E> {
      *
      * @return {@code true} if the iteration has more elements
      */
+    // 是否存在更多元素
     boolean hasNext();
-
+    
     /**
      * Returns the next element in the iteration.
      *
      * @return the next element in the iteration
+     *
      * @throws NoSuchElementException if the iteration has no more elements
      */
+    // 返回下一个元素
     E next();
-
+    
     /**
      * Removes from the underlying collection the last element returned
      * by this iterator (optional operation).  This method can be called
@@ -86,22 +88,20 @@ public interface Iterator<E> {
      * The behavior of an iterator is unspecified if this method is called
      * after a call to the {@link #forEachRemaining forEachRemaining} method.
      *
-     * @implSpec
-     * The default implementation throws an instance of
-     * {@link UnsupportedOperationException} and performs no other action.
-     *
      * @throws UnsupportedOperationException if the {@code remove}
-     *         operation is not supported by this iterator
-     *
-     * @throws IllegalStateException if the {@code next} method has not
-     *         yet been called, or the {@code remove} method has already
-     *         been called after the last call to the {@code next}
-     *         method
+     *                                       operation is not supported by this iterator
+     * @throws IllegalStateException         if the {@code next} method has not
+     *                                       yet been called, or the {@code remove} method has already
+     *                                       been called after the last call to the {@code next}
+     *                                       method
+     * @implSpec The default implementation throws an instance of
+     * {@link UnsupportedOperationException} and performs no other action.
      */
+    // 移除一个元素
     default void remove() {
         throw new UnsupportedOperationException("remove");
     }
-
+    
     /**
      * Performs the given action for each remaining element until all elements
      * have been processed or the action throws an exception.  Actions are
@@ -116,20 +116,21 @@ public interface Iterator<E> {
      * Subsequent behavior of an iterator is unspecified if the action throws an
      * exception.
      *
-     * @implSpec
-     * <p>The default implementation behaves as if:
+     * @param action The action to be performed for each element
+     *
+     * @throws NullPointerException if the specified action is null
+     * @implSpec <p>The default implementation behaves as if:
      * <pre>{@code
      *     while (hasNext())
      *         action.accept(next());
      * }</pre>
-     *
-     * @param action The action to be performed for each element
-     * @throws NullPointerException if the specified action is null
      * @since 1.8
      */
+    // 遍历每个元素，并对其执行相应的择取操作
     default void forEachRemaining(Consumer<? super E> action) {
         Objects.requireNonNull(action);
-        while (hasNext())
+        while(hasNext()) {
             action.accept(next());
+        }
     }
 }
