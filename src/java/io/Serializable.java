@@ -69,11 +69,11 @@ package java.io;
  *
  * <PRE>
  * private void writeObject(java.io.ObjectOutputStream out)
- *     throws IOException
+ * throws IOException
  * private void readObject(java.io.ObjectInputStream in)
- *     throws IOException, ClassNotFoundException;
+ * throws IOException, ClassNotFoundException;
  * private void readObjectNoData()
- *     throws ObjectStreamException;
+ * throws ObjectStreamException;
  * </PRE>
  *
  * <p>The writeObject method is responsible for writing the state of the
@@ -168,13 +168,14 @@ package java.io;
  * the default computed value, but the requirement for matching
  * serialVersionUID values is waived for array classes.
  *
- * @author  unascribed
+ * @author unascribed
  * @see java.io.ObjectOutputStream
  * @see java.io.ObjectInputStream
  * @see java.io.ObjectOutput
  * @see java.io.ObjectInput
  * @see java.io.Externalizable
- * @since   1.1
+ * @since 1.1
  */
+// 将对象序列化/反序列化，是对象的一种固化行为
 public interface Serializable {
 }

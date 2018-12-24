@@ -25,6 +25,8 @@
 
 package java.lang;
 
+import java.io.Serializable;
+
 /**
  * The abstract class {@code Number} is the superclass of platform
  * classes representing numeric values that are convertible to the
@@ -46,73 +48,83 @@ package java.lang;
  * See the documentation of a given {@code Number} implementation for
  * conversion details.
  *
- * @author      Lee Boynton
- * @author      Arthur van Hoff
+ * @author Lee Boynton
+ * @author Arthur van Hoff
  * @jls 5.1.2 Widening Primitive Conversions
  * @jls 5.1.3 Narrowing Primitive Conversions
- * @since   1.0
+ * @since 1.0
  */
-public abstract class Number implements java.io.Serializable {
-    /**
-     * Returns the value of the specified number as an {@code int}.
-     *
-     * @return  the numeric value represented by this object after conversion
-     *          to type {@code int}.
-     */
-    public abstract int intValue();
-
-    /**
-     * Returns the value of the specified number as a {@code long}.
-     *
-     * @return  the numeric value represented by this object after conversion
-     *          to type {@code long}.
-     */
-    public abstract long longValue();
-
-    /**
-     * Returns the value of the specified number as a {@code float}.
-     *
-     * @return  the numeric value represented by this object after conversion
-     *          to type {@code float}.
-     */
-    public abstract float floatValue();
-
-    /**
-     * Returns the value of the specified number as a {@code double}.
-     *
-     * @return  the numeric value represented by this object after conversion
-     *          to type {@code double}.
-     */
-    public abstract double doubleValue();
-
+// 数值类型包装类的共同祖先，声明了各种包装类型的拆箱方法
+public abstract class Number implements Serializable {
+    /** use serialVersionUID from JDK 1.0.2 for interoperability */
+    private static final long serialVersionUID = -8742448824652078965L;
+    
     /**
      * Returns the value of the specified number as a {@code byte}.
      *
      * <p>This implementation returns the result of {@link #intValue} cast
      * to a {@code byte}.
      *
-     * @return  the numeric value represented by this object after conversion
-     *          to type {@code byte}.
-     * @since   1.1
+     * @return the numeric value represented by this object after conversion
+     * to type {@code byte}.
+     *
+     * @since 1.1
      */
+    // 以byte形式返回当前对象的值
     public byte byteValue() {
-        return (byte)intValue();
+        return (byte) intValue();
     }
-
+    
     /**
      * Returns the value of the specified number as a {@code short}.
      *
      * <p>This implementation returns the result of {@link #intValue} cast
      * to a {@code short}.
      *
-     * @return  the numeric value represented by this object after conversion
-     *          to type {@code short}.
-     * @since   1.1
+     * @return the numeric value represented by this object after conversion
+     * to type {@code short}.
+     *
+     * @since 1.1
      */
+    // 以short形式返回当前对象的值
     public short shortValue() {
-        return (short)intValue();
+        return (short) intValue();
     }
-
-    /** use serialVersionUID from JDK 1.0.2 for interoperability */
-    private static final long serialVersionUID = -8742448824652078965L;
+    
+    /**
+     * Returns the value of the specified number as an {@code int}.
+     *
+     * @return the numeric value represented by this object after conversion
+     * to type {@code int}.
+     */
+    // 以int形式返回当前对象的值
+    public abstract int intValue();
+    
+    /**
+     * Returns the value of the specified number as a {@code long}.
+     *
+     * @return the numeric value represented by this object after conversion
+     * to type {@code long}.
+     */
+    // 以long形式返回当前对象的值
+    public abstract long longValue();
+    
+    /**
+     * Returns the value of the specified number as a {@code float}.
+     *
+     * @return the numeric value represented by this object after conversion
+     * to type {@code float}.
+     */
+    // 以float形式返回当前对象的值
+    public abstract float floatValue();
+    
+    /**
+     * Returns the value of the specified number as a {@code double}.
+     *
+     * @return the numeric value represented by this object after conversion
+     * to type {@code double}.
+     */
+    // 以double形式返回当前对象的值
+    public abstract double doubleValue();
+    
 }

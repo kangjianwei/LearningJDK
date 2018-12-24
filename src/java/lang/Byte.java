@@ -28,7 +28,6 @@ package java.lang;
 import jdk.internal.HotSpotIntrinsicCandidate;
 
 /**
- *
  * The {@code Byte} class wraps a value of primitive type {@code byte}
  * in an object.  An object of type {@code Byte} contains a single
  * field whose type is {@code byte}.
@@ -38,55 +37,109 @@ import jdk.internal.HotSpotIntrinsicCandidate;
  * byte}, as well as other constants and methods useful when dealing
  * with a {@code byte}.
  *
- * @author  Nakul Saraiya
- * @author  Joseph D. Darcy
- * @see     java.lang.Number
- * @since   1.1
+ * @author Nakul Saraiya
+ * @author Joseph D. Darcy
+ * @see java.lang.Number
+ * @since 1.1
  */
+// byte的包装类
 public final class Byte extends Number implements Comparable<Byte> {
-
-    /**
-     * A constant holding the minimum value a {@code byte} can
-     * have, -2<sup>7</sup>.
-     */
-    public static final byte   MIN_VALUE = -128;
-
-    /**
-     * A constant holding the maximum value a {@code byte} can
-     * have, 2<sup>7</sup>-1.
-     */
-    public static final byte   MAX_VALUE = 127;
-
+    
+    /** use serialVersionUID from JDK 1.1. for interoperability */
+    private static final long serialVersionUID = -7183698231559129828L;
+    
     /**
      * The {@code Class} instance representing the primitive type
      * {@code byte}.
      */
+    // 相当于byte.class
     @SuppressWarnings("unchecked")
-    public static final Class<Byte>     TYPE = (Class<Byte>) Class.getPrimitiveClass("byte");
-
+    public static final Class<Byte> TYPE = (Class<Byte>) Class.getPrimitiveClass("byte");
+    
     /**
-     * Returns a new {@code String} object representing the
-     * specified {@code byte}. The radix is assumed to be 10.
-     *
-     * @param b the {@code byte} to be converted
-     * @return the string representation of the specified {@code byte}
-     * @see java.lang.Integer#toString(int)
+     * A constant holding the minimum value a {@code byte} can
+     * have, -2<sup>7</sup>.
      */
-    public static String toString(byte b) {
-        return Integer.toString((int)b, 10);
+    public static final byte MIN_VALUE = -128; // byte最小值
+    
+    /**
+     * A constant holding the maximum value a {@code byte} can
+     * have, 2<sup>7</sup>-1.
+     */
+    public static final byte MAX_VALUE = 127; // byte最大值
+    
+    /**
+     * The number of bits used to represent a {@code byte} value in two's
+     * complement binary form.
+     *
+     * @since 1.5
+     */
+    public static final int SIZE = 8;   // 当前类型所占bit[位]数
+    
+    /**
+     * The number of bytes used to represent a {@code byte} value in two's
+     * complement binary form.
+     *
+     * @since 1.8
+     */
+    public static final int BYTES = SIZE / Byte.SIZE;   // 当前类型所占字节数
+    
+    /**
+     * The value of the {@code Byte}.
+     *
+     * @serial
+     */
+    private final byte value;   // 当前类包装的值
+    
+    
+    
+    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Constructs a newly allocated {@code Byte} object that
+     * represents the specified {@code byte} value.
+     *
+     * @param value the value to be represented by the
+     *              {@code Byte}.
+     *
+     * @deprecated It is rarely appropriate to use this constructor. The static factory
+     * {@link #valueOf(byte)} is generally a better choice, as it is
+     * likely to yield significantly better space and time performance.
+     */
+    @Deprecated(since = "9")
+    public Byte(byte value) {
+        this.value = value;
     }
-
-    private static class ByteCache {
-        private ByteCache(){}
-
-        static final Byte cache[] = new Byte[-(-128) + 127 + 1];
-
-        static {
-            for(int i = 0; i < cache.length; i++)
-                cache[i] = new Byte((byte)(i - 128));
-        }
+    
+    /**
+     * Constructs a newly allocated {@code Byte} object that
+     * represents the {@code byte} value indicated by the
+     * {@code String} parameter. The string is converted to a
+     * {@code byte} value in exactly the manner used by the
+     * {@code parseByte} method for radix 10.
+     *
+     * @param s the {@code String} to be converted to a
+     *          {@code Byte}
+     *
+     * @throws NumberFormatException if the {@code String}
+     *                               does not contain a parsable {@code byte}.
+     * @deprecated It is rarely appropriate to use this constructor.
+     * Use {@link #parseByte(String)} to convert a string to a
+     * {@code byte} primitive, or use {@link #valueOf(String)}
+     * to convert a string to a {@code Byte} object.
+     */
+    @Deprecated(since = "9")
+    public Byte(String s) throws NumberFormatException {
+        this.value = parseByte(s, 10);
     }
-
+    
+    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    
+    /*▼ [装箱] ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns a {@code Byte} instance representing the specified
      * {@code byte} value.
@@ -96,88 +149,48 @@ public final class Byte extends Number implements Comparable<Byte> {
      * significantly better space and time performance since
      * all byte values are cached.
      *
-     * @param  b a byte value.
+     * @param b a byte value.
+     *
      * @return a {@code Byte} instance representing {@code b}.
-     * @since  1.5
+     *
+     * @since 1.5
      */
+    // byte-->Byte 默认的装箱行为
     @HotSpotIntrinsicCandidate
     public static Byte valueOf(byte b) {
         final int offset = 128;
-        return ByteCache.cache[(int)b + offset];
+        return ByteCache.cache[(int) b + offset];
     }
-
+    
     /**
-     * Parses the string argument as a signed {@code byte} in the
-     * radix specified by the second argument. The characters in the
-     * string must all be digits, of the specified radix (as
-     * determined by whether {@link java.lang.Character#digit(char,
-     * int)} returns a nonnegative value) except that the first
-     * character may be an ASCII minus sign {@code '-'}
-     * ({@code '\u005Cu002D'}) to indicate a negative value or an
-     * ASCII plus sign {@code '+'} ({@code '\u005Cu002B'}) to
-     * indicate a positive value.  The resulting {@code byte} value is
-     * returned.
+     * Returns a {@code Byte} object holding the value
+     * given by the specified {@code String}. The argument is
+     * interpreted as representing a signed decimal {@code byte},
+     * exactly as if the argument were given to the {@link
+     * #parseByte(java.lang.String)} method. The result is a
+     * {@code Byte} object that represents the {@code byte}
+     * value specified by the string.
      *
-     * <p>An exception of type {@code NumberFormatException} is
-     * thrown if any of the following situations occurs:
-     * <ul>
-     * <li> The first argument is {@code null} or is a string of
-     * length zero.
+     * <p> In other words, this method returns a {@code Byte} object
+     * equal to the value of:
      *
-     * <li> The radix is either smaller than {@link
-     * java.lang.Character#MIN_RADIX} or larger than {@link
-     * java.lang.Character#MAX_RADIX}.
+     * <blockquote>
+     * {@code new Byte(Byte.parseByte(s))}
+     * </blockquote>
      *
-     * <li> Any character of the string is not a digit of the
-     * specified radix, except that the first character may be a minus
-     * sign {@code '-'} ({@code '\u005Cu002D'}) or plus sign
-     * {@code '+'} ({@code '\u005Cu002B'}) provided that the
-     * string is longer than length 1.
+     * @param s the string to be parsed
      *
-     * <li> The value represented by the string is not a value of type
-     * {@code byte}.
-     * </ul>
+     * @return a {@code Byte} object holding the value
+     * represented by the string argument
      *
-     * @param s         the {@code String} containing the
-     *                  {@code byte}
-     *                  representation to be parsed
-     * @param radix     the radix to be used while parsing {@code s}
-     * @return          the {@code byte} value represented by the string
-     *                   argument in the specified radix
-     * @throws          NumberFormatException If the string does
-     *                  not contain a parsable {@code byte}.
+     * @throws NumberFormatException If the {@code String} does
+     *                               not contain a parsable {@code byte}.
      */
-    public static byte parseByte(String s, int radix)
-        throws NumberFormatException {
-        int i = Integer.parseInt(s, radix);
-        if (i < MIN_VALUE || i > MAX_VALUE)
-            throw new NumberFormatException(
-                "Value out of range. Value:\"" + s + "\" Radix:" + radix);
-        return (byte)i;
+    // 按10进制形式将字符串s解析为byte值，随后再装箱
+    public static Byte valueOf(String s) throws NumberFormatException {
+        return valueOf(s, 10);
     }
-
-    /**
-     * Parses the string argument as a signed decimal {@code
-     * byte}. The characters in the string must all be decimal digits,
-     * except that the first character may be an ASCII minus sign
-     * {@code '-'} ({@code '\u005Cu002D'}) to indicate a negative
-     * value or an ASCII plus sign {@code '+'}
-     * ({@code '\u005Cu002B'}) to indicate a positive value. The
-     * resulting {@code byte} value is returned, exactly as if the
-     * argument and the radix 10 were given as arguments to the {@link
-     * #parseByte(java.lang.String, int)} method.
-     *
-     * @param s         a {@code String} containing the
-     *                  {@code byte} representation to be parsed
-     * @return          the {@code byte} value represented by the
-     *                  argument in decimal
-     * @throws          NumberFormatException if the string does not
-     *                  contain a parsable {@code byte}.
-     */
-    public static byte parseByte(String s) throws NumberFormatException {
-        return parseByte(s, 10);
-    }
-
+    
     /**
      * Returns a {@code Byte} object holding the value
      * extracted from the specified {@code String} when parsed
@@ -195,45 +208,21 @@ public final class Byte extends Number implements Comparable<Byte> {
      * {@code new Byte(Byte.parseByte(s, radix))}
      * </blockquote>
      *
-     * @param s         the string to be parsed
-     * @param radix     the radix to be used in interpreting {@code s}
-     * @return          a {@code Byte} object holding the value
-     *                  represented by the string argument in the
-     *                  specified radix.
-     * @throws          NumberFormatException If the {@code String} does
-     *                  not contain a parsable {@code byte}.
+     * @param s     the string to be parsed
+     * @param radix the radix to be used in interpreting {@code s}
+     *
+     * @return a {@code Byte} object holding the value
+     * represented by the string argument in the
+     * specified radix.
+     *
+     * @throws NumberFormatException If the {@code String} does
+     *                               not contain a parsable {@code byte}.
      */
-    public static Byte valueOf(String s, int radix)
-        throws NumberFormatException {
+    // 按radix进制形式将字符串s解析为byte值，随后再装箱
+    public static Byte valueOf(String s, int radix) throws NumberFormatException {
         return valueOf(parseByte(s, radix));
     }
-
-    /**
-     * Returns a {@code Byte} object holding the value
-     * given by the specified {@code String}. The argument is
-     * interpreted as representing a signed decimal {@code byte},
-     * exactly as if the argument were given to the {@link
-     * #parseByte(java.lang.String)} method. The result is a
-     * {@code Byte} object that represents the {@code byte}
-     * value specified by the string.
-     *
-     * <p> In other words, this method returns a {@code Byte} object
-     * equal to the value of:
-     *
-     * <blockquote>
-     * {@code new Byte(Byte.parseByte(s))}
-     * </blockquote>
-     *
-     * @param s         the string to be parsed
-     * @return          a {@code Byte} object holding the value
-     *                  represented by the string argument
-     * @throws          NumberFormatException If the {@code String} does
-     *                  not contain a parsable {@code byte}.
-     */
-    public static Byte valueOf(String s) throws NumberFormatException {
-        return valueOf(s, 10);
-    }
-
+    
     /**
      * Decodes a {@code String} into a {@code Byte}.
      * Accepts decimal, hexadecimal, and octal numbers given by
@@ -269,122 +258,189 @@ public final class Byte extends Number implements Comparable<Byte> {
      * the minus sign.  No whitespace characters are permitted in the
      * {@code String}.
      *
-     * @param     nm the {@code String} to decode.
-     * @return   a {@code Byte} object holding the {@code byte}
-     *          value represented by {@code nm}
-     * @throws  NumberFormatException  if the {@code String} does not
-     *            contain a parsable {@code byte}.
+     * @param nm the {@code String} to decode.
+     *
+     * @return a {@code Byte} object holding the {@code byte}
+     * value represented by {@code nm}
+     *
+     * @throws NumberFormatException if the {@code String} does not
+     *                               contain a parsable {@code byte}.
      * @see java.lang.Byte#parseByte(java.lang.String, int)
+     */
+    /*
+     * 将字符串nm解析为byte，随后再装箱
+     *
+     * 采用哪种进制解析nm取决于nm的格式：
+     * > 0x、0X、#开头，代表按16进制解析
+     * > 0开头，代表按8进制解析
+     * > 其他情形默认按10进制解析
      */
     public static Byte decode(String nm) throws NumberFormatException {
         int i = Integer.decode(nm);
-        if (i < MIN_VALUE || i > MAX_VALUE)
-            throw new NumberFormatException(
-                    "Value " + i + " out of range from input " + nm);
-        return valueOf((byte)i);
+        if(i<MIN_VALUE || i>MAX_VALUE)
+            throw new NumberFormatException("Value " + i + " out of range from input " + nm);
+        return valueOf((byte) i);
     }
-
-    /**
-     * The value of the {@code Byte}.
-     *
-     * @serial
-     */
-    private final byte value;
-
-    /**
-     * Constructs a newly allocated {@code Byte} object that
-     * represents the specified {@code byte} value.
-     *
-     * @param value     the value to be represented by the
-     *                  {@code Byte}.
-     *
-     * @deprecated
-     * It is rarely appropriate to use this constructor. The static factory
-     * {@link #valueOf(byte)} is generally a better choice, as it is
-     * likely to yield significantly better space and time performance.
-     */
-    @Deprecated(since="9")
-    public Byte(byte value) {
-        this.value = value;
-    }
-
-    /**
-     * Constructs a newly allocated {@code Byte} object that
-     * represents the {@code byte} value indicated by the
-     * {@code String} parameter. The string is converted to a
-     * {@code byte} value in exactly the manner used by the
-     * {@code parseByte} method for radix 10.
-     *
-     * @param s         the {@code String} to be converted to a
-     *                  {@code Byte}
-     * @throws          NumberFormatException if the {@code String}
-     *                  does not contain a parsable {@code byte}.
-     *
-     * @deprecated
-     * It is rarely appropriate to use this constructor.
-     * Use {@link #parseByte(String)} to convert a string to a
-     * {@code byte} primitive, or use {@link #valueOf(String)}
-     * to convert a string to a {@code Byte} object.
-     */
-    @Deprecated(since="9")
-    public Byte(String s) throws NumberFormatException {
-        this.value = parseByte(s, 10);
-    }
-
+    
+    /*▲ [装箱] ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ [拆箱] ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns the value of this {@code Byte} as a
      * {@code byte}.
      */
+    // Byte-->byte 默认的拆箱行为
     @HotSpotIntrinsicCandidate
     public byte byteValue() {
         return value;
     }
-
+    
     /**
      * Returns the value of this {@code Byte} as a {@code short} after
      * a widening primitive conversion.
+     *
      * @jls 5.1.2 Widening Primitive Conversions
      */
+    // 以short形式返回当前对象的值
     public short shortValue() {
-        return (short)value;
+        return (short) value;
     }
-
+    
     /**
      * Returns the value of this {@code Byte} as an {@code int} after
      * a widening primitive conversion.
+     *
      * @jls 5.1.2 Widening Primitive Conversions
      */
+    // 以int形式返回当前对象的值
     public int intValue() {
-        return (int)value;
+        return (int) value;
     }
-
+    
     /**
      * Returns the value of this {@code Byte} as a {@code long} after
      * a widening primitive conversion.
+     *
      * @jls 5.1.2 Widening Primitive Conversions
      */
+    // 以long形式返回当前对象的值
     public long longValue() {
-        return (long)value;
+        return (long) value;
     }
-
+    
     /**
      * Returns the value of this {@code Byte} as a {@code float} after
      * a widening primitive conversion.
+     *
      * @jls 5.1.2 Widening Primitive Conversions
      */
+    // 以float形式返回当前对象的值
     public float floatValue() {
-        return (float)value;
+        return (float) value;
     }
-
+    
     /**
      * Returns the value of this {@code Byte} as a {@code double}
      * after a widening primitive conversion.
+     *
      * @jls 5.1.2 Widening Primitive Conversions
      */
+    // 以double形式返回当前对象的值
     public double doubleValue() {
-        return (double)value;
+        return (double) value;
     }
-
+    
+    /*▲ [拆箱] ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 逆字符串化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Parses the string argument as a signed {@code byte} in the
+     * radix specified by the second argument. The characters in the
+     * string must all be digits, of the specified radix (as
+     * determined by whether {@link java.lang.Character#digit(char,
+     * int)} returns a nonnegative value) except that the first
+     * character may be an ASCII minus sign {@code '-'}
+     * ({@code '\u005Cu002D'}) to indicate a negative value or an
+     * ASCII plus sign {@code '+'} ({@code '\u005Cu002B'}) to
+     * indicate a positive value.  The resulting {@code byte} value is
+     * returned.
+     *
+     * <p>An exception of type {@code NumberFormatException} is
+     * thrown if any of the following situations occurs:
+     * <ul>
+     * <li> The first argument is {@code null} or is a string of
+     * length zero.
+     *
+     * <li> The radix is either smaller than {@link
+     * java.lang.Character#MIN_RADIX} or larger than {@link
+     * java.lang.Character#MAX_RADIX}.
+     *
+     * <li> Any character of the string is not a digit of the
+     * specified radix, except that the first character may be a minus
+     * sign {@code '-'} ({@code '\u005Cu002D'}) or plus sign
+     * {@code '+'} ({@code '\u005Cu002B'}) provided that the
+     * string is longer than length 1.
+     *
+     * <li> The value represented by the string is not a value of type
+     * {@code byte}.
+     * </ul>
+     *
+     * @param s     the {@code String} containing the
+     *              {@code byte}
+     *              representation to be parsed
+     * @param radix the radix to be used while parsing {@code s}
+     *
+     * @return the {@code byte} value represented by the string
+     * argument in the specified radix
+     *
+     * @throws NumberFormatException If the string does
+     *                               not contain a parsable {@code byte}.
+     */
+    // 按radix进制形式将字符串s解析为byte值
+    public static byte parseByte(String s, int radix) throws NumberFormatException {
+        int i = Integer.parseInt(s, radix);
+        if(i<MIN_VALUE || i>MAX_VALUE)
+            throw new NumberFormatException("Value out of range. Value:\"" + s + "\" Radix:" + radix);
+        return (byte) i;
+    }
+    
+    /**
+     * Parses the string argument as a signed decimal {@code
+     * byte}. The characters in the string must all be decimal digits,
+     * except that the first character may be an ASCII minus sign
+     * {@code '-'} ({@code '\u005Cu002D'}) to indicate a negative
+     * value or an ASCII plus sign {@code '+'}
+     * ({@code '\u005Cu002B'}) to indicate a positive value. The
+     * resulting {@code byte} value is returned, exactly as if the
+     * argument and the radix 10 were given as arguments to the {@link
+     * #parseByte(java.lang.String, int)} method.
+     *
+     * @param s a {@code String} containing the
+     *          {@code byte} representation to be parsed
+     *
+     * @return the {@code byte} value represented by the
+     * argument in decimal
+     *
+     * @throws NumberFormatException if the string does not
+     *                               contain a parsable {@code byte}.
+     */
+    // 按10进制形式将字符串s解析为byte值
+    public static byte parseByte(String s) throws NumberFormatException {
+        return parseByte(s, 10);
+    }
+    
+    /*▲ 逆字符串化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字符串化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns a {@code String} object representing this
      * {@code Byte}'s value.  The value is converted to signed
@@ -392,104 +448,33 @@ public final class Byte extends Number implements Comparable<Byte> {
      * the {@code byte} value were given as an argument to the
      * {@link java.lang.Byte#toString(byte)} method.
      *
-     * @return  a string representation of the value of this object in
-     *          base&nbsp;10.
+     * @return a string representation of the value of this object in
+     * base&nbsp;10.
      */
     public String toString() {
-        return Integer.toString((int)value);
+        return Integer.toString((int) value);
     }
-
+    
     /**
-     * Returns a hash code for this {@code Byte}; equal to the result
-     * of invoking {@code intValue()}.
+     * Returns a new {@code String} object representing the
+     * specified {@code byte}. The radix is assumed to be 10.
      *
-     * @return a hash code value for this {@code Byte}
-     */
-    @Override
-    public int hashCode() {
-        return Byte.hashCode(value);
-    }
-
-    /**
-     * Returns a hash code for a {@code byte} value; compatible with
-     * {@code Byte.hashCode()}.
+     * @param b the {@code byte} to be converted
      *
-     * @param value the value to hash
-     * @return a hash code value for a {@code byte} value.
-     * @since 1.8
-     */
-    public static int hashCode(byte value) {
-        return (int)value;
-    }
-
-    /**
-     * Compares this object to the specified object.  The result is
-     * {@code true} if and only if the argument is not
-     * {@code null} and is a {@code Byte} object that
-     * contains the same {@code byte} value as this object.
+     * @return the string representation of the specified {@code byte}
      *
-     * @param obj       the object to compare with
-     * @return          {@code true} if the objects are the same;
-     *                  {@code false} otherwise.
+     * @see java.lang.Integer#toString(int)
      */
-    public boolean equals(Object obj) {
-        if (obj instanceof Byte) {
-            return value == ((Byte)obj).byteValue();
-        }
-        return false;
+    public static String toString(byte b) {
+        return Integer.toString((int) b, 10);
     }
-
-    /**
-     * Compares two {@code Byte} objects numerically.
-     *
-     * @param   anotherByte   the {@code Byte} to be compared.
-     * @return  the value {@code 0} if this {@code Byte} is
-     *          equal to the argument {@code Byte}; a value less than
-     *          {@code 0} if this {@code Byte} is numerically less
-     *          than the argument {@code Byte}; and a value greater than
-     *           {@code 0} if this {@code Byte} is numerically
-     *           greater than the argument {@code Byte} (signed
-     *           comparison).
-     * @since   1.2
-     */
-    public int compareTo(Byte anotherByte) {
-        return compare(this.value, anotherByte.value);
-    }
-
-    /**
-     * Compares two {@code byte} values numerically.
-     * The value returned is identical to what would be returned by:
-     * <pre>
-     *    Byte.valueOf(x).compareTo(Byte.valueOf(y))
-     * </pre>
-     *
-     * @param  x the first {@code byte} to compare
-     * @param  y the second {@code byte} to compare
-     * @return the value {@code 0} if {@code x == y};
-     *         a value less than {@code 0} if {@code x < y}; and
-     *         a value greater than {@code 0} if {@code x > y}
-     * @since 1.7
-     */
-    public static int compare(byte x, byte y) {
-        return x - y;
-    }
-
-    /**
-     * Compares two {@code byte} values numerically treating the values
-     * as unsigned.
-     *
-     * @param  x the first {@code byte} to compare
-     * @param  y the second {@code byte} to compare
-     * @return the value {@code 0} if {@code x == y}; a value less
-     *         than {@code 0} if {@code x < y} as unsigned values; and
-     *         a value greater than {@code 0} if {@code x > y} as
-     *         unsigned values
-     * @since 9
-     */
-    public static int compareUnsigned(byte x, byte y) {
-        return Byte.toUnsignedInt(x) - Byte.toUnsignedInt(y);
-    }
-
+    
+    /*▲ 字符串化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 无符号化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Converts the argument to an {@code int} by an unsigned
      * conversion.  In an unsigned conversion to an {@code int}, the
@@ -501,15 +486,18 @@ public final class Byte extends Number implements Comparable<Byte> {
      * byte} values are mapped to an {@code int} value equal to the
      * input plus 2<sup>8</sup>.
      *
-     * @param  x the value to convert to an unsigned {@code int}
+     * @param x the value to convert to an unsigned {@code int}
+     *
      * @return the argument converted to {@code int} by an unsigned
-     *         conversion
+     * conversion
+     *
      * @since 1.8
      */
+    // 将当前byte转换为无符号形式，用int存储
     public static int toUnsignedInt(byte x) {
         return ((int) x) & 0xff;
     }
-
+    
     /**
      * Converts the argument to a {@code long} by an unsigned
      * conversion.  In an unsigned conversion to a {@code long}, the
@@ -521,32 +509,145 @@ public final class Byte extends Number implements Comparable<Byte> {
      * byte} values are mapped to a {@code long} value equal to the
      * input plus 2<sup>8</sup>.
      *
-     * @param  x the value to convert to an unsigned {@code long}
+     * @param x the value to convert to an unsigned {@code long}
+     *
      * @return the argument converted to {@code long} by an unsigned
-     *         conversion
+     * conversion
+     *
      * @since 1.8
      */
+    // 将当前byte转换为无符号形式，用long存储
     public static long toUnsignedLong(byte x) {
         return ((long) x) & 0xffL;
     }
-
-
+    
+    /*▲ 无符号化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 比较 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * The number of bits used to represent a {@code byte} value in two's
-     * complement binary form.
+     * Compares two {@code byte} values numerically.
+     * The value returned is identical to what would be returned by:
+     * <pre>
+     *    Byte.valueOf(x).compareTo(Byte.valueOf(y))
+     * </pre>
      *
-     * @since 1.5
+     * @param x the first {@code byte} to compare
+     * @param y the second {@code byte} to compare
+     *
+     * @return the value {@code 0} if {@code x == y};
+     * a value less than {@code 0} if {@code x < y}; and
+     * a value greater than {@code 0} if {@code x > y}
+     *
+     * @since 1.7
      */
-    public static final int SIZE = 8;
-
+    // 比较两个byte（按自然顺序比较）
+    public static int compare(byte x, byte y) {
+        return x - y;
+    }
+    
     /**
-     * The number of bytes used to represent a {@code byte} value in two's
-     * complement binary form.
+     * Compares two {@code Byte} objects numerically.
+     *
+     * @param anotherByte the {@code Byte} to be compared.
+     *
+     * @return the value {@code 0} if this {@code Byte} is
+     * equal to the argument {@code Byte}; a value less than
+     * {@code 0} if this {@code Byte} is numerically less
+     * than the argument {@code Byte}; and a value greater than
+     * {@code 0} if this {@code Byte} is numerically
+     * greater than the argument {@code Byte} (signed
+     * comparison).
+     *
+     * @since 1.2
+     */
+    // 比较两个Byte（按自然顺序比较）
+    public int compareTo(Byte anotherByte) {
+        return compare(this.value, anotherByte.value);
+    }
+    
+    /**
+     * Compares two {@code byte} values numerically treating the values
+     * as unsigned.
+     *
+     * @param x the first {@code byte} to compare
+     * @param y the second {@code byte} to compare
+     *
+     * @return the value {@code 0} if {@code x == y}; a value less
+     * than {@code 0} if {@code x < y} as unsigned values; and
+     * a value greater than {@code 0} if {@code x > y} as
+     * unsigned values
+     *
+     * @since 9
+     */
+    // 以无符号形式比较两个byte（按自然顺序比较）
+    public static int compareUnsigned(byte x, byte y) {
+        return Byte.toUnsignedInt(x) - Byte.toUnsignedInt(y);
+    }
+    
+    /*▲ 比较 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /**
+     * Returns a hash code for this {@code Byte}; equal to the result
+     * of invoking {@code intValue()}.
+     *
+     * @return a hash code value for this {@code Byte}
+     */
+    @Override
+    public int hashCode() {
+        return Byte.hashCode(value);
+    }
+    
+    /**
+     * Returns a hash code for a {@code byte} value; compatible with
+     * {@code Byte.hashCode()}.
+     *
+     * @param value the value to hash
+     *
+     * @return a hash code value for a {@code byte} value.
      *
      * @since 1.8
      */
-    public static final int BYTES = SIZE / Byte.SIZE;
-
-    /** use serialVersionUID from JDK 1.1. for interoperability */
-    private static final long serialVersionUID = -7183698231559129828L;
+    public static int hashCode(byte value) {
+        return (int) value;
+    }
+    
+    /**
+     * Compares this object to the specified object.  The result is
+     * {@code true} if and only if the argument is not
+     * {@code null} and is a {@code Byte} object that
+     * contains the same {@code byte} value as this object.
+     *
+     * @param obj the object to compare with
+     *
+     * @return {@code true} if the objects are the same;
+     * {@code false} otherwise.
+     */
+    public boolean equals(Object obj) {
+        if(obj instanceof Byte) {
+            return value == ((Byte) obj).byteValue();
+        }
+        return false;
+    }
+    
+    
+    
+    // Byte缓存，缓存了-128~127之间的Byte对象
+    private static class ByteCache {
+        // 256个Byte对象缓存，依次表示-128~127
+        static final Byte[] cache = new Byte[-(-128) + 127 + 1];
+        
+        static {
+            for(int i = 0; i<cache.length; i++) {
+                cache[i] = new Byte((byte) (i - 128));
+            }
+        }
+        
+        private ByteCache() {
+        }
+    }
 }
