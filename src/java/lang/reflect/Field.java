@@ -30,17 +30,18 @@ import jdk.internal.reflect.CallerSensitive;
 import jdk.internal.reflect.FieldAccessor;
 import jdk.internal.reflect.Reflection;
 import jdk.internal.vm.annotation.ForceInline;
-import sun.reflect.generics.repository.FieldRepository;
-import sun.reflect.generics.factory.CoreReflectionFactory;
-import sun.reflect.generics.factory.GenericsFactory;
-import sun.reflect.generics.scope.ClassScope;
-import java.lang.annotation.Annotation;
-import java.util.Map;
-import java.util.Objects;
 import sun.reflect.annotation.AnnotationParser;
 import sun.reflect.annotation.AnnotationSupport;
 import sun.reflect.annotation.TypeAnnotation;
 import sun.reflect.annotation.TypeAnnotationParser;
+import sun.reflect.generics.factory.CoreReflectionFactory;
+import sun.reflect.generics.factory.GenericsFactory;
+import sun.reflect.generics.repository.FieldRepository;
+import sun.reflect.generics.scope.ClassScope;
+
+import java.lang.annotation.Annotation;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * A {@code Field} provides information about, and dynamic access to, a
@@ -51,80 +52,54 @@ import sun.reflect.annotation.TypeAnnotationParser;
  * set access operation, but throws an {@code IllegalArgumentException} if a
  * narrowing conversion would occur.
  *
+ * @author Kenneth Russell
+ * @author Nakul Saraiya
  * @see Member
  * @see java.lang.Class
  * @see java.lang.Class#getFields()
  * @see java.lang.Class#getField(String)
  * @see java.lang.Class#getDeclaredFields()
  * @see java.lang.Class#getDeclaredField(String)
- *
- * @author Kenneth Russell
- * @author Nakul Saraiya
  * @since 1.1
  */
-public final
-class Field extends AccessibleObject implements Member {
-
-    private Class<?>            clazz;
-    private int                 slot;
-    // This is guaranteed to be interned by the VM in the 1.4
-    // reflection implementation
-    private String              name;
-    private Class<?>            type;
-    private int                 modifiers;
+// 字段
+public final class Field extends AccessibleObject implements Member {
+    private transient volatile Map<Class<? extends Annotation>, Annotation> declaredAnnotations;
+    
+    private Class<?> clazz;
+    private int slot;
+    // This is guaranteed to be interned by the VM in the 1.4 reflection implementation
+    private String name;
+    private Class<?> type;
+    private int modifiers;
     // Generics and annotations support
-    private transient String    signature;
+    private transient String signature;
     // generic info repository; lazily initialized
     private transient FieldRepository genericInfo;
-    private byte[]              annotations;
+    private byte[] annotations;
     // Cached field accessor created without override
     private FieldAccessor fieldAccessor;
     // Cached field accessor created with override
     private FieldAccessor overrideFieldAccessor;
-    // For sharing of FieldAccessors. This branching structure is
-    // currently only two levels deep (i.e., one root Field and
-    // potentially many Field objects pointing to it.)
-    //
-    // If this branching structure would ever contain cycles, deadlocks can
-    // occur in annotation code.
-    private Field               root;
-
-    // Generics infrastructure
-
-    private String getGenericSignature() {return signature;}
-
-    // Accessor for factory
-    private GenericsFactory getFactory() {
-        Class<?> c = getDeclaringClass();
-        // create scope and factory
-        return CoreReflectionFactory.make(c, ClassScope.make(c));
-    }
-
-    // Accessor for generic info repository
-    private FieldRepository getGenericInfo() {
-        // lazily initialize repository if necessary
-        if (genericInfo == null) {
-            // create and cache generic info repository
-            genericInfo = FieldRepository.make(getGenericSignature(),
-                                               getFactory());
-        }
-        return genericInfo; //return cached repository
-    }
-
-
+    
+    /**
+     * Generics infrastructure
+     * For sharing of FieldAccessors.
+     * This branching structure is currently only two levels deep (i.e., one root Field and potentially many Field objects pointing to it.)
+     * If this branching structure would ever contain cycles, deadlocks can occur in annotation code.
+     */
+    private Field root;
+    
+    
+    
+    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Package-private constructor used by ReflectAccess to enable
      * instantiation of these objects in Java code from the java.lang
      * package via sun.reflect.LangReflectAccess.
      */
-    Field(Class<?> declaringClass,
-          String name,
-          Class<?> type,
-          int modifiers,
-          int slot,
-          String signature,
-          byte[] annotations)
-    {
+    Field(Class<?> declaringClass, String name, Class<?> type, int modifiers, int slot, String signature, byte[] annotations) {
         this.clazz = declaringClass;
         this.name = name;
         this.type = type;
@@ -133,232 +108,306 @@ class Field extends AccessibleObject implements Member {
         this.signature = signature;
         this.annotations = annotations;
     }
-
-    /**
-     * Package-private routine (exposed to java.lang.Class via
-     * ReflectAccess) which returns a copy of this Field. The copy's
-     * "root" field points to this Field.
-     */
-    Field copy() {
-        // This routine enables sharing of FieldAccessor objects
-        // among Field objects which refer to the same underlying
-        // method in the VM. (All of this contortion is only necessary
-        // because of the "accessibility" bit in AccessibleObject,
-        // which implicitly requires that new java.lang.reflect
-        // objects be fabricated for each reflective call on Class
-        // objects.)
-        if (this.root != null)
-            throw new IllegalArgumentException("Can not copy a non-root Field");
-
-        Field res = new Field(clazz, name, type, modifiers, slot, signature, annotations);
-        res.root = this;
-        // Might as well eagerly propagate this if already present
-        res.fieldAccessor = fieldAccessor;
-        res.overrideFieldAccessor = overrideFieldAccessor;
-
-        return res;
-    }
-
+    
+    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 使用字段 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * @throws InaccessibleObjectException {@inheritDoc}
-     * @throws SecurityException {@inheritDoc}
+     * @throws SecurityException           {@inheritDoc}
      */
+    // 禁用/启用安全检查。访问private的Method/Field/Constructor时必须禁用安全检查，即setAccessible(true)
     @Override
     @CallerSensitive
     public void setAccessible(boolean flag) {
         AccessibleObject.checkPermission();
-        if (flag) checkCanSetAccessible(Reflection.getCallerClass());
+        if(flag)
+            checkCanSetAccessible(Reflection.getCallerClass());
         setAccessible0(flag);
     }
-
-    @Override
-    void checkCanSetAccessible(Class<?> caller) {
-        checkCanSetAccessible(caller, clazz);
-    }
-
+    
+    
+    /* 【获取】/【设置】字段值 */
+    
     /**
-     * Returns the {@code Class} object representing the class or interface
-     * that declares the field represented by this {@code Field} object.
-     */
-    @Override
-    public Class<?> getDeclaringClass() {
-        return clazz;
-    }
-
-    /**
-     * Returns the name of the field represented by this {@code Field} object.
-     */
-    public String getName() {
-        return name;
-    }
-
-    /**
-     * Returns the Java language modifiers for the field represented
-     * by this {@code Field} object, as an integer. The {@code Modifier} class should
-     * be used to decode the modifiers.
+     * Gets the value of a static or instance {@code byte} field.
      *
-     * @see Modifier
-     */
-    public int getModifiers() {
-        return modifiers;
-    }
-
-    /**
-     * Returns {@code true} if this field represents an element of
-     * an enumerated type; returns {@code false} otherwise.
+     * @param obj the object to extract the {@code byte} value
+     *            from
      *
-     * @return {@code true} if and only if this field represents an element of
-     * an enumerated type.
-     * @since 1.5
-     */
-    public boolean isEnumConstant() {
-        return (getModifiers() & Modifier.ENUM) != 0;
-    }
-
-    /**
-     * Returns {@code true} if this field is a synthetic
-     * field; returns {@code false} otherwise.
+     * @return the value of the {@code byte} field
      *
-     * @return true if and only if this field is a synthetic
-     * field as defined by the Java Language Specification.
-     * @since 1.5
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is inaccessible.
+     * @throws IllegalArgumentException    if the specified object is not
+     *                                     an instance of the class or interface declaring the
+     *                                     underlying field (or a subclass or implementor
+     *                                     thereof), or if the field value cannot be
+     *                                     converted to the type {@code byte} by a
+     *                                     widening conversion.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#get
      */
-    public boolean isSynthetic() {
-        return Modifier.isSynthetic(getModifiers());
-    }
-
-    /**
-     * Returns a {@code Class} object that identifies the
-     * declared type for the field represented by this
-     * {@code Field} object.
-     *
-     * @return a {@code Class} object identifying the declared
-     * type of the field represented by this object
-     */
-    public Class<?> getType() {
-        return type;
-    }
-
-    /**
-     * Returns a {@code Type} object that represents the declared type for
-     * the field represented by this {@code Field} object.
-     *
-     * <p>If the {@code Type} is a parameterized type, the
-     * {@code Type} object returned must accurately reflect the
-     * actual type parameters used in the source code.
-     *
-     * <p>If the type of the underlying field is a type variable or a
-     * parameterized type, it is created. Otherwise, it is resolved.
-     *
-     * @return a {@code Type} object that represents the declared type for
-     *     the field represented by this {@code Field} object
-     * @throws GenericSignatureFormatError if the generic field
-     *     signature does not conform to the format specified in
-     *     <cite>The Java&trade; Virtual Machine Specification</cite>
-     * @throws TypeNotPresentException if the generic type
-     *     signature of the underlying field refers to a non-existent
-     *     type declaration
-     * @throws MalformedParameterizedTypeException if the generic
-     *     signature of the underlying field refers to a parameterized type
-     *     that cannot be instantiated for any reason
-     * @since 1.5
-     */
-    public Type getGenericType() {
-        if (getGenericSignature() != null)
-            return getGenericInfo().getGenericType();
-        else
-            return getType();
-    }
-
-
-    /**
-     * Compares this {@code Field} against the specified object.  Returns
-     * true if the objects are the same.  Two {@code Field} objects are the same if
-     * they were declared by the same class and have the same name
-     * and type.
-     */
-    public boolean equals(Object obj) {
-        if (obj != null && obj instanceof Field) {
-            Field other = (Field)obj;
-            return (getDeclaringClass() == other.getDeclaringClass())
-                && (getName() == other.getName())
-                && (getType() == other.getType());
+    @CallerSensitive
+    @ForceInline
+    public byte getByte(Object obj) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
+            Class<?> caller = Reflection.getCallerClass();
+            checkAccess(caller, obj);
         }
-        return false;
+        return getFieldAccessor(obj).getByte(obj);
     }
-
+    
     /**
-     * Returns a hashcode for this {@code Field}.  This is computed as the
-     * exclusive-or of the hashcodes for the underlying field's
-     * declaring class name and its name.
+     * Gets the value of a static or instance field of type
+     * {@code short} or of another primitive type convertible to
+     * type {@code short} via a widening conversion.
+     *
+     * @param obj the object to extract the {@code short} value
+     *            from
+     *
+     * @return the value of the field converted to type {@code short}
+     *
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is inaccessible.
+     * @throws IllegalArgumentException    if the specified object is not
+     *                                     an instance of the class or interface declaring the
+     *                                     underlying field (or a subclass or implementor
+     *                                     thereof), or if the field value cannot be
+     *                                     converted to the type {@code short} by a
+     *                                     widening conversion.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#get
      */
-    public int hashCode() {
-        return getDeclaringClass().getName().hashCode() ^ getName().hashCode();
+    @CallerSensitive
+    @ForceInline
+    public short getShort(Object obj) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
+            Class<?> caller = Reflection.getCallerClass();
+            checkAccess(caller, obj);
+        }
+        return getFieldAccessor(obj).getShort(obj);
     }
-
+    
     /**
-     * Returns a string describing this {@code Field}.  The format is
-     * the access modifiers for the field, if any, followed
-     * by the field type, followed by a space, followed by
-     * the fully-qualified name of the class declaring the field,
-     * followed by a period, followed by the name of the field.
-     * For example:
-     * <pre>
-     *    public static final int java.lang.Thread.MIN_PRIORITY
-     *    private int java.io.FileDescriptor.fd
-     * </pre>
+     * Gets the value of a static or instance field of type
+     * {@code int} or of another primitive type convertible to
+     * type {@code int} via a widening conversion.
      *
-     * <p>The modifiers are placed in canonical order as specified by
-     * "The Java Language Specification".  This is {@code public},
-     * {@code protected} or {@code private} first, and then other
-     * modifiers in the following order: {@code static}, {@code final},
-     * {@code transient}, {@code volatile}.
+     * @param obj the object to extract the {@code int} value
+     *            from
      *
-     * @return a string describing this {@code Field}
-     * @jls 8.3.1 Field Modifiers
+     * @return the value of the field converted to type {@code int}
+     *
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is inaccessible.
+     * @throws IllegalArgumentException    if the specified object is not
+     *                                     an instance of the class or interface declaring the
+     *                                     underlying field (or a subclass or implementor
+     *                                     thereof), or if the field value cannot be
+     *                                     converted to the type {@code int} by a
+     *                                     widening conversion.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#get
      */
-    public String toString() {
-        int mod = getModifiers();
-        return (((mod == 0) ? "" : (Modifier.toString(mod) + " "))
-            + getType().getTypeName() + " "
-            + getDeclaringClass().getTypeName() + "."
-            + getName());
+    @CallerSensitive
+    @ForceInline
+    public int getInt(Object obj) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
+            Class<?> caller = Reflection.getCallerClass();
+            checkAccess(caller, obj);
+        }
+        return getFieldAccessor(obj).getInt(obj);
     }
-
-    @Override
-    String toShortString() {
-        return "field " + getDeclaringClass().getTypeName() + "." + getName();
-    }
-
+    
     /**
-     * Returns a string describing this {@code Field}, including
-     * its generic type.  The format is the access modifiers for the
-     * field, if any, followed by the generic field type, followed by
-     * a space, followed by the fully-qualified name of the class
-     * declaring the field, followed by a period, followed by the name
-     * of the field.
+     * Gets the value of a static or instance field of type
+     * {@code long} or of another primitive type convertible to
+     * type {@code long} via a widening conversion.
      *
-     * <p>The modifiers are placed in canonical order as specified by
-     * "The Java Language Specification".  This is {@code public},
-     * {@code protected} or {@code private} first, and then other
-     * modifiers in the following order: {@code static}, {@code final},
-     * {@code transient}, {@code volatile}.
+     * @param obj the object to extract the {@code long} value
+     *            from
      *
-     * @return a string describing this {@code Field}, including
-     * its generic type
+     * @return the value of the field converted to type {@code long}
      *
-     * @since 1.5
-     * @jls 8.3.1 Field Modifiers
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is inaccessible.
+     * @throws IllegalArgumentException    if the specified object is not
+     *                                     an instance of the class or interface declaring the
+     *                                     underlying field (or a subclass or implementor
+     *                                     thereof), or if the field value cannot be
+     *                                     converted to the type {@code long} by a
+     *                                     widening conversion.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#get
      */
-    public String toGenericString() {
-        int mod = getModifiers();
-        Type fieldType = getGenericType();
-        return (((mod == 0) ? "" : (Modifier.toString(mod) + " "))
-            + fieldType.getTypeName() + " "
-            + getDeclaringClass().getTypeName() + "."
-            + getName());
+    @CallerSensitive
+    @ForceInline
+    public long getLong(Object obj) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
+            Class<?> caller = Reflection.getCallerClass();
+            checkAccess(caller, obj);
+        }
+        return getFieldAccessor(obj).getLong(obj);
     }
-
+    
+    /**
+     * Gets the value of a static or instance field of type
+     * {@code float} or of another primitive type convertible to
+     * type {@code float} via a widening conversion.
+     *
+     * @param obj the object to extract the {@code float} value
+     *            from
+     *
+     * @return the value of the field converted to type {@code float}
+     *
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is inaccessible.
+     * @throws IllegalArgumentException    if the specified object is not
+     *                                     an instance of the class or interface declaring the
+     *                                     underlying field (or a subclass or implementor
+     *                                     thereof), or if the field value cannot be
+     *                                     converted to the type {@code float} by a
+     *                                     widening conversion.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#get
+     */
+    @CallerSensitive
+    @ForceInline
+    public float getFloat(Object obj) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
+            Class<?> caller = Reflection.getCallerClass();
+            checkAccess(caller, obj);
+        }
+        return getFieldAccessor(obj).getFloat(obj);
+    }
+    
+    /**
+     * Gets the value of a static or instance field of type
+     * {@code double} or of another primitive type convertible to
+     * type {@code double} via a widening conversion.
+     *
+     * @param obj the object to extract the {@code double} value
+     *            from
+     *
+     * @return the value of the field converted to type {@code double}
+     *
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is inaccessible.
+     * @throws IllegalArgumentException    if the specified object is not
+     *                                     an instance of the class or interface declaring the
+     *                                     underlying field (or a subclass or implementor
+     *                                     thereof), or if the field value cannot be
+     *                                     converted to the type {@code double} by a
+     *                                     widening conversion.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#get
+     */
+    @CallerSensitive
+    @ForceInline
+    public double getDouble(Object obj) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
+            Class<?> caller = Reflection.getCallerClass();
+            checkAccess(caller, obj);
+        }
+        return getFieldAccessor(obj).getDouble(obj);
+    }
+    
+    /**
+     * Gets the value of a static or instance field of type
+     * {@code char} or of another primitive type convertible to
+     * type {@code char} via a widening conversion.
+     *
+     * @param obj the object to extract the {@code char} value
+     *            from
+     *
+     * @return the value of the field converted to type {@code char}
+     *
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is inaccessible.
+     * @throws IllegalArgumentException    if the specified object is not
+     *                                     an instance of the class or interface declaring the
+     *                                     underlying field (or a subclass or implementor
+     *                                     thereof), or if the field value cannot be
+     *                                     converted to the type {@code char} by a
+     *                                     widening conversion.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#get
+     */
+    @CallerSensitive
+    @ForceInline
+    public char getChar(Object obj) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
+            Class<?> caller = Reflection.getCallerClass();
+            checkAccess(caller, obj);
+        }
+        return getFieldAccessor(obj).getChar(obj);
+    }
+    
+    /**
+     * Gets the value of a static or instance {@code boolean} field.
+     *
+     * @param obj the object to extract the {@code boolean} value
+     *            from
+     *
+     * @return the value of the {@code boolean} field
+     *
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is inaccessible.
+     * @throws IllegalArgumentException    if the specified object is not
+     *                                     an instance of the class or interface declaring the
+     *                                     underlying field (or a subclass or implementor
+     *                                     thereof), or if the field value cannot be
+     *                                     converted to the type {@code boolean} by a
+     *                                     widening conversion.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#get
+     */
+    @CallerSensitive
+    @ForceInline
+    public boolean getBoolean(Object obj) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
+            Class<?> caller = Reflection.getCallerClass();
+            checkAccess(caller, obj);
+        }
+        return getFieldAccessor(obj).getBoolean(obj);
+    }
+    
     /**
      * Returns the value of the field represented by this {@code Field}, on
      * the specified object. The value is automatically wrapped in an
@@ -390,318 +439,305 @@ class Field extends AccessibleObject implements Member {
      * the field's value is obtained according to the preceding rules.
      *
      * @param obj object from which the represented field's value is
-     * to be extracted
+     *            to be extracted
+     *
      * @return the value of the represented field in object
      * {@code obj}; primitive values are wrapped in an appropriate
      * object before being returned
      *
-     * @exception IllegalAccessException    if this {@code Field} object
-     *              is enforcing Java language access control and the underlying
-     *              field is inaccessible.
-     * @exception IllegalArgumentException  if the specified object is not an
-     *              instance of the class or interface declaring the underlying
-     *              field (or a subclass or implementor thereof).
-     * @exception NullPointerException      if the specified object is null
-     *              and the field is an instance field.
-     * @exception ExceptionInInitializerError if the initialization provoked
-     *              by this method fails.
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is inaccessible.
+     * @throws IllegalArgumentException    if the specified object is not an
+     *                                     instance of the class or interface declaring the underlying
+     *                                     field (or a subclass or implementor thereof).
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
      */
     @CallerSensitive
-    @ForceInline // to ensure Reflection.getCallerClass optimization
-    public Object get(Object obj)
-        throws IllegalArgumentException, IllegalAccessException
-    {
-        if (!override) {
+    @ForceInline
+    public Object get(Object obj) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
         return getFieldAccessor(obj).get(obj);
     }
-
+    
     /**
-     * Gets the value of a static or instance {@code boolean} field.
+     * Sets the value of a field as a {@code byte} on the specified object.
+     * This method is equivalent to
+     * {@code set(obj, bObj)},
+     * where {@code bObj} is a {@code Byte} object and
+     * {@code bObj.byteValue() == b}.
      *
-     * @param obj the object to extract the {@code boolean} value
-     * from
-     * @return the value of the {@code boolean} field
+     * @param obj the object whose field should be modified
+     * @param b   the new value for the field of {@code obj}
+     *            being modified
      *
-     * @exception IllegalAccessException    if this {@code Field} object
-     *              is enforcing Java language access control and the underlying
-     *              field is inaccessible.
-     * @exception IllegalArgumentException  if the specified object is not
-     *              an instance of the class or interface declaring the
-     *              underlying field (or a subclass or implementor
-     *              thereof), or if the field value cannot be
-     *              converted to the type {@code boolean} by a
-     *              widening conversion.
-     * @exception NullPointerException      if the specified object is null
-     *              and the field is an instance field.
-     * @exception ExceptionInInitializerError if the initialization provoked
-     *              by this method fails.
-     * @see       Field#get
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is either inaccessible or final.
+     * @throws IllegalArgumentException    if the specified object is not an
+     *                                     instance of the class or interface declaring the underlying
+     *                                     field (or a subclass or implementor thereof),
+     *                                     or if an unwrapping conversion fails.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#set
      */
     @CallerSensitive
-    @ForceInline // to ensure Reflection.getCallerClass optimization
-    public boolean getBoolean(Object obj)
-        throws IllegalArgumentException, IllegalAccessException
-    {
-        if (!override) {
+    @ForceInline
+    public void setByte(Object obj, byte b) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
-        return getFieldAccessor(obj).getBoolean(obj);
+        getFieldAccessor(obj).setByte(obj, b);
     }
-
+    
     /**
-     * Gets the value of a static or instance {@code byte} field.
+     * Sets the value of a field as a {@code short} on the specified object.
+     * This method is equivalent to
+     * {@code set(obj, sObj)},
+     * where {@code sObj} is a {@code Short} object and
+     * {@code sObj.shortValue() == s}.
      *
-     * @param obj the object to extract the {@code byte} value
-     * from
-     * @return the value of the {@code byte} field
+     * @param obj the object whose field should be modified
+     * @param s   the new value for the field of {@code obj}
+     *            being modified
      *
-     * @exception IllegalAccessException    if this {@code Field} object
-     *              is enforcing Java language access control and the underlying
-     *              field is inaccessible.
-     * @exception IllegalArgumentException  if the specified object is not
-     *              an instance of the class or interface declaring the
-     *              underlying field (or a subclass or implementor
-     *              thereof), or if the field value cannot be
-     *              converted to the type {@code byte} by a
-     *              widening conversion.
-     * @exception NullPointerException      if the specified object is null
-     *              and the field is an instance field.
-     * @exception ExceptionInInitializerError if the initialization provoked
-     *              by this method fails.
-     * @see       Field#get
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is either inaccessible or final.
+     * @throws IllegalArgumentException    if the specified object is not an
+     *                                     instance of the class or interface declaring the underlying
+     *                                     field (or a subclass or implementor thereof),
+     *                                     or if an unwrapping conversion fails.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#set
      */
     @CallerSensitive
-    @ForceInline // to ensure Reflection.getCallerClass optimization
-    public byte getByte(Object obj)
-        throws IllegalArgumentException, IllegalAccessException
-    {
-        if (!override) {
+    @ForceInline
+    public void setShort(Object obj, short s) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
-        return getFieldAccessor(obj).getByte(obj);
+        getFieldAccessor(obj).setShort(obj, s);
     }
-
+    
     /**
-     * Gets the value of a static or instance field of type
-     * {@code char} or of another primitive type convertible to
-     * type {@code char} via a widening conversion.
+     * Sets the value of a field as an {@code int} on the specified object.
+     * This method is equivalent to
+     * {@code set(obj, iObj)},
+     * where {@code iObj} is an {@code Integer} object and
+     * {@code iObj.intValue() == i}.
      *
-     * @param obj the object to extract the {@code char} value
-     * from
-     * @return the value of the field converted to type {@code char}
+     * @param obj the object whose field should be modified
+     * @param i   the new value for the field of {@code obj}
+     *            being modified
      *
-     * @exception IllegalAccessException    if this {@code Field} object
-     *              is enforcing Java language access control and the underlying
-     *              field is inaccessible.
-     * @exception IllegalArgumentException  if the specified object is not
-     *              an instance of the class or interface declaring the
-     *              underlying field (or a subclass or implementor
-     *              thereof), or if the field value cannot be
-     *              converted to the type {@code char} by a
-     *              widening conversion.
-     * @exception NullPointerException      if the specified object is null
-     *              and the field is an instance field.
-     * @exception ExceptionInInitializerError if the initialization provoked
-     *              by this method fails.
-     * @see Field#get
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is either inaccessible or final.
+     * @throws IllegalArgumentException    if the specified object is not an
+     *                                     instance of the class or interface declaring the underlying
+     *                                     field (or a subclass or implementor thereof),
+     *                                     or if an unwrapping conversion fails.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#set
      */
     @CallerSensitive
-    @ForceInline // to ensure Reflection.getCallerClass optimization
-    public char getChar(Object obj)
-        throws IllegalArgumentException, IllegalAccessException
-    {
-        if (!override) {
+    @ForceInline
+    public void setInt(Object obj, int i) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
-        return getFieldAccessor(obj).getChar(obj);
+        getFieldAccessor(obj).setInt(obj, i);
     }
-
+    
     /**
-     * Gets the value of a static or instance field of type
-     * {@code short} or of another primitive type convertible to
-     * type {@code short} via a widening conversion.
+     * Sets the value of a field as a {@code long} on the specified object.
+     * This method is equivalent to
+     * {@code set(obj, lObj)},
+     * where {@code lObj} is a {@code Long} object and
+     * {@code lObj.longValue() == l}.
      *
-     * @param obj the object to extract the {@code short} value
-     * from
-     * @return the value of the field converted to type {@code short}
+     * @param obj the object whose field should be modified
+     * @param l   the new value for the field of {@code obj}
+     *            being modified
      *
-     * @exception IllegalAccessException    if this {@code Field} object
-     *              is enforcing Java language access control and the underlying
-     *              field is inaccessible.
-     * @exception IllegalArgumentException  if the specified object is not
-     *              an instance of the class or interface declaring the
-     *              underlying field (or a subclass or implementor
-     *              thereof), or if the field value cannot be
-     *              converted to the type {@code short} by a
-     *              widening conversion.
-     * @exception NullPointerException      if the specified object is null
-     *              and the field is an instance field.
-     * @exception ExceptionInInitializerError if the initialization provoked
-     *              by this method fails.
-     * @see       Field#get
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is either inaccessible or final.
+     * @throws IllegalArgumentException    if the specified object is not an
+     *                                     instance of the class or interface declaring the underlying
+     *                                     field (or a subclass or implementor thereof),
+     *                                     or if an unwrapping conversion fails.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#set
      */
     @CallerSensitive
-    @ForceInline // to ensure Reflection.getCallerClass optimization
-    public short getShort(Object obj)
-        throws IllegalArgumentException, IllegalAccessException
-    {
-        if (!override) {
+    @ForceInline
+    public void setLong(Object obj, long l) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
-        return getFieldAccessor(obj).getShort(obj);
+        getFieldAccessor(obj).setLong(obj, l);
     }
-
+    
     /**
-     * Gets the value of a static or instance field of type
-     * {@code int} or of another primitive type convertible to
-     * type {@code int} via a widening conversion.
+     * Sets the value of a field as a {@code float} on the specified object.
+     * This method is equivalent to
+     * {@code set(obj, fObj)},
+     * where {@code fObj} is a {@code Float} object and
+     * {@code fObj.floatValue() == f}.
      *
-     * @param obj the object to extract the {@code int} value
-     * from
-     * @return the value of the field converted to type {@code int}
+     * @param obj the object whose field should be modified
+     * @param f   the new value for the field of {@code obj}
+     *            being modified
      *
-     * @exception IllegalAccessException    if this {@code Field} object
-     *              is enforcing Java language access control and the underlying
-     *              field is inaccessible.
-     * @exception IllegalArgumentException  if the specified object is not
-     *              an instance of the class or interface declaring the
-     *              underlying field (or a subclass or implementor
-     *              thereof), or if the field value cannot be
-     *              converted to the type {@code int} by a
-     *              widening conversion.
-     * @exception NullPointerException      if the specified object is null
-     *              and the field is an instance field.
-     * @exception ExceptionInInitializerError if the initialization provoked
-     *              by this method fails.
-     * @see       Field#get
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is either inaccessible or final.
+     * @throws IllegalArgumentException    if the specified object is not an
+     *                                     instance of the class or interface declaring the underlying
+     *                                     field (or a subclass or implementor thereof),
+     *                                     or if an unwrapping conversion fails.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#set
      */
     @CallerSensitive
-    @ForceInline // to ensure Reflection.getCallerClass optimization
-    public int getInt(Object obj)
-        throws IllegalArgumentException, IllegalAccessException
-    {
-        if (!override) {
+    @ForceInline
+    public void setFloat(Object obj, float f) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
-        return getFieldAccessor(obj).getInt(obj);
+        getFieldAccessor(obj).setFloat(obj, f);
     }
-
+    
     /**
-     * Gets the value of a static or instance field of type
-     * {@code long} or of another primitive type convertible to
-     * type {@code long} via a widening conversion.
+     * Sets the value of a field as a {@code double} on the specified object.
+     * This method is equivalent to
+     * {@code set(obj, dObj)},
+     * where {@code dObj} is a {@code Double} object and
+     * {@code dObj.doubleValue() == d}.
      *
-     * @param obj the object to extract the {@code long} value
-     * from
-     * @return the value of the field converted to type {@code long}
+     * @param obj the object whose field should be modified
+     * @param d   the new value for the field of {@code obj}
+     *            being modified
      *
-     * @exception IllegalAccessException    if this {@code Field} object
-     *              is enforcing Java language access control and the underlying
-     *              field is inaccessible.
-     * @exception IllegalArgumentException  if the specified object is not
-     *              an instance of the class or interface declaring the
-     *              underlying field (or a subclass or implementor
-     *              thereof), or if the field value cannot be
-     *              converted to the type {@code long} by a
-     *              widening conversion.
-     * @exception NullPointerException      if the specified object is null
-     *              and the field is an instance field.
-     * @exception ExceptionInInitializerError if the initialization provoked
-     *              by this method fails.
-     * @see       Field#get
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is either inaccessible or final.
+     * @throws IllegalArgumentException    if the specified object is not an
+     *                                     instance of the class or interface declaring the underlying
+     *                                     field (or a subclass or implementor thereof),
+     *                                     or if an unwrapping conversion fails.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#set
      */
     @CallerSensitive
-    @ForceInline // to ensure Reflection.getCallerClass optimization
-    public long getLong(Object obj)
-        throws IllegalArgumentException, IllegalAccessException
-    {
-        if (!override) {
+    @ForceInline
+    public void setDouble(Object obj, double d) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
-        return getFieldAccessor(obj).getLong(obj);
+        getFieldAccessor(obj).setDouble(obj, d);
     }
-
+    
     /**
-     * Gets the value of a static or instance field of type
-     * {@code float} or of another primitive type convertible to
-     * type {@code float} via a widening conversion.
+     * Sets the value of a field as a {@code char} on the specified object.
+     * This method is equivalent to
+     * {@code set(obj, cObj)},
+     * where {@code cObj} is a {@code Character} object and
+     * {@code cObj.charValue() == c}.
      *
-     * @param obj the object to extract the {@code float} value
-     * from
-     * @return the value of the field converted to type {@code float}
+     * @param obj the object whose field should be modified
+     * @param c   the new value for the field of {@code obj}
+     *            being modified
      *
-     * @exception IllegalAccessException    if this {@code Field} object
-     *              is enforcing Java language access control and the underlying
-     *              field is inaccessible.
-     * @exception IllegalArgumentException  if the specified object is not
-     *              an instance of the class or interface declaring the
-     *              underlying field (or a subclass or implementor
-     *              thereof), or if the field value cannot be
-     *              converted to the type {@code float} by a
-     *              widening conversion.
-     * @exception NullPointerException      if the specified object is null
-     *              and the field is an instance field.
-     * @exception ExceptionInInitializerError if the initialization provoked
-     *              by this method fails.
-     * @see Field#get
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is either inaccessible or final.
+     * @throws IllegalArgumentException    if the specified object is not an
+     *                                     instance of the class or interface declaring the underlying
+     *                                     field (or a subclass or implementor thereof),
+     *                                     or if an unwrapping conversion fails.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#set
      */
     @CallerSensitive
-    @ForceInline // to ensure Reflection.getCallerClass optimization
-    public float getFloat(Object obj)
-        throws IllegalArgumentException, IllegalAccessException
-    {
-        if (!override) {
+    @ForceInline
+    public void setChar(Object obj, char c) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
-        return getFieldAccessor(obj).getFloat(obj);
+        getFieldAccessor(obj).setChar(obj, c);
     }
-
+    
     /**
-     * Gets the value of a static or instance field of type
-     * {@code double} or of another primitive type convertible to
-     * type {@code double} via a widening conversion.
+     * Sets the value of a field as a {@code boolean} on the specified object.
+     * This method is equivalent to
+     * {@code set(obj, zObj)},
+     * where {@code zObj} is a {@code Boolean} object and
+     * {@code zObj.booleanValue() == z}.
      *
-     * @param obj the object to extract the {@code double} value
-     * from
-     * @return the value of the field converted to type {@code double}
+     * @param obj the object whose field should be modified
+     * @param z   the new value for the field of {@code obj}
+     *            being modified
      *
-     * @exception IllegalAccessException    if this {@code Field} object
-     *              is enforcing Java language access control and the underlying
-     *              field is inaccessible.
-     * @exception IllegalArgumentException  if the specified object is not
-     *              an instance of the class or interface declaring the
-     *              underlying field (or a subclass or implementor
-     *              thereof), or if the field value cannot be
-     *              converted to the type {@code double} by a
-     *              widening conversion.
-     * @exception NullPointerException      if the specified object is null
-     *              and the field is an instance field.
-     * @exception ExceptionInInitializerError if the initialization provoked
-     *              by this method fails.
-     * @see       Field#get
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is either inaccessible or final.
+     * @throws IllegalArgumentException    if the specified object is not an
+     *                                     instance of the class or interface declaring the underlying
+     *                                     field (or a subclass or implementor thereof),
+     *                                     or if an unwrapping conversion fails.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#set
      */
     @CallerSensitive
-    @ForceInline // to ensure Reflection.getCallerClass optimization
-    public double getDouble(Object obj)
-        throws IllegalArgumentException, IllegalAccessException
-    {
-        if (!override) {
+    @ForceInline
+    public void setBoolean(Object obj, boolean z) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
-        return getFieldAccessor(obj).getDouble(obj);
+        getFieldAccessor(obj).setBoolean(obj, z);
     }
-
+    
     /**
      * Sets the field represented by this {@code Field} object on the
      * specified object argument to the specified new value. The new
@@ -752,351 +788,392 @@ class Field extends AccessibleObject implements Member {
      * <p>If the field is hidden in the type of {@code obj},
      * the field's value is set according to the preceding rules.
      *
-     * @param obj the object whose field should be modified
+     * @param obj   the object whose field should be modified
      * @param value the new value for the field of {@code obj}
-     * being modified
+     *              being modified
      *
-     * @exception IllegalAccessException    if this {@code Field} object
-     *              is enforcing Java language access control and the underlying
-     *              field is either inaccessible or final.
-     * @exception IllegalArgumentException  if the specified object is not an
-     *              instance of the class or interface declaring the underlying
-     *              field (or a subclass or implementor thereof),
-     *              or if an unwrapping conversion fails.
-     * @exception NullPointerException      if the specified object is null
-     *              and the field is an instance field.
-     * @exception ExceptionInInitializerError if the initialization provoked
-     *              by this method fails.
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is either inaccessible or final.
+     * @throws IllegalArgumentException    if the specified object is not an
+     *                                     instance of the class or interface declaring the underlying
+     *                                     field (or a subclass or implementor thereof),
+     *                                     or if an unwrapping conversion fails.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
      */
     @CallerSensitive
-    @ForceInline // to ensure Reflection.getCallerClass optimization
-    public void set(Object obj, Object value)
-        throws IllegalArgumentException, IllegalAccessException
-    {
-        if (!override) {
+    @ForceInline
+    public void set(Object obj, Object value) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
         getFieldAccessor(obj).set(obj, value);
     }
-
+    
+    /*▲ 使用字段 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 修饰符 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Sets the value of a field as a {@code boolean} on the specified object.
-     * This method is equivalent to
-     * {@code set(obj, zObj)},
-     * where {@code zObj} is a {@code Boolean} object and
-     * {@code zObj.booleanValue() == z}.
+     * Returns the Java language modifiers for the field represented
+     * by this {@code Field} object, as an integer. The {@code Modifier} class should
+     * be used to decode the modifiers.
      *
-     * @param obj the object whose field should be modified
-     * @param z   the new value for the field of {@code obj}
-     * being modified
-     *
-     * @exception IllegalAccessException    if this {@code Field} object
-     *              is enforcing Java language access control and the underlying
-     *              field is either inaccessible or final.
-     * @exception IllegalArgumentException  if the specified object is not an
-     *              instance of the class or interface declaring the underlying
-     *              field (or a subclass or implementor thereof),
-     *              or if an unwrapping conversion fails.
-     * @exception NullPointerException      if the specified object is null
-     *              and the field is an instance field.
-     * @exception ExceptionInInitializerError if the initialization provoked
-     *              by this method fails.
-     * @see       Field#set
+     * @see Modifier
      */
-    @CallerSensitive
-    @ForceInline // to ensure Reflection.getCallerClass optimization
-    public void setBoolean(Object obj, boolean z)
-        throws IllegalArgumentException, IllegalAccessException
-    {
-        if (!override) {
-            Class<?> caller = Reflection.getCallerClass();
-            checkAccess(caller, obj);
-        }
-        getFieldAccessor(obj).setBoolean(obj, z);
+    // 获取方法的修饰符
+    public int getModifiers() {
+        return modifiers;
     }
-
+    
+    /*▲ 修饰符 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字段类型 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Sets the value of a field as a {@code byte} on the specified object.
-     * This method is equivalent to
-     * {@code set(obj, bObj)},
-     * where {@code bObj} is a {@code Byte} object and
-     * {@code bObj.byteValue() == b}.
+     * Returns a {@code Class} object that identifies the
+     * declared type for the field represented by this
+     * {@code Field} object.
      *
-     * @param obj the object whose field should be modified
-     * @param b   the new value for the field of {@code obj}
-     * being modified
-     *
-     * @exception IllegalAccessException    if this {@code Field} object
-     *              is enforcing Java language access control and the underlying
-     *              field is either inaccessible or final.
-     * @exception IllegalArgumentException  if the specified object is not an
-     *              instance of the class or interface declaring the underlying
-     *              field (or a subclass or implementor thereof),
-     *              or if an unwrapping conversion fails.
-     * @exception NullPointerException      if the specified object is null
-     *              and the field is an instance field.
-     * @exception ExceptionInInitializerError if the initialization provoked
-     *              by this method fails.
-     * @see       Field#set
+     * @return a {@code Class} object identifying the declared
+     * type of the field represented by this object
      */
-    @CallerSensitive
-    @ForceInline // to ensure Reflection.getCallerClass optimization
-    public void setByte(Object obj, byte b)
-        throws IllegalArgumentException, IllegalAccessException
-    {
-        if (!override) {
-            Class<?> caller = Reflection.getCallerClass();
-            checkAccess(caller, obj);
-        }
-        getFieldAccessor(obj).setByte(obj, b);
+    // 获取字段类型[类型擦除]
+    public Class<?> getType() {
+        return type;
     }
-
+    
     /**
-     * Sets the value of a field as a {@code char} on the specified object.
-     * This method is equivalent to
-     * {@code set(obj, cObj)},
-     * where {@code cObj} is a {@code Character} object and
-     * {@code cObj.charValue() == c}.
+     * Returns a {@code Type} object that represents the declared type for
+     * the field represented by this {@code Field} object.
      *
-     * @param obj the object whose field should be modified
-     * @param c   the new value for the field of {@code obj}
-     * being modified
+     * <p>If the {@code Type} is a parameterized type, the
+     * {@code Type} object returned must accurately reflect the
+     * actual type parameters used in the source code.
      *
-     * @exception IllegalAccessException    if this {@code Field} object
-     *              is enforcing Java language access control and the underlying
-     *              field is either inaccessible or final.
-     * @exception IllegalArgumentException  if the specified object is not an
-     *              instance of the class or interface declaring the underlying
-     *              field (or a subclass or implementor thereof),
-     *              or if an unwrapping conversion fails.
-     * @exception NullPointerException      if the specified object is null
-     *              and the field is an instance field.
-     * @exception ExceptionInInitializerError if the initialization provoked
-     *              by this method fails.
-     * @see       Field#set
+     * <p>If the type of the underlying field is a type variable or a
+     * parameterized type, it is created. Otherwise, it is resolved.
+     *
+     * @return a {@code Type} object that represents the declared type for
+     * the field represented by this {@code Field} object
+     *
+     * @throws GenericSignatureFormatError         if the generic field
+     *                                             signature does not conform to the format specified in
+     *                                             <cite>The Java&trade; Virtual Machine Specification</cite>
+     * @throws TypeNotPresentException             if the generic type
+     *                                             signature of the underlying field refers to a non-existent
+     *                                             type declaration
+     * @throws MalformedParameterizedTypeException if the generic
+     *                                             signature of the underlying field refers to a parameterized type
+     *                                             that cannot be instantiated for any reason
+     * @since 1.5
      */
-    @CallerSensitive
-    @ForceInline // to ensure Reflection.getCallerClass optimization
-    public void setChar(Object obj, char c)
-        throws IllegalArgumentException, IllegalAccessException
-    {
-        if (!override) {
-            Class<?> caller = Reflection.getCallerClass();
-            checkAccess(caller, obj);
-        }
-        getFieldAccessor(obj).setChar(obj, c);
+    // 获取字段类型[支持泛型语义]
+    public Type getGenericType() {
+        if(getGenericSignature() != null)
+            return getGenericInfo().getGenericType();
+        else
+            return getType();
     }
-
+    
+    /*▲ 字段类型 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字段名称 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Sets the value of a field as a {@code short} on the specified object.
-     * This method is equivalent to
-     * {@code set(obj, sObj)},
-     * where {@code sObj} is a {@code Short} object and
-     * {@code sObj.shortValue() == s}.
-     *
-     * @param obj the object whose field should be modified
-     * @param s   the new value for the field of {@code obj}
-     * being modified
-     *
-     * @exception IllegalAccessException    if this {@code Field} object
-     *              is enforcing Java language access control and the underlying
-     *              field is either inaccessible or final.
-     * @exception IllegalArgumentException  if the specified object is not an
-     *              instance of the class or interface declaring the underlying
-     *              field (or a subclass or implementor thereof),
-     *              or if an unwrapping conversion fails.
-     * @exception NullPointerException      if the specified object is null
-     *              and the field is an instance field.
-     * @exception ExceptionInInitializerError if the initialization provoked
-     *              by this method fails.
-     * @see       Field#set
+     * Returns the name of the field represented by this {@code Field} object.
      */
-    @CallerSensitive
-    @ForceInline // to ensure Reflection.getCallerClass optimization
-    public void setShort(Object obj, short s)
-        throws IllegalArgumentException, IllegalAccessException
-    {
-        if (!override) {
-            Class<?> caller = Reflection.getCallerClass();
-            checkAccess(caller, obj);
-        }
-        getFieldAccessor(obj).setShort(obj, s);
+    // 返回字段名称，这与字符串化不同
+    public String getName() {
+        return name;
     }
-
+    
+    /*▲ 字段名称 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字符串化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Sets the value of a field as an {@code int} on the specified object.
-     * This method is equivalent to
-     * {@code set(obj, iObj)},
-     * where {@code iObj} is an {@code Integer} object and
-     * {@code iObj.intValue() == i}.
+     * Returns a string describing this {@code Field}.  The format is
+     * the access modifiers for the field, if any, followed
+     * by the field type, followed by a space, followed by
+     * the fully-qualified name of the class declaring the field,
+     * followed by a period, followed by the name of the field.
+     * For example:
+     * <pre>
+     *    public static final int java.lang.Thread.MIN_PRIORITY
+     *    private int java.io.FileDescriptor.fd
+     * </pre>
      *
-     * @param obj the object whose field should be modified
-     * @param i   the new value for the field of {@code obj}
-     * being modified
+     * <p>The modifiers are placed in canonical order as specified by
+     * "The Java Language Specification".  This is {@code public},
+     * {@code protected} or {@code private} first, and then other
+     * modifiers in the following order: {@code static}, {@code final},
+     * {@code transient}, {@code volatile}.
      *
-     * @exception IllegalAccessException    if this {@code Field} object
-     *              is enforcing Java language access control and the underlying
-     *              field is either inaccessible or final.
-     * @exception IllegalArgumentException  if the specified object is not an
-     *              instance of the class or interface declaring the underlying
-     *              field (or a subclass or implementor thereof),
-     *              or if an unwrapping conversion fails.
-     * @exception NullPointerException      if the specified object is null
-     *              and the field is an instance field.
-     * @exception ExceptionInInitializerError if the initialization provoked
-     *              by this method fails.
-     * @see       Field#set
+     * @return a string describing this {@code Field}
+     *
+     * @jls 8.3.1 Field Modifiers
      */
-    @CallerSensitive
-    @ForceInline // to ensure Reflection.getCallerClass optimization
-    public void setInt(Object obj, int i)
-        throws IllegalArgumentException, IllegalAccessException
-    {
-        if (!override) {
-            Class<?> caller = Reflection.getCallerClass();
-            checkAccess(caller, obj);
-        }
-        getFieldAccessor(obj).setInt(obj, i);
+    // 返回方法的描述，不带泛型信息
+    public String toString() {
+        int mod = getModifiers();
+        return (((mod == 0) ? "" : (Modifier.toString(mod) + " ")) + getType().getTypeName() + " " + getDeclaringClass().getTypeName() + "." + getName());
     }
-
+    
     /**
-     * Sets the value of a field as a {@code long} on the specified object.
-     * This method is equivalent to
-     * {@code set(obj, lObj)},
-     * where {@code lObj} is a {@code Long} object and
-     * {@code lObj.longValue() == l}.
+     * Returns a string describing this {@code Field}, including
+     * its generic type.  The format is the access modifiers for the
+     * field, if any, followed by the generic field type, followed by
+     * a space, followed by the fully-qualified name of the class
+     * declaring the field, followed by a period, followed by the name
+     * of the field.
      *
-     * @param obj the object whose field should be modified
-     * @param l   the new value for the field of {@code obj}
-     * being modified
+     * <p>The modifiers are placed in canonical order as specified by
+     * "The Java Language Specification".  This is {@code public},
+     * {@code protected} or {@code private} first, and then other
+     * modifiers in the following order: {@code static}, {@code final},
+     * {@code transient}, {@code volatile}.
      *
-     * @exception IllegalAccessException    if this {@code Field} object
-     *              is enforcing Java language access control and the underlying
-     *              field is either inaccessible or final.
-     * @exception IllegalArgumentException  if the specified object is not an
-     *              instance of the class or interface declaring the underlying
-     *              field (or a subclass or implementor thereof),
-     *              or if an unwrapping conversion fails.
-     * @exception NullPointerException      if the specified object is null
-     *              and the field is an instance field.
-     * @exception ExceptionInInitializerError if the initialization provoked
-     *              by this method fails.
-     * @see       Field#set
+     * @return a string describing this {@code Field}, including
+     * its generic type
+     *
+     * @jls 8.3.1 Field Modifiers
+     * @since 1.5
      */
-    @CallerSensitive
-    @ForceInline // to ensure Reflection.getCallerClass optimization
-    public void setLong(Object obj, long l)
-        throws IllegalArgumentException, IllegalAccessException
-    {
-        if (!override) {
-            Class<?> caller = Reflection.getCallerClass();
-            checkAccess(caller, obj);
-        }
-        getFieldAccessor(obj).setLong(obj, l);
+    // 返回方法的描述，带着泛型信息
+    public String toGenericString() {
+        int mod = getModifiers();
+        Type fieldType = getGenericType();
+        return (((mod == 0) ? "" : (Modifier.toString(mod) + " ")) + fieldType.getTypeName() + " " + getDeclaringClass().getTypeName() + "." + getName());
     }
-
+    
+    /*▲ 字符串化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 注解 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Sets the value of a field as a {@code float} on the specified object.
-     * This method is equivalent to
-     * {@code set(obj, fObj)},
-     * where {@code fObj} is a {@code Float} object and
-     * {@code fObj.floatValue() == f}.
-     *
-     * @param obj the object whose field should be modified
-     * @param f   the new value for the field of {@code obj}
-     * being modified
-     *
-     * @exception IllegalAccessException    if this {@code Field} object
-     *              is enforcing Java language access control and the underlying
-     *              field is either inaccessible or final.
-     * @exception IllegalArgumentException  if the specified object is not an
-     *              instance of the class or interface declaring the underlying
-     *              field (or a subclass or implementor thereof),
-     *              or if an unwrapping conversion fails.
-     * @exception NullPointerException      if the specified object is null
-     *              and the field is an instance field.
-     * @exception ExceptionInInitializerError if the initialization provoked
-     *              by this method fails.
-     * @see       Field#set
+     * @throws NullPointerException {@inheritDoc}
+     * @since 1.5
      */
-    @CallerSensitive
-    @ForceInline // to ensure Reflection.getCallerClass optimization
-    public void setFloat(Object obj, float f)
-        throws IllegalArgumentException, IllegalAccessException
-    {
-        if (!override) {
-            Class<?> caller = Reflection.getCallerClass();
-            checkAccess(caller, obj);
-        }
-        getFieldAccessor(obj).setFloat(obj, f);
+    // 1-2 返回该元素上指定类型的注解
+    public <T extends Annotation> T getAnnotation(Class<T> annotationClass) {
+        Objects.requireNonNull(annotationClass);
+        return annotationClass.cast(declaredAnnotations().get(annotationClass));
     }
-
+    
     /**
-     * Sets the value of a field as a {@code double} on the specified object.
-     * This method is equivalent to
-     * {@code set(obj, dObj)},
-     * where {@code dObj} is a {@code Double} object and
-     * {@code dObj.doubleValue() == d}.
+     * {@inheritDoc}
      *
-     * @param obj the object whose field should be modified
-     * @param d   the new value for the field of {@code obj}
-     * being modified
-     *
-     * @exception IllegalAccessException    if this {@code Field} object
-     *              is enforcing Java language access control and the underlying
-     *              field is either inaccessible or final.
-     * @exception IllegalArgumentException  if the specified object is not an
-     *              instance of the class or interface declaring the underlying
-     *              field (or a subclass or implementor thereof),
-     *              or if an unwrapping conversion fails.
-     * @exception NullPointerException      if the specified object is null
-     *              and the field is an instance field.
-     * @exception ExceptionInInitializerError if the initialization provoked
-     *              by this method fails.
-     * @see       Field#set
+     * @throws NullPointerException {@inheritDoc}
+     * @since 1.8
      */
-    @CallerSensitive
-    @ForceInline // to ensure Reflection.getCallerClass optimization
-    public void setDouble(Object obj, double d)
-        throws IllegalArgumentException, IllegalAccessException
-    {
-        if (!override) {
-            Class<?> caller = Reflection.getCallerClass();
-            checkAccess(caller, obj);
-        }
-        getFieldAccessor(obj).setDouble(obj, d);
+    // 1-3 返回该元素上指定类型的注解[支持获取@Repeatable类型的注解]
+    @Override
+    public <T extends Annotation> T[] getAnnotationsByType(Class<T> annotationClass) {
+        Objects.requireNonNull(annotationClass);
+        
+        return AnnotationSupport.getDirectlyAndIndirectlyPresent(declaredAnnotations(), annotationClass);
     }
-
+    
+    /**
+     * {@inheritDoc}
+     */
+    // 2-1 返回该元素上所有类型的注解
+    public Annotation[] getDeclaredAnnotations() {
+        return AnnotationParser.toArray(declaredAnnotations());
+    }
+    
+    /**
+     * Returns an AnnotatedType object that represents the use of a type to specify
+     * the declared type of the field represented by this Field.
+     *
+     * @return an object representing the declared type of the field
+     * represented by this Field
+     *
+     * @since 1.8
+     */
+    // 获取字段类型处的【被注解类型】
+    public AnnotatedType getAnnotatedType() {
+        return TypeAnnotationParser.buildAnnotatedType(getTypeAnnotationBytes0(), SharedSecrets.getJavaLangAccess().
+            getConstantPool(getDeclaringClass()), this, getDeclaringClass(), getGenericType(), TypeAnnotation.TypeAnnotationTarget.FIELD);
+    }
+    
+    /*▲ 注解 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字段特征 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the {@code Class} object representing the class or interface
+     * that declares the field represented by this {@code Field} object.
+     */
+    // 返回字段所在的类
+    @Override
+    public Class<?> getDeclaringClass() {
+        return clazz;
+    }
+    
+    /**
+     * Returns {@code true} if this field is a synthetic
+     * field; returns {@code false} otherwise.
+     *
+     * @return true if and only if this field is a synthetic
+     * field as defined by the Java Language Specification.
+     *
+     * @since 1.5
+     */
+    // 是否由编译器引入（非人为定义）
+    public boolean isSynthetic() {
+        return Modifier.isSynthetic(getModifiers());
+    }
+    
+    /**
+     * Returns {@code true} if this field represents an element of
+     * an enumerated type; returns {@code false} otherwise.
+     *
+     * @return {@code true} if and only if this field represents an element of
+     * an enumerated type.
+     *
+     * @since 1.5
+     */
+    // 是否为枚举常量
+    public boolean isEnumConstant() {
+        return (getModifiers() & Modifier.ENUM) != 0;
+    }
+    
+    /*▲ 字段特征 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /**
+     * Compares this {@code Field} against the specified object.  Returns
+     * true if the objects are the same.  Two {@code Field} objects are the same if
+     * they were declared by the same class and have the same name
+     * and type.
+     */
+    public boolean equals(Object obj) {
+        if(obj != null && obj instanceof Field) {
+            Field other = (Field) obj;
+            return (getDeclaringClass() == other.getDeclaringClass()) && (getName() == other.getName()) && (getType() == other.getType());
+        }
+        return false;
+    }
+    
+    /**
+     * Returns a hashcode for this {@code Field}.  This is computed as the
+     * exclusive-or of the hashcodes for the underlying field's
+     * declaring class name and its name.
+     */
+    public int hashCode() {
+        return getDeclaringClass().getName().hashCode() ^ getName().hashCode();
+    }
+    
+    
+    
+    
+    
+    
+    /**
+     * Package-private routine (exposed to java.lang.Class via
+     * ReflectAccess) which returns a copy of this Field. The copy's
+     * "root" field points to this Field.
+     */
+    Field copy() {
+        // This routine enables sharing of FieldAccessor objects
+        // among Field objects which refer to the same underlying
+        // method in the VM. (All of this contortion is only necessary
+        // because of the "accessibility" bit in AccessibleObject,
+        // which implicitly requires that new java.lang.reflect
+        // objects be fabricated for each reflective call on Class
+        // objects.)
+        if(this.root != null)
+            throw new IllegalArgumentException("Can not copy a non-root Field");
+        
+        Field res = new Field(clazz, name, type, modifiers, slot, signature, annotations);
+        res.root = this;
+        // Might as well eagerly propagate this if already present
+        res.fieldAccessor = fieldAccessor;
+        res.overrideFieldAccessor = overrideFieldAccessor;
+        
+        return res;
+    }
+    
+    @Override
+    void checkCanSetAccessible(Class<?> caller) {
+        checkCanSetAccessible(caller, clazz);
+    }
+    
+    @Override
+    String toShortString() {
+        return "field " + getDeclaringClass().getTypeName() + "." + getName();
+    }
+    
+    @Override
+    Field getRoot() {
+        return root;
+    }
+    
+    private String getGenericSignature() {
+        return signature;
+    }
+    
+    // Accessor for factory
+    private GenericsFactory getFactory() {
+        Class<?> c = getDeclaringClass();
+        // create scope and factory
+        return CoreReflectionFactory.make(c, ClassScope.make(c));
+    }
+    
+    // Accessor for generic info repository
+    private FieldRepository getGenericInfo() {
+        // lazily initialize repository if necessary
+        if(genericInfo == null) {
+            // create and cache generic info repository
+            genericInfo = FieldRepository.make(getGenericSignature(), getFactory());
+        }
+        return genericInfo; //return cached repository
+    }
+    
     // check access to field
-    private void checkAccess(Class<?> caller, Object obj)
-        throws IllegalAccessException
-    {
-        checkAccess(caller, clazz,
-                    Modifier.isStatic(modifiers) ? null : obj.getClass(),
-                    modifiers);
+    private void checkAccess(Class<?> caller, Object obj) throws IllegalAccessException {
+        checkAccess(caller, clazz, Modifier.isStatic(modifiers) ? null : obj.getClass(), modifiers);
     }
-
+    
     // security check is done before calling this method
-    private FieldAccessor getFieldAccessor(Object obj)
-        throws IllegalAccessException
-    {
+    private FieldAccessor getFieldAccessor(Object obj) throws IllegalAccessException {
         boolean ov = override;
         FieldAccessor a = (ov) ? overrideFieldAccessor : fieldAccessor;
         return (a != null) ? a : acquireFieldAccessor(ov);
     }
-
-    // NOTE that there is no synchronization used here. It is correct
-    // (though not efficient) to generate more than one FieldAccessor
-    // for a given Field. However, avoiding synchronization will
-    // probably make the implementation more scalable.
+    
+    /**
+     * NOTE that there is no synchronization used here.
+     * It is correct (though not efficient) to generate more than one FieldAccessor for a given Field.
+     * However, avoiding synchronization will probably make the implementation more scalable.
+     */
     private FieldAccessor acquireFieldAccessor(boolean overrideFinalCheck) {
         // First check to see if one has been created yet, and take it
         // if so
         FieldAccessor tmp = null;
-        if (root != null) tmp = root.getFieldAccessor(overrideFinalCheck);
-        if (tmp != null) {
-            if (overrideFinalCheck)
+        if(root != null)
+            tmp = root.getFieldAccessor(overrideFinalCheck);
+        if(tmp != null) {
+            if(overrideFinalCheck)
                 overrideFieldAccessor = tmp;
             else
                 fieldAccessor = tmp;
@@ -1105,78 +1182,37 @@ class Field extends AccessibleObject implements Member {
             tmp = reflectionFactory.newFieldAccessor(this, overrideFinalCheck);
             setFieldAccessor(tmp, overrideFinalCheck);
         }
-
+        
         return tmp;
     }
-
-    // Returns FieldAccessor for this Field object, not looking up
-    // the chain to the root
+    
+    // Returns FieldAccessor for this Field object, not looking up the chain to the root
     private FieldAccessor getFieldAccessor(boolean overrideFinalCheck) {
-        return (overrideFinalCheck)? overrideFieldAccessor : fieldAccessor;
+        return (overrideFinalCheck) ? overrideFieldAccessor : fieldAccessor;
     }
-
-    // Sets the FieldAccessor for this Field object and
-    // (recursively) its root
+    
+    // Sets the FieldAccessor for this Field object and (recursively) its root
     private void setFieldAccessor(FieldAccessor accessor, boolean overrideFinalCheck) {
-        if (overrideFinalCheck)
+        if(overrideFinalCheck)
             overrideFieldAccessor = accessor;
         else
             fieldAccessor = accessor;
         // Propagate up
-        if (root != null) {
+        if(root != null) {
             root.setFieldAccessor(accessor, overrideFinalCheck);
         }
     }
-
-    @Override
-    Field getRoot() {
-        return root;
-    }
-
-    /**
-     * @throws NullPointerException {@inheritDoc}
-     * @since 1.5
-     */
-    public <T extends Annotation> T getAnnotation(Class<T> annotationClass) {
-        Objects.requireNonNull(annotationClass);
-        return annotationClass.cast(declaredAnnotations().get(annotationClass));
-    }
-
-    /**
-     * {@inheritDoc}
-     * @throws NullPointerException {@inheritDoc}
-     * @since 1.8
-     */
-    @Override
-    public <T extends Annotation> T[] getAnnotationsByType(Class<T> annotationClass) {
-        Objects.requireNonNull(annotationClass);
-
-        return AnnotationSupport.getDirectlyAndIndirectlyPresent(declaredAnnotations(), annotationClass);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public Annotation[] getDeclaredAnnotations()  {
-        return AnnotationParser.toArray(declaredAnnotations());
-    }
-
-    private transient volatile Map<Class<? extends Annotation>, Annotation> declaredAnnotations;
-
+    
     private Map<Class<? extends Annotation>, Annotation> declaredAnnotations() {
         Map<Class<? extends Annotation>, Annotation> declAnnos;
-        if ((declAnnos = declaredAnnotations) == null) {
-            synchronized (this) {
-                if ((declAnnos = declaredAnnotations) == null) {
+        if((declAnnos = declaredAnnotations) == null) {
+            synchronized(this) {
+                if((declAnnos = declaredAnnotations) == null) {
                     Field root = this.root;
-                    if (root != null) {
+                    if(root != null) {
                         declAnnos = root.declaredAnnotations();
                     } else {
-                        declAnnos = AnnotationParser.parseAnnotations(
-                                annotations,
-                                SharedSecrets.getJavaLangAccess()
-                                        .getConstantPool(getDeclaringClass()),
-                                getDeclaringClass());
+                        declAnnos = AnnotationParser.parseAnnotations(annotations, SharedSecrets.getJavaLangAccess().getConstantPool(getDeclaringClass()), getDeclaringClass());
                     }
                     declaredAnnotations = declAnnos;
                 }
@@ -1184,24 +1220,6 @@ class Field extends AccessibleObject implements Member {
         }
         return declAnnos;
     }
-
+    
     private native byte[] getTypeAnnotationBytes0();
-
-    /**
-     * Returns an AnnotatedType object that represents the use of a type to specify
-     * the declared type of the field represented by this Field.
-     * @return an object representing the declared type of the field
-     * represented by this Field
-     *
-     * @since 1.8
-     */
-    public AnnotatedType getAnnotatedType() {
-        return TypeAnnotationParser.buildAnnotatedType(getTypeAnnotationBytes0(),
-                                                       SharedSecrets.getJavaLangAccess().
-                                                           getConstantPool(getDeclaringClass()),
-                                                       this,
-                                                       getDeclaringClass(),
-                                                       getGenericType(),
-                                                       TypeAnnotation.TypeAnnotationTarget.FIELD);
-}
 }
