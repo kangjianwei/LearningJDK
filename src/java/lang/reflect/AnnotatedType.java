@@ -33,43 +33,62 @@ package java.lang.reflect;
  *
  * @since 1.8
  */
+/*
+ * 【被注解类型】，代表"类型注解+类型"这个整体，要求注解的应用范围至少是@Target(ElementType.TYPE_USE)
+ *
+ * 有5种实现类（Impl）：
+ *                                      AnnotatedType
+ *                                            |
+ *                                  AnnotatedTypeBaseImpl
+ *                                            |
+ *   +---------------------------+-------------------------------+--------------------------+
+ *   |                           |                               |                          |
+ *   |  AnnotatedTypeVariable    | AnnotatedParameterizedType    | AnnotatedWildcardType    | AnnotatedArrayType
+ *   |           |               |             |                 |           |              |        |
+ *   |           |               |             |                 |           |              |        |
+ * AnnotatedTypeVariableImpl   AnnotatedParameterizedTypeImpl  AnnotatedWildcardTypeImpl  AnnotatedArrayTypeImpl
+ */
 public interface AnnotatedType extends AnnotatedElement {
-
+    
     /**
      * Returns the potentially annotated type that this type is a member of, if
      * this type represents a nested type. For example, if this type is
      * {@code @TA O<T>.I<S>}, return a representation of {@code @TA O<T>}.
      *
      * <p>Returns {@code null} if this {@code AnnotatedType} represents a
-     *     top-level type, or a local or anonymous class, or a primitive type, or
-     *     void.
+     * top-level type, or a local or anonymous class, or a primitive type, or
+     * void.
      *
      * <p>Returns {@code null} if this {@code AnnotatedType} is an instance of
-     *     {@code AnnotatedArrayType}, {@code AnnotatedTypeVariable}, or
-     *     {@code AnnotatedWildcardType}.
-     *
-     * @implSpec
-     * This default implementation returns {@code null} and performs no other
-     * action.
+     * {@code AnnotatedArrayType}, {@code AnnotatedTypeVariable}, or
+     * {@code AnnotatedWildcardType}.
      *
      * @return an {@code AnnotatedType} object representing the potentially
-     *     annotated type that this type is a member of, or {@code null}
-     * @throws TypeNotPresentException if the owner type
-     *     refers to a non-existent type declaration
-     * @throws MalformedParameterizedTypeException if the owner type
-     *     refers to a parameterized type that cannot be instantiated
-     *     for any reason
+     * annotated type that this type is a member of, or {@code null}
      *
+     * @throws TypeNotPresentException             if the owner type
+     *                                             refers to a non-existent type declaration
+     * @throws MalformedParameterizedTypeException if the owner type
+     *                                             refers to a parameterized type that cannot be instantiated
+     *                                             for any reason
+     * @implSpec This default implementation returns {@code null} and performs no other
+     * action.
      * @since 9
+     */
+    /*
+     * 返回复合类型（外部类与内部类组成）的"外层类型+类型注解"
+     * 只有在AnnotatedType的AnnotatedTypeBaseImpl实现和AnnotatedParameterizedTypeImpl实现种该方法才有可能返回非null值
+     * 其它实现中一律返回null
      */
     default AnnotatedType getAnnotatedOwnerType() {
         return null;
     }
-
+    
     /**
      * Returns the underlying type that this annotated type represents.
      *
      * @return the type this annotated type represents
      */
+    // 返回【被注解类型】中的类型
     public Type getType();
 }
