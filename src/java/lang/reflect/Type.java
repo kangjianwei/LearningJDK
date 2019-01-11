@@ -32,16 +32,26 @@ package java.lang.reflect;
  *
  * @since 1.5
  */
+/*
+ * 代表Java中的“类型”
+ *
+ * 主要包括5种实现：
+ * Class
+ * TypeVariable
+ * ParameterizedType
+ * WildcardType
+ * GenericArrayType
+ */
 public interface Type {
     /**
-     * Returns a string describing this type, including information
-     * about any type parameters.
-     *
-     * @implSpec The default implementation calls {@code toString}.
+     * Returns a string describing this type, including information about any type parameters.
      *
      * @return a string describing this type
+     *
+     * @implSpec The default implementation calls {@code toString}.
      * @since 1.8
      */
+    // 返回对该类型的描述
     default String getTypeName() {
         return toString();
     }
