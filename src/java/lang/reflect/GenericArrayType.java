@@ -28,8 +28,10 @@ package java.lang.reflect;
 /**
  * {@code GenericArrayType} represents an array type whose component
  * type is either a parameterized type or a type variable.
+ *
  * @since 1.5
  */
+// 泛型数组
 public interface GenericArrayType extends Type {
     /**
      * Returns a {@code Type} object representing the component type
@@ -40,13 +42,15 @@ public interface GenericArrayType extends Type {
      * see {@link java.lang.reflect.TypeVariable TypeVariable} for the
      * creation process for type variables.
      *
-     * @return  a {@code Type} object representing the component type
-     *     of this array
-     * @throws TypeNotPresentException if the underlying array type's
-     *     component type refers to a non-existent type declaration
+     * @return a {@code Type} object representing the component type
+     * of this array
+     *
+     * @throws TypeNotPresentException             if the underlying array type's
+     *                                             component type refers to a non-existent type declaration
      * @throws MalformedParameterizedTypeException if  the
-     *     underlying array type's component type refers to a
-     *     parameterized type that cannot be instantiated for any reason
+     *                                             underlying array type's component type refers to a
+     *                                             parameterized type that cannot be instantiated for any reason
      */
+    // 泛型数组的外层类型，如T之于T[]，T[]之于T[][]
     Type getGenericComponentType();
 }
