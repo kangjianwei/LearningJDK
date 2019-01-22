@@ -30,7 +30,6 @@ import java.net.URI;
 import java.util.Objects;
 import java.util.Optional;
 
-
 /**
  * A reference to a module's content.
  *
@@ -41,39 +40,49 @@ import java.util.Optional;
  * may be inside the Java run-time system itself or in an artifact such as a
  * modular JAR file.
  *
+ * @spec JPMS
  * @see ModuleFinder
  * @see ModuleReader
  * @since 9
- * @spec JPMS
  */
-
+// 模块引用，包含了模块描述符与模块位置
 public abstract class ModuleReference {
-
+    
     private final ModuleDescriptor descriptor;
     private final URI location;
-
+    
     /**
      * Constructs a new instance of this class.
      *
-     * @param descriptor
-     *        The module descriptor
-     * @param location
-     *        The module location or {@code null} if not known
+     * @param descriptor The module descriptor
+     * @param location   The module location or {@code null} if not known
      */
     protected ModuleReference(ModuleDescriptor descriptor, URI location) {
         this.descriptor = Objects.requireNonNull(descriptor);
         this.location = location;
     }
-
+    
+    /**
+     * Opens the module content for reading.
+     *
+     * @return A {@code ModuleReader} to read the module
+     *
+     * @throws IOException       If an I/O error occurs
+     * @throws SecurityException If denied by the security manager
+     */
+    // 返回模块阅读器，以便外界读取该模块的内容
+    public abstract ModuleReader open() throws IOException;
+    
     /**
      * Returns the module descriptor.
      *
      * @return The module descriptor
      */
+    // 获取模块描述符
     public final ModuleDescriptor descriptor() {
         return descriptor;
     }
-
+    
     /**
      * Returns the location of this module's content, if known.
      *
@@ -85,19 +94,8 @@ public abstract class ModuleReference {
      *
      * @return The location or an empty {@code Optional} if not known
      */
+    // 获取模块位置信息
     public final Optional<URI> location() {
         return Optional.ofNullable(location);
     }
-
-    /**
-     * Opens the module content for reading.
-     *
-     * @return A {@code ModuleReader} to read the module
-     *
-     * @throws IOException
-     *         If an I/O error occurs
-     * @throws SecurityException
-     *         If denied by the security manager
-     */
-    public abstract ModuleReader open() throws IOException;
 }
