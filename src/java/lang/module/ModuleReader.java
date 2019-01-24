@@ -34,7 +34,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-
 /**
  * Provides access to the content of a module.
  *
@@ -73,133 +72,32 @@ import java.util.stream.Stream;
  * generally, if the resource name is not in the stream of elements that the
  * {@code list} method returns then the resource should be treated as "not
  * found" to avoid inconsistencies.
- *
+ * @spec JPMS
  * @see ModuleReference
  * @since 9
- * @spec JPMS
  */
-
+// 模块阅读器，用来读取模块及模块内的资源
 public interface ModuleReader extends Closeable {
-
+    
     /**
      * Finds a resource, returning a URI to the resource in the module.
      *
      * <p> If the module reader can determine that the name locates a directory
      * then the resulting URI will end with a slash ('/'). </p>
      *
-     * @param  name
-     *         The name of the resource to open for reading
+     * @param name The name of the resource to open for reading
      *
      * @return A URI to the resource; an empty {@code Optional} if the resource
-     *         is not found or a URI cannot be constructed to locate the
-     *         resource
+     * is not found or a URI cannot be constructed to locate the
+     * resource
      *
-     * @throws IOException
-     *         If an I/O error occurs or the module reader is closed
-     * @throws SecurityException
-     *         If denied by the security manager
-     *
+     * @throws IOException       If an I/O error occurs or the module reader is closed
+     * @throws SecurityException If denied by the security manager
      * @see ClassLoader#getResource(String)
      */
+    // 返回指定资源在模块中的位置
     Optional<URI> find(String name) throws IOException;
-
-    /**
-     * Opens a resource, returning an input stream to read the resource in
-     * the module.
-     *
-     * <p> The behavior of the input stream when used after the module reader
-     * is closed is implementation specific and therefore not specified. </p>
-     *
-     * @implSpec The default implementation invokes the {@link #find(String)
-     * find} method to get a URI to the resource. If found, then it attempts
-     * to construct a {@link java.net.URL URL} and open a connection to the
-     * resource.
-     *
-     * @param  name
-     *         The name of the resource to open for reading
-     *
-     * @return An input stream to read the resource or an empty
-     *         {@code Optional} if not found
-     *
-     * @throws IOException
-     *         If an I/O error occurs or the module reader is closed
-     * @throws SecurityException
-     *         If denied by the security manager
-     */
-    default Optional<InputStream> open(String name) throws IOException {
-        Optional<URI> ouri = find(name);
-        if (ouri.isPresent()) {
-            return Optional.of(ouri.get().toURL().openStream());
-        } else {
-            return Optional.empty();
-        }
-    }
-
-    /**
-     * Reads a resource, returning a byte buffer with the contents of the
-     * resource.
-     *
-     * The element at the returned buffer's position is the first byte of the
-     * resource, the element at the buffer's limit is the last byte of the
-     * resource. Once consumed, the {@link #release(ByteBuffer) release} method
-     * must be invoked. Failure to invoke the {@code release} method may result
-     * in a resource leak.
-     *
-     * @apiNote This method is intended for high-performance class loading. It
-     * is not capable (or intended) to read arbitrary large resources that
-     * could potentially be 2GB or larger. The rationale for using this method
-     * in conjunction with the {@code release} method is to allow module reader
-     * implementations manage buffers in an efficient manner.
-     *
-     * @implSpec The default implementation invokes the {@link #open(String)
-     * open} method and reads all bytes from the input stream into a byte
-     * buffer.
-     *
-     * @param  name
-     *         The name of the resource to read
-     *
-     * @return A byte buffer containing the contents of the resource or an
-     *         empty {@code Optional} if not found
-     *
-     * @throws IOException
-     *         If an I/O error occurs or the module reader is closed
-     * @throws SecurityException
-     *         If denied by the security manager
-     * @throws OutOfMemoryError
-     *         If the resource is larger than {@code Integer.MAX_VALUE},
-     *         the maximum capacity of a byte buffer
-     *
-     * @see ClassLoader#defineClass(String, ByteBuffer, java.security.ProtectionDomain)
-     */
-    default Optional<ByteBuffer> read(String name) throws IOException {
-        Optional<InputStream> oin = open(name);
-        if (oin.isPresent()) {
-            try (InputStream in = oin.get()) {
-                return Optional.of(ByteBuffer.wrap(in.readAllBytes()));
-            }
-        } else {
-            return Optional.empty();
-        }
-    }
-
-    /**
-     * Release a byte buffer. This method should be invoked after consuming
-     * the contents of the buffer returned by the {@code read} method.
-     * The behavior of this method when invoked to release a buffer that has
-     * already been released, or the behavior when invoked to release a buffer
-     * after a {@code ModuleReader} is closed is implementation specific and
-     * therefore not specified.
-     *
-     * @param  bb
-     *         The byte buffer to release
-     *
-     * @implSpec The default implementation doesn't do anything except check
-     * if the byte buffer is null.
-     */
-    default void release(ByteBuffer bb) {
-        Objects.requireNonNull(bb);
-    }
-
+    
     /**
      * Lists the contents of the module, returning a stream of elements that
      * are the names of all resources in the module. Whether the stream of
@@ -218,15 +116,14 @@ public interface ModuleReader extends Closeable {
      * closed is implementation specific and therefore not specified. </p>
      *
      * @return A stream of elements that are the names of all resources
-     *         in the module
+     * in the module
      *
-     * @throws IOException
-     *         If an I/O error occurs or the module reader is closed
-     * @throws SecurityException
-     *         If denied by the security manager
+     * @throws IOException       If an I/O error occurs or the module reader is closed
+     * @throws SecurityException If denied by the security manager
      */
+    // 列出当前模块内的资源
     Stream<String> list() throws IOException;
-
+    
     /**
      * Closes the module reader. Once closed then subsequent calls to locate or
      * read a resource will fail by throwing {@code IOException}.
@@ -235,7 +132,95 @@ public interface ModuleReader extends Closeable {
      * thread is reading a resource and another thread invokes the close method,
      * then the second thread may block until the read operation is complete. </p>
      */
+    // 关闭模块阅读器
     @Override
     void close() throws IOException;
-
+    
+    /**
+     * Opens a resource, returning an input stream to read the resource in
+     * the module.
+     *
+     * <p> The behavior of the input stream when used after the module reader
+     * is closed is implementation specific and therefore not specified. </p>
+     *
+     * @param name The name of the resource to open for reading
+     *
+     * @return An input stream to read the resource or an empty
+     * {@code Optional} if not found
+     *
+     * @throws IOException       If an I/O error occurs or the module reader is closed
+     * @throws SecurityException If denied by the security manager
+     * @implSpec The default implementation invokes the {@link #find(String)
+     * find} method to get a URI to the resource. If found, then it attempts
+     * to construct a {@link java.net.URL URL} and open a connection to the
+     * resource.
+     */
+    // 打开模块中指定资源的输入流以便外界读取
+    default Optional<InputStream> open(String name) throws IOException {
+        Optional<URI> ouri = find(name);
+        if(ouri.isPresent()) {
+            return Optional.of(ouri.get().toURL().openStream());
+        } else {
+            return Optional.empty();
+        }
+    }
+    
+    /**
+     * Reads a resource, returning a byte buffer with the contents of the
+     * resource.
+     *
+     * The element at the returned buffer's position is the first byte of the
+     * resource, the element at the buffer's limit is the last byte of the
+     * resource. Once consumed, the {@link #release(ByteBuffer) release} method
+     * must be invoked. Failure to invoke the {@code release} method may result
+     * in a resource leak.
+     *
+     * @param name The name of the resource to read
+     *
+     * @return A byte buffer containing the contents of the resource or an
+     * empty {@code Optional} if not found
+     *
+     * @throws IOException       If an I/O error occurs or the module reader is closed
+     * @throws SecurityException If denied by the security manager
+     * @throws OutOfMemoryError  If the resource is larger than {@code Integer.MAX_VALUE},
+     *                           the maximum capacity of a byte buffer
+     * @apiNote This method is intended for high-performance class loading. It
+     * is not capable (or intended) to read arbitrary large resources that
+     * could potentially be 2GB or larger. The rationale for using this method
+     * in conjunction with the {@code release} method is to allow module reader
+     * implementations manage buffers in an efficient manner.
+     * @implSpec The default implementation invokes the {@link #open(String)
+     * open} method and reads all bytes from the input stream into a byte
+     * buffer.
+     * 参见 ClassLoader#defineClass(String, ByteBuffer, ProtectionDomain)
+     */
+    // 将模块中的指定资源存入缓冲区以便外界读取
+    default Optional<ByteBuffer> read(String name) throws IOException {
+        Optional<InputStream> oin = open(name);
+        if(oin.isPresent()) {
+            try(InputStream in = oin.get()) {
+                return Optional.of(ByteBuffer.wrap(in.readAllBytes()));
+            }
+        } else {
+            return Optional.empty();
+        }
+    }
+    
+    /**
+     * Release a byte buffer. This method should be invoked after consuming
+     * the contents of the buffer returned by the {@code read} method.
+     * The behavior of this method when invoked to release a buffer that has
+     * already been released, or the behavior when invoked to release a buffer
+     * after a {@code ModuleReader} is closed is implementation specific and
+     * therefore not specified.
+     *
+     * @param bb The byte buffer to release
+     *
+     * @implSpec The default implementation doesn't do anything except check
+     * if the byte buffer is null.
+     */
+    // 释放缓冲区
+    default void release(ByteBuffer bb) {
+        Objects.requireNonNull(bb);
+    }
 }
