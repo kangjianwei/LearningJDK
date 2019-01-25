@@ -27,44 +27,29 @@ package jdk.internal.module;
 
 import java.lang.module.Configuration;
 import java.lang.module.ResolvedModule;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-
 import jdk.internal.loader.ClassLoaders;
 
-
 /**
- * Supports the mapping of modules to class loaders. The set of modules mapped
- * to the boot and platform class loaders is generated at build time from
- * this source file.
+ * Supports the mapping of modules to class loaders.
+ * The set of modules mapped to the boot and platform class loaders is generated at build time from this source file.
  */
+// 为加载模块的内置类加载器映射系统模块
 public final class ModuleLoaderMap {
-
-    /**
-     * Maps the system modules to the built-in class loaders.
-     */
-    public static final class Mapper implements Function<String, ClassLoader> {
-        private final Map<String, ClassLoader> map;
-
-        Mapper(Map<String, ClassLoader> map) {
-            this.map = map; // defensive copy not needed
-        }
-
-        @Override
-        public ClassLoader apply(String name) {
-            return map.get(name);
-        }
-    }
-
+    
     /**
      * Returns the names of the modules defined to the boot loader.
      */
+    // 返回BootClassLoader映射的所有系统module名称
     public static Set<String> bootModules() {
         // The list of boot modules generated at build time.
-        String[] BOOT_MODULES = new String[] { "java.base",
+        String[] BOOT_MODULES = new String[] {
+            "java.base",
             "java.datatransfer",
             "java.desktop",
             "java.instrument",
@@ -84,20 +69,21 @@ public final class ModuleLoaderMap {
             "jdk.naming.rmi",
             "jdk.net",
             "jdk.sctp",
-            "jdk.unsupported" };
+            "jdk.unsupported"
+        };
         Set<String> bootModules = new HashSet<>(BOOT_MODULES.length);
-        for (String mn : BOOT_MODULES) {
-            bootModules.add(mn);
-        }
+        bootModules.addAll(Arrays.asList(BOOT_MODULES));
         return bootModules;
     }
-
+    
     /**
      * Returns the names of the modules defined to the platform loader.
      */
+    // 返回PlatformClassLoader映射的所有系统module名称
     public static Set<String> platformModules() {
         // The list of platform modules generated at build time.
-        String[] PLATFORM_MODULES = new String[] { "java.compiler",
+        String[] PLATFORM_MODULES = new String[] {
+            "java.compiler",
             "java.net.http",
             "java.scripting",
             "java.se",
@@ -124,26 +110,28 @@ public final class ModuleLoaderMap {
             "jdk.security.auth",
             "jdk.security.jgss",
             "jdk.xml.dom",
-            "jdk.zipfs" };
+            "jdk.zipfs"
+        };
         Set<String> platformModules = new HashSet<>(PLATFORM_MODULES.length);
-        for (String mn : PLATFORM_MODULES) {
-            platformModules.add(mn);
-        }
+        platformModules.addAll(Arrays.asList(PLATFORM_MODULES));
         return platformModules;
     }
-
+    
     /**
      * Returns the function to map modules in the given configuration to the
      * built-in class loaders.
      */
+    // 将模块图中的module映射到PlatformClassLoader和AppClassLoader（过滤了BootClassLoader）
     static Function<String, ClassLoader> mappingFunction(Configuration cf) {
         Set<String> bootModules = bootModules();
         Set<String> platformModules = platformModules();
-
+        
         ClassLoader platformClassLoader = ClassLoaders.platformClassLoader();
         ClassLoader appClassLoader = ClassLoaders.appClassLoader();
-
+        
         Map<String, ClassLoader> map = new HashMap<>();
+        
+        // 遍历当前模块所在的模块图
         for (ResolvedModule resolvedModule : cf.modules()) {
             String mn = resolvedModule.name();
             if (!bootModules.contains(mn)) {
@@ -154,6 +142,23 @@ public final class ModuleLoaderMap {
                 }
             }
         }
+        
         return new Mapper(map);
+    }
+    
+    /**
+     * Maps the system modules to the built-in class loaders.
+     */
+    public static final class Mapper implements Function<String, ClassLoader> {
+        private final Map<String, ClassLoader> map;
+        
+        Mapper(Map<String, ClassLoader> map) {
+            this.map = map; // defensive copy not needed
+        }
+        
+        @Override
+        public ClassLoader apply(String name) {
+            return map.get(name);
+        }
     }
 }
