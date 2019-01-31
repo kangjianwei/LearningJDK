@@ -25,15 +25,14 @@
 
 package jdk.internal.loader;
 
-import jdk.internal.misc.JavaLangAccess;
-import jdk.internal.misc.SharedSecrets;
-
 import java.lang.reflect.UndeclaredThrowableException;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
+import jdk.internal.misc.JavaLangAccess;
+import jdk.internal.misc.SharedSecrets;
 
 /**
  * AbstractClassLoaderValue is a superclass of root-{@link ClassLoaderValue}
@@ -42,13 +41,23 @@ import java.util.function.Supplier;
  * @param <CLV> the type of concrete ClassLoaderValue (this type)
  * @param <V>   the type of values associated with ClassLoaderValue
  */
+/*
+ * 缓存代理类对象、代理类接口-代理类构造器
+ *
+ * 将自身作为key，再关联一个value存储到ClassLoader中的一个map对象中（有点类似ThreadLocal的原理）
+ * AbstractClassLoaderValue有两种类型：sub-clv和root-clv
+ * 其中sub-clv由root-clv孕育，且sub-clv本身可以缓存一个对象
+ */
 public abstract class AbstractClassLoaderValue<CLV extends AbstractClassLoaderValue<CLV, V>, V> {
-
+    
+    private static final JavaLangAccess JLA = SharedSecrets.getJavaLangAccess();
+    
     /**
      * Sole constructor.
      */
-    AbstractClassLoaderValue() {}
-
+    AbstractClassLoaderValue() {
+    }
+    
     /**
      * Returns the key component of this ClassLoaderValue. The key component of
      * the root-{@link ClassLoaderValue} is the ClassLoaderValue itself,
@@ -57,101 +66,49 @@ public abstract class AbstractClassLoaderValue<CLV extends AbstractClassLoaderVa
      *
      * @return the key component of this ClassLoaderValue.
      */
+    // 对于sub-clv，返回其缓存的对象；对于clv，返回自身
     public abstract Object key();
-
-    /**
-     * Constructs new sub-ClassLoaderValue of this ClassLoaderValue with given
-     * key component.
-     *
-     * @param key the key component of the sub-ClassLoaderValue.
-     * @param <K> the type of the key component.
-     * @return a sub-ClassLoaderValue of this ClassLoaderValue for given key
-     */
-    public <K> Sub<K> sub(K key) {
-        return new Sub<>(key);
-    }
-
+    
     /**
      * Returns {@code true} if this ClassLoaderValue is equal to given {@code clv}
      * or if this ClassLoaderValue was derived from given {@code clv} by a chain
      * of {@link #sub(Object)} invocations.
      *
      * @param clv the ClassLoaderValue to test this against
+     *
      * @return if this ClassLoaderValue is equal to given {@code clv} or
      * its descendant
      */
+    /// 判断当前clv与指定clv是否相等，或者当前clv是指定clv的后裔（即由指定clv创建了当前clv）
     public abstract boolean isEqualOrDescendantOf(AbstractClassLoaderValue<?, V> clv);
-
+    
     /**
-     * Returns the value associated with this ClassLoaderValue and given ClassLoader
-     * or {@code null} if there is none.
-     *
-     * @param cl the ClassLoader for the associated value
-     * @return the value associated with this ClassLoaderValue and given ClassLoader
-     * or {@code null} if there is none.
+     * @return a ConcurrentHashMap for given ClassLoader
      */
-    public V get(ClassLoader cl) {
-        Object val = AbstractClassLoaderValue.<CLV>map(cl).get(this);
-        try {
-            return extractValue(val);
-        } catch (Memoizer.RecursiveInvocationException e) {
-            // propagate recursive get() for the same key that is just
-            // being calculated in computeIfAbsent()
-            throw e;
-        } catch (Throwable t) {
-            // don't propagate exceptions thrown from Memoizer - pretend
-            // that there was no entry
-            // (computeIfAbsent invocation will try to remove it anyway)
-            return null;
-        }
+    // 返回当前ClassLoader内部的classLoaderValueMap
+    @SuppressWarnings("unchecked")
+    private static <CLV extends AbstractClassLoaderValue<CLV, ?>> ConcurrentHashMap<CLV, Object> map(ClassLoader cl) {
+        return (ConcurrentHashMap<CLV, Object>) (
+            cl == null
+                ? BootLoader.getClassLoaderValueMap()   // 对于boot class loader需要特殊处理
+                : JLA.createOrGetClassLoaderValueMap(cl)
+        );
     }
-
+    
     /**
-     * Associates given value {@code v} with this ClassLoaderValue and given
-     * ClassLoader and returns {@code null} if there was no previously associated
-     * value or does nothing and returns previously associated value if there
-     * was one.
+     * Constructs new sub-ClassLoaderValue of this ClassLoaderValue with given
+     * key component.
      *
-     * @param cl the ClassLoader for the associated value
-     * @param v  the value to associate
-     * @return previously associated value or null if there was none
-     */
-    public V putIfAbsent(ClassLoader cl, V v) {
-        ConcurrentHashMap<CLV, Object> map = map(cl);
-        @SuppressWarnings("unchecked")
-        CLV clv = (CLV) this;
-        while (true) {
-            try {
-                Object val = map.putIfAbsent(clv, v);
-                return extractValue(val);
-            } catch (Memoizer.RecursiveInvocationException e) {
-                // propagate RecursiveInvocationException for the same key that
-                // is just being calculated in computeIfAbsent
-                throw e;
-            } catch (Throwable t) {
-                // don't propagate exceptions thrown from foreign Memoizer -
-                // pretend that there was no entry and retry
-                // (foreign computeIfAbsent invocation will try to remove it anyway)
-            }
-            // TODO:
-            // Thread.onSpinLoop(); // when available
-        }
-    }
-
-    /**
-     * Removes the value associated with this ClassLoaderValue and given
-     * ClassLoader if the associated value is equal to given value {@code v} and
-     * returns {@code true} or does nothing and returns {@code false} if there is
-     * no currently associated value or it is not equal to given value {@code v}.
+     * @param key the key component of the sub-ClassLoaderValue.
+     * @param <K> the type of the key component.
      *
-     * @param cl the ClassLoader for the associated value
-     * @param v  the value to compare with currently associated value
-     * @return {@code true} if the association was removed or {@code false} if not
+     * @return a sub-ClassLoaderValue of this ClassLoaderValue for given key
      */
-    public boolean remove(ClassLoader cl, Object v) {
-        return AbstractClassLoaderValue.<CLV>map(cl).remove(this, v);
+    // 孕育一个sun-clv
+    public <K> Sub<K> sub(K key) {
+        return new Sub<K>(key);
     }
-
+    
     /**
      * Returns the value associated with this ClassLoaderValue and given
      * ClassLoader if there is one or computes the value by invoking given
@@ -171,8 +128,10 @@ public abstract class AbstractClassLoaderValue<CLV extends AbstractClassLoaderVa
      *
      * @param cl              the ClassLoader for the associated value
      * @param mappingFunction the function to compute the value
+     *
      * @return the value associated with this ClassLoaderValue and given
      * ClassLoader.
+     *
      * @throws IllegalStateException if a direct or indirect invocation from
      *                               within given {@code mappingFunction} that
      *                               computes the value of a particular association
@@ -180,34 +139,94 @@ public abstract class AbstractClassLoaderValue<CLV extends AbstractClassLoaderVa
      *                               {@link #computeIfAbsent}
      *                               for the same association is attempted.
      */
-    public V computeIfAbsent(ClassLoader cl,
-                             BiFunction<
-                                 ? super ClassLoader,
-                                 ? super CLV,
-                                 ? extends V
-                                 > mappingFunction) throws IllegalStateException {
+    // 返回满足条件的动态module或代理接口对应的构造器
+    public V computeIfAbsent(ClassLoader cl, BiFunction<? super ClassLoader, ? super CLV, ? extends V> mappingFunction) throws IllegalStateException {
+        
+        /*
+         * 获取ClassLoader内部的map，map中依次缓存的键值对如下：
+         *
+         * <一> 如果不需要生成动态module
+         * 1. <sub-clv[代理接口], Memoizer>         // sub-clv由Proxy#proxyCache孕育
+         * 2. <sub-clv[代理类的对象], true>         // sub-clv由ProxyBuilder#reverseProxyCache孕育
+         * 3. <sub-clv[代理接口], 代理类的构造方法>  // sub-clv由Proxy#proxyCache孕育，会替换1
+         * 最终剩2、3两个键值对
+         *
+         * <二> 如果需要生成动态module
+         * 1. <sub-clv[代理接口], Memoizer>     // sub-clv由Proxy#proxyCache孕育
+         * 2. <root-clv, Memoizer>             // root-clv指Proxy.ProxyBuilder#dynProxyModules
+         * 3. <root-clv, 动态module>           // root-clv指Proxy.ProxyBuilder#dynProxyModules，会替换掉2
+         * 4. <sub-clv[代理类的对象], true>     // sub-clv由ProxyBuilder#reverseProxyCache孕育
+         * 5. <sub-clv[代理接口], 代理类的构造方法>  // sub-clv由Proxy#proxyCache孕育，会替换1
+         * 最终剩3、4、5三个键值对
+         */
         ConcurrentHashMap<CLV, Object> map = map(cl);
+        
         @SuppressWarnings("unchecked")
-        CLV clv = (CLV) this;
+        CLV clv = (CLV) this;   // 记下当前的ClassLoaderValue
+        
         Memoizer<CLV, V> mv = null;
-        while (true) {
-            Object val = (mv == null) ? map.get(clv) : map.putIfAbsent(clv, mv);
-            if (val == null) {
-                if (mv == null) {
-                    // create Memoizer lazily when 1st needed and restart loop
+        
+        while(true) {
+            Object val;
+            
+            // 首次进入循环时，mv为null
+            if(mv == null) {
+                /*
+                 * 本轮循环刚开始时，使用clv作为key在map查找clv关联的值value。
+                 *
+                 * 对于从Proxy#proxyCache孕育的sub-clv来说，需要比对sub-clv缓存的代理接口类型是否一致。
+                 * 如果查找成功则返回关联的值（即代理接口对应的构造器）
+                 *
+                 * 对于从Proxy.ProxyBuilder#dynProxyModules这个clv来说，需要比对clv引用是否一致。
+                 * 如果查找成功则返回关联的module
+                 */
+                val = map.get(clv);
+            } else {
+                /*
+                 * 非首次进入循环，则Memoizer已创建完毕，将其缓存起来
+                 *
+                 * 如果该方法由Proxy#proxyCache孕育的sub-clv对象调用，则缓存形式为<sub-clv[代理接口], Memoizer>
+                 * 如果该方法由Proxy.ProxyBuilder#dynProxyModules对象调用，则缓存形式为<root-clv, Memoizer>
+                 */
+                val = map.putIfAbsent(clv, mv);
+            }
+            
+            // 无法找到clv关联的值value
+            if(val == null) {
+                
+                if(mv == null) {
+                    // 首次进入循环时，需要创建Memoizer
                     mv = new Memoizer<>(cl, clv, mappingFunction);
                     continue;
                 }
-                // mv != null, therefore sv == null was a result of successful
-                // putIfAbsent
+                
+                // mv != null, therefore sv == null was a result of successful putIfAbsent
                 try {
-                    // trigger Memoizer to compute the value
+                    /*
+                     * 触发Memoizer去完成计算
+                     * 在get()过程中，会调用ProxyBuilder#reverseProxyCache孕育sub-clv对象
+                     * 该sub-clv对象会生成代理类对象，并以<sub-clv[代理类的对象], true>形式存入map
+                     *
+                     * 如果当前方法由Proxy#proxyCache对象调用，
+                     * 则在get结束时，会返回代理类对象的专用构造器
+                     *
+                     * 如果当前方法由Proxy.ProxyBuilder#dynProxyModules对象调用，
+                     * 则第一次进入get时目的是为了创建动态module，
+                     * 并以<clv, 动态module>形式存入map，之后将其返回
+                     * 随后，才会创建出代理类对象，并返回其构造器
+                     */
                     V v = mv.get();
+                    
                     // attempt to replace our Memoizer with the value
+                    /*
+                     * (key, oldValue, newValue)，更新value
+                     * 清除记忆，将其替换成动态module或构造器
+                     */
                     map.replace(clv, mv, v);
-                    // return computed value
+                    
+                    // 返回计算值
                     return v;
-                } catch (Throwable t) {
+                } catch(Throwable t) {
                     // our Memoizer has thrown, attempt to remove it
                     map.remove(clv, mv);
                     // propagate exception because it's from our Memoizer
@@ -215,22 +234,118 @@ public abstract class AbstractClassLoaderValue<CLV extends AbstractClassLoaderVa
                 }
             } else {
                 try {
+                    // 如果val已经被缓存，则返回它
                     return extractValue(val);
-                } catch (Memoizer.RecursiveInvocationException e) {
+                } catch(Memoizer.RecursiveInvocationException e) {
                     // propagate recursive attempts to calculate the same
                     // value as being calculated at the moment
                     throw e;
-                } catch (Throwable t) {
+                } catch(Throwable t) {
                     // don't propagate exceptions thrown from foreign Memoizer -
                     // pretend that there was no entry and retry
                     // (foreign computeIfAbsent invocation will try to remove it anyway)
                 }
             }
+            
             // TODO:
             // Thread.onSpinLoop(); // when available
         }
     }
-
+    
+    /**
+     * Returns the value associated with this ClassLoaderValue and given ClassLoader
+     * or {@code null} if there is none.
+     *
+     * @param cl the ClassLoader for the associated value
+     *
+     * @return the value associated with this ClassLoaderValue and given ClassLoader
+     * or {@code null} if there is none.
+     */
+    // 在cl内部的CLV大本营中获取CLV关联的值
+    public V get(ClassLoader cl) {
+        // 从ClassLoader中的map中取出以当前对象为key的键值对关联的value
+        
+        // 获取CLV的大本营
+        ConcurrentHashMap<CLV, Object> map = AbstractClassLoaderValue.<CLV>map(cl);
+        
+        // 返回当前CLV在大本营中关联的值
+        Object val = map.get(this);
+        
+        try {
+            // 如果val是Memoizer对象，需要从其中提取目标值，否则直接返回
+            return extractValue(val);
+        } catch(Memoizer.RecursiveInvocationException e) {
+            // propagate recursive get() for the same key that is just being calculated in computeIfAbsent()
+            throw e;
+        } catch(Throwable t) {
+            // don't propagate exceptions thrown from Memoizer - pretend that there was no entry
+            // (computeIfAbsent invocation will try to remove it anyway)
+            return null;
+        }
+    }
+    
+    /**
+     * Associates given value {@code v} with this ClassLoaderValue and given
+     * ClassLoader and returns {@code null} if there was no previously associated
+     * value or does nothing and returns previously associated value if there
+     * was one.
+     *
+     * @param cl the ClassLoader for the associated value
+     * @param v  the value to associate
+     *
+     * @return previously associated value or null if there was none
+     */
+    /*
+     * 如果当前CLV不在cl内部的CLV大本营，则将CLV与其关联的值一起存入大本营
+     * 返回值为CLV之前关联的值
+     */
+    public V putIfAbsent(ClassLoader cl, V v) {
+        // 获取ClassLoader内的CLV大本营
+        ConcurrentHashMap<CLV, Object> map = map(cl);
+        
+        @SuppressWarnings("unchecked")
+        CLV clv = (CLV) this;
+        
+        while(true) {
+            try {
+                /*
+                 * 如果当前CLV不在CLV大本营，则将CLV与其关联的值一起存入大本营，并返回null
+                 * 否则，返回CLV关联的值
+                 */
+                Object val = map.putIfAbsent(clv, v);
+                
+                // 如果CLV关联的值是Memoizer对象，需要从其中提取目标值，否则直接返回
+                return extractValue(val);
+            } catch(Memoizer.RecursiveInvocationException e) {
+                // propagate RecursiveInvocationException for the same key that
+                // is just being calculated in computeIfAbsent
+                throw e;
+            } catch(Throwable t) {
+                // don't propagate exceptions thrown from foreign Memoizer -
+                // pretend that there was no entry and retry
+                // (foreign computeIfAbsent invocation will try to remove it anyway)
+            }
+            // TODO:
+            // Thread.onSpinLoop(); // when available
+        }
+    }
+    
+    /**
+     * Removes the value associated with this ClassLoaderValue and given
+     * ClassLoader if the associated value is equal to given value {@code v} and
+     * returns {@code true} or does nothing and returns {@code false} if there is
+     * no currently associated value or it is not equal to given value {@code v}.
+     *
+     * @param cl the ClassLoader for the associated value
+     * @param v  the value to compare with currently associated value
+     *
+     * @return {@code true} if the association was removed or {@code false} if not
+     */
+    // 移除指定的键值对，键是当前clv对象，值是v
+    public boolean remove(ClassLoader cl, Object v) {
+        return AbstractClassLoaderValue.<CLV>map(cl).remove(this, v);
+    }
+    
     /**
      * Removes all values associated with given ClassLoader {@code cl} and
      * {@link #isEqualOrDescendantOf(AbstractClassLoaderValue) this or descendants}
@@ -244,116 +359,35 @@ public abstract class AbstractClassLoaderValue<CLV extends AbstractClassLoaderVa
      *
      * @param cl the associated ClassLoader of the values to be removed
      */
+    // 移除当前clv所在的键值对
     public void removeAll(ClassLoader cl) {
         ConcurrentHashMap<CLV, Object> map = map(cl);
-        for (Iterator<CLV> i = map.keySet().iterator(); i.hasNext(); ) {
-            if (i.next().isEqualOrDescendantOf(this)) {
+        for(Iterator<CLV> i = map.keySet().iterator(); i.hasNext(); ) {
+            if(i.next().isEqualOrDescendantOf(this)) {
                 i.remove();
             }
         }
     }
-
-    private static final JavaLangAccess JLA = SharedSecrets.getJavaLangAccess();
-
-    /**
-     * @return a ConcurrentHashMap for given ClassLoader
-     */
-    @SuppressWarnings("unchecked")
-    private static <CLV extends AbstractClassLoaderValue<CLV, ?>>
-    ConcurrentHashMap<CLV, Object> map(ClassLoader cl) {
-        return (ConcurrentHashMap<CLV, Object>)
-            (cl == null ? BootLoader.getClassLoaderValueMap()
-                        : JLA.createOrGetClassLoaderValueMap(cl));
-    }
-
+    
     /**
      * @return value extracted from the {@link Memoizer} if given
      * {@code memoizerOrValue} parameter is a {@code Memoizer} or
      * just return given parameter.
      */
+    // 如果memoizerOrValue是Memoizer对象，需要从其中提取目标值，否则直接返回
     @SuppressWarnings("unchecked")
     private V extractValue(Object memoizerOrValue) {
-        if (memoizerOrValue instanceof Memoizer) {
+        if(memoizerOrValue instanceof Memoizer) {
+            /*
+             * 涉及到多线程时，此处缓存的值仍然可能是某个“记忆”
+             * 则需要从此记忆中提取（计算）目标值
+             */
             return ((Memoizer<?, V>) memoizerOrValue).get();
         } else {
             return (V) memoizerOrValue;
         }
     }
-
-    /**
-     * A memoized supplier that invokes given {@code mappingFunction} just once
-     * and remembers the result or thrown exception for subsequent calls.
-     * If given mappingFunction returns null, it is converted to NullPointerException,
-     * thrown from the Memoizer's {@link #get()} method and remembered.
-     * If the Memoizer is invoked recursively from the given {@code mappingFunction},
-     * {@link RecursiveInvocationException} is thrown, but it is not remembered.
-     * The in-flight call to the {@link #get()} can still complete successfully if
-     * such exception is handled by the mappingFunction.
-     */
-    private static final class Memoizer<CLV extends AbstractClassLoaderValue<CLV, V>, V>
-        implements Supplier<V> {
-
-        private final ClassLoader cl;
-        private final CLV clv;
-        private final BiFunction<? super ClassLoader, ? super CLV, ? extends V>
-            mappingFunction;
-
-        private volatile V v;
-        private volatile Throwable t;
-        private boolean inCall;
-
-        Memoizer(ClassLoader cl,
-                 CLV clv,
-                 BiFunction<? super ClassLoader, ? super CLV, ? extends V>
-                     mappingFunction
-        ) {
-            this.cl = cl;
-            this.clv = clv;
-            this.mappingFunction = mappingFunction;
-        }
-
-        @Override
-        public V get() throws RecursiveInvocationException {
-            V v = this.v;
-            if (v != null) return v;
-            Throwable t = this.t;
-            if (t == null) {
-                synchronized (this) {
-                    if ((v = this.v) == null && (t = this.t) == null) {
-                        if (inCall) {
-                            throw new RecursiveInvocationException();
-                        }
-                        inCall = true;
-                        try {
-                            this.v = v = Objects.requireNonNull(
-                                mappingFunction.apply(cl, clv));
-                        } catch (Throwable x) {
-                            this.t = t = x;
-                        } finally {
-                            inCall = false;
-                        }
-                    }
-                }
-            }
-            if (v != null) return v;
-            if (t instanceof Error) {
-                throw (Error) t;
-            } else if (t instanceof RuntimeException) {
-                throw (RuntimeException) t;
-            } else {
-                throw new UndeclaredThrowableException(t);
-            }
-        }
-
-        static class RecursiveInvocationException extends IllegalStateException {
-            private static final long serialVersionUID = 1L;
-
-            RecursiveInvocationException() {
-                super("Recursive call");
-            }
-        }
-    }
-
+    
     /**
      * sub-ClassLoaderValue is an inner class of {@link AbstractClassLoaderValue}
      * and also a subclass of it. It can therefore be instantiated as an inner
@@ -379,14 +413,19 @@ public abstract class AbstractClassLoaderValue<CLV extends AbstractClassLoaderVa
      * @param <K> the type of {@link #key()} component contained in the
      *            sub-ClassLoaderValue.
      */
+    // sub-ClassLoaderValue，自身作为map的键，而且还可以缓存一个对象
     public final class Sub<K> extends AbstractClassLoaderValue<Sub<K>, V> {
-
+        /*
+         * 可以用来缓存某些值，比如：
+         * 1. 缓存某个代理接口对应的构造器，如root-ClassLoaderValue为Proxy-proxyCache时
+         * 2. 缓存某个代理接口对应的代理对象，如root-ClassLoaderValue为Proxy.ProxyBuilder#reverseProxyCache时
+         */
         private final K key;
-
+        
         Sub(K key) {
             this.key = key;
         }
-
+        
         /**
          * @return the parent ClassLoaderValue this sub-ClassLoaderValue
          * has been {@link #sub(Object) derived} from.
@@ -394,40 +433,125 @@ public abstract class AbstractClassLoaderValue<CLV extends AbstractClassLoaderVa
         public AbstractClassLoaderValue<CLV, V> parent() {
             return AbstractClassLoaderValue.this;
         }
-
+        
         /**
          * @return the key component of this sub-ClassLoaderValue.
          */
+        // 返回sub-clv缓存的对象
         @Override
         public K key() {
             return key;
         }
-
+        
         /**
          * sub-ClassLoaderValue is a descendant of given {@code clv} if it is
          * either equal to it or if its {@link #parent() parent} is a
          * descendant of given {@code clv}.
          */
+        // 判断this.clv与clv是否相等，或者this.clv是clv的后裔（即由clv创建了this.clv）
         @Override
         public boolean isEqualOrDescendantOf(AbstractClassLoaderValue<?, V> clv) {
-            return equals(Objects.requireNonNull(clv)) ||
-                   parent().isEqualOrDescendantOf(clv);
+            return equals(Objects.requireNonNull(clv)) || parent().isEqualOrDescendantOf(clv);
         }
-
+        
+        // 判等
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof Sub)) return false;
+            if(this == o)
+                return true;
+            
+            if(!(o instanceof Sub))
+                return false;
+            
             @SuppressWarnings("unchecked")
             Sub<?> that = (Sub<?>) o;
-            return this.parent().equals(that.parent()) &&
-                   Objects.equals(this.key, that.key);
+            
+            return this.parent().equals(that.parent()) // 是否孕育自同一个root-ClassLoaderValue
+                /*
+                 * 对于Proxy#proxyCache创建的sub-ClassLoaderValue来说，需要判断缓存的代理接口类型是否一致
+                 * 对于Proxy。ProxyBuilder#reverseProxyCache创建的sub-ClassLoaderValue来说，需要判断缓存的代理对象是否一致
+                 */
+                && Objects.equals(this.key, that.key);  // 缓存的对象是否一致
         }
-
+        
         @Override
         public int hashCode() {
-            return 31 * parent().hashCode() +
-                   Objects.hashCode(key);
+            return 31 * parent().hashCode() + Objects.hashCode(key);
+        }
+    }
+    
+    /**
+     * A memoized supplier that invokes given {@code mappingFunction} just once
+     * and remembers the result or thrown exception for subsequent calls.
+     * If given mappingFunction returns null, it is converted to NullPointerException,
+     * thrown from the Memoizer's {@link #get()} method and remembered.
+     * If the Memoizer is invoked recursively from the given {@code mappingFunction},
+     * {@link RecursiveInvocationException} is thrown, but it is not remembered.
+     * The in-flight call to the {@link #get()} can still complete successfully if
+     * such exception is handled by the mappingFunction.
+     */
+    // 记忆器
+    private static final class Memoizer<CLV extends AbstractClassLoaderValue<CLV, V>, V> implements Supplier<V> {
+        
+        private final ClassLoader cl;
+        private final CLV clv;
+        private final BiFunction<? super ClassLoader, ? super CLV, ? extends V> mappingFunction;
+        
+        private volatile V v;
+        private volatile Throwable t;
+        private boolean inCall; // 标记是否已经调用过
+        
+        Memoizer(ClassLoader cl, CLV clv, BiFunction<? super ClassLoader, ? super CLV, ? extends V> mappingFunction) {
+            this.cl = cl;
+            this.clv = clv;
+            this.mappingFunction = mappingFunction;
+        }
+        
+        // 触发mappingFunction中的计算
+        @Override
+        public V get() throws RecursiveInvocationException {
+            V v = this.v;
+            if(v != null) {
+                return v;
+            }
+            
+            Throwable t = this.t;
+            if(t == null) {
+                synchronized(this) {
+                    if((v = this.v) == null && (t = this.t) == null) {
+                        if(inCall) {
+                            throw new RecursiveInvocationException();
+                        }
+                        inCall = true;  // 标记为已调用
+                        
+                        try {
+                            // 计算出动态module或代理对象的构造器
+                            this.v = v = Objects.requireNonNull(mappingFunction.apply(cl, clv));
+                        } catch(Throwable x) {
+                            this.t = t = x;
+                        } finally {
+                            inCall = false;
+                        }
+                    }
+                }
+            }
+            if(v != null)
+                return v;
+            if(t instanceof Error) {
+                throw (Error) t;
+            } else if(t instanceof RuntimeException) {
+                throw (RuntimeException) t;
+            } else {
+                throw new UndeclaredThrowableException(t);
+            }
+        }
+        
+        static class RecursiveInvocationException extends IllegalStateException {
+            private static final long serialVersionUID = 1L;
+            
+            RecursiveInvocationException() {
+                super("Recursive call");
+            }
         }
     }
 }
