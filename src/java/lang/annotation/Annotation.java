@@ -38,9 +38,10 @@ package java.lang.annotation;
  * compatibility concerns when evolving an annotation type from being
  * non-repeatable to being repeatable.
  *
- * @author  Josh Bloch
- * @since   1.5
+ * @author Josh Bloch
+ * @since 1.5
  */
+// 所有注解类型的公共接口，在定义注解时由系统自动关联
 public interface Annotation {
     /**
      * Returns true if the specified object represents an annotation
@@ -49,37 +50,37 @@ public interface Annotation {
      * annotation type as this instance, all of whose members are equal
      * to the corresponding member of this annotation, as defined below:
      * <ul>
-     *    <li>Two corresponding primitive typed members whose values are
-     *    {@code x} and {@code y} are considered equal if {@code x == y},
-     *    unless their type is {@code float} or {@code double}.
+     * <li>Two corresponding primitive typed members whose values are
+     * {@code x} and {@code y} are considered equal if {@code x == y},
+     * unless their type is {@code float} or {@code double}.
      *
-     *    <li>Two corresponding {@code float} members whose values
-     *    are {@code x} and {@code y} are considered equal if
-     *    {@code Float.valueOf(x).equals(Float.valueOf(y))}.
-     *    (Unlike the {@code ==} operator, NaN is considered equal
-     *    to itself, and {@code 0.0f} unequal to {@code -0.0f}.)
+     * <li>Two corresponding {@code float} members whose values
+     * are {@code x} and {@code y} are considered equal if
+     * {@code Float.valueOf(x).equals(Float.valueOf(y))}.
+     * (Unlike the {@code ==} operator, NaN is considered equal
+     * to itself, and {@code 0.0f} unequal to {@code -0.0f}.)
      *
-     *    <li>Two corresponding {@code double} members whose values
-     *    are {@code x} and {@code y} are considered equal if
-     *    {@code Double.valueOf(x).equals(Double.valueOf(y))}.
-     *    (Unlike the {@code ==} operator, NaN is considered equal
-     *    to itself, and {@code 0.0} unequal to {@code -0.0}.)
+     * <li>Two corresponding {@code double} members whose values
+     * are {@code x} and {@code y} are considered equal if
+     * {@code Double.valueOf(x).equals(Double.valueOf(y))}.
+     * (Unlike the {@code ==} operator, NaN is considered equal
+     * to itself, and {@code 0.0} unequal to {@code -0.0}.)
      *
-     *    <li>Two corresponding {@code String}, {@code Class}, enum, or
-     *    annotation typed members whose values are {@code x} and {@code y}
-     *    are considered equal if {@code x.equals(y)}.  (Note that this
-     *    definition is recursive for annotation typed members.)
+     * <li>Two corresponding {@code String}, {@code Class}, enum, or
+     * annotation typed members whose values are {@code x} and {@code y}
+     * are considered equal if {@code x.equals(y)}.  (Note that this
+     * definition is recursive for annotation typed members.)
      *
-     *    <li>Two corresponding array typed members {@code x} and {@code y}
-     *    are considered equal if {@code Arrays.equals(x, y)}, for the
-     *    appropriate overloading of {@link java.util.Arrays#equals}.
+     * <li>Two corresponding array typed members {@code x} and {@code y}
+     * are considered equal if {@code Arrays.equals(x, y)}, for the
+     * appropriate overloading of {@link java.util.Arrays#equals}.
      * </ul>
      *
      * @return true if the specified object represents an annotation
-     *     that is logically equivalent to this one, otherwise false
+     * that is logically equivalent to this one, otherwise false
      */
     boolean equals(Object obj);
-
+    
     /**
      * Returns the hash code of this annotation, as defined below:
      *
@@ -94,28 +95,28 @@ public interface Annotation {
      * <p>The hash code of a member-value depends on its type:
      * <ul>
      * <li>The hash code of a primitive value <i>{@code v}</i> is equal to
-     *     <code><i>WrapperType</i>.valueOf(<i>v</i>).hashCode()</code>, where
-     *     <i>{@code WrapperType}</i> is the wrapper type corresponding
-     *     to the primitive type of <i>{@code v}</i> ({@link Byte},
-     *     {@link Character}, {@link Double}, {@link Float}, {@link Integer},
-     *     {@link Long}, {@link Short}, or {@link Boolean}).
+     * <code><i>WrapperType</i>.valueOf(<i>v</i>).hashCode()</code>, where
+     * <i>{@code WrapperType}</i> is the wrapper type corresponding
+     * to the primitive type of <i>{@code v}</i> ({@link Byte},
+     * {@link Character}, {@link Double}, {@link Float}, {@link Integer},
+     * {@link Long}, {@link Short}, or {@link Boolean}).
      *
      * <li>The hash code of a string, enum, class, or annotation member-value
-     I     <i>{@code v}</i> is computed as by calling
-     *     <code><i>v</i>.hashCode()</code>.  (In the case of annotation
-     *     member values, this is a recursive definition.)
+     * I     <i>{@code v}</i> is computed as by calling
+     * <code><i>v</i>.hashCode()</code>.  (In the case of annotation
+     * member values, this is a recursive definition.)
      *
      * <li>The hash code of an array member-value is computed by calling
-     *     the appropriate overloading of
-     *     {@link java.util.Arrays#hashCode(long[]) Arrays.hashCode}
-     *     on the value.  (There is one overloading for each primitive
-     *     type, and one for object reference types.)
+     * the appropriate overloading of
+     * {@link java.util.Arrays#hashCode(long[]) Arrays.hashCode}
+     * on the value.  (There is one overloading for each primitive
+     * type, and one for object reference types.)
      * </ul>
      *
      * @return the hash code of this annotation
      */
     int hashCode();
-
+    
     /**
      * Returns a string representation of this annotation.  The details
      * of the representation are implementation-dependent, but the following
@@ -127,10 +128,12 @@ public interface Annotation {
      * @return a string representation of this annotation
      */
     String toString();
-
+    
     /**
      * Returns the annotation type of this annotation.
+     *
      * @return the annotation type of this annotation
      */
+    // 返回注解类型
     Class<? extends Annotation> annotationType();
 }
