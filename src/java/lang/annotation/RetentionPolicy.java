@@ -34,24 +34,25 @@ package java.lang.annotation;
  * @author  Joshua Bloch
  * @since 1.5
  */
+// 表示注解保留范围的常量，使用方式：@Retention(RetentionPolicy.XXX)
 public enum RetentionPolicy {
     /**
      * Annotations are to be discarded by the compiler.
      */
-    SOURCE,
-
+    SOURCE, // 注解在.java文件中可见
+    
     /**
      * Annotations are to be recorded in the class file by the compiler
      * but need not be retained by the VM at run time.  This is the default
      * behavior.
      */
-    CLASS,
-
+    CLASS,  // 注解在.java文件、.class文件中可见（局部变量的注解不会在二进制文件中保留）
+    
     /**
      * Annotations are to be recorded in the class file by the compiler and
      * retained by the VM at run time, so they may be read reflectively.
      *
      * @see java.lang.reflect.AnnotatedElement
      */
-    RUNTIME
+    RUNTIME // 注解在.java文件、.class文件、运行时均可见
 }
