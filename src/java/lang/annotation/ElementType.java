@@ -65,54 +65,46 @@ package java.lang.annotation;
  * variables of other classes to be non-null or not non-null based on whether
  * {@code @NonNull} appears at the variable's declaration.
  *
- * @author  Joshua Bloch
- * @since 1.5
+ * @author Joshua Bloch
  * @jls 9.6.4.1 @Target
  * @jls 4.1 The Kinds of Types and Values
+ * @since 1.5
+ */
+/*
+ * 表示注解应用范围的常量，使用方式：@Target(ElementType.XXX)
+ * 除TYPE_PARAMETER和TYPE_USE属于类型注解，其他注解属于声明式注解
  */
 public enum ElementType {
     /** Class, interface (including annotation type), or enum declaration */
-    TYPE,
-
+    TYPE,   // 用于类、接口、注解、枚举类型的声明
+    
     /** Field declaration (includes enum constants) */
-    FIELD,
-
+    FIELD,  // 用于字段、枚举常量的声明
+    
     /** Method declaration */
-    METHOD,
-
+    METHOD, // 用于方法声明
+    
     /** Formal parameter declaration */
-    PARAMETER,
-
+    PARAMETER,  // 用于形参声明（包括异常参数）
+    
     /** Constructor declaration */
-    CONSTRUCTOR,
-
+    CONSTRUCTOR,    // 用于构造器的声明
+    
     /** Local variable declaration */
-    LOCAL_VARIABLE,
-
+    LOCAL_VARIABLE, // 用于局部变量的声明
+    
     /** Annotation type declaration */
-    ANNOTATION_TYPE,
-
+    ANNOTATION_TYPE,    // 用于注解类型的声明
+    
     /** Package declaration */
-    PACKAGE,
-
-    /**
-     * Type parameter declaration
-     *
-     * @since 1.8
-     */
-    TYPE_PARAMETER,
-
-    /**
-     * Use of a type
-     *
-     * @since 1.8
-     */
-    TYPE_USE,
-
-    /**
-     * Module declaration.
-     *
-     * @since 9
-     */
-    MODULE
+    PACKAGE,    // 用在包声明：package-info
+    
+    /** @since 9 Module declaration */
+    MODULE,     // 用在模块声明：module-info
+    
+    /** @since 1.8 Type parameter declaration */
+    TYPE_PARAMETER, // 用于Type parameter，如List<E>中的E
+    
+    /** @since 1.8 Use of a type */
+    TYPE_USE,   // 用于广义的类型声明（不能用于package），比TYPE的应用范围更广，可通过AnnotatedType获取
 }
