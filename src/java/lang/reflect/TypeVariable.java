@@ -44,9 +44,18 @@ package java.lang.reflect;
  * of instances of classes implementing this interface.
  *
  * @param <D> the type of generic declaration that declared the
- * underlying type variable.
+ *            underlying type variable.
  *
  * @since 1.5
+ */
+/*
+ * 类型变量
+ *
+ * 示例：
+ * public class Bean<X, Y extends Number> {
+ * }
+ *
+ * Bean类中的类型变量是X和Y
  */
 public interface TypeVariable<D extends GenericDeclaration> extends Type, AnnotatedElement {
     /**
@@ -60,16 +69,18 @@ public interface TypeVariable<D extends GenericDeclaration> extends Type, Annota
      * details of the creation process for parameterized types).
      * <li>Otherwise, B is resolved.  </ul>
      *
-     * @throws TypeNotPresentException  if any of the
-     *     bounds refers to a non-existent type declaration
-     * @throws MalformedParameterizedTypeException if any of the
-     *     bounds refer to a parameterized type that cannot be instantiated
-     *     for any reason
      * @return an array of {@code Type}s representing the upper
-     *     bound(s) of this type variable
+     * bound(s) of this type variable
+     *
+     * @throws TypeNotPresentException             if any of the
+     *                                             bounds refers to a non-existent type declaration
+     * @throws MalformedParameterizedTypeException if any of the
+     *                                             bounds refer to a parameterized type that cannot be instantiated
+     *                                             for any reason
      */
+    // 类型变量的边界（上界）
     Type[] getBounds();
-
+    
     /**
      * Returns the {@code GenericDeclaration} object representing the
      * generic declaration declared this type variable.
@@ -78,15 +89,17 @@ public interface TypeVariable<D extends GenericDeclaration> extends Type, Annota
      *
      * @since 1.5
      */
+    // 类型变量所属的泛型声明
     D getGenericDeclaration();
-
+    
     /**
      * Returns the name of this type variable, as it occurs in the source code.
      *
      * @return the name of this type variable, as it appears in the source code
      */
+    // 类型变量名称
     String getName();
-
+    
     /**
      * Returns an array of AnnotatedType objects that represent the use of
      * types to denote the upper bounds of the type parameter represented by
@@ -96,7 +109,9 @@ public interface TypeVariable<D extends GenericDeclaration> extends Type, Annota
      * {@code Object}.
      *
      * @return an array of objects representing the upper bound(s) of the type variable
+     *
      * @since 1.8
      */
-     AnnotatedType[] getAnnotatedBounds();
+    // 上界的"类型注解+类型变量"
+    AnnotatedType[] getAnnotatedBounds();
 }

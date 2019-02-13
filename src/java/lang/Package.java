@@ -33,11 +33,9 @@ import java.net.URL;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Objects;
-
 import jdk.internal.loader.BootLoader;
 import jdk.internal.reflect.CallerSensitive;
 import jdk.internal.reflect.Reflection;
-
 
 /**
  * Represents metadata about a run-time package associated with a class loader.
@@ -71,27 +69,27 @@ import jdk.internal.reflect.Reflection;
  * the following properties:
  * <ul>
  * <li>The name of the package is derived from the {@linkplain Class#getName() binary names}
- *     of the classes. Since classes in a named module must be in a named package,
- *     the derived name is never empty.</li>
+ * of the classes. Since classes in a named module must be in a named package,
+ * the derived name is never empty.</li>
  * <li>The package is sealed with the {@linkplain java.lang.module.ModuleReference#location()
- *     module location} as the code source, if known.</li>
+ * module location} as the code source, if known.</li>
  * <li>The specification and implementation titles, versions, and vendors
- *     are unspecified.</li>
+ * are unspecified.</li>
  * <li>Any annotations on the package are read from {@code package-info.class}
- *     as specified above.</li>
+ * as specified above.</li>
  * </ul>
  * <p>
  * A {@code Package} automatically defined for classes in an unnamed module
  * has the following properties:
  * <ul>
  * <li>The name of the package is either {@code ""} (for classes in an unnamed package)
- *     or derived from the {@linkplain Class#getName() binary names} of the classes
- *     (for classes in a named package).</li>
+ * or derived from the {@linkplain Class#getName() binary names} of the classes
+ * (for classes in a named package).</li>
  * <li>The package is not sealed.</li>
  * <li>The specification and implementation titles, versions, and vendors
- *     are unspecified.</li>
+ * are unspecified.</li>
  * <li>Any annotations on the package are read from {@code package-info.class}
- *     as specified above.</li>
+ * as specified above.</li>
  * </ul>
  *
  * <p>
@@ -102,41 +100,168 @@ import jdk.internal.reflect.Reflection;
  * with the {@link Package#getPackages Package.getPackages()} and
  * {@link ClassLoader#getDefinedPackages} methods.
  *
- * @implNote
- * The <a href="ClassLoader.html#builtinLoaders">builtin class loaders</a>
+ * @implNote The <a href="ClassLoader.html#builtinLoaders">builtin class loaders</a>
  * do not explicitly define {@code Package} objects for packages in
  * <em>named modules</em>.  Instead those packages are automatically defined
  * and have no specification and implementation versioning information.
- *
  * @jvms 5.3 Run-time package
+ * @revised 9
+ * @spec JPMS
  * @see <a href="{@docRoot}/../specs/jar/jar.html#package-sealing">
  * The JAR File Specification: Package Sealing</a>
  * @see ClassLoader#definePackage(String, String, String, String, String, String, String, URL)
- *
  * @since 1.2
- * @revised 9
- * @spec JPMS
  */
-public class Package extends NamedPackage implements java.lang.reflect.AnnotatedElement {
+// 包
+public class Package extends NamedPackage implements AnnotatedElement {
+    
+    private final VersionInfo versionInfo;
+    private Class<?> packageInfo;
+    
+    
+    
+    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Construct a package instance for an unnamed module
+     * with the specified version information.
+     *
+     * @param name        the name of the package
+     * @param spectitle   the title of the specification
+     * @param specversion the version of the specification
+     * @param specvendor  the organization that maintains the specification
+     * @param impltitle   the title of the implementation
+     * @param implversion the version of the implementation
+     * @param implvendor  the organization that maintains the implementation
+     * @param sealbase    code source where this Package comes from
+     * @param loader      defining class loader
+     *
+     * @apiNote This method should not be called to define a Package for named module.
+     */
+    Package(String name, String spectitle, String specversion, String specvendor,
+            String impltitle, String implversion, String implvendor, URL sealbase, ClassLoader loader) {
+        super(Objects.requireNonNull(name), loader != null ? loader.getUnnamedModule() : BootLoader.getUnnamedModule());
+        
+        // 根据MANIFEST.MF中的信息创建VersionInfo对象
+        this.versionInfo = VersionInfo.getInstance(spectitle, specversion, specvendor, impltitle, implversion, implvendor, sealbase);
+    }
+    
+    Package(String name, Module module) {
+        super(name, module);
+        this.versionInfo = VersionInfo.NULL_VERSION_INFO;
+    }
+    
+    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 获取Package对象 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Finds a package by name in the caller's class loader and its
+     * ancestors.
+     * <p>
+     * If the caller's class loader defines a {@code Package} of the given name,
+     * the {@code Package} is returned. Otherwise, the ancestors of the
+     * caller's class loader are searched recursively (parent by parent)
+     * for a {@code Package} of the given name.
+     * <p>
+     * Calling this method is equivalent to calling {@link ClassLoader#getPackage}
+     * on a {@code ClassLoader} instance which is the caller's class loader.
+     *
+     * @param packageName A package name, such as "{@code java.lang}".
+     *
+     * @return The {@code Package} of the given name defined by the caller's
+     * class loader or its ancestors, or {@code null} if not found.
+     *
+     * @throws NullPointerException if {@code name} is {@code null}.
+     * @revised 9
+     * @spec JPMS
+     * @see ClassLoader#getDefinedPackage
+     * @deprecated If multiple class loaders delegate to each other and define classes
+     * with the same package name, and one such loader relies on the lookup
+     * behavior of {@code getPackage} to return a {@code Package} from
+     * a parent loader, then the properties exposed by the {@code Package}
+     * may not be as expected in the rest of the program.
+     * For example, the {@code Package} will only expose annotations from the
+     * {@code package-info.class} file defined by the parent loader, even if
+     * annotations exist in a {@code package-info.class} file defined by
+     * a child loader.  A more robust approach is to use the
+     * {@link ClassLoader#getDefinedPackage} method which returns
+     * a {@code Package} for the specified class loader.
+     */
+    // 获取指定名称的包，如果无法获取，则返回null
+    @CallerSensitive
+    @Deprecated(since = "9")
+    @SuppressWarnings("deprecation")
+    public static Package getPackage(String packageName) {
+        ClassLoader l = ClassLoader.getClassLoader(Reflection.getCallerClass());
+        return l != null ? l.getPackage(packageName) : BootLoader.getDefinedPackage(packageName);
+    }
+    
+    /**
+     * Returns all of the {@code Package}s defined by the caller's class loader and its ancestors.
+     * The returned array may contain more than one {@code Package} object of the same package name,
+     * each defined by a different class loader in the class loader hierarchy.
+     * <p>
+     * Calling this method is equivalent to calling {@link ClassLoader#getPackages}
+     * on a {@code ClassLoader} instance which is the caller's class loader.
+     *
+     * @return The array of {@code Package} objects defined by this
+     * class loader and its ancestors
+     *
+     * @revised 9
+     * @spec JPMS
+     * @see ClassLoader#getDefinedPackages
+     */
+    // 返回对调用者类的类加载器可视的包对象
+    @CallerSensitive
+    public static Package[] getPackages() {
+        ClassLoader cl = ClassLoader.getClassLoader(Reflection.getCallerClass());
+        return cl != null ? cl.getPackages() : BootLoader.packages().toArray(Package[]::new);
+    }
+    
+    /*▲ 获取Package对象 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 版本信息 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /*
+     * 版本信息从jar包的/META-INF/MANIFEST.MF文件中获取，如：
+     *
+     * Manifest-Version: 1.0
+     * Created-By: 11 (Oracle Corporation)
+     * Name: com/kang/hello/
+     * Specification-Title: AI plan
+     * Specification-Version: 5.0
+     * Specification-Vendor: Microsoft
+     * Implementation-Title: Speech Recognition
+     * Implementation-Version: 10.0
+     * Implementation-Vendor: Technical Department
+     * Sealed: true
+     */
+    
     /**
      * Return the name of this package.
      *
-     * @return  The fully-qualified name of this package as defined in section 6.5.3 of
-     *          <cite>The Java&trade; Language Specification</cite>,
-     *          for example, {@code java.lang}
+     * @return The fully-qualified name of this package as defined in section 6.5.3 of
+     * <cite>The Java&trade; Language Specification</cite>,
+     * for example, {@code java.lang}
      */
     public String getName() {
         return packageName();
     }
-
+    
     /**
      * Return the title of the specification that this package implements.
+     *
      * @return the specification title, {@code null} is returned if it is not known.
      */
     public String getSpecificationTitle() {
         return versionInfo.specTitle;
     }
-
+    
     /**
      * Returns the version number of the specification
      * that this package implements.
@@ -155,7 +280,7 @@ public class Package extends NamedPackage implements java.lang.reflect.Annotated
      * <dl>
      * <dt><i>SpecificationVersion:</i>
      * <dd><i>Digits RefinedVersion<sub>opt</sub></i>
-
+     *
      * <dt><i>RefinedVersion:</i>
      * <dd>{@code .} <i>Digits</i>
      * <dd>{@code .} <i>Digits RefinedVersion</i>
@@ -175,25 +300,27 @@ public class Package extends NamedPackage implements java.lang.reflect.Annotated
     public String getSpecificationVersion() {
         return versionInfo.specVersion;
     }
-
+    
     /**
      * Return the name of the organization, vendor,
      * or company that owns and maintains the specification
      * of the classes that implement this package.
+     *
      * @return the specification vendor, {@code null} is returned if it is not known.
      */
     public String getSpecificationVendor() {
         return versionInfo.specVendor;
     }
-
+    
     /**
      * Return the title of this package.
+     *
      * @return the title of the implementation, {@code null} is returned if it is not known.
      */
     public String getImplementationTitle() {
         return versionInfo.implTitle;
     }
-
+    
     /**
      * Return the version of this implementation. It consists of any string
      * assigned by the vendor of this implementation and does
@@ -201,15 +328,17 @@ public class Package extends NamedPackage implements java.lang.reflect.Annotated
      * runtime. It may be compared for equality with other
      * package version strings used for this implementation
      * by this vendor for this package.
+     *
      * @return the version of the implementation, {@code null} is returned if it is not known.
      */
     public String getImplementationVersion() {
         return versionInfo.implVersion;
     }
-
+    
     /**
      * Returns the vendor that implemented this package, {@code null}
      * is returned if it is not known.
+     *
      * @return the vendor that implemented this package, {@code null}
      * is returned if it is not known.
      *
@@ -219,7 +348,13 @@ public class Package extends NamedPackage implements java.lang.reflect.Annotated
     public String getImplementationVendor() {
         return versionInfo.implVendor;
     }
-
+    
+    /*▲ 版本信息 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 密封 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns true if this package is sealed.
      *
@@ -228,30 +363,108 @@ public class Package extends NamedPackage implements java.lang.reflect.Annotated
     public boolean isSealed() {
         return module().isNamed() || versionInfo.sealBase != null;
     }
-
+    
     /**
      * Returns true if this package is sealed with respect to the specified
      * code source {@code url}.
      *
      * @param url the code source URL
+     *
      * @return true if this package is sealed with respect to the given {@code url}
      */
     public boolean isSealed(URL url) {
         Objects.requireNonNull(url);
-
+        
         URL sealBase = null;
-        if (versionInfo != VersionInfo.NULL_VERSION_INFO) {
+        if(versionInfo != VersionInfo.NULL_VERSION_INFO) {
             sealBase = versionInfo.sealBase;
         } else {
             try {
                 URI uri = location();
                 sealBase = uri != null ? uri.toURL() : null;
-            } catch (MalformedURLException e) {
+            } catch(MalformedURLException e) {
             }
         }
         return url.equals(sealBase);
     }
-
+    
+    /*▲ 密封 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 注解 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @throws NullPointerException {@inheritDoc}
+     * @since 1.5
+     */
+    // 判断当前元素上是否存在注解
+    @Override
+    public boolean isAnnotationPresent(Class<? extends Annotation> annotationClass) {
+        return AnnotatedElement.super.isAnnotationPresent(annotationClass);
+    }
+    
+    /**
+     * @since 1.5
+     */
+    // 1-1 返回该元素上所有类型的注解
+    public Annotation[] getAnnotations() {
+        return getPackageInfo().getAnnotations();
+    }
+    
+    /**
+     * @throws NullPointerException {@inheritDoc}
+     * @since 1.5
+     */
+    // 1-2 返回该元素上指定类型的注解
+    public <A extends Annotation> A getAnnotation(Class<A> annotationClass) {
+        return getPackageInfo().getAnnotation(annotationClass);
+    }
+    
+    /**
+     * @throws NullPointerException {@inheritDoc}
+     * @since 1.8
+     */
+    // 1-3 返回该元素上指定类型的注解[支持获取@Repeatable类型的注解]
+    @Override
+    public <A extends Annotation> A[] getAnnotationsByType(Class<A> annotationClass) {
+        return getPackageInfo().getAnnotationsByType(annotationClass);
+    }
+    
+    /**
+     * @since 1.5
+     */
+    // 2-1 返回该元素上所有类型的注解
+    public Annotation[] getDeclaredAnnotations() {
+        return getPackageInfo().getDeclaredAnnotations();
+    }
+    
+    /**
+     * @throws NullPointerException {@inheritDoc}
+     * @since 1.8
+     */
+    // 2-2 返回该元素上指定类型的注解
+    @Override
+    public <A extends Annotation> A getDeclaredAnnotation(Class<A> annotationClass) {
+        return getPackageInfo().getDeclaredAnnotation(annotationClass);
+    }
+    
+    /**
+     * @throws NullPointerException {@inheritDoc}
+     * @since 1.8
+     */
+    // 2-3 返回该元素上指定类型的注解[支持获取@Repeatable类型的注解]
+    @Override
+    public <A extends Annotation> A[] getDeclaredAnnotationsByType(Class<A> annotationClass) {
+        return getPackageInfo().getDeclaredAnnotationsByType(annotationClass);
+    }
+    
+    /*▲ 注解 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
     /**
      * Compare this package's specification version with a
      * desired version. It returns true if
@@ -268,274 +481,112 @@ public class Package extends NamedPackage implements java.lang.reflect.Annotated
      * components is compared.
      *
      * @param desired the version string of the desired version.
-     * @return true if this package's version number is greater
-     *          than or equal to the desired version number
      *
-     * @exception NumberFormatException if the current version is not known or
-     *          the desired or current version is not of the correct dotted form.
+     * @return true if this package's version number is greater
+     * than or equal to the desired version number
+     *
+     * @throws NumberFormatException if the current version is not known or
+     *                               the desired or current version is not of the correct dotted form.
      */
-    public boolean isCompatibleWith(String desired)
-        throws NumberFormatException
-    {
-        if (versionInfo.specVersion == null || versionInfo.specVersion.length() < 1) {
+    public boolean isCompatibleWith(String desired) throws NumberFormatException {
+        if(versionInfo.specVersion == null || versionInfo.specVersion.length()<1) {
             throw new NumberFormatException("Empty version string");
         }
-
-        String [] sa = versionInfo.specVersion.split("\\.", -1);
-        int [] si = new int[sa.length];
-        for (int i = 0; i < sa.length; i++) {
+        
+        String[] sa = versionInfo.specVersion.split("\\.", -1);
+        int[] si = new int[sa.length];
+        for(int i = 0; i<sa.length; i++) {
             si[i] = Integer.parseInt(sa[i]);
-            if (si[i] < 0)
+            if(si[i]<0)
                 throw NumberFormatException.forInputString("" + si[i]);
         }
-
-        String [] da = desired.split("\\.", -1);
-        int [] di = new int[da.length];
-        for (int i = 0; i < da.length; i++) {
+        
+        String[] da = desired.split("\\.", -1);
+        int[] di = new int[da.length];
+        for(int i = 0; i<da.length; i++) {
             di[i] = Integer.parseInt(da[i]);
-            if (di[i] < 0)
+            if(di[i]<0)
                 throw NumberFormatException.forInputString("" + di[i]);
         }
-
+        
         int len = Math.max(di.length, si.length);
-        for (int i = 0; i < len; i++) {
-            int d = (i < di.length ? di[i] : 0);
-            int s = (i < si.length ? si[i] : 0);
-            if (s < d)
+        for(int i = 0; i<len; i++) {
+            int d = (i<di.length ? di[i] : 0);
+            int s = (i<si.length ? si[i] : 0);
+            if(s<d)
                 return false;
-            if (s > d)
+            if(s>d)
                 return true;
         }
         return true;
     }
-
-    /**
-     * Finds a package by name in the caller's class loader and its
-     * ancestors.
-     * <p>
-     * If the caller's class loader defines a {@code Package} of the given name,
-     * the {@code Package} is returned. Otherwise, the ancestors of the
-     * caller's class loader are searched recursively (parent by parent)
-     * for a {@code Package} of the given name.
-     * <p>
-     * Calling this method is equivalent to calling {@link ClassLoader#getPackage}
-     * on a {@code ClassLoader} instance which is the caller's class loader.
-     *
-     * @param name A package name, such as "{@code java.lang}".
-     * @return The {@code Package} of the given name defined by the caller's
-     *         class loader or its ancestors, or {@code null} if not found.
-     *
-     * @throws NullPointerException
-     *         if {@code name} is {@code null}.
-     *
-     * @deprecated
-     * If multiple class loaders delegate to each other and define classes
-     * with the same package name, and one such loader relies on the lookup
-     * behavior of {@code getPackage} to return a {@code Package} from
-     * a parent loader, then the properties exposed by the {@code Package}
-     * may not be as expected in the rest of the program.
-     * For example, the {@code Package} will only expose annotations from the
-     * {@code package-info.class} file defined by the parent loader, even if
-     * annotations exist in a {@code package-info.class} file defined by
-     * a child loader.  A more robust approach is to use the
-     * {@link ClassLoader#getDefinedPackage} method which returns
-     * a {@code Package} for the specified class loader.
-     *
-     * @see ClassLoader#getDefinedPackage
-     *
-     * @revised 9
-     * @spec JPMS
-     */
-    @CallerSensitive
-    @Deprecated(since="9")
-    @SuppressWarnings("deprecation")
-    public static Package getPackage(String name) {
-        ClassLoader l = ClassLoader.getClassLoader(Reflection.getCallerClass());
-        return l != null ? l.getPackage(name) : BootLoader.getDefinedPackage(name);
-    }
-
-    /**
-     * Returns all of the {@code Package}s defined by the caller's class loader
-     * and its ancestors.  The returned array may contain more than one
-     * {@code Package} object of the same package name, each defined by
-     * a different class loader in the class loader hierarchy.
-     * <p>
-     * Calling this method is equivalent to calling {@link ClassLoader#getPackages}
-     * on a {@code ClassLoader} instance which is the caller's class loader.
-     *
-     * @return  The array of {@code Package} objects defined by this
-     *          class loader and its ancestors
-     *
-     * @see ClassLoader#getDefinedPackages
-     *
-     * @revised 9
-     * @spec JPMS
-     */
-    @CallerSensitive
-    public static Package[] getPackages() {
-        ClassLoader cl = ClassLoader.getClassLoader(Reflection.getCallerClass());
-        return cl != null ? cl.getPackages() : BootLoader.packages().toArray(Package[]::new);
-    }
-
+    
     /**
      * Return the hash code computed from the package name.
+     *
      * @return the hash code computed from the package name.
      */
     @Override
-    public int hashCode(){
+    public int hashCode() {
         return packageName().hashCode();
     }
-
+    
     /**
      * Returns the string representation of this Package.
      * Its value is the string "package " and the package name.
      * If the package title is defined it is appended.
      * If the package version is defined it is appended.
+     *
      * @return the string representation of the package.
      */
     @Override
     public String toString() {
         String spec = versionInfo.specTitle;
-        String ver =  versionInfo.specVersion;
-        if (spec != null && spec.length() > 0)
+        String ver = versionInfo.specVersion;
+        if(spec != null && spec.length()>0)
             spec = ", " + spec;
         else
             spec = "";
-        if (ver != null && ver.length() > 0)
+        if(ver != null && ver.length()>0)
             ver = ", version " + ver;
         else
             ver = "";
         return "package " + packageName() + spec + ver;
     }
-
+    
     private Class<?> getPackageInfo() {
-        if (packageInfo == null) {
+        if(packageInfo == null) {
             // find package-info.class defined by loader
             String cn = packageName() + ".package-info";
             Module module = module();
             PrivilegedAction<ClassLoader> pa = module::getClassLoader;
             ClassLoader loader = AccessController.doPrivileged(pa);
             Class<?> c;
-            if (loader != null) {
+            if(loader != null) {
                 c = loader.loadClass(module, cn);
             } else {
                 c = BootLoader.loadClass(module, cn);
             }
-
-            if (c != null) {
+            
+            if(c != null) {
                 packageInfo = c;
             } else {
                 // store a proxy for the package info that has no annotations
-                class PackageInfoProxy {}
+                class PackageInfoProxy {
+                }
                 packageInfo = PackageInfoProxy.class;
             }
         }
         return packageInfo;
     }
-
+    
     /**
-     * @throws NullPointerException {@inheritDoc}
-     * @since 1.5
-     */
-    public <A extends Annotation> A getAnnotation(Class<A> annotationClass) {
-        return getPackageInfo().getAnnotation(annotationClass);
-    }
-
-    /**
-     * {@inheritDoc}
-     * @throws NullPointerException {@inheritDoc}
-     * @since 1.5
-     */
-    @Override
-    public boolean isAnnotationPresent(Class<? extends Annotation> annotationClass) {
-        return AnnotatedElement.super.isAnnotationPresent(annotationClass);
-    }
-
-    /**
-     * @throws NullPointerException {@inheritDoc}
-     * @since 1.8
-     */
-    @Override
-    public  <A extends Annotation> A[] getAnnotationsByType(Class<A> annotationClass) {
-        return getPackageInfo().getAnnotationsByType(annotationClass);
-    }
-
-    /**
-     * @since 1.5
-     */
-    public Annotation[] getAnnotations() {
-        return getPackageInfo().getAnnotations();
-    }
-
-    /**
-     * @throws NullPointerException {@inheritDoc}
-     * @since 1.8
-     */
-    @Override
-    public <A extends Annotation> A getDeclaredAnnotation(Class<A> annotationClass) {
-        return getPackageInfo().getDeclaredAnnotation(annotationClass);
-    }
-
-    /**
-     * @throws NullPointerException {@inheritDoc}
-     * @since 1.8
-     */
-    @Override
-    public <A extends Annotation> A[] getDeclaredAnnotationsByType(Class<A> annotationClass) {
-        return getPackageInfo().getDeclaredAnnotationsByType(annotationClass);
-    }
-
-    /**
-     * @since 1.5
-     */
-    public Annotation[] getDeclaredAnnotations()  {
-        return getPackageInfo().getDeclaredAnnotations();
-    }
-
-    /**
-     * Construct a package instance for an unnamed module
-     * with the specified version information.
-     *
-     * @apiNote
-     * This method should not be called to define a Package for named module.
-     *
-     * @param name the name of the package
-     * @param spectitle the title of the specification
-     * @param specversion the version of the specification
-     * @param specvendor the organization that maintains the specification
-     * @param impltitle the title of the implementation
-     * @param implversion the version of the implementation
-     * @param implvendor the organization that maintains the implementation
-     * @param sealbase code source where this Package comes from
-     * @param loader defining class loader
-     */
-    Package(String name,
-            String spectitle, String specversion, String specvendor,
-            String impltitle, String implversion, String implvendor,
-            URL sealbase, ClassLoader loader)
-    {
-        super(Objects.requireNonNull(name),
-              loader != null ? loader.getUnnamedModule()
-                             : BootLoader.getUnnamedModule());
-
-        this.versionInfo = VersionInfo.getInstance(spectitle, specversion,
-                                                   specvendor, impltitle,
-                                                   implversion, implvendor,
-                                                   sealbase);
-    }
-
-    Package(String name, Module module) {
-        super(name, module);
-        this.versionInfo = VersionInfo.NULL_VERSION_INFO;
-    }
-
-    /*
      * Versioning information.  Only for packages in unnamed modules.
      */
+    // 根据MANIFEST.MF中的信息创建VersionInfo对象
     static class VersionInfo {
-        static final VersionInfo NULL_VERSION_INFO
-            = new VersionInfo(null, null, null, null, null, null, null);
-
+        static final VersionInfo NULL_VERSION_INFO = new VersionInfo(null, null, null, null, null, null, null);
+        
         private final String specTitle;
         private final String specVersion;
         private final String specVendor;
@@ -543,27 +594,8 @@ public class Package extends NamedPackage implements java.lang.reflect.Annotated
         private final String implVersion;
         private final String implVendor;
         private final URL sealBase;
-
-        static VersionInfo getInstance(String spectitle, String specversion,
-                                       String specvendor, String impltitle,
-                                       String implversion, String implvendor,
-                                       URL sealbase) {
-            if (spectitle == null && specversion == null &&
-                    specvendor == null && impltitle == null &&
-                    implversion == null && implvendor == null &&
-                    sealbase == null) {
-                return NULL_VERSION_INFO;
-            }
-            return new VersionInfo(spectitle, specversion, specvendor,
-                    impltitle, implversion, implvendor,
-                    sealbase);
-        }
-
-        private VersionInfo(String spectitle, String specversion,
-                            String specvendor, String impltitle,
-                            String implversion, String implvendor,
-                            URL sealbase)
-        {
+        
+        private VersionInfo(String spectitle, String specversion, String specvendor, String impltitle, String implversion, String implvendor, URL sealbase) {
             this.implTitle = impltitle;
             this.implVersion = implversion;
             this.implVendor = implvendor;
@@ -572,8 +604,12 @@ public class Package extends NamedPackage implements java.lang.reflect.Annotated
             this.specVendor = specvendor;
             this.sealBase = sealbase;
         }
+        
+        static VersionInfo getInstance(String spectitle, String specversion, String specvendor, String impltitle, String implversion, String implvendor, URL sealbase) {
+            if(spectitle == null && specversion == null && specvendor == null && impltitle == null && implversion == null && implvendor == null && sealbase == null) {
+                return NULL_VERSION_INFO;
+            }
+            return new VersionInfo(spectitle, specversion, specvendor, impltitle, implversion, implvendor, sealbase);
+        }
     }
-
-    private final VersionInfo versionInfo;
-    private Class<?> packageInfo;
 }

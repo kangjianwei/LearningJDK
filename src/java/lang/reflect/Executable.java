@@ -25,17 +25,17 @@
 
 package java.lang.reflect;
 
-import java.lang.annotation.*;
-import java.util.Map;
-import java.util.Objects;
-import java.util.StringJoiner;
-
 import jdk.internal.misc.SharedSecrets;
 import sun.reflect.annotation.AnnotationParser;
 import sun.reflect.annotation.AnnotationSupport;
-import sun.reflect.annotation.TypeAnnotationParser;
 import sun.reflect.annotation.TypeAnnotation;
+import sun.reflect.annotation.TypeAnnotationParser;
 import sun.reflect.generics.repository.ConstructorRepository;
+
+import java.lang.annotation.Annotation;
+import java.util.Map;
+import java.util.Objects;
+import java.util.StringJoiner;
 
 /**
  * A shared superclass for the common functionality of {@link Method}
@@ -43,164 +43,41 @@ import sun.reflect.generics.repository.ConstructorRepository;
  *
  * @since 1.8
  */
-public abstract class Executable extends AccessibleObject
-    implements Member, GenericDeclaration {
-    /*
+// 可执行元素，比如：Constructor和Method
+public abstract class Executable extends AccessibleObject implements Member, GenericDeclaration {
+    
+    private transient volatile boolean hasRealParameterData;
+    private transient volatile Parameter[] parameters;
+    private transient volatile Map<Class<? extends Annotation>, Annotation> declaredAnnotations;
+    
+    
+    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
      * Only grant package-visibility to the constructor.
      */
-    Executable() {}
-
-    /**
-     * Accessor method to allow code sharing
-     */
-    abstract byte[] getAnnotationBytes();
-
-    /**
-     * Does the Executable have generic information.
-     */
-    abstract boolean hasGenericInformation();
-
-    abstract ConstructorRepository getGenericInfo();
-
-    boolean equalParamTypes(Class<?>[] params1, Class<?>[] params2) {
-        /* Avoid unnecessary cloning */
-        if (params1.length == params2.length) {
-            for (int i = 0; i < params1.length; i++) {
-                if (params1[i] != params2[i])
-                    return false;
-            }
-            return true;
-        }
-        return false;
+    Executable() {
     }
-
-    Annotation[][] parseParameterAnnotations(byte[] parameterAnnotations) {
-        return AnnotationParser.parseParameterAnnotations(
-               parameterAnnotations,
-               SharedSecrets.getJavaLangAccess().
-               getConstantPool(getDeclaringClass()),
-               getDeclaringClass());
-    }
-
-    void printModifiersIfNonzero(StringBuilder sb, int mask, boolean isDefault) {
-        int mod = getModifiers() & mask;
-
-        if (mod != 0 && !isDefault) {
-            sb.append(Modifier.toString(mod)).append(' ');
-        } else {
-            int access_mod = mod & Modifier.ACCESS_MODIFIERS;
-            if (access_mod != 0)
-                sb.append(Modifier.toString(access_mod)).append(' ');
-            if (isDefault)
-                sb.append("default ");
-            mod = (mod & ~Modifier.ACCESS_MODIFIERS);
-            if (mod != 0)
-                sb.append(Modifier.toString(mod)).append(' ');
-        }
-    }
-
-    String sharedToString(int modifierMask,
-                          boolean isDefault,
-                          Class<?>[] parameterTypes,
-                          Class<?>[] exceptionTypes) {
-        try {
-            StringBuilder sb = new StringBuilder();
-
-            printModifiersIfNonzero(sb, modifierMask, isDefault);
-            specificToStringHeader(sb);
-            sb.append('(');
-            StringJoiner sj = new StringJoiner(",");
-            for (Class<?> parameterType : parameterTypes) {
-                sj.add(parameterType.getTypeName());
-            }
-            sb.append(sj.toString());
-            sb.append(')');
-
-            if (exceptionTypes.length > 0) {
-                StringJoiner joiner = new StringJoiner(",", " throws ", "");
-                for (Class<?> exceptionType : exceptionTypes) {
-                    joiner.add(exceptionType.getTypeName());
-                }
-                sb.append(joiner.toString());
-            }
-            return sb.toString();
-        } catch (Exception e) {
-            return "<" + e + ">";
-        }
-    }
-
-    /**
-     * Generate toString header information specific to a method or
-     * constructor.
-     */
-    abstract void specificToStringHeader(StringBuilder sb);
-
-    String sharedToGenericString(int modifierMask, boolean isDefault) {
-        try {
-            StringBuilder sb = new StringBuilder();
-
-            printModifiersIfNonzero(sb, modifierMask, isDefault);
-
-            TypeVariable<?>[] typeparms = getTypeParameters();
-            if (typeparms.length > 0) {
-                StringJoiner sj = new StringJoiner(",", "<", "> ");
-                for(TypeVariable<?> typeparm: typeparms) {
-                    sj.add(typeparm.getTypeName());
-                }
-                sb.append(sj.toString());
-            }
-
-            specificToGenericStringHeader(sb);
-
-            sb.append('(');
-            StringJoiner sj = new StringJoiner(",");
-            Type[] params = getGenericParameterTypes();
-            for (int j = 0; j < params.length; j++) {
-                String param = params[j].getTypeName();
-                if (isVarArgs() && (j == params.length - 1)) // replace T[] with T...
-                    param = param.replaceFirst("\\[\\]$", "...");
-                sj.add(param);
-            }
-            sb.append(sj.toString());
-            sb.append(')');
-
-            Type[] exceptionTypes = getGenericExceptionTypes();
-            if (exceptionTypes.length > 0) {
-                StringJoiner joiner = new StringJoiner(",", " throws ", "");
-                for (Type exceptionType : exceptionTypes) {
-                    joiner.add(exceptionType.getTypeName());
-                }
-                sb.append(joiner.toString());
-            }
-            return sb.toString();
-        } catch (Exception e) {
-            return "<" + e + ">";
-        }
-    }
-
-    /**
-     * Generate toGenericString header information specific to a
-     * method or constructor.
-     */
-    abstract void specificToGenericStringHeader(StringBuilder sb);
-
-    /**
-     * Returns the {@code Class} object representing the class or interface
-     * that declares the executable represented by this object.
-     */
-    public abstract Class<?> getDeclaringClass();
-
-    /**
-     * Returns the name of the executable represented by this object.
-     */
-    public abstract String getName();
-
+    
+    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 1. 修饰符 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns the Java language {@linkplain Modifier modifiers} for
      * the executable represented by this object.
      */
+    // 获取元素修饰符
     public abstract int getModifiers();
-
+    
+    /*▲ 1. 修饰符 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 2. 引入的TypeVariable ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns an array of {@code TypeVariable} objects that represent the
      * type variables declared by the generic declaration represented by this
@@ -209,22 +86,81 @@ public abstract class Executable extends AccessibleObject
      * variables.
      *
      * @return an array of {@code TypeVariable} objects that represent
-     *     the type variables declared by this generic declaration
+     * the type variables declared by this generic declaration
+     *
      * @throws GenericSignatureFormatError if the generic
-     *     signature of this generic declaration does not conform to
-     *     the format specified in
-     *     <cite>The Java&trade; Virtual Machine Specification</cite>
+     *                                     signature of this generic declaration does not conform to
+     *                                     the format specified in
+     *                                     <cite>The Java&trade; Virtual Machine Specification</cite>
      */
+    // 构造器/方法引入的TypeVariable
     public abstract TypeVariable<?>[] getTypeParameters();
-
-    // returns shared array of parameter types - must never give it out
-    // to the untrusted code...
-    abstract Class<?>[] getSharedParameterTypes();
-
-    // returns shared array of exception types - must never give it out
-    // to the untrusted code...
-    abstract Class<?>[] getSharedExceptionTypes();
-
+    
+    /*▲ 2. 引入的TypeVariable ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 3. 返回值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /*▲ 3. 返回值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 4. 名称 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the name of the executable represented by this object.
+     */
+    // 获取元素名称
+    public abstract String getName();
+    
+    /*▲ 4. 名称 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字符串化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a string describing this {@code Executable}, including
+     * any type parameters.
+     *
+     * @return a string describing this {@code Executable}, including
+     * any type parameters
+     */
+    // 获取元素的描述，带着泛型信息
+    public abstract String toGenericString();
+    
+    /*▲ 字符串化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 5. 形参 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the number of formal parameters (whether explicitly
+     * declared or implicitly declared or neither) for the executable
+     * represented by this object.
+     *
+     * @return The number of formal parameters for the executable this
+     * object represents
+     */
+    // 获取形参数量
+    public int getParameterCount() {
+        throw new AbstractMethodError();
+    }
+    
+    /**
+     * Returns {@code true} if this executable was declared to take a
+     * variable number of arguments; returns {@code false} otherwise.
+     *
+     * @return {@code true} if an only if this executable was declared
+     * to take a variable number of arguments.
+     */
+    // 是否为可变数量形参
+    public boolean isVarArgs() {
+        return (getModifiers() & Modifier.VARARGS) != 0;
+    }
+    
     /**
      * Returns an array of {@code Class} objects that represent the formal
      * parameter types, in declaration order, of the executable
@@ -234,20 +170,9 @@ public abstract class Executable extends AccessibleObject
      * @return the parameter types for the executable this object
      * represents
      */
+    // 获取形参类型[类型擦除]
     public abstract Class<?>[] getParameterTypes();
-
-    /**
-     * Returns the number of formal parameters (whether explicitly
-     * declared or implicitly declared or neither) for the executable
-     * represented by this object.
-     *
-     * @return The number of formal parameters for the executable this
-     * object represents
-     */
-    public int getParameterCount() {
-        throw new AbstractMethodError();
-    }
-
+    
     /**
      * Returns an array of {@code Type} objects that represent the formal
      * parameter types, in declaration order, of the executable represented by
@@ -262,72 +187,26 @@ public abstract class Executable extends AccessibleObject
      * type, it is created. Otherwise, it is resolved.
      *
      * @return an array of {@code Type}s that represent the formal
-     *     parameter types of the underlying executable, in declaration order
-     * @throws GenericSignatureFormatError
-     *     if the generic method signature does not conform to the format
-     *     specified in
-     *     <cite>The Java&trade; Virtual Machine Specification</cite>
-     * @throws TypeNotPresentException if any of the parameter
-     *     types of the underlying executable refers to a non-existent type
-     *     declaration
+     * parameter types of the underlying executable, in declaration order
+     *
+     * @throws GenericSignatureFormatError         if the generic method signature does not conform to the format
+     *                                             specified in
+     *                                             <cite>The Java&trade; Virtual Machine Specification</cite>
+     * @throws TypeNotPresentException             if any of the parameter
+     *                                             types of the underlying executable refers to a non-existent type
+     *                                             declaration
      * @throws MalformedParameterizedTypeException if any of
-     *     the underlying executable's parameter types refer to a parameterized
-     *     type that cannot be instantiated for any reason
+     *                                             the underlying executable's parameter types refer to a parameterized
+     *                                             type that cannot be instantiated for any reason
      */
+    // 获取形参类型[支持泛型语义]
     public Type[] getGenericParameterTypes() {
-        if (hasGenericInformation())
+        if(hasGenericInformation())
             return getGenericInfo().getParameterTypes();
         else
             return getParameterTypes();
     }
-
-    /**
-     * Behaves like {@code getGenericParameterTypes}, but returns type
-     * information for all parameters, including synthetic parameters.
-     */
-    Type[] getAllGenericParameterTypes() {
-        final boolean genericInfo = hasGenericInformation();
-
-        // Easy case: we don't have generic parameter information.  In
-        // this case, we just return the result of
-        // getParameterTypes().
-        if (!genericInfo) {
-            return getParameterTypes();
-        } else {
-            final boolean realParamData = hasRealParameterData();
-            final Type[] genericParamTypes = getGenericParameterTypes();
-            final Type[] nonGenericParamTypes = getParameterTypes();
-            final Type[] out = new Type[nonGenericParamTypes.length];
-            final Parameter[] params = getParameters();
-            int fromidx = 0;
-            // If we have real parameter data, then we use the
-            // synthetic and mandate flags to our advantage.
-            if (realParamData) {
-                for (int i = 0; i < out.length; i++) {
-                    final Parameter param = params[i];
-                    if (param.isSynthetic() || param.isImplicit()) {
-                        // If we hit a synthetic or mandated parameter,
-                        // use the non generic parameter info.
-                        out[i] = nonGenericParamTypes[i];
-                    } else {
-                        // Otherwise, use the generic parameter info.
-                        out[i] = genericParamTypes[fromidx];
-                        fromidx++;
-                    }
-                }
-            } else {
-                // Otherwise, use the non-generic parameter data.
-                // Without method parameter reflection data, we have
-                // no way to figure out which parameters are
-                // synthetic/mandated, thus, no way to match up the
-                // indexes.
-                return genericParamTypes.length == nonGenericParamTypes.length ?
-                    genericParamTypes : nonGenericParamTypes;
-            }
-            return out;
-        }
-    }
-
+    
     /**
      * Returns an array of {@code Parameter} objects that represent
      * all the parameters to the underlying executable represented by
@@ -338,11 +217,13 @@ public abstract class Executable extends AccessibleObject
      * have unique names, or names that are legal identifiers in the
      * Java programming language (JLS 3.8).
      *
-     * @throws MalformedParametersException if the class file contains
-     * a MethodParameters attribute that is improperly formatted.
      * @return an array of {@code Parameter} objects representing all
      * the parameters to the executable this object represents.
+     *
+     * @throws MalformedParametersException if the class file contains
+     *                                      a MethodParameters attribute that is improperly formatted.
      */
+    // 获取形参对象
     public Parameter[] getParameters() {
         // TODO: This may eventually need to be guarded by security
         // mechanisms similar to those in Field, Method, etc.
@@ -352,92 +233,13 @@ public abstract class Executable extends AccessibleObject
         // shallow-copy.
         return privateGetParameters().clone();
     }
-
-    private Parameter[] synthesizeAllParams() {
-        final int realparams = getParameterCount();
-        final Parameter[] out = new Parameter[realparams];
-        for (int i = 0; i < realparams; i++)
-            // TODO: is there a way to synthetically derive the
-            // modifiers?  Probably not in the general case, since
-            // we'd have no way of knowing about them, but there
-            // may be specific cases.
-            out[i] = new Parameter("arg" + i, 0, this, i);
-        return out;
-    }
-
-    private void verifyParameters(final Parameter[] parameters) {
-        final int mask = Modifier.FINAL | Modifier.SYNTHETIC | Modifier.MANDATED;
-
-        if (getParameterTypes().length != parameters.length)
-            throw new MalformedParametersException("Wrong number of parameters in MethodParameters attribute");
-
-        for (Parameter parameter : parameters) {
-            final String name = parameter.getRealName();
-            final int mods = parameter.getModifiers();
-
-            if (name != null) {
-                if (name.isEmpty() || name.indexOf('.') != -1 ||
-                    name.indexOf(';') != -1 || name.indexOf('[') != -1 ||
-                    name.indexOf('/') != -1) {
-                    throw new MalformedParametersException("Invalid parameter name \"" + name + "\"");
-                }
-            }
-
-            if (mods != (mods & mask)) {
-                throw new MalformedParametersException("Invalid parameter modifiers");
-            }
-        }
-    }
-
-    private Parameter[] privateGetParameters() {
-        // Use tmp to avoid multiple writes to a volatile.
-        Parameter[] tmp = parameters;
-
-        if (tmp == null) {
-
-            // Otherwise, go to the JVM to get them
-            try {
-                tmp = getParameters0();
-            } catch(IllegalArgumentException e) {
-                // Rethrow ClassFormatErrors
-                throw new MalformedParametersException("Invalid constant pool index");
-            }
-
-            // If we get back nothing, then synthesize parameters
-            if (tmp == null) {
-                hasRealParameterData = false;
-                tmp = synthesizeAllParams();
-            } else {
-                hasRealParameterData = true;
-                verifyParameters(tmp);
-            }
-
-            parameters = tmp;
-        }
-
-        return tmp;
-    }
-
-    boolean hasRealParameterData() {
-        // If this somehow gets called before parameters gets
-        // initialized, force it into existence.
-        if (parameters == null) {
-            privateGetParameters();
-        }
-        return hasRealParameterData;
-    }
-
-    private transient volatile boolean hasRealParameterData;
-    private transient volatile Parameter[] parameters;
-
-    private native Parameter[] getParameters0();
-    native byte[] getTypeAnnotationBytes0();
-
-    // Needed by reflectaccess
-    byte[] getTypeAnnotationBytes() {
-        return getTypeAnnotationBytes0();
-    }
-
+    
+    /*▲ 5. 形参 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 6. 抛出的异常 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns an array of {@code Class} objects that represent the
      * types of exceptions declared to be thrown by the underlying
@@ -448,8 +250,9 @@ public abstract class Executable extends AccessibleObject
      * @return the exception types declared as being thrown by the
      * executable this object represents
      */
+    // 获取该构造器抛出的异常类型[类型擦除]
     public abstract Class<?>[] getExceptionTypes();
-
+    
     /**
      * Returns an array of {@code Type} objects that represent the
      * exceptions declared to be thrown by this executable object.
@@ -460,58 +263,64 @@ public abstract class Executable extends AccessibleObject
      * type, it is created. Otherwise, it is resolved.
      *
      * @return an array of Types that represent the exception types
-     *     thrown by the underlying executable
-     * @throws GenericSignatureFormatError
-     *     if the generic method signature does not conform to the format
-     *     specified in
-     *     <cite>The Java&trade; Virtual Machine Specification</cite>
-     * @throws TypeNotPresentException if the underlying executable's
-     *     {@code throws} clause refers to a non-existent type declaration
+     * thrown by the underlying executable
+     *
+     * @throws GenericSignatureFormatError         if the generic method signature does not conform to the format
+     *                                             specified in
+     *                                             <cite>The Java&trade; Virtual Machine Specification</cite>
+     * @throws TypeNotPresentException             if the underlying executable's
+     *                                             {@code throws} clause refers to a non-existent type declaration
      * @throws MalformedParameterizedTypeException if
-     *     the underlying executable's {@code throws} clause refers to a
-     *     parameterized type that cannot be instantiated for any reason
+     *                                             the underlying executable's {@code throws} clause refers to a
+     *                                             parameterized type that cannot be instantiated for any reason
      */
+    // 获取该方法抛出的异常类型[支持泛型语义]
     public Type[] getGenericExceptionTypes() {
         Type[] result;
-        if (hasGenericInformation() &&
-            ((result = getGenericInfo().getExceptionTypes()).length > 0))
+        if(hasGenericInformation() && ((result = getGenericInfo().getExceptionTypes()).length>0))
             return result;
         else
             return getExceptionTypes();
     }
-
+    
+    /*▲ 6. 抛出的异常 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 注解 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns a string describing this {@code Executable}, including
-     * any type parameters.
-     * @return a string describing this {@code Executable}, including
-     * any type parameters
-     */
-    public abstract String toGenericString();
-
-    /**
-     * Returns {@code true} if this executable was declared to take a
-     * variable number of arguments; returns {@code false} otherwise.
+     * {@inheritDoc}
      *
-     * @return {@code true} if an only if this executable was declared
-     * to take a variable number of arguments.
+     * @throws NullPointerException {@inheritDoc}
      */
-    public boolean isVarArgs()  {
-        return (getModifiers() & Modifier.VARARGS) != 0;
+    // 1-2 返回该元素上指定类型的注解
+    public <T extends Annotation> T getAnnotation(Class<T> annotationClass) {
+        Objects.requireNonNull(annotationClass);
+        return annotationClass.cast(declaredAnnotations().get(annotationClass));
     }
-
+    
     /**
-     * Returns {@code true} if this executable is a synthetic
-     * construct; returns {@code false} otherwise.
+     * {@inheritDoc}
      *
-     * @return true if and only if this executable is a synthetic
-     * construct as defined by
-     * <cite>The Java&trade; Language Specification</cite>.
-     * @jls 13.1 The Form of a Binary
+     * @throws NullPointerException {@inheritDoc}
      */
-    public boolean isSynthetic() {
-        return Modifier.isSynthetic(getModifiers());
+    // 1-3 返回该元素上指定类型的注解[支持获取@Repeatable类型的注解]
+    @Override
+    public <T extends Annotation> T[] getAnnotationsByType(Class<T> annotationClass) {
+        Objects.requireNonNull(annotationClass);
+        
+        return AnnotationSupport.getDirectlyAndIndirectlyPresent(declaredAnnotations(), annotationClass);
     }
-
+    
+    /**
+     * {@inheritDoc}
+     */
+    // 2-1 返回该元素上所有类型的注解
+    public Annotation[] getDeclaredAnnotations() {
+        return AnnotationParser.toArray(declaredAnnotations());
+    }
+    
     /**
      * Returns an array of arrays of {@code Annotation}s that
      * represent the annotations on the formal parameters, in
@@ -534,87 +343,36 @@ public abstract class Executable extends AccessibleObject
      * ("synthetic") to the parameter list for a method.  See {@link
      * java.lang.reflect.Parameter} for more information.
      *
+     * @return an array of arrays that represent the annotations on
+     * the formal and implicit parameters, in declaration order, of
+     * the executable represented by this object
+     *
      * @see java.lang.reflect.Parameter
      * @see java.lang.reflect.Parameter#getAnnotations
-     * @return an array of arrays that represent the annotations on
-     *    the formal and implicit parameters, in declaration order, of
-     *    the executable represented by this object
      */
+    // 获取形参上的注解
     public abstract Annotation[][] getParameterAnnotations();
-
-    Annotation[][] sharedGetParameterAnnotations(Class<?>[] parameterTypes,
-                                                 byte[] parameterAnnotations) {
-        int numParameters = parameterTypes.length;
-        if (parameterAnnotations == null)
-            return new Annotation[numParameters][0];
-
-        Annotation[][] result = parseParameterAnnotations(parameterAnnotations);
-
-        if (result.length != numParameters &&
-            handleParameterNumberMismatch(result.length, numParameters)) {
-            Annotation[][] tmp = new Annotation[result.length+1][];
-            // Shift annotations down one to account for an implicit leading parameter
-            System.arraycopy(result, 0, tmp, 1, result.length);
-            tmp[0] = new Annotation[0];
-            result = tmp;
-        }
-        return result;
-    }
-
-    abstract boolean handleParameterNumberMismatch(int resultLength, int numParameters);
-
+    
     /**
-     * {@inheritDoc}
-     * @throws NullPointerException  {@inheritDoc}
+     * Returns an array of {@code AnnotatedType} objects that represent the use
+     * of types to specify formal parameter types of the method/constructor
+     * represented by this Executable. The order of the objects in the array
+     * corresponds to the order of the formal parameter types in the
+     * declaration of the method/constructor.
+     *
+     * Returns an array of length 0 if the method/constructor declares no
+     * parameters.
+     *
+     * @return an array of objects representing the types of the
+     * formal parameters of the method or constructor represented by this
+     * {@code Executable}
      */
-    public <T extends Annotation> T getAnnotation(Class<T> annotationClass) {
-        Objects.requireNonNull(annotationClass);
-        return annotationClass.cast(declaredAnnotations().get(annotationClass));
+    // 获取形参上的【被注解类型】
+    public AnnotatedType[] getAnnotatedParameterTypes() {
+        return TypeAnnotationParser.buildAnnotatedTypes(getTypeAnnotationBytes0(), SharedSecrets.getJavaLangAccess().
+            getConstantPool(getDeclaringClass()), this, getDeclaringClass(), getAllGenericParameterTypes(), TypeAnnotation.TypeAnnotationTarget.METHOD_FORMAL_PARAMETER);
     }
-
-    /**
-     * {@inheritDoc}
-     * @throws NullPointerException {@inheritDoc}
-     */
-    @Override
-    public <T extends Annotation> T[] getAnnotationsByType(Class<T> annotationClass) {
-        Objects.requireNonNull(annotationClass);
-
-        return AnnotationSupport.getDirectlyAndIndirectlyPresent(declaredAnnotations(), annotationClass);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public Annotation[] getDeclaredAnnotations()  {
-        return AnnotationParser.toArray(declaredAnnotations());
-    }
-
-    private transient volatile Map<Class<? extends Annotation>, Annotation> declaredAnnotations;
-
-    private Map<Class<? extends Annotation>, Annotation> declaredAnnotations() {
-        Map<Class<? extends Annotation>, Annotation> declAnnos;
-        if ((declAnnos = declaredAnnotations) == null) {
-            synchronized (this) {
-                if ((declAnnos = declaredAnnotations) == null) {
-                    Executable root = (Executable)getRoot();
-                    if (root != null) {
-                        declAnnos = root.declaredAnnotations();
-                    } else {
-                        declAnnos = AnnotationParser.parseAnnotations(
-                                getAnnotationBytes(),
-                                SharedSecrets.getJavaLangAccess().
-                                        getConstantPool(getDeclaringClass()),
-                                getDeclaringClass()
-                        );
-                    }
-                    declaredAnnotations = declAnnos;
-                }
-            }
-        }
-        return declAnnos;
-    }
-
+    
     /**
      * Returns an {@code AnnotatedType} object that represents the use of a type to
      * specify the return type of the method/constructor represented by this
@@ -630,24 +388,9 @@ public abstract class Executable extends AccessibleObject
      * @return an object representing the return type of the method
      * or constructor represented by this {@code Executable}
      */
+    // 获取返回类型上的【被注解类型】
     public abstract AnnotatedType getAnnotatedReturnType();
-
-    /* Helper for subclasses of Executable.
-     *
-     * Returns an AnnotatedType object that represents the use of a type to
-     * specify the return type of the method/constructor represented by this
-     * Executable.
-     */
-    AnnotatedType getAnnotatedReturnType0(Type returnType) {
-        return TypeAnnotationParser.buildAnnotatedType(getTypeAnnotationBytes0(),
-                SharedSecrets.getJavaLangAccess().
-                        getConstantPool(getDeclaringClass()),
-                this,
-                getDeclaringClass(),
-                returnType,
-                TypeAnnotation.TypeAnnotationTarget.METHOD_RETURN);
-    }
-
+    
     /**
      * Returns an {@code AnnotatedType} object that represents the use of a
      * type to specify the receiver type of the method/constructor represented
@@ -670,42 +413,14 @@ public abstract class Executable extends AccessibleObject
      * constructor represented by this {@code Executable} or {@code null} if
      * this {@code Executable} can not have a receiver parameter
      */
+    // 获取Receiver Type上的【被注解类型】
     public AnnotatedType getAnnotatedReceiverType() {
-        if (Modifier.isStatic(this.getModifiers()))
+        if(Modifier.isStatic(this.getModifiers()))
             return null;
-        return TypeAnnotationParser.buildAnnotatedType(getTypeAnnotationBytes0(),
-                SharedSecrets.getJavaLangAccess().
-                        getConstantPool(getDeclaringClass()),
-                this,
-                getDeclaringClass(),
-                getDeclaringClass(),
-                TypeAnnotation.TypeAnnotationTarget.METHOD_RECEIVER);
+        return TypeAnnotationParser.buildAnnotatedType(getTypeAnnotationBytes0(), SharedSecrets.getJavaLangAccess().
+            getConstantPool(getDeclaringClass()), this, getDeclaringClass(), getDeclaringClass(), TypeAnnotation.TypeAnnotationTarget.METHOD_RECEIVER);
     }
-
-    /**
-     * Returns an array of {@code AnnotatedType} objects that represent the use
-     * of types to specify formal parameter types of the method/constructor
-     * represented by this Executable. The order of the objects in the array
-     * corresponds to the order of the formal parameter types in the
-     * declaration of the method/constructor.
-     *
-     * Returns an array of length 0 if the method/constructor declares no
-     * parameters.
-     *
-     * @return an array of objects representing the types of the
-     * formal parameters of the method or constructor represented by this
-     * {@code Executable}
-     */
-    public AnnotatedType[] getAnnotatedParameterTypes() {
-        return TypeAnnotationParser.buildAnnotatedTypes(getTypeAnnotationBytes0(),
-                SharedSecrets.getJavaLangAccess().
-                        getConstantPool(getDeclaringClass()),
-                this,
-                getDeclaringClass(),
-                getAllGenericParameterTypes(),
-                TypeAnnotation.TypeAnnotationTarget.METHOD_FORMAL_PARAMETER);
-    }
-
+    
     /**
      * Returns an array of {@code AnnotatedType} objects that represent the use
      * of types to specify the declared exceptions of the method/constructor
@@ -720,14 +435,355 @@ public abstract class Executable extends AccessibleObject
      * exceptions of the method or constructor represented by this {@code
      * Executable}
      */
+    // 获取异常上的【被注解类型】
     public AnnotatedType[] getAnnotatedExceptionTypes() {
-        return TypeAnnotationParser.buildAnnotatedTypes(getTypeAnnotationBytes0(),
-                SharedSecrets.getJavaLangAccess().
-                        getConstantPool(getDeclaringClass()),
-                this,
-                getDeclaringClass(),
-                getGenericExceptionTypes(),
-                TypeAnnotation.TypeAnnotationTarget.THROWS);
+        return TypeAnnotationParser.buildAnnotatedTypes(getTypeAnnotationBytes0(), SharedSecrets.getJavaLangAccess().
+            getConstantPool(getDeclaringClass()), this, getDeclaringClass(), getGenericExceptionTypes(), TypeAnnotation.TypeAnnotationTarget.THROWS);
     }
-
+    
+    /*▲ 注解 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 特征 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the {@code Class} object representing the class or interface
+     * that declares the executable represented by this object.
+     */
+    // 返回元素所在的类
+    public abstract Class<?> getDeclaringClass();
+    
+    /**
+     * Returns {@code true} if this executable is a synthetic
+     * construct; returns {@code false} otherwise.
+     *
+     * @return true if and only if this executable is a synthetic
+     * construct as defined by
+     * <cite>The Java&trade; Language Specification</cite>.
+     *
+     * @jls 13.1 The Form of a Binary
+     */
+    // 是否由编译器引入（非人为定义）
+    public boolean isSynthetic() {
+        return Modifier.isSynthetic(getModifiers());
+    }
+    
+    /*▲ 特征 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    
+    
+    
+    /**
+     * Accessor method to allow code sharing
+     */
+    abstract byte[] getAnnotationBytes();
+    
+    /**
+     * Does the Executable have generic information.
+     */
+    abstract boolean hasGenericInformation();
+    
+    abstract ConstructorRepository getGenericInfo();
+    
+    /**
+     * Generate toString header information specific to a method or
+     * constructor.
+     */
+    abstract void specificToStringHeader(StringBuilder sb);
+    
+    /**
+     * Generate toGenericString header information specific to a
+     * method or constructor.
+     */
+    abstract void specificToGenericStringHeader(StringBuilder sb);
+    
+    // returns shared array of parameter types - must never give it out to the untrusted code...
+    abstract Class<?>[] getSharedParameterTypes();
+    
+    // returns shared array of exception types - must never give it out to the untrusted code...
+    abstract Class<?>[] getSharedExceptionTypes();
+    
+    abstract boolean handleParameterNumberMismatch(int resultLength, int numParameters);
+    
+    boolean equalParamTypes(Class<?>[] params1, Class<?>[] params2) {
+        /* Avoid unnecessary cloning */
+        if(params1.length == params2.length) {
+            for(int i = 0; i<params1.length; i++) {
+                if(params1[i] != params2[i])
+                    return false;
+            }
+            return true;
+        }
+        return false;
+    }
+    
+    Annotation[][] parseParameterAnnotations(byte[] parameterAnnotations) {
+        return AnnotationParser.parseParameterAnnotations(parameterAnnotations, SharedSecrets.getJavaLangAccess().
+            getConstantPool(getDeclaringClass()), getDeclaringClass());
+    }
+    
+    void printModifiersIfNonzero(StringBuilder sb, int mask, boolean isDefault) {
+        int mod = getModifiers() & mask;
+        
+        if(mod != 0 && !isDefault) {
+            sb.append(Modifier.toString(mod)).append(' ');
+        } else {
+            int access_mod = mod & Modifier.ACCESS_MODIFIERS;
+            if(access_mod != 0)
+                sb.append(Modifier.toString(access_mod)).append(' ');
+            if(isDefault)
+                sb.append("default ");
+            mod = (mod & ~Modifier.ACCESS_MODIFIERS);
+            if(mod != 0)
+                sb.append(Modifier.toString(mod)).append(' ');
+        }
+    }
+    
+    String sharedToString(int modifierMask, boolean isDefault, Class<?>[] parameterTypes, Class<?>[] exceptionTypes) {
+        try {
+            StringBuilder sb = new StringBuilder();
+            
+            printModifiersIfNonzero(sb, modifierMask, isDefault);
+            specificToStringHeader(sb);
+            sb.append('(');
+            StringJoiner sj = new StringJoiner(",");
+            for(Class<?> parameterType : parameterTypes) {
+                sj.add(parameterType.getTypeName());
+            }
+            sb.append(sj.toString());
+            sb.append(')');
+            
+            if(exceptionTypes.length>0) {
+                StringJoiner joiner = new StringJoiner(",", " throws ", "");
+                for(Class<?> exceptionType : exceptionTypes) {
+                    joiner.add(exceptionType.getTypeName());
+                }
+                sb.append(joiner.toString());
+            }
+            return sb.toString();
+        } catch(Exception e) {
+            return "<" + e + ">";
+        }
+    }
+    
+    String sharedToGenericString(int modifierMask, boolean isDefault) {
+        try {
+            StringBuilder sb = new StringBuilder();
+            
+            printModifiersIfNonzero(sb, modifierMask, isDefault);
+            
+            TypeVariable<?>[] typeparms = getTypeParameters();
+            if(typeparms.length>0) {
+                StringJoiner sj = new StringJoiner(",", "<", "> ");
+                for(TypeVariable<?> typeparm : typeparms) {
+                    sj.add(typeparm.getTypeName());
+                }
+                sb.append(sj.toString());
+            }
+            
+            specificToGenericStringHeader(sb);
+            
+            sb.append('(');
+            StringJoiner sj = new StringJoiner(",");
+            Type[] params = getGenericParameterTypes();
+            for(int j = 0; j<params.length; j++) {
+                String param = params[j].getTypeName();
+                if(isVarArgs() && (j == params.length - 1)) // replace T[] with T...
+                    param = param.replaceFirst("\\[\\]$", "...");
+                sj.add(param);
+            }
+            sb.append(sj.toString());
+            sb.append(')');
+            
+            Type[] exceptionTypes = getGenericExceptionTypes();
+            if(exceptionTypes.length>0) {
+                StringJoiner joiner = new StringJoiner(",", " throws ", "");
+                for(Type exceptionType : exceptionTypes) {
+                    joiner.add(exceptionType.getTypeName());
+                }
+                sb.append(joiner.toString());
+            }
+            return sb.toString();
+        } catch(Exception e) {
+            return "<" + e + ">";
+        }
+    }
+    
+    /**
+     * Behaves like {@code getGenericParameterTypes}, but returns type
+     * information for all parameters, including synthetic parameters.
+     */
+    Type[] getAllGenericParameterTypes() {
+        final boolean genericInfo = hasGenericInformation();
+        
+        // Easy case: we don't have generic parameter information.  In
+        // this case, we just return the result of
+        // getParameterTypes().
+        if(!genericInfo) {
+            return getParameterTypes();
+        } else {
+            final boolean realParamData = hasRealParameterData();
+            final Type[] genericParamTypes = getGenericParameterTypes();
+            final Type[] nonGenericParamTypes = getParameterTypes();
+            final Type[] out = new Type[nonGenericParamTypes.length];
+            final Parameter[] params = getParameters();
+            int fromidx = 0;
+            // If we have real parameter data, then we use the
+            // synthetic and mandate flags to our advantage.
+            if(realParamData) {
+                for(int i = 0; i<out.length; i++) {
+                    final Parameter param = params[i];
+                    if(param.isSynthetic() || param.isImplicit()) {
+                        // If we hit a synthetic or mandated parameter,
+                        // use the non generic parameter info.
+                        out[i] = nonGenericParamTypes[i];
+                    } else {
+                        // Otherwise, use the generic parameter info.
+                        out[i] = genericParamTypes[fromidx];
+                        fromidx++;
+                    }
+                }
+            } else {
+                // Otherwise, use the non-generic parameter data.
+                // Without method parameter reflection data, we have
+                // no way to figure out which parameters are
+                // synthetic/mandated, thus, no way to match up the
+                // indexes.
+                return genericParamTypes.length == nonGenericParamTypes.length ? genericParamTypes : nonGenericParamTypes;
+            }
+            return out;
+        }
+    }
+    
+    boolean hasRealParameterData() {
+        // If this somehow gets called before parameters gets
+        // initialized, force it into existence.
+        if(parameters == null) {
+            privateGetParameters();
+        }
+        return hasRealParameterData;
+    }
+    
+    native byte[] getTypeAnnotationBytes0();
+    
+    // Needed by reflectaccess
+    byte[] getTypeAnnotationBytes() {
+        return getTypeAnnotationBytes0();
+    }
+    
+    Annotation[][] sharedGetParameterAnnotations(Class<?>[] parameterTypes, byte[] parameterAnnotations) {
+        int numParameters = parameterTypes.length;
+        if(parameterAnnotations == null)
+            return new Annotation[numParameters][0];
+        
+        Annotation[][] result = parseParameterAnnotations(parameterAnnotations);
+        
+        if(result.length != numParameters && handleParameterNumberMismatch(result.length, numParameters)) {
+            Annotation[][] tmp = new Annotation[result.length + 1][];
+            // Shift annotations down one to account for an implicit leading parameter
+            System.arraycopy(result, 0, tmp, 1, result.length);
+            tmp[0] = new Annotation[0];
+            result = tmp;
+        }
+        return result;
+    }
+    
+    /**
+     * Helper for subclasses of Executable.
+     *
+     * Returns an AnnotatedType object that represents the use of a type to
+     * specify the return type of the method/constructor represented by this
+     * Executable.
+     */
+    AnnotatedType getAnnotatedReturnType0(Type returnType) {
+        return TypeAnnotationParser.buildAnnotatedType(getTypeAnnotationBytes0(), SharedSecrets.getJavaLangAccess().
+            getConstantPool(getDeclaringClass()), this, getDeclaringClass(), returnType, TypeAnnotation.TypeAnnotationTarget.METHOD_RETURN);
+    }
+    
+    private Parameter[] synthesizeAllParams() {
+        final int realparams = getParameterCount();
+        final Parameter[] out = new Parameter[realparams];
+        for(int i = 0; i<realparams; i++)
+            // TODO: is there a way to synthetically derive the
+            // modifiers?  Probably not in the general case, since
+            // we'd have no way of knowing about them, but there
+            // may be specific cases.
+            out[i] = new Parameter("arg" + i, 0, this, i);
+        return out;
+    }
+    
+    private void verifyParameters(final Parameter[] parameters) {
+        final int mask = Modifier.FINAL | Modifier.SYNTHETIC | Modifier.MANDATED;
+        
+        if(getParameterTypes().length != parameters.length)
+            throw new MalformedParametersException("Wrong number of parameters in MethodParameters attribute");
+        
+        for(Parameter parameter : parameters) {
+            final String name = parameter.getRealName();
+            final int mods = parameter.getModifiers();
+            
+            if(name != null) {
+                if(name.isEmpty() || name.indexOf('.') != -1 || name.indexOf(';') != -1 || name.indexOf('[') != -1 || name.indexOf('/') != -1) {
+                    throw new MalformedParametersException("Invalid parameter name \"" + name + "\"");
+                }
+            }
+            
+            if(mods != (mods & mask)) {
+                throw new MalformedParametersException("Invalid parameter modifiers");
+            }
+        }
+    }
+    
+    private Parameter[] privateGetParameters() {
+        // Use tmp to avoid multiple writes to a volatile.
+        Parameter[] tmp = parameters;
+        
+        if(tmp == null) {
+            
+            // Otherwise, go to the JVM to get them
+            try {
+                tmp = getParameters0();
+            } catch(IllegalArgumentException e) {
+                // Rethrow ClassFormatErrors
+                throw new MalformedParametersException("Invalid constant pool index");
+            }
+            
+            // If we get back nothing, then synthesize parameters
+            if(tmp == null) {
+                hasRealParameterData = false;
+                tmp = synthesizeAllParams();
+            } else {
+                hasRealParameterData = true;
+                verifyParameters(tmp);
+            }
+            
+            parameters = tmp;
+        }
+        
+        return tmp;
+    }
+    
+    private native Parameter[] getParameters0();
+    
+    private Map<Class<? extends Annotation>, Annotation> declaredAnnotations() {
+        Map<Class<? extends Annotation>, Annotation> declAnnos;
+        if((declAnnos = declaredAnnotations) == null) {
+            synchronized(this) {
+                if((declAnnos = declaredAnnotations) == null) {
+                    Executable root = (Executable) getRoot();
+                    if(root != null) {
+                        declAnnos = root.declaredAnnotations();
+                    } else {
+                        declAnnos = AnnotationParser.parseAnnotations(getAnnotationBytes(), SharedSecrets.getJavaLangAccess().
+                            getConstantPool(getDeclaringClass()), getDeclaringClass());
+                    }
+                    declaredAnnotations = declAnnos;
+                }
+            }
+        }
+        return declAnnos;
+    }
 }

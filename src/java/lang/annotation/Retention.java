@@ -36,16 +36,18 @@ package java.lang.annotation;
  * effect if the meta-annotated type is used as a member type in
  * another annotation type.
  *
- * @author  Joshua Bloch
- * @since 1.5
+ * @author Joshua Bloch
  * @jls 9.6.4.2 @Retention
+ * @since 1.5
  */
+// 元注解，标记注解的保留范围，默认是RetentionPolicy.CLASS
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.ANNOTATION_TYPE)
 public @interface Retention {
     /**
      * Returns the retention policy.
+     *
      * @return the retention policy
      */
     RetentionPolicy value();

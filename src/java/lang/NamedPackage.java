@@ -40,50 +40,55 @@ import java.net.URI;
  * packages with minimal footprint and avoid constructing Package
  * object.
  */
+// 存储package名称和对应的module信息
 class NamedPackage {
     private final String name;
     private final Module module;
-
+    
     NamedPackage(String pn, Module module) {
-        if (pn.isEmpty() && module.isNamed()) {
+        // 有名字的module中不能放置没名字的包
+        if(pn.isEmpty() && module.isNamed()) {
             throw new InternalError("unnamed package in  " + module);
         }
+        
         this.name = pn.intern();
         this.module = module;
     }
-
-    /**
-     * Returns the name of this package.
-     */
-    String packageName() {
-        return name;
-    }
-
-    /**
-     * Returns the module of this named package.
-     */
-    Module module() {
-        return module;
-    }
-
-    /**
-     * Returns the location of the module if this named package is in
-     * a named module; otherwise, returns null.
-     */
-    URI location() {
-        if (module.isNamed() && module.getLayer() != null) {
-            Configuration cf = module.getLayer().configuration();
-            ModuleReference mref
-                = cf.findModule(module.getName()).get().reference();
-            return mref.location().orElse(null);
-        }
-        return null;
-    }
-
+    
     /**
      * Creates a Package object of the given name and module.
      */
+    // 使用给定的包名和模块名创建Package对象
     static Package toPackage(String name, Module module) {
         return new Package(name, module);
+    }
+    
+    /**
+     * Returns the name of this package.
+     */
+    // 返回包名
+    String packageName() {
+        return name;
+    }
+    
+    /**
+     * Returns the module of this named package.
+     */
+    // 返回模块名
+    Module module() {
+        return module;
+    }
+    
+    /**
+     * Returns the location of the module if this named package is in a named module; otherwise, returns null.
+     */
+    // 如果此命名包位于命名模块中，则返回模块的位置信息。否则，返回null。
+    URI location() {
+        if(module.isNamed() && module.getLayer() != null) {
+            Configuration cf = module.getLayer().configuration();
+            ModuleReference mref = cf.findModule(module.getName()).get().reference();
+            return mref.location().orElse(null);
+        }
+        return null;
     }
 }

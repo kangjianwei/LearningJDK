@@ -32,8 +32,8 @@ package java.lang.reflect;
  *
  * @since 1.8
  */
+// 【被注解的类型变量】
 public interface AnnotatedTypeVariable extends AnnotatedType {
-
     /**
      * Returns the potentially annotated bounds of this type variable.
      * If no bound is explicitly declared, the bound is unannotated
@@ -42,8 +42,9 @@ public interface AnnotatedTypeVariable extends AnnotatedType {
      * @return the potentially annotated bounds of this type variable
      * @see TypeVariable#getBounds()
      */
+    // 类型变量的【被注解上界类型】
     AnnotatedType[] getAnnotatedBounds();
-
+    
     /**
      * Returns the potentially annotated type that this type is a member of, if
      * this type represents a nested type. For example, if this type is
@@ -56,6 +57,7 @@ public interface AnnotatedTypeVariable extends AnnotatedType {
      *
      * @since 9
      */
+    // 实现类中返回null
     @Override
     AnnotatedType getAnnotatedOwnerType();
 }

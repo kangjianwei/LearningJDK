@@ -32,8 +32,20 @@ package java.lang.reflect;
  *
  * @since 1.8
  */
+// 【被注解的通配符类型】
 public interface AnnotatedWildcardType extends AnnotatedType {
-
+    
+    /**
+     * Returns the potentially annotated upper bounds of this wildcard type.
+     * If no upper bound is explicitly declared, the upper bound is
+     * unannotated {@code Object}
+     *
+     * @return the potentially annotated upper bounds of this wildcard type
+     * @see WildcardType#getUpperBounds()
+     */
+    // 【被注解的通配符类型】中【被注解的上界】
+    AnnotatedType[] getAnnotatedUpperBounds();
+    
     /**
      * Returns the potentially annotated lower bounds of this wildcard type.
      * If no lower bound is explicitly declared, the lower bound is the
@@ -43,18 +55,9 @@ public interface AnnotatedWildcardType extends AnnotatedType {
      * an empty array if no lower bound is explicitly declared.
      * @see WildcardType#getLowerBounds()
      */
+    // 【被注解的通配符类型】中【被注解的下界】
     AnnotatedType[] getAnnotatedLowerBounds();
-
-    /**
-     * Returns the potentially annotated upper bounds of this wildcard type.
-     * If no upper bound is explicitly declared, the upper bound is
-     * unannotated {@code Object}
-     *
-     * @return the potentially annotated upper bounds of this wildcard type
-     * @see WildcardType#getUpperBounds()
-     */
-    AnnotatedType[] getAnnotatedUpperBounds();
-
+    
     /**
      * Returns the potentially annotated type that this type is a member of, if
      * this type represents a nested type. For example, if this type is
@@ -67,6 +70,7 @@ public interface AnnotatedWildcardType extends AnnotatedType {
      *
      * @since 9
      */
+    // 实现类中返回null
     @Override
     AnnotatedType getAnnotatedOwnerType();
 }

@@ -36,12 +36,10 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Enumeration;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 import java.util.stream.Stream;
-
 import jdk.internal.misc.JavaLangAccess;
 import jdk.internal.misc.SharedSecrets;
 import jdk.internal.module.Modules;
@@ -50,118 +48,131 @@ import jdk.internal.util.StaticProperty;
 
 /**
  * Find resources and packages in modules defined to the boot class loader or
- * resources and packages on the "boot class path" specified via -Xbootclasspath/a.
+ * resources and packages on the "boot class path" specified via -Xbootclasspath/a:
  */
-
+// 可以看做是BootClassLoader的代理
 public class BootLoader {
     private BootLoader() { }
-
+    
     // The unnamed module for the boot loader
     private static final Module UNNAMED_MODULE;
+    
+    // ServiceCatalog for the boot class loader
+    private static final ServicesCatalog SERVICES_CATALOG = ServicesCatalog.create();
+    
+    // ClassLoaderValue map for the boot class loader
+    private static final ConcurrentHashMap<?, ?> CLASS_LOADER_VALUE_MAP = new ConcurrentHashMap<>();
+    
     private static final String JAVA_HOME = StaticProperty.javaHome();
-
+    
+    
     static {
         UNNAMED_MODULE = SharedSecrets.getJavaLangAccess().defineUnnamedModule(null);
         setBootLoaderUnnamedModule0(UNNAMED_MODULE);
     }
-
-    // ServiceCatalog for the boot class loader
-    private static final ServicesCatalog SERVICES_CATALOG = ServicesCatalog.create();
-
-    // ClassLoaderValue map for the boot class loader
-    private static final ConcurrentHashMap<?, ?> CLASS_LOADER_VALUE_MAP
-        = new ConcurrentHashMap<>();
-
+    
+    
     /**
      * Returns the unnamed module for the boot loader.
      */
+    // 获取boot class loader的unnamed module
     public static Module getUnnamedModule() {
         return UNNAMED_MODULE;
     }
-
+    
     /**
      * Returns the ServiceCatalog for modules defined to the boot class loader.
      */
+    // 获取boot class loader的ServicesCatalog
     public static ServicesCatalog getServicesCatalog() {
         return SERVICES_CATALOG;
     }
-
+    
     /**
      * Returns the ClassLoaderValue map for the boot class loader.
      */
+    // 获取boot class loader的ConcurrentHashMap
     public static ConcurrentHashMap<?, ?> getClassLoaderValueMap() {
         return CLASS_LOADER_VALUE_MAP;
     }
-
+    
     /**
      * Returns {@code true} if there is a class path associated with the
      * BootLoader.
      */
+    // 当前类加载器是否关联了类路径
     public static boolean hasClassPath() {
         return ClassLoaders.bootLoader().hasClassPath();
     }
-
+    
     /**
      * Registers a module with this class loader so that its classes
      * (and resources) become visible via this class loader.
      */
+    // 将加载的模块信息注册到当前的类加载器中
     public static void loadModule(ModuleReference mref) {
         ClassLoaders.bootLoader().loadModule(mref);
     }
-
+    
     /**
      * Loads the Class object with the given name defined to the boot loader.
      */
+    // 通过bootstrap class loader查找类是否已加载，如果找不到则返回null
     public static Class<?> loadClassOrNull(String name) {
-        return ClassLoaders.bootLoader().loadClassOrNull(name);
+        BuiltinClassLoader bootLoader = ClassLoaders.bootLoader();
+        
+        return bootLoader.loadClassOrNull(name);
     }
-
+    
     /**
      * Loads the Class object with the given name in the given module
      * defined to the boot loader. Returns {@code null} if not found.
      */
+    // 通过bootstrap class loader查找类是否已加载，如果找不到则返回null
     public static Class<?> loadClass(Module module, String name) {
         Class<?> c = loadClassOrNull(name);
-        if (c != null && c.getModule() == module) {
+        if(c != null && c.getModule() == module) {
             return c;
         } else {
             return null;
         }
     }
-
+    
     /**
      * Returns a URL to a resource in a module defined to the boot loader.
      */
+    // 查找首个匹配的资源，并返回其URL。或者在指定模块中查找，或者在BootClassLoader的类路径上查找
     public static URL findResource(String mn, String name) throws IOException {
         return ClassLoaders.bootLoader().findResource(mn, name);
     }
-
+    
     /**
      * Returns an input stream to a resource in a module defined to the
      * boot loader.
      */
-    public static InputStream findResourceAsStream(String mn, String name)
-        throws IOException
-    {
+    // 查找首个匹配的资源，并返回其输入流。或者在指定模块中查找，或者在BootClassLoader的类路径上查找
+    public static InputStream findResourceAsStream(String mn, String name) throws IOException {
         return ClassLoaders.bootLoader().findResourceAsStream(mn, name);
     }
-
+    
     /**
      * Returns the URL to the given resource in any of the modules
      * defined to the boot loader and the boot class path.
      */
+    // 在资源所在模块和BootClassLoader定义的类路径下搜索首个匹配的资源（遍历所有可能的位置，一发现匹配资源就返回）
     public static URL findResource(String name) {
         return ClassLoaders.bootLoader().findResource(name);
     }
-
+    
     /**
      * Returns an Iterator to iterate over the resources of the given name
      * in any of the modules defined to the boot loader.
      */
+    // 在资源所在模块和BootClassLoader定义的类路径下搜索所有匹配的资源（遍历所有可能的位置，找出所有匹配资源才返回）
     public static Enumeration<URL> findResources(String name) throws IOException {
         return ClassLoaders.bootLoader().findResources(name);
     }
-
+    
     /**
      * Define a package for the given class to the boot loader, if not already
      * defined.
@@ -169,11 +180,12 @@ public class BootLoader {
     public static Package definePackage(Class<?> c) {
         return getDefinedPackage(c.getPackageName());
     }
-
+    
     /**
      * Returns the Package of the given name defined to the boot loader or null
      * if the package has not been defined.
      */
+    // 获取指定包名的Package对象，如果该包还未被加载过，则返回null
     public static Package getDefinedPackage(String pn) {
         Package pkg = ClassLoaders.bootLoader().getDefinedPackage(pn);
         if (pkg == null) {
@@ -184,22 +196,39 @@ public class BootLoader {
         }
         return pkg;
     }
-
+    
     /**
      * Returns a stream of the packages defined to the boot loader.
      */
+    // 将boot loader定义的包名封装到流中返回
     public static Stream<Package> packages() {
         return Arrays.stream(getSystemPackageNames())
-                     .map(name -> getDefinedPackage(name.replace('/', '.')));
+            .map(name -> getDefinedPackage(name.replace('/', '.')));
     }
-
+    
+    /**
+     * Returns an array of the binary name of the packages defined by
+     * the boot loader, in VM internal form (forward slashes instead of dot).
+     */
+    private static native String[] getSystemPackageNames();
+    
+    /**
+     * Returns the location of the package of the given name, if defined by the boot loader; otherwise {@code null} is returned.
+     *
+     * The location may be a module from the runtime image or exploded image,
+     * or from the boot class append path (i.e. -Xbootclasspath/a or BOOT-CLASS-PATH attribute specified in java agent).
+     */
+    private static native String getSystemPackageLocation(String name);
+    
+    private static native void setBootLoaderUnnamedModule0(Module module);
+    
     /**
      * Helper class to define {@code Package} objects for packages in modules
      * defined to the boot loader.
      */
     static class PackageHelper {
         private static final JavaLangAccess JLA = SharedSecrets.getJavaLangAccess();
-
+        
         /**
          * Define the {@code Package} with the given name. The specified
          * location is a jrt URL to a named module in the run-time image,
@@ -224,14 +253,14 @@ public class BootLoader {
                     throw new InternalError("empty package in " + location);
                 return JLA.definePackage(ClassLoaders.bootLoader(), name, module);
             }
-
+            
             // package in unnamed module (-Xbootclasspath/a)
             URL url = toFileURL(location);
             Manifest man = url != null ? getManifest(location) : null;
-
+            
             return ClassLoaders.bootLoader().defineOrCheckPackage(name, man, url);
         }
-
+        
         /**
          * Finds the module at the given location defined to the boot loader.
          * The module is either in runtime image or exploded image.
@@ -250,7 +279,7 @@ public class BootLoader {
                     mn = path.getFileName().toString();
                 }
             }
-
+            
             // return the Module object for the module name. The Module may
             // in the boot layer or a child layer for the case that the module
             // is loaded into a running VM
@@ -262,7 +291,7 @@ public class BootLoader {
                 return null;
             }
         }
-
+        
         /**
          * Returns URL if the given location is a regular file path.
          */
@@ -279,7 +308,7 @@ public class BootLoader {
                 }
             });
         }
-
+        
         /**
          * Returns the Manifest if the given location is a JAR file
          * containing a manifest.
@@ -298,21 +327,5 @@ public class BootLoader {
             });
         }
     }
-
-    /**
-     * Returns an array of the binary name of the packages defined by
-     * the boot loader, in VM internal form (forward slashes instead of dot).
-     */
-    private static native String[] getSystemPackageNames();
-
-    /**
-     * Returns the location of the package of the given name, if
-     * defined by the boot loader; otherwise {@code null} is returned.
-     *
-     * The location may be a module from the runtime image or exploded image,
-     * or from the boot class append path (i.e. -Xbootclasspath/a or
-     * BOOT-CLASS-PATH attribute specified in java agent).
-     */
-    private static native String getSystemPackageLocation(String name);
-    private static native void setBootLoaderUnnamedModule0(Module module);
+    
 }

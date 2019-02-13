@@ -30,6 +30,7 @@ package java.lang.reflect;
  *
  * @since 1.5
  */
+// 泛型元素，指有能力引入泛型声明的元素，比如类、方法、构造器
 public interface GenericDeclaration extends AnnotatedElement {
     /**
      * Returns an array of {@code TypeVariable} objects that
@@ -39,11 +40,13 @@ public interface GenericDeclaration extends AnnotatedElement {
      * the underlying generic declaration declares no type variables.
      *
      * @return an array of {@code TypeVariable} objects that represent
-     *     the type variables declared by this generic declaration
+     * the type variables declared by this generic declaration
+     *
      * @throws GenericSignatureFormatError if the generic
-     *     signature of this generic declaration does not conform to
-     *     the format specified in
-     *     <cite>The Java&trade; Virtual Machine Specification</cite>
+     *                                     signature of this generic declaration does not conform to
+     *                                     the format specified in
+     *                                     <cite>The Java&trade; Virtual Machine Specification</cite>
      */
+    // 返回generic type中的type variable，如：Map<K, V>中的K和V
     public TypeVariable<?>[] getTypeParameters();
 }

@@ -73,28 +73,37 @@ import java.util.function.BiFunction;
  *
  * @param <V> the type of value(s) associated with the root-ClassLoaderValue and
  *            all its {@link #sub(Object) descendants}.
+ *
  * @author Peter Levart
  * @since 9
  */
-public final class ClassLoaderValue<V>
-    extends AbstractClassLoaderValue<ClassLoaderValue<V>, V> {
-
+/*
+ * root-ClassLoaderValue
+ *
+ * 可以使用root-ClassLoaderValue对象来孕育AbstractClassLoaderValue.Sub对象
+ * 这使得多个Sub可以拥有一致的“外部环境”
+ */
+public final class ClassLoaderValue<V> extends AbstractClassLoaderValue<ClassLoaderValue<V>, V> {
+    
     /**
      * Constructs new root-ClassLoaderValue representing its own namespace.
      */
-    public ClassLoaderValue() {}
-
+    public ClassLoaderValue() {
+    }
+    
     /**
      * @return the key component of this root-ClassLoaderValue (itself).
      */
+    // root-clv不缓存对象，这里直接返回自身
     @Override
     public ClassLoaderValue<V> key() {
         return this;
     }
-
+    
     /**
      * root-ClassLoaderValue can only be equal to itself and has no predecessors.
      */
+    // root-clv直接比较引用是否相等
     @Override
     public boolean isEqualOrDescendantOf(AbstractClassLoaderValue<?, V> clv) {
         return equals(Objects.requireNonNull(clv));

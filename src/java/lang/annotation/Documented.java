@@ -48,6 +48,7 @@ package java.lang.annotation;
  * @author  Joshua Bloch
  * @since 1.5
  */
+// 元注解，标记注解是否可以文档化，比如输出到JavaDoc文档中
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.ANNOTATION_TYPE)

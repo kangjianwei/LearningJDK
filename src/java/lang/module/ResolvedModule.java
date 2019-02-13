@@ -40,34 +40,37 @@ import java.util.Set;
  * @spec JPMS
  * @see Configuration#modules()
  */
+// 已解析模块，包含该模块所在的模块图和该模块对应的模块引用
 public final class ResolvedModule {
-
+    
     private final Configuration cf;
     private final ModuleReference mref;
-
+    
     ResolvedModule(Configuration cf, ModuleReference mref) {
         this.cf = Objects.requireNonNull(cf);
         this.mref = Objects.requireNonNull(mref);
     }
-
+    
     /**
      * Returns the configuration that this resolved module is in.
      *
      * @return The configuration that this resolved module is in
      */
+    // 获取该模块所在的模块图
     public Configuration configuration() {
         return cf;
     }
-
+    
     /**
      * Returns the reference to the module's content.
      *
      * @return The reference to the module's content
      */
+    // 获取该模块对应的模块引用
     public ModuleReference reference() {
         return mref;
     }
-
+    
     /**
      * Returns the module descriptor.
      *
@@ -78,10 +81,11 @@ public final class ResolvedModule {
      *
      * @return The module descriptor
      */
+    // 获取该模块对应的模块描述符
     ModuleDescriptor descriptor() {
         return reference().descriptor();
     }
-
+    
     /**
      * Returns the module name.
      *
@@ -92,20 +96,22 @@ public final class ResolvedModule {
      *
      * @return The module name
      */
+    // 获取该模块的名称
     public String name() {
         return reference().descriptor().name();
     }
-
+    
     /**
      * Returns the set of resolved modules that this resolved module reads.
      *
      * @return A possibly-empty unmodifiable set of resolved modules that
      *         this resolved module reads
      */
+    // 获取当前模块的模块依赖
     public Set<ResolvedModule> reads() {
         return cf.reads(this);
     }
-
+    
     /**
      * Computes a hash code for this resolved module.
      *
@@ -119,7 +125,7 @@ public final class ResolvedModule {
     public int hashCode() {
         return cf.hashCode() ^ mref.hashCode();
     }
-
+    
     /**
      * Tests this resolved module for equality with the given object.
      *
@@ -141,12 +147,12 @@ public final class ResolvedModule {
     public boolean equals(Object ob) {
         if (!(ob instanceof ResolvedModule))
             return false;
-
+        
         ResolvedModule that = (ResolvedModule) ob;
         return Objects.equals(this.cf, that.cf)
-                && Objects.equals(this.mref, that.mref);
+            && Objects.equals(this.mref, that.mref);
     }
-
+    
     /**
      * Returns a string describing this resolved module.
      *
@@ -156,5 +162,4 @@ public final class ResolvedModule {
     public String toString() {
         return System.identityHashCode(cf) + "/" + name();
     }
-
 }
