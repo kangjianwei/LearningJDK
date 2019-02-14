@@ -53,7 +53,17 @@ import java.util.function.Consumer;
  * @see Iterable
  * @since 1.2
  */
-// 迭代器接口，跟枚举器接口很像，可以遍历元素，也可以移除元素。关键是，支持foreach遍历方式
+/*
+ * 外部迭代器，支持对容器中的元素进行遍历和移除，还支持流式遍历
+ *
+ * 外部迭代器的特点是：可拔插
+ * 其迭代行为可以挂载到待比较对象的外部
+ *
+ * 此外，外部迭代器往往用来支撑内部迭代器的实现
+ *
+ * 注：区别于内部迭代器Iterable
+ * 注：区别于枚举器Enumeration
+ */
 public interface Iterator<E> {
     /**
      * Returns {@code true} if the iteration has more elements.
@@ -62,7 +72,7 @@ public interface Iterator<E> {
      *
      * @return {@code true} if the iteration has more elements
      */
-    // 是否存在更多元素
+    // 是否存在未遍历元素
     boolean hasNext();
     
     /**
@@ -126,7 +136,7 @@ public interface Iterator<E> {
      * }</pre>
      * @since 1.8
      */
-    // 遍历每个元素，并对其执行相应的择取操作
+    // 流式遍历。遍历每个元素，并对其执行相应的择取操作
     default void forEachRemaining(Consumer<? super E> action) {
         Objects.requireNonNull(action);
         while(hasNext()) {
