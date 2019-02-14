@@ -54,18 +54,20 @@ package java.lang;
  */
 
 /*
- * 常用作线程的动作（行为）。
+ * Runnable表示一类无返回值，且不抛出异常的任务
  *
- * Thread thread = new Thread(new Runnable() {
+ * Runnable类任务通常由Thread直接执行，也可以交给【任务执行器】Executor去执行
+ * 此外，Runnable还可以经过适配器的装配，与Callable类型、Future类型等配合使用
+ *
+ * 该接口已函数化：
+ * Runnable runnable = new Runnable() {
+ *     @Override
  *     public void run() {
- *         // 线程执行的动作
+ *         System.out.println("Runnable");
  *     }
- * });
- *
- * 该接口已函数化，上面的声明可以简写做：
- * Thread thread = new Thread(() -> {
- *     // 线程执行的动作
- * });
+ * };
+ * 可以简写为：
+ * Runnable runnable = () -> { System.out.println("Runnable"); };
  */
 @FunctionalInterface
 public interface Runnable {
@@ -80,5 +82,6 @@ public interface Runnable {
      *
      * @see java.lang.Thread#run()
      */
+    // 任务执行入口
     void run();
 }
