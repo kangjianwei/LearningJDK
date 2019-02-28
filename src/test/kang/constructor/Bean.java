@@ -1,8 +1,10 @@
 package test.kang.constructor;
 
 import java.util.List;
+import test.kang.constructor.annotation.注解02_TYPE_USE;
+import test.kang.constructor.annotation.注解04_TYPE_USE;
 
-public class Bean {
+public class Bean<B, N extends Number, T extends RuntimeException> {
     private int x, y, z;
     
     // 1. 无参public构造器
@@ -33,6 +35,14 @@ public class Bean {
     
     // 6. 形参数量可变的构造器
     public Bean(int... x){
+    }
+    
+    // 7. 泛型形参构造器
+    public Bean(B b, N n, char c){
+    }
+    
+    // 8. 抛异常的构造器
+    public Bean(long l) throws @注解02_TYPE_USE T, @注解04_TYPE_USE NullPointerException {
     }
     
     @Override
