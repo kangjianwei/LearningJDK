@@ -1,8 +1,14 @@
 package test.kang.constructor;
 
 import java.util.List;
+import test.kang.constructor.annotation.可重复注解;
+import test.kang.constructor.annotation.注解01;
 import test.kang.constructor.annotation.注解02_TYPE_USE;
+import test.kang.constructor.annotation.注解03;
 import test.kang.constructor.annotation.注解04_TYPE_USE;
+import test.kang.constructor.annotation.注解_CONSTRUCTOR;
+import test.kang.constructor.annotation.注解_PARAMETER;
+import test.kang.constructor.annotation.注解_TYPE_USE;
 
 public class Bean<B, N extends Number, T extends RuntimeException> {
     private int x, y, z;
@@ -43,6 +49,13 @@ public class Bean<B, N extends Number, T extends RuntimeException> {
     
     // 8. 抛异常的构造器
     public Bean(long l) throws @注解02_TYPE_USE T, @注解04_TYPE_USE NullPointerException {
+    }
+    
+    // 9. 带注解的构造器
+    @可重复注解(str = "重复次数 1")
+    @可重复注解(str = "重复次数 2")
+    @注解_CONSTRUCTOR
+    public @注解_TYPE_USE Bean (@注解01 @注解02_TYPE_USE short s1, @注解03 @注解04_TYPE_USE short s2, @注解_PARAMETER B b) {
     }
     
     @Override
