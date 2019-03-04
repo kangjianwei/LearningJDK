@@ -1,8 +1,10 @@
 package test.kang.method;
 
 import java.util.List;
+import test.kang.method.annotation.注解02_TYPE_USE;
+import test.kang.method.annotation.注解04_TYPE_USE;
 
-public class Bean<B, N extends Number> {
+public class Bean<B, N extends Number, T extends RuntimeException> {
     private int x, y, z;
     
     // 1. public方法
@@ -57,6 +59,18 @@ public class Bean<B, N extends Number> {
     // 10. 返回引用类型Integer
     public N fun(boolean b1, boolean b2, boolean b3, boolean b4, boolean b5){
         return null;
+    }
+    
+    // 11. 形参数量可变的方法
+    public void fun(int... x){
+    }
+    
+    // 12. 泛型形参方法
+    public void fun(B b, N n, char c){
+    }
+    
+    // 13. 抛异常的构造器
+    public void fun(long l) throws @注解02_TYPE_USE T, @注解04_TYPE_USE NullPointerException {
     }
     
     @Override
