@@ -1,6 +1,5 @@
 package test.kang.method;
 
-import java.util.List;
 import test.kang.method.annotation.可重复注解;
 import test.kang.method.annotation.注解01;
 import test.kang.method.annotation.注解02_TYPE_USE;
@@ -9,6 +8,8 @@ import test.kang.method.annotation.注解04_TYPE_USE;
 import test.kang.method.annotation.注解_METHOD;
 import test.kang.method.annotation.注解_PARAMETER;
 import test.kang.method.annotation.注解_TYPE_USE;
+
+import java.util.List;
 
 public class Bean<B, N extends Number, T extends RuntimeException> {
     private int x, y, z;
@@ -85,6 +86,10 @@ public class Bean<B, N extends Number, T extends RuntimeException> {
     @注解_METHOD
     public @注解_TYPE_USE int fun(@注解01 @注解02_TYPE_USE short s1, @注解03 @注解04_TYPE_USE short s2, @注解_PARAMETER B b) {
         return 123;
+    }
+    
+    // 15. 拥有一个特殊的this参数
+    public void fun(@注解_TYPE_USE Bean<B, N, T> this, byte b){
     }
     
     @Override
