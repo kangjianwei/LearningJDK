@@ -3,6 +3,7 @@ package test.kang.field;
 import test.kang.field.annotation.可重复注解;
 import test.kang.field.annotation.注解;
 import test.kang.field.annotation.注解_FIELD;
+import test.kang.field.annotation.注解_TYPE_USE;
 
 public class Bean<B, N extends Number> {
     public    int a;    // a. public字段
@@ -19,5 +20,6 @@ public class Bean<B, N extends Number> {
     @可重复注解(str = "重复次数 2")
     @注解
     @注解_FIELD
+    @注解_TYPE_USE
     public int h;
 }
