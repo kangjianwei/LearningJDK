@@ -1,0 +1,10 @@
+Manifest-Version: 1.0
+Created-By: 11 (Oracle Corporation)
+Name: com/kang/hello/
+Specification-Title: Say Hello
+Specification-Version: 5.0
+Specification-Vendor: Microsoft
+Implementation-Title: 语音组
+Implementation-Version: 10.0
+Implementation-Vendor: 技术部
+Sealed: true
