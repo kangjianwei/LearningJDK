@@ -13,4 +13,7 @@ public class Bean<X, Y extends Number, Z extends Date & CharSequence & Set> {
     
     List<? extends Map> listc = null;   // 通配符上界
     List<? super HashMap> listd = null; // 通配符下界
+    
+    X[] xa;
+    X[][] xb;
 }
