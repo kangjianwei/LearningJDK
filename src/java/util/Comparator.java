@@ -104,14 +104,23 @@ import java.util.function.ToLongFunction;
  * @see java.io.Serializable
  * @since 1.2
  */
-
 /*
- * 比较器，支持以自定义的顺序来比较元素。
+ * 外部比较器，支持以自定义的顺序来比较元素
  *
- * 区别于Comparable，这是一个外部比较器，即比较方法独立于对象本身。
+ * 外部比较器的特点是：可拔插
+ * 其比较行为可以挂载到待比较对象的外部
  *
- * 该接口已函数化，如简写做：
+ * 该接口已函数化，如：
+ * Comparator<Integer> comparator = new Comparator<Integer>() {
+ *     @Override
+ *     public int compare(Integer a, Integer b) {
+ *         return a - b;
+ *     }
+ * };
+ * 可以简写为：
  * Comparator<Integer> comparator = (a, b)->(a-b);
+ *
+ * 注：区别于内部比较器Comparable
  */
 @FunctionalInterface
 public interface Comparator<T> {

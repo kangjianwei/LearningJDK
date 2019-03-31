@@ -58,7 +58,15 @@ package java.util;
  * @see java.util.Vector#elements()
  * @since 1.0
  */
-// 枚举器接口，跟迭代器接口很像，只用于遍历，没有移除功能
+/*
+ * 枚举器，用来遍历元素
+ *
+ * 枚举器可以看做是一个阉割版的外部迭代器，它只能用于遍历元素，不能移除元素
+ * 枚举器Enumeration可以通过asIterator()方法转换为外部迭代器Iterator来使用
+ *
+ * 注：区别于外部迭代器Iterator
+ * 注：区别于内部迭代器Iterable
+ */
 public interface Enumeration<E> {
     /**
      * Tests if this enumeration contains more elements.
@@ -67,7 +75,7 @@ public interface Enumeration<E> {
      * contains at least one more element to provide;
      * {@code false} otherwise.
      */
-    // 是否存在更多元素
+    // 是否存在未遍历元素
     boolean hasMoreElements();
     
     /**

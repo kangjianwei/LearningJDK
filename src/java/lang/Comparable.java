@@ -94,16 +94,16 @@ import java.util.List;
  * @see java.util.Comparator
  * @since 1.2
  */
-
 /*
- * 比较器，用作自然排序接口，需要实现内部的compareTo方法。
+ * 内部比较器，常用作自然排序接口，需要实现内部的compareTo方法
  *
- * 区别于Comparator，这是一个内部比较器，即比较方法往往实现在对象内部。
+ * 内部比较器的特点是：嵌入式
+ * 其比较行为必须在待比较对象内部实现
  *
- * 一个类实现了Comparable接口，就意味着“该类本身支持排序”，它可以直接通过Arrays.sort()或Collections.sort()进行排序。
+ * 一个类如果实现了Comparable接口，就意味着“该类本身支持排序”，并且可以直接通过Arrays.sort()或Collections.sort()进行排序
+ * 当然，一个类如果没有实现Comparable接口，也可以挂载外部比较器Comparator进行排序
  *
- * 一个类本身实现了Comparable比较器，就意味着它本身支持排序。
- * 若它本身没实现Comparable，也可以通过外部比较器Comparator进行排序。
+ * 注：区别于外部比较器Comparator
  */
 public interface Comparable<T> {
     /**
