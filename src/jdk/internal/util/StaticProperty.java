@@ -27,32 +27,24 @@ package jdk.internal.util;
 
 /**
  * System Property access for internal use only.
- * Read-only access to System property values initialized during Phase 1
- * are cached.  Setting, clearing, or modifying the value using
- * {@link System#setProperty) or {@link System#getProperties()} is ignored.
- * <strong>{@link SecurityManager#checkPropertyAccess} is NOT checked
- * in these access methods. The caller of these methods should take care to ensure
- * that the returned property is not made accessible to untrusted code.</strong>
+ * Read-only access to System property values initialized during Phase 1 are cached.
+ * Setting, clearing, or modifying the value using {@link System#setProperty) or {@link System#getProperties()} is ignored.
+ * {@link SecurityManager#checkPropertyAccess} is NOT checked n these access methods.
+ * The caller of these methods should take care to ensure that the returned property is not made accessible to untrusted code.
  */
+// 一些只读的系统属性，一旦加载，禁止修改
 public final class StaticProperty {
-
+    
     // The class static initialization is triggered to initialize these final
     // fields during init Phase 1 and before a security manager is set.
-    private static final String JAVA_HOME = initProperty("java.home");
-    private static final String USER_HOME = initProperty("user.home");
-    private static final String USER_DIR  = initProperty("user.dir");
-    private static final String USER_NAME = initProperty("user.name");
-
-    private StaticProperty() {}
-
-    private static String initProperty(String key) {
-        String v = System.getProperty(key);
-        if (v == null) {
-            throw new InternalError("null property: " + key);
-        }
-        return v;
+    private static final String JAVA_HOME = initProperty("java.home");  // JDK根目录
+    private static final String USER_DIR = initProperty("user.dir");    // 项目根目录（源码目录）
+    private static final String USER_NAME = initProperty("user.name");  // 用户主机名称，如kang
+    private static final String USER_HOME = initProperty("user.home");  // 用户主机根目录，如C:\Users\kang
+    
+    private StaticProperty() {
     }
-
+    
     /**
      * Return the {@code java.home} system property.
      *
@@ -62,23 +54,11 @@ public final class StaticProperty {
      *
      * @return the {@code java.home} system property
      */
+    // 获取JDK根目录
     public static String javaHome() {
         return JAVA_HOME;
     }
-
-    /**
-     * Return the {@code user.home} system property.
-     *
-     * <strong>{@link SecurityManager#checkPropertyAccess} is NOT checked
-     * in this method. The caller of this method should take care to ensure
-     * that the returned property is not made accessible to untrusted code.</strong>
-     *
-     * @return the {@code user.home} system property
-     */
-    public static String userHome() {
-        return USER_HOME;
-    }
-
+    
     /**
      * Return the {@code user.dir} system property.
      *
@@ -88,10 +68,25 @@ public final class StaticProperty {
      *
      * @return the {@code user.dir} system property
      */
+    // 获取项目根目录（源码目录）
     public static String userDir() {
         return USER_DIR;
     }
-
+    
+    /**
+     * Return the {@code user.home} system property.
+     *
+     * <strong>{@link SecurityManager#checkPropertyAccess} is NOT checked
+     * in this method. The caller of this method should take care to ensure
+     * that the returned property is not made accessible to untrusted code.</strong>
+     *
+     * @return the {@code user.home} system property
+     */
+    // 获取用户主机根目录，如C:\Users\kang
+    public static String userHome() {
+        return USER_HOME;
+    }
+    
     /**
      * Return the {@code user.name} system property.
      *
@@ -101,7 +96,17 @@ public final class StaticProperty {
      *
      * @return the {@code user.name} system property
      */
+    // 获取用户主机名称，如kang
     public static String userName() {
         return USER_NAME;
+    }
+    
+    // 获取指定的属性初始值
+    private static String initProperty(String key) {
+        String v = System.getProperty(key);
+        if(v == null) {
+            throw new InternalError("null property: " + key);
+        }
+        return v;
     }
 }
