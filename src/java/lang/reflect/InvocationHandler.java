@@ -34,34 +34,33 @@ package java.lang.reflect;
  * invocation is encoded and dispatched to the {@code invoke}
  * method of its invocation handler.
  *
- * @author      Peter Jones
- * @see         Proxy
- * @since       1.3
+ * @author Peter Jones
+ * @see Proxy
+ * @since 1.3
  */
+// 代理对象的回调处理器，用来完成目标操作
 public interface InvocationHandler {
-
+    
     /**
      * Processes a method invocation on a proxy instance and returns
      * the result.  This method will be invoked on an invocation handler
      * when a method is invoked on a proxy instance that it is
      * associated with.
      *
-     * @param   proxy the proxy instance that the method was invoked on
+     * @param proxy  the proxy instance that the method was invoked on
+     * @param method the {@code Method} instance corresponding to
+     *               the interface method invoked on the proxy instance.  The declaring
+     *               class of the {@code Method} object will be the interface that
+     *               the method was declared in, which may be a superinterface of the
+     *               proxy interface that the proxy class inherits the method through.
+     * @param args   an array of objects containing the values of the
+     *               arguments passed in the method invocation on the proxy instance,
+     *               or {@code null} if interface method takes no arguments.
+     *               Arguments of primitive types are wrapped in instances of the
+     *               appropriate primitive wrapper class, such as
+     *               {@code java.lang.Integer} or {@code java.lang.Boolean}.
      *
-     * @param   method the {@code Method} instance corresponding to
-     * the interface method invoked on the proxy instance.  The declaring
-     * class of the {@code Method} object will be the interface that
-     * the method was declared in, which may be a superinterface of the
-     * proxy interface that the proxy class inherits the method through.
-     *
-     * @param   args an array of objects containing the values of the
-     * arguments passed in the method invocation on the proxy instance,
-     * or {@code null} if interface method takes no arguments.
-     * Arguments of primitive types are wrapped in instances of the
-     * appropriate primitive wrapper class, such as
-     * {@code java.lang.Integer} or {@code java.lang.Boolean}.
-     *
-     * @return  the value to return from the method invocation on the
+     * @return the value to return from the method invocation on the
      * proxy instance.  If the declared return type of the interface
      * method is a primitive type, then the value returned by
      * this method must be an instance of the corresponding primitive
@@ -75,21 +74,51 @@ public interface InvocationHandler {
      * a {@code ClassCastException} will be thrown by the method
      * invocation on the proxy instance.
      *
-     * @throws  Throwable the exception to throw from the method
-     * invocation on the proxy instance.  The exception's type must be
-     * assignable either to any of the exception types declared in the
-     * {@code throws} clause of the interface method or to the
-     * unchecked exception types {@code java.lang.RuntimeException}
-     * or {@code java.lang.Error}.  If a checked exception is
-     * thrown by this method that is not assignable to any of the
-     * exception types declared in the {@code throws} clause of
-     * the interface method, then an
-     * {@link UndeclaredThrowableException} containing the
-     * exception that was thrown by this method will be thrown by the
-     * method invocation on the proxy instance.
-     *
-     * @see     UndeclaredThrowableException
+     * @throws Throwable the exception to throw from the method
+     *                   invocation on the proxy instance.  The exception's type must be
+     *                   assignable either to any of the exception types declared in the
+     *                   {@code throws} clause of the interface method or to the
+     *                   unchecked exception types {@code java.lang.RuntimeException}
+     *                   or {@code java.lang.Error}.  If a checked exception is
+     *                   thrown by this method that is not assignable to any of the
+     *                   exception types declared in the {@code throws} clause of
+     *                   the interface method, then an
+     *                   {@link UndeclaredThrowableException} containing the
+     *                   exception that was thrown by this method will be thrown by the
+     *                   method invocation on the proxy instance.
+     * @see UndeclaredThrowableException
      */
-    public Object invoke(Object proxy, Method method, Object[] args)
-        throws Throwable;
+    /*
+     * 被代理对象回调，用以完成目标操作
+     *
+     * 假设有抽象接口：
+     * package com.kang;
+     *
+     * interface Subject {
+     *     void request();  // 目标操作
+     * }
+     *
+     * 则系统生成的代理类为（除去了无关枝节）：
+     * final class $Proxy0 extends Proxy implements Subject {
+     *     private static Method method;
+     *
+     *     static {
+     *          method = Class.forName("com.kang.Subject").getMethod("request");
+     *     }
+     *
+     *     public $Proxy0(InvocationHandler h) {
+     *         super(h);
+     *     }
+     *
+     *     public final void request() {
+     *          super.h.invoke(this, method, (Object[])null);
+     *     }
+     * }
+     *
+     *
+     * proxy：代理类$Proxy0的对象，上述request()中的this
+     * method：将要完成的操作，即Subject中的request()方法
+     * args：request()方法的参数
+     */
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable;
 }
