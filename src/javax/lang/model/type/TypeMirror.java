@@ -25,9 +25,8 @@
 
 package javax.lang.model.type;
 
-import java.lang.annotation.Annotation;
-import java.util.List;
-import javax.lang.model.element.*;
+import javax.lang.model.AnnotatedConstruct;
+import javax.lang.model.element.Element;
 import javax.lang.model.util.Types;
 
 /**
@@ -57,15 +56,44 @@ import javax.lang.model.util.Types;
  * @see Types
  * @since 1.6
  */
-public interface TypeMirror extends javax.lang.model.AnnotatedConstruct {
-
+/*
+ * 元素的类型镜像
+ *
+ * 比如构造方法类型：
+ * ()void
+ *
+ * 普通方法类型：
+ * ()void
+ * (int)void
+ * <Y>(Y)void   （带泛型）
+ *
+ * 类类型：
+ * com.kang.bean.Bean
+ * com.kang.bean.Bean.Inner  （内部类）
+ * com.kang.bean.Bean02<X>   （泛型类）
+ */
+public interface TypeMirror extends AnnotatedConstruct {
+    
     /**
      * Returns the {@code kind} of this type.
      *
      * @return the kind of this type
      */
+    // 获取元素的类型标记
     TypeKind getKind();
-
+    
+    /**
+     * Applies a visitor to this type.
+     *
+     * @param <R> the return type of the visitor's methods
+     * @param <P> the type of the additional parameter to the visitor's methods
+     * @param v   the visitor operating on this type
+     * @param p   additional parameter to the visitor
+     * @return a visitor-specified result
+     */
+    // 使用类型访问器访问类型
+    <R, P> R accept(TypeVisitor<R, P> v, P p);
+    
     /**
      * Obeys the general contract of {@link Object#equals Object.equals}.
      * This method does not, however, indicate whether two types represent
@@ -79,14 +107,14 @@ public interface TypeMirror extends javax.lang.model.AnnotatedConstruct {
      * @return {@code true} if the specified object is equal to this one
      */
     boolean equals(Object obj);
-
+    
     /**
      * Obeys the general contract of {@link Object#hashCode Object.hashCode}.
      *
      * @see #equals
      */
     int hashCode();
-
+    
     /**
      * Returns an informative string representation of this type.  If
      * possible, the string should be of a form suitable for
@@ -96,15 +124,4 @@ public interface TypeMirror extends javax.lang.model.AnnotatedConstruct {
      * @return a string representation of this type
      */
     String toString();
-
-    /**
-     * Applies a visitor to this type.
-     *
-     * @param <R> the return type of the visitor's methods
-     * @param <P> the type of the additional parameter to the visitor's methods
-     * @param v   the visitor operating on this type
-     * @param p   additional parameter to the visitor
-     * @return a visitor-specified result
-     */
-    <R, P> R accept(TypeVisitor<R, P> v, P p);
 }
