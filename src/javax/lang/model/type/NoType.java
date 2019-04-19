@@ -36,8 +36,8 @@ import javax.lang.model.element.ExecutableElement;
  * <li>{@link TypeKind#PACKAGE PACKAGE} - the pseudo-type of a package element.
  * <li>{@link TypeKind#MODULE MODULE} - the pseudo-type of a module element.
  * <li>{@link TypeKind#NONE NONE} - used in other cases
- *   where no actual type is appropriate; for example, the superclass
- *   of {@code java.lang.Object}.
+ * where no actual type is appropriate; for example, the superclass
+ * of {@code java.lang.Object}.
  * </ul>
  *
  * @author Joseph D. Darcy
@@ -46,6 +46,11 @@ import javax.lang.model.element.ExecutableElement;
  * @see ExecutableElement#getReturnType()
  * @since 1.6
  */
-
+/*
+ * 表示没有合适类型的情况下使用的伪类型，如：
+ * TypeKind#VOID    –> 代表对应的 void 关键字
+ * TypeKind#PACKAGE –> 对应 packeage 的伪元素
+ * TypeKind#NONE    –> 代表没有对应类型，如 Object 没有父类
+ */
 public interface NoType extends TypeMirror {
 }
