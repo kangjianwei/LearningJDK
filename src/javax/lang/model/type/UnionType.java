@@ -35,12 +35,21 @@ import java.util.List;
  *
  * @since 1.7
  */
+/*
+ * 联合类型，可用在catch中，如：
+ *
+ * try {
+ *   // throw...
+ * } catch(ExceptionA | ExceptionB e){
+ * }
+ */
 public interface UnionType extends TypeMirror {
-
+    
     /**
      * Return the alternatives comprising this union type.
      *
      * @return the alternatives comprising this union type.
      */
+    // 获取联合类型中包含的各个类型
     List<? extends TypeMirror> getAlternatives();
 }
