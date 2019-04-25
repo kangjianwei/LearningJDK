@@ -25,7 +25,6 @@
 
 package javax.lang.model.type;
 
-
 /**
  * Represents a reference type.
  * These include class and interface types, array types, type variables,
@@ -36,5 +35,6 @@ package javax.lang.model.type;
  * @author Peter von der Ah&eacute;
  * @since 1.6
  */
+// 引用类型
 public interface ReferenceType extends TypeMirror {
 }
