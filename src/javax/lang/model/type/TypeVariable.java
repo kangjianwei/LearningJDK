@@ -25,11 +25,8 @@
 
 package javax.lang.model.type;
 
-
 import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeParameterElement;
-import javax.lang.model.util.Types;
-
 
 /**
  * Represents a type variable.
@@ -47,15 +44,17 @@ import javax.lang.model.util.Types;
  * @see TypeParameterElement
  * @since 1.6
  */
+// 类型变量
 public interface TypeVariable extends ReferenceType {
-
+    
     /**
      * Returns the element corresponding to this type variable.
      *
      * @return the element corresponding to this type variable
      */
+    // 返回与此类型变量相应的元素
     Element asElement();
-
+    
     /**
      * Returns the upper bound of this type variable.
      *
@@ -68,8 +67,9 @@ public interface TypeVariable extends ReferenceType {
      *
      * @return the upper bound of this type variable
      */
+    // 类型变量的上界
     TypeMirror getUpperBound();
-
+    
     /**
      * Returns the lower bound of this type variable.  While a type
      * parameter cannot include an explicit lower bound declaration,
@@ -79,5 +79,6 @@ public interface TypeVariable extends ReferenceType {
      *
      * @return the lower bound of this type variable
      */
+    // 类型变量的下界，一般为null
     TypeMirror getLowerBound();
 }
