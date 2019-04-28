@@ -25,13 +25,11 @@
 
 package javax.lang.model.type;
 
-
 import java.util.List;
 
 import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Types;
-
 
 /**
  * Represents a declared type, either a class type or an interface type.
@@ -55,15 +53,17 @@ import javax.lang.model.util.Types;
  * @see TypeElement
  * @since 1.6
  */
+// 代表声明类型，即类或者接口类型。它也可以拥有泛型参数,如Set<String>
 public interface DeclaredType extends ReferenceType {
-
+    
     /**
      * Returns the element corresponding to this type.
      *
      * @return the element corresponding to this type
      */
+    // 返回该类型对应的element
     Element asElement();
-
+    
     /**
      * Returns the type of the innermost enclosing instance or a
      * {@code NoType} of kind {@code NONE} if there is no enclosing
@@ -71,11 +71,16 @@ public interface DeclaredType extends ReferenceType {
      * enclosing instance.
      *
      * @return a type mirror for the enclosing type
+     *
      * @jls 8.1.3 Inner Classes and Enclosing Instances
      * @jls 15.9.2 Determining Enclosing Instances
      */
+    /*
+     * 返回包围该类型（元素）的最内层的元素，如何没有则返回NoType和NONE对应的TypeMirror
+     * 只有内部类的外面才有包围内部类的外层类型
+     */
     TypeMirror getEnclosingType();
-
+    
     /**
      * Returns the actual type arguments of this type.
      * For a type nested within a parameterized type
@@ -83,7 +88,8 @@ public interface DeclaredType extends ReferenceType {
      * arguments of the innermost type are included.
      *
      * @return the actual type arguments of this type, or an empty list
-     *           if none
+     * if none
      */
+    // 返回该类型的泛型参数
     List<? extends TypeMirror> getTypeArguments();
 }
