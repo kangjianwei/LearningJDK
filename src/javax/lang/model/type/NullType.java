@@ -25,7 +25,6 @@
 
 package javax.lang.model.type;
 
-
 /**
  * Represents the null type.
  * This is the type of the expression {@code null},
@@ -35,6 +34,6 @@ package javax.lang.model.type;
  * @author Peter von der Ah&eacute;
  * @since 1.6
  */
-
+// 代表null类型
 public interface NullType extends ReferenceType {
 }
