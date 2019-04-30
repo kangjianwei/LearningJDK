@@ -38,5 +38,6 @@ package javax.lang.model.type;
  * @author Peter von der Ah&eacute;
  * @since 1.6
  */
+// 错误的类型，表示无法正确建模的类或接口类型
 public interface ErrorType extends DeclaredType {
 }
