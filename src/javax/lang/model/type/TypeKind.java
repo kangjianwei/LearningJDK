@@ -25,7 +25,6 @@
 
 package javax.lang.model.type;
 
-
 /**
  * The kind of a type mirror.
  *
@@ -39,147 +38,154 @@ package javax.lang.model.type;
  * @see TypeMirror
  * @since 1.6
  */
+// 元素的类型标记
 public enum TypeKind {
     /**
      * The primitive type {@code boolean}.
      */
-    BOOLEAN,
-
+    BOOLEAN,    // boolean基本类型
+    
     /**
      * The primitive type {@code byte}.
      */
-    BYTE,
-
+    BYTE,       // byte基本类型
+    
     /**
      * The primitive type {@code short}.
      */
-    SHORT,
-
+    SHORT,      // short基本类型
+    
     /**
      * The primitive type {@code int}.
      */
-    INT,
-
+    INT,        // int基本类型
+    
     /**
      * The primitive type {@code long}.
      */
-    LONG,
-
+    LONG,       // long基本类型
+    
     /**
      * The primitive type {@code char}.
      */
-    CHAR,
-
+    CHAR,       // char基本类型
+    
     /**
      * The primitive type {@code float}.
      */
-    FLOAT,
-
+    FLOAT,      // float基本类型
+    
     /**
      * The primitive type {@code double}.
      */
-    DOUBLE,
-
+    DOUBLE,     // double基本类型
+    
     /**
      * The pseudo-type corresponding to the keyword {@code void}.
+     *
      * @see NoType
      */
-    VOID,
-
+    VOID,       // void伪类型
+    
     /**
      * A pseudo-type used where no actual type is appropriate.
+     *
      * @see NoType
      */
-    NONE,
-
+    NONE,       // 代表没有合适的类型与之对应的伪类型
+    
     /**
      * The null type.
      */
-    NULL,
-
+    NULL,       // null类型
+    
     /**
      * An array type.
      */
-    ARRAY,
-
+    ARRAY,      // array类型
+    
     /**
      * A class or interface type.
      */
-    DECLARED,
-
+    DECLARED,   // 声明类型，如类或接口
+    
     /**
      * A class or interface type that could not be resolved.
      */
-    ERROR,
-
+    ERROR,      // 错误的类型，表示无法正确建模的类或接口类型
+    
     /**
      * A type variable.
      */
-    TYPEVAR,
-
+    TYPEVAR,    // 类型变量
+    
     /**
      * A wildcard type argument.
      */
-    WILDCARD,
-
+    WILDCARD,   // 通配符
+    
     /**
      * A pseudo-type corresponding to a package element.
+     *
      * @see NoType
      */
-    PACKAGE,
-
+    PACKAGE,    // 代表包的伪类型
+    
     /**
      * A method, constructor, or initializer.
      */
-    EXECUTABLE,
-
+    EXECUTABLE, // 可执行类型，如方法、构造器、初始化块
+    
     /**
      * An implementation-reserved type.
      * This is not the type you are looking for.
      */
-    OTHER,
-
+    OTHER,      // 保留类型
+    
     /**
-      * A union type.
-      *
-      * @since 1.7
-      */
-    UNION,
-
+     * A union type.
+     *
+     * @since 1.7
+     */
+    UNION,      // 联合类型，如多个异常参数联合使用 ExceptionA | ExceptionB e
+    
     /**
-      * An intersection type.
-      *
-      * @since 1.8
-      */
-    INTERSECTION,
-
+     * An intersection type.
+     *
+     * @since 1.8
+     */
+    INTERSECTION,   // 交集类型，如 Number & Runnable
+    
     /**
      * A pseudo-type corresponding to a module element.
+     *
+     * @spec JPMS
      * @see NoType
      * @since 9
-     * @spec JPMS
      */
-    MODULE;
-
+    MODULE;         // 模块类型
+    
     /**
      * Returns {@code true} if this kind corresponds to a primitive
      * type and {@code false} otherwise.
+     *
      * @return {@code true} if this kind corresponds to a primitive type
      */
+    // 判断是否是为基本类型
     public boolean isPrimitive() {
         switch(this) {
-        case BOOLEAN:
-        case BYTE:
-        case SHORT:
-        case INT:
-        case LONG:
-        case CHAR:
-        case FLOAT:
-        case DOUBLE:
-            return true;
-
-        default:
-            return false;
+            case BOOLEAN:
+            case BYTE:
+            case SHORT:
+            case INT:
+            case LONG:
+            case CHAR:
+            case FLOAT:
+            case DOUBLE:
+                return true;
+            
+            default:
+                return false;
         }
     }
 }
