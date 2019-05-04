@@ -27,8 +27,8 @@ package javax.lang.model.util;
 
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
-import javax.lang.model.type.IntersectionType;
-import static javax.lang.model.SourceVersion.*;
+
+import static javax.lang.model.SourceVersion.RELEASE_11;
 
 /**
  * A simple visitor of types with default behavior appropriate for
@@ -73,23 +73,24 @@ import static javax.lang.model.SourceVersion.*;
  * @see SimpleTypeVisitor8
  * @since 9
  */
+// 类型访问器的简单实现（JDK9）
 @SupportedSourceVersion(RELEASE_11)
 public class SimpleTypeVisitor9<R, P> extends SimpleTypeVisitor8<R, P> {
     /**
      * Constructor for concrete subclasses; uses {@code null} for the
      * default value.
      */
-    protected SimpleTypeVisitor9(){
+    protected SimpleTypeVisitor9() {
         super(null);
     }
-
+    
     /**
      * Constructor for concrete subclasses; uses the argument for the
      * default value.
      *
      * @param defaultValue the value to assign to {@link #DEFAULT_VALUE}
      */
-    protected SimpleTypeVisitor9(R defaultValue){
+    protected SimpleTypeVisitor9(R defaultValue) {
         super(defaultValue);
     }
 }
