@@ -28,6 +28,7 @@ package javax.lang.model.util;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.type.*;
+
 import static javax.lang.model.SourceVersion.*;
 
 /**
@@ -72,268 +73,298 @@ import static javax.lang.model.SourceVersion.*;
  * @author Joseph D. Darcy
  * @author Scott Seligman
  * @author Peter von der Ah&eacute;
- *
  * @see TypeKindVisitor7
  * @see TypeKindVisitor8
  * @since 1.6
  */
+// 类型访问器的细化版本，会对某些粗放的类型进行细化后再访问（JDK6）
 @SupportedSourceVersion(RELEASE_6)
 public class TypeKindVisitor6<R, P> extends SimpleTypeVisitor6<R, P> {
+    
     /**
      * Constructor for concrete subclasses to call; uses {@code null}
      * for the default value.
+     *
      * @deprecated Release 6 is obsolete; update to a visitor for a newer
      * release level.
      */
-    @Deprecated(since="9")
+    @Deprecated(since = "9")
     protected TypeKindVisitor6() {
         super(null);
     }
-
-
+    
     /**
      * Constructor for concrete subclasses to call; uses the argument
      * for the default value.
      *
      * @param defaultValue the value to assign to {@link #DEFAULT_VALUE}
+     *
      * @deprecated Release 6 is obsolete; update to a visitor for a newer
      * release level.
      */
-    @Deprecated(since="9")
+    @Deprecated(since = "9")
     protected TypeKindVisitor6(R defaultValue) {
         super(defaultValue);
     }
-
+    
     /**
      * {@inheritDoc}
+     *
+     * @param t {@inheritDoc}
+     * @param p {@inheritDoc}
+     *
+     * @return the result of the kind-specific visit method
      *
      * @implSpec This implementation dispatches to the visit method for
      * the specific {@linkplain TypeKind kind} of primitive type:
      * {@code BOOLEAN}, {@code BYTE}, etc.
-     *
-     * @param t {@inheritDoc}
-     * @param p {@inheritDoc}
-     * @return  the result of the kind-specific visit method
      */
+    // 访问基本类型，这里要细化
     @Override
     public R visitPrimitive(PrimitiveType t, P p) {
         TypeKind k = t.getKind();
-        switch (k) {
-        case BOOLEAN:
-            return visitPrimitiveAsBoolean(t, p);
-
-        case BYTE:
-            return visitPrimitiveAsByte(t, p);
-
-        case SHORT:
-            return visitPrimitiveAsShort(t, p);
-
-        case INT:
-            return visitPrimitiveAsInt(t, p);
-
-        case LONG:
-            return visitPrimitiveAsLong(t, p);
-
-        case CHAR:
-            return visitPrimitiveAsChar(t, p);
-
-        case FLOAT:
-            return visitPrimitiveAsFloat(t, p);
-
-        case DOUBLE:
-            return visitPrimitiveAsDouble(t, p);
-
-        default:
-            throw new AssertionError("Bad kind " + k + " for PrimitiveType" + t);
+        switch(k) {
+            case BYTE:
+                return visitPrimitiveAsByte(t, p);
+            
+            case SHORT:
+                return visitPrimitiveAsShort(t, p);
+            
+            case INT:
+                return visitPrimitiveAsInt(t, p);
+            
+            case LONG:
+                return visitPrimitiveAsLong(t, p);
+            
+            case FLOAT:
+                return visitPrimitiveAsFloat(t, p);
+            
+            case DOUBLE:
+                return visitPrimitiveAsDouble(t, p);
+            
+            case CHAR:
+                return visitPrimitiveAsChar(t, p);
+            
+            case BOOLEAN:
+                return visitPrimitiveAsBoolean(t, p);
+            
+            default:
+                throw new AssertionError("Bad kind " + k + " for PrimitiveType" + t);
         }
     }
-
-    /**
-     * Visits a {@code BOOLEAN} primitive type.
-     *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
-     * @param t the type to visit
-     * @param p a visitor-specified parameter
-     * @return  the result of {@code defaultAction}
-     */
-    public R visitPrimitiveAsBoolean(PrimitiveType t, P p) {
-        return defaultAction(t, p);
-    }
-
+    
     /**
      * Visits a {@code BYTE} primitive type.
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
+    // byte类型
     public R visitPrimitiveAsByte(PrimitiveType t, P p) {
         return defaultAction(t, p);
     }
-
+    
     /**
      * Visits a {@code SHORT} primitive type.
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
+    // short类型
     public R visitPrimitiveAsShort(PrimitiveType t, P p) {
         return defaultAction(t, p);
     }
-
+    
     /**
      * Visits an {@code INT} primitive type.
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
+    // int类型
     public R visitPrimitiveAsInt(PrimitiveType t, P p) {
         return defaultAction(t, p);
     }
-
+    
     /**
      * Visits a {@code LONG} primitive type.
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
+    // long类型
     public R visitPrimitiveAsLong(PrimitiveType t, P p) {
         return defaultAction(t, p);
     }
-
-    /**
-     * Visits a {@code CHAR} primitive type.
-     *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
-     * @param t the type to visit
-     * @param p a visitor-specified parameter
-     * @return  the result of {@code defaultAction}
-     */
-    public R visitPrimitiveAsChar(PrimitiveType t, P p) {
-        return defaultAction(t, p);
-    }
-
+    
     /**
      * Visits a {@code FLOAT} primitive type.
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
+    // float类型
     public R visitPrimitiveAsFloat(PrimitiveType t, P p) {
         return defaultAction(t, p);
     }
-
+    
     /**
      * Visits a {@code DOUBLE} primitive type.
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
+    // double类型
     public R visitPrimitiveAsDouble(PrimitiveType t, P p) {
         return defaultAction(t, p);
     }
-
+    
+    /**
+     * Visits a {@code CHAR} primitive type.
+     *
+     * @param t the type to visit
+     * @param p a visitor-specified parameter
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
+     */
+    // char类型
+    public R visitPrimitiveAsChar(PrimitiveType t, P p) {
+        return defaultAction(t, p);
+    }
+    
+    /**
+     * Visits a {@code BOOLEAN} primitive type.
+     *
+     * @param t the type to visit
+     * @param p a visitor-specified parameter
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
+     */
+    // boolean类型
+    public R visitPrimitiveAsBoolean(PrimitiveType t, P p) {
+        return defaultAction(t, p);
+    }
+    
     /**
      * {@inheritDoc}
+     *
+     * @param t {@inheritDoc}
+     * @param p {@inheritDoc}
+     *
+     * @return the result of the kind-specific visit method
      *
      * @implSpec This implementation dispatches to the visit method for
      * the specific {@linkplain TypeKind kind} of pseudo-type:
      * {@code VOID}, {@code PACKAGE}, {@code MODULE}, or {@code NONE}.
-     *
-     * @param t {@inheritDoc}
-     * @param p {@inheritDoc}
-     * @return  the result of the kind-specific visit method
      */
+    // 没有合适的类型，这里要细化
     @Override
     public R visitNoType(NoType t, P p) {
         TypeKind k = t.getKind();
-        switch (k) {
-        case VOID:
-            return visitNoTypeAsVoid(t, p);
-
-        case PACKAGE:
-            return visitNoTypeAsPackage(t, p);
-
-        case MODULE:
-            return visitNoTypeAsModule(t, p);
-
-        case NONE:
-            return visitNoTypeAsNone(t, p);
-
-        default:
-            throw new AssertionError("Bad kind " + k + " for NoType" + t);
+        switch(k) {
+            
+            case PACKAGE:
+                return visitNoTypeAsPackage(t, p);
+            
+            case MODULE:
+                return visitNoTypeAsModule(t, p);
+            
+            case VOID:
+                return visitNoTypeAsVoid(t, p);
+            
+            case NONE:
+                return visitNoTypeAsNone(t, p);
+            
+            default:
+                throw new AssertionError("Bad kind " + k + " for NoType" + t);
         }
     }
-
-    /**
-     * Visits a {@link TypeKind#VOID VOID} pseudo-type.
-     *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
-     * @param t the type to visit
-     * @param p a visitor-specified parameter
-     * @return  the result of {@code defaultAction}
-     */
-    public R visitNoTypeAsVoid(NoType t, P p) {
-        return defaultAction(t, p);
-    }
-
+    
     /**
      * Visits a {@link TypeKind#PACKAGE PACKAGE} pseudo-type.
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
+    // 包类型
     public R visitNoTypeAsPackage(NoType t, P p) {
         return defaultAction(t, p);
     }
-
+    
     /**
      * Visits a {@link TypeKind#MODULE MODULE} pseudo-type.
      *
-     * @implSpec This implementation calls {@code visitUnknown}.
-     *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  the result of {@code visitUnknown}
      *
+     * @return the result of {@code visitUnknown}
+     *
+     * @implSpec This implementation calls {@code visitUnknown}.
      * @since 10
      */
+    // 模块类型
     public R visitNoTypeAsModule(NoType t, P p) {
         return visitUnknown(t, p);
     }
-
+    
     /**
-     * Visits a {@link TypeKind#NONE NONE} pseudo-type.
-     *
-     * @implSpec This implementation calls {@code defaultAction}.
+     * Visits a {@link TypeKind#VOID VOID} pseudo-type.
      *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
+    // void类型
+    public R visitNoTypeAsVoid(NoType t, P p) {
+        return defaultAction(t, p);
+    }
+    
+    /**
+     * Visits a {@link TypeKind#NONE NONE} pseudo-type.
+     *
+     * @param t the type to visit
+     * @param p a visitor-specified parameter
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
+     */
+    // 其他类型
     public R visitNoTypeAsNone(NoType t, P p) {
         return defaultAction(t, p);
     }
