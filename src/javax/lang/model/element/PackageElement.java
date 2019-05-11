@@ -28,8 +28,8 @@ package javax.lang.model.element;
 import java.util.List;
 
 /**
- * Represents a package program element.  Provides access to information
- * about the package and its members.
+ * Represents a package program element.
+ * Provides access to information about the package and its members.
  *
  * @author Joseph D. Darcy
  * @author Scott Seligman
@@ -37,8 +37,9 @@ import java.util.List;
  * @see javax.lang.model.util.Elements#getPackageOf
  * @since 1.6
  */
+// 包元素
 public interface PackageElement extends Element, QualifiedNameable {
-
+    
     /**
      * Returns the fully qualified name of this package.
      * This is also known as the package's <i>canonical</i> name.
@@ -55,30 +56,32 @@ public interface PackageElement extends Element, QualifiedNameable {
      * empty name if this is an unnamed package
      * @jls 6.7 Fully Qualified Names and Canonical Names
      */
+    // 返回这个包的全限定名，对于未命名包返回空的Name
     Name getQualifiedName();
-
+    
     /**
-     * Returns the simple name of this package.  For an {@linkplain
-     * #isUnnamed() unnamed package}, an empty name is returned.
+     * Returns the simple name of this package.
+     * For an {@linkplain #isUnnamed() unnamed package}, an empty name is returned.
      *
      * @return the simple name of this package or an empty name if
      * this is an unnamed package
      */
+    // 返回这个包的简单名称，对于未命名包返回空的Name
     @Override
     Name getSimpleName();
-
+    
     /**
      * Returns the {@linkplain NestingKind#TOP_LEVEL top-level}
      * classes and interfaces within this package.  Note that
      * subpackages are <em>not</em> considered to be enclosed by a
      * package.
      *
-     * @return the top-level classes and interfaces within this
-     * package
+     * @return the top-level classes and interfaces within this package
      */
+    // 返回直接声明在该包下的顶级类和接口（NestingKind#TOP_LEVEL）
     @Override
     List<? extends Element> getEnclosedElements();
-
+    
     /**
      * Returns {@code true} if this is an unnamed package and {@code
      * false} otherwise.
@@ -87,11 +90,11 @@ public interface PackageElement extends Element, QualifiedNameable {
      * false} otherwise
      * @jls 7.4.2 Unnamed Packages
      */
+    // 是否为未命名的包
     boolean isUnnamed();
-
+    
     /**
-     * Returns the enclosing module if such a module exists; otherwise
-     * returns {@code null}.
+     * Returns the enclosing module if such a module exists; otherwise returns {@code null}.
      *
      * One situation where a module does not exist for a package is if
      * the environment does not include modules, such as an annotation
@@ -104,6 +107,7 @@ public interface PackageElement extends Element, QualifiedNameable {
      * @revised 9
      * @spec JPMS
      */
+    // 返回当前包所处的模块，如果没有，则返回null
     @Override
     Element getEnclosingElement();
 }
