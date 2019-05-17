@@ -63,6 +63,7 @@ import static javax.lang.model.SourceVersion.*;
  * @see AbstractElementVisitor9
  * @since 1.8
  */
+// 元素访问器的抽象实现（JDK8）
 @SupportedSourceVersion(RELEASE_8)
 public abstract class AbstractElementVisitor8<R, P> extends AbstractElementVisitor7<R, P> {
     /**
