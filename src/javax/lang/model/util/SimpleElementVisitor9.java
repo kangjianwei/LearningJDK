@@ -73,6 +73,7 @@ import static javax.lang.model.SourceVersion.*;
  * @since 9
  * @spec JPMS
  */
+// 元素访问器的简单实现（JDK9）
 @SupportedSourceVersion(RELEASE_11)
 public class SimpleElementVisitor9<R, P> extends SimpleElementVisitor8<R, P> {
     /**
