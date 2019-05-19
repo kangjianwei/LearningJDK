@@ -25,10 +25,13 @@
 
 package javax.lang.model.util;
 
-import javax.lang.model.element.*;
 import javax.annotation.processing.SupportedSourceVersion;
-import static javax.lang.model.SourceVersion.*;
 import javax.lang.model.SourceVersion;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ModuleElement;
+
+import static javax.lang.model.SourceVersion.RELEASE_11;
 
 /**
  * A visitor of program elements based on their {@linkplain
@@ -74,12 +77,13 @@ import javax.lang.model.SourceVersion;
  *            methods.  Use {@code Void} for visitors that do not need an
  *            additional parameter.
  *
+ * @spec JPMS
  * @see ElementKindVisitor6
  * @see ElementKindVisitor7
  * @see ElementKindVisitor8
  * @since 9
- * @spec JPMS
  */
+// 元素访问器的细化版本（JDK9）
 @SupportedSourceVersion(RELEASE_11)
 public class ElementKindVisitor9<R, P> extends ElementKindVisitor8<R, P> {
     /**
@@ -89,7 +93,7 @@ public class ElementKindVisitor9<R, P> extends ElementKindVisitor8<R, P> {
     protected ElementKindVisitor9() {
         super(null);
     }
-
+    
     /**
      * Constructor for concrete subclasses; uses the argument for the
      * default value.
@@ -99,16 +103,18 @@ public class ElementKindVisitor9<R, P> extends ElementKindVisitor8<R, P> {
     protected ElementKindVisitor9(R defaultValue) {
         super(defaultValue);
     }
-
+    
     /**
      * {@inheritDoc}
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param e the element to visit
      * @param p a visitor-specified parameter
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
+    // 访问模块元素
     @Override
     public R visitModule(ModuleElement e, P p) {
         return defaultAction(e, p);
