@@ -28,6 +28,7 @@ package javax.lang.model.util;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.*;
+
 import static javax.lang.model.SourceVersion.*;
 
 /**
@@ -76,6 +77,7 @@ import static javax.lang.model.SourceVersion.*;
  * @see ElementKindVisitor9
  * @since 1.7
  */
+// 元素访问器的细化版本（JDK7）
 @SupportedSourceVersion(RELEASE_7)
 public class ElementKindVisitor7<R, P> extends ElementKindVisitor6<R, P> {
     /**
@@ -86,7 +88,7 @@ public class ElementKindVisitor7<R, P> extends ElementKindVisitor6<R, P> {
     protected ElementKindVisitor7() {
         super(null);
     }
-
+    
     /**
      * Constructor for concrete subclasses; uses the argument for the
      * default value.
@@ -97,16 +99,18 @@ public class ElementKindVisitor7<R, P> extends ElementKindVisitor6<R, P> {
     protected ElementKindVisitor7(R defaultValue) {
         super(defaultValue);
     }
-
+    
     /**
      * {@inheritDoc}
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param e {@inheritDoc}
      * @param p {@inheritDoc}
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
+    // 访问资源参数
     @Override
     public R visitVariableAsResourceVariable(VariableElement e, P p) {
         return defaultAction(e, p);
