@@ -28,8 +28,8 @@ package javax.lang.model.util;
 import javax.lang.model.element.*;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
-import static javax.lang.model.SourceVersion.*;
 
+import static javax.lang.model.SourceVersion.*;
 
 /**
  * A scanning visitor of program elements with default behavior
@@ -89,23 +89,24 @@ import static javax.lang.model.SourceVersion.*;
  * @see ElementScanner9
  * @since 1.8
  */
+// 元素访问器的扫描版本，可用来访问某元素内部包含的元素集合（JDK8）
 @SupportedSourceVersion(RELEASE_8)
 public class ElementScanner8<R, P> extends ElementScanner7<R, P> {
     /**
      * Constructor for concrete subclasses; uses {@code null} for the
      * default value.
      */
-    protected ElementScanner8(){
+    protected ElementScanner8() {
         super(null);
     }
-
+    
     /**
      * Constructor for concrete subclasses; uses the argument for the
      * default value.
      *
      * @param defaultValue the default value
      */
-    protected ElementScanner8(R defaultValue){
+    protected ElementScanner8(R defaultValue) {
         super(defaultValue);
     }
 }
