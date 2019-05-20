@@ -28,8 +28,8 @@ package javax.lang.model.util;
 import javax.lang.model.element.*;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
-import static javax.lang.model.SourceVersion.*;
 
+import static javax.lang.model.SourceVersion.*;
 
 /**
  * A scanning visitor of program elements with default behavior
@@ -86,41 +86,44 @@ import static javax.lang.model.SourceVersion.*;
  *            methods.  Use {@code Void} for visitors that do not need an
  *            additional parameter.
  *
+ * @spec JPMS
  * @see ElementScanner6
  * @see ElementScanner7
  * @see ElementScanner8
  * @since 9
- * @spec JPMS
  */
+// 元素访问器的扫描版本，可用来访问某元素内部包含的元素集合（JDK9）
 @SupportedSourceVersion(RELEASE_11)
 public class ElementScanner9<R, P> extends ElementScanner8<R, P> {
     /**
      * Constructor for concrete subclasses; uses {@code null} for the
      * default value.
      */
-    protected ElementScanner9(){
+    protected ElementScanner9() {
         super(null);
     }
-
+    
     /**
      * Constructor for concrete subclasses; uses the argument for the
      * default value.
      *
      * @param defaultValue the default value
      */
-    protected ElementScanner9(R defaultValue){
+    protected ElementScanner9(R defaultValue) {
         super(defaultValue);
     }
-
+    
     /**
      * {@inheritDoc}
      *
-     * @implSpec This implementation scans the enclosed elements.
-     *
      * @param e the element to visit
      * @param p a visitor-specified parameter
-     * @return  the result of the scan
+     *
+     * @return the result of the scan
+     *
+     * @implSpec This implementation scans the enclosed elements.
      */
+    // 从JDK9开始，可以识别模块元素了
     @Override
     public R visitModule(ModuleElement e, P p) {
         return scan(e.getEnclosedElements(), p); // TODO: Hmmm, this might not be right
