@@ -28,8 +28,8 @@ package javax.lang.model.util;
 import javax.lang.model.element.*;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
-import static javax.lang.model.SourceVersion.*;
 
+import static javax.lang.model.SourceVersion.*;
 
 /**
  * A scanning visitor of program elements with default behavior
@@ -89,6 +89,7 @@ import static javax.lang.model.SourceVersion.*;
  * @see ElementScanner9
  * @since 1.7
  */
+// 元素访问器的扫描版本，可用来访问某元素内部包含的元素集合（JDK7）
 @SupportedSourceVersion(RELEASE_7)
 public class ElementScanner7<R, P> extends ElementScanner6<R, P> {
     /**
@@ -96,10 +97,10 @@ public class ElementScanner7<R, P> extends ElementScanner6<R, P> {
      * default value.
      */
     @SuppressWarnings("deprecation") // Superclass constructor deprecated
-    protected ElementScanner7(){
+    protected ElementScanner7() {
         super(null);
     }
-
+    
     /**
      * Constructor for concrete subclasses; uses the argument for the
      * default value.
@@ -107,19 +108,21 @@ public class ElementScanner7<R, P> extends ElementScanner6<R, P> {
      * @param defaultValue the default value
      */
     @SuppressWarnings("deprecation") // Superclass constructor deprecated
-    protected ElementScanner7(R defaultValue){
+    protected ElementScanner7(R defaultValue) {
         super(defaultValue);
     }
-
+    
     /**
      * {@inheritDoc}
      *
-     * @implSpec This implementation scans the enclosed elements.
+     * @param e {@inheritDoc}
+     * @param p {@inheritDoc}
      *
-     * @param e  {@inheritDoc}
-     * @param p  {@inheritDoc}
      * @return the result of scanning
+     *
+     * @implSpec This implementation scans the enclosed elements.
      */
+    // 从JDK7开始，可以识别资源变量了
     @Override
     public R visitVariable(VariableElement e, P p) {
         return scan(e.getEnclosedElements(), p);
