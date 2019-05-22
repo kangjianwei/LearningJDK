@@ -50,6 +50,7 @@ package javax.lang.model.element;
  * @see javax.lang.model.util.Elements#getName
  * @since 1.6
  */
+// 元素的名称
 public interface Name extends CharSequence {
     /**
      * Returns {@code true} if the argument represents the same
@@ -59,31 +60,34 @@ public interface Name extends CharSequence {
      * of its content in terms of a sequence of characters as well as
      * the implementation which created it.
      *
-     * @param obj  the object to be compared with this element
+     * @param obj the object to be compared with this element
+     *
      * @return {@code true} if the specified object represents the same
-     *          name as this
+     * name as this
+     *
      * @see Element#equals
      */
     boolean equals(Object obj);
-
+    
+    /**
+     * Compares this name to the specified {@code CharSequence}. The result
+     * is {@code true} if and only if this name represents the same sequence
+     * of {@code char} values as the specified sequence.
+     *
+     * @param cs The sequence to compare this name against
+     *
+     * @return {@code true} if this name represents the same sequence
+     * of {@code char} values as the specified sequence, {@code false}
+     * otherwise
+     *
+     * @see String#contentEquals(CharSequence)
+     */
+    boolean contentEquals(CharSequence cs);
+    
     /**
      * Obeys the general contract of {@link Object#hashCode Object.hashCode}.
      *
      * @see #equals
      */
     int hashCode();
-
-    /**
-     * Compares this name to the specified {@code CharSequence}. The result
-     * is {@code true} if and only if this name represents the same sequence
-     * of {@code char} values as the specified sequence.
-     *
-     * @return {@code true} if this name represents the same sequence
-     * of {@code char} values as the specified sequence, {@code false}
-     * otherwise
-     *
-     * @param cs The sequence to compare this name against
-     * @see String#contentEquals(CharSequence)
-     */
-    boolean contentEquals(CharSequence cs);
 }
