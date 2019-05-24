@@ -26,6 +26,7 @@
 package javax.lang.model.element;
 
 import java.util.Map;
+
 import javax.lang.model.type.DeclaredType;
 
 /**
@@ -41,15 +42,17 @@ import javax.lang.model.type.DeclaredType;
  * @author Peter von der Ah&eacute;
  * @since 1.6
  */
+// 元素的注解镜像，注解镜像将注解值与被注解的每个元素相关联
 public interface AnnotationMirror {
-
+    
     /**
      * Returns the type of this annotation.
      *
      * @return the type of this annotation
      */
+    // 返回该注解镜像的声明类型
     DeclaredType getAnnotationType();
-
+    
     /**
      * Returns the values of this annotation's elements.
      * This is returned in the form of a map that associates elements
@@ -68,7 +71,12 @@ public interface AnnotationMirror {
      * getElementValuesWithDefaults}.
      *
      * @return the values of this annotation's elements,
-     *          or an empty map if there are none
+     * or an empty map if there are none
+     */
+    /*
+     * 返回可以代表注解镜像的键值对，key是注解方法，value是设置的注解值
+     * 注：这里只关注显式设定了注解值的注解镜像
+     * 对于只具有默认值的注解镜像，需要使用Elements.getElementValuesWithDefaults()去获取
      */
     Map<? extends ExecutableElement, ? extends AnnotationValue> getElementValues();
 }
