@@ -42,24 +42,17 @@ package javax.lang.model.element;
  * @author Peter von der Ah&eacute;
  * @since 1.6
  */
+// 注解镜像元素中设置的注解值
 public interface AnnotationValue {
-
+    
     /**
      * Returns the value.
      *
      * @return the value
      */
+    // 返回该注解元素上设置的值
     Object getValue();
-
-    /**
-     * Returns a string representation of this value.
-     * This is returned in a form suitable for representing this value
-     * in the source code of an annotation.
-     *
-     * @return a string representation of this value
-     */
-    String toString();
-
+    
     /**
      * Applies a visitor to this value.
      *
@@ -69,5 +62,15 @@ public interface AnnotationValue {
      * @param p   additional parameter to the visitor
      * @return a visitor-specified result
      */
+    // 使用注解值访问器访问注解
     <R, P> R accept(AnnotationValueVisitor<R, P> v, P p);
+    
+    /**
+     * Returns a string representation of this value.
+     * This is returned in a form suitable for representing this value
+     * in the source code of an annotation.
+     *
+     * @return a string representation of this value
+     */
+    String toString();
 }
