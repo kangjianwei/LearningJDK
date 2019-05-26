@@ -25,11 +25,9 @@
 
 package javax.lang.model.element;
 
-
 import java.util.List;
 
 import javax.lang.model.type.TypeMirror;
-
 
 /**
  * A visitor of the values of annotation type elements, using a
@@ -80,6 +78,7 @@ import javax.lang.model.type.TypeMirror;
  * @author Peter von der Ah&eacute;
  * @since 1.6
  */
+// 注解值访问器，可以对不同类型的注解值执行相应的操作
 public interface AnnotationValueVisitor<R, P> {
     /**
      * Visits an annotation value.
@@ -87,8 +86,9 @@ public interface AnnotationValueVisitor<R, P> {
      * @param p a visitor-specified parameter
      * @return  a visitor-specified result
      */
+    // 自定义访问AnnotationValue的方式
     R visit(AnnotationValue av, P p);
-
+    
     /**
      * A convenience method equivalent to {@code visit(av, null)}.
      *
@@ -97,114 +97,128 @@ public interface AnnotationValueVisitor<R, P> {
      * @param av the value to visit
      * @return  a visitor-specified result
      */
+    // 等同于visit(av, null)
     default R visit(AnnotationValue av) {
         return visit(av, null);
     }
-
-    /**
-     * Visits a {@code boolean} value in an annotation.
-     * @param b the value being visited
-     * @param p a visitor-specified parameter
-     * @return the result of the visit
-     */
-    R visitBoolean(boolean b, P p);
-
+    
     /**
      * Visits a {@code byte} value in an annotation.
      * @param  b the value being visited
      * @param  p a visitor-specified parameter
      * @return the result of the visit
      */
+    // 注解值类型为byte
     R visitByte(byte b, P p);
-
-    /**
-     * Visits a {@code char} value in an annotation.
-     * @param  c the value being visited
-     * @param  p a visitor-specified parameter
-     * @return the result of the visit
-     */
-    R visitChar(char c, P p);
-
-    /**
-     * Visits a {@code double} value in an annotation.
-     * @param  d the value being visited
-     * @param  p a visitor-specified parameter
-     * @return the result of the visit
-     */
-    R visitDouble(double d, P p);
-
-    /**
-     * Visits a {@code float} value in an annotation.
-     * @param  f the value being visited
-     * @param  p a visitor-specified parameter
-     * @return the result of the visit
-     */
-    R visitFloat(float f, P p);
-
-    /**
-     * Visits an {@code int} value in an annotation.
-     * @param  i the value being visited
-     * @param  p a visitor-specified parameter
-     * @return the result of the visit
-     */
-    R visitInt(int i, P p);
-
-    /**
-     * Visits a {@code long} value in an annotation.
-     * @param  i the value being visited
-     * @param  p a visitor-specified parameter
-     * @return the result of the visit
-     */
-    R visitLong(long i, P p);
-
+    
     /**
      * Visits a {@code short} value in an annotation.
      * @param  s the value being visited
      * @param  p a visitor-specified parameter
      * @return the result of the visit
      */
+    // 注解值类型为short
     R visitShort(short s, P p);
-
+    
+    /**
+     * Visits an {@code int} value in an annotation.
+     * @param  i the value being visited
+     * @param  p a visitor-specified parameter
+     * @return the result of the visit
+     */
+    // 注解值类型为int
+    R visitInt(int i, P p);
+    
+    /**
+     * Visits a {@code long} value in an annotation.
+     * @param  i the value being visited
+     * @param  p a visitor-specified parameter
+     * @return the result of the visit
+     */
+    // 注解值类型为long
+    R visitLong(long i, P p);
+    
+    /**
+     * Visits a {@code float} value in an annotation.
+     * @param  f the value being visited
+     * @param  p a visitor-specified parameter
+     * @return the result of the visit
+     */
+    // 注解值类型为float
+    R visitFloat(float f, P p);
+    
+    /**
+     * Visits a {@code double} value in an annotation.
+     * @param  d the value being visited
+     * @param  p a visitor-specified parameter
+     * @return the result of the visit
+     */
+    // 注解值类型为double
+    R visitDouble(double d, P p);
+    
+    /**
+     * Visits a {@code char} value in an annotation.
+     * @param  c the value being visited
+     * @param  p a visitor-specified parameter
+     * @return the result of the visit
+     */
+    // 注解值类型为char
+    R visitChar(char c, P p);
+    
+    /**
+     * Visits a {@code boolean} value in an annotation.
+     * @param b the value being visited
+     * @param p a visitor-specified parameter
+     * @return the result of the visit
+     */
+    // 注解值类型为boolean
+    R visitBoolean(boolean b, P p);
+    
     /**
      * Visits a string value in an annotation.
      * @param  s the value being visited
      * @param  p a visitor-specified parameter
      * @return the result of the visit
      */
+    // 注解值类型为字符串
     R visitString(String s, P p);
-
+    
     /**
      * Visits a type value in an annotation.
      * @param  t the value being visited
      * @param  p a visitor-specified parameter
      * @return the result of the visit
      */
+    // 注解值类型为引用类型
     R visitType(TypeMirror t, P p);
-
+    
     /**
      * Visits an {@code enum} value in an annotation.
      * @param  c the value being visited
      * @param  p a visitor-specified parameter
      * @return the result of the visit
      */
+    // 注解值类型为枚举
     R visitEnumConstant(VariableElement c, P p);
-
+    
     /**
      * Visits an annotation value in an annotation.
      * @param  a the value being visited
      * @param  p a visitor-specified parameter
      * @return the result of the visit
      */
+    // 注解值类型为注解
     R visitAnnotation(AnnotationMirror a, P p);
-
+    
     /**
      * Visits an array value in an annotation.
      * @param  vals the value being visited
      * @param  p a visitor-specified parameter
      * @return the result of the visit
      */
+    // 注解值类型为数组
     R visitArray(List<? extends AnnotationValue> vals, P p);
-
+    
     /**
      * Visits an unknown kind of annotation value.
      * This can occur if the language evolves and new kinds
@@ -215,5 +229,6 @@ public interface AnnotationValueVisitor<R, P> {
      * @throws UnknownAnnotationValueException
      *  a visitor implementation may optionally throw this exception
      */
+    // 注解值类型未知（在当前JDK版本下可能未知）
     R visitUnknown(AnnotationValue av, P p);
 }
