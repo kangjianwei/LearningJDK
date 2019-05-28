@@ -27,6 +27,7 @@ package javax.lang.model.util;
 
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
+
 import static javax.lang.model.SourceVersion.*;
 
 /**
@@ -66,6 +67,7 @@ import static javax.lang.model.SourceVersion.*;
  * @see SimpleAnnotationValueVisitor8
  * @since 1.8
  */
+// 注解值访问器的简单实现（JDK8）
 @SupportedSourceVersion(RELEASE_8)
 public class SimpleAnnotationValueVisitor8<R, P> extends SimpleAnnotationValueVisitor7<R, P> {
     /**
@@ -75,7 +77,7 @@ public class SimpleAnnotationValueVisitor8<R, P> extends SimpleAnnotationValueVi
     protected SimpleAnnotationValueVisitor8() {
         super(null);
     }
-
+    
     /**
      * Constructor for concrete subclasses; uses the argument for the
      * default value.
