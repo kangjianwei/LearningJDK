@@ -41,7 +41,6 @@ import javax.lang.model.element.ModuleElement.ProvidesDirective;
 import javax.lang.model.element.ModuleElement.RequiresDirective;
 import javax.lang.model.element.ModuleElement.UsesDirective;
 
-
 /**
  * Filters for selecting just the elements of interest from a
  * collection of elements.  The returned sets and lists are new
@@ -61,245 +60,294 @@ import javax.lang.model.element.ModuleElement.UsesDirective;
  * @author Martin Buchholz
  * @since 1.6
  */
+// 元素/指令过滤器
 public class ElementFilter {
-    private ElementFilter() {} // Do not instantiate.
-
-    private static final Set<ElementKind> CONSTRUCTOR_KIND =
-        Collections.unmodifiableSet(EnumSet.of(ElementKind.CONSTRUCTOR));
-
-    private static final Set<ElementKind> FIELD_KINDS =
-        Collections.unmodifiableSet(EnumSet.of(ElementKind.FIELD,
-                                               ElementKind.ENUM_CONSTANT));
-    private static final Set<ElementKind> METHOD_KIND =
-        Collections.unmodifiableSet(EnumSet.of(ElementKind.METHOD));
-
-    private static final Set<ElementKind> PACKAGE_KIND =
-        Collections.unmodifiableSet(EnumSet.of(ElementKind.PACKAGE));
-
-    private static final Set<ElementKind> MODULE_KIND =
-        Collections.unmodifiableSet(EnumSet.of(ElementKind.MODULE));
-
-    private static final Set<ElementKind> TYPE_KINDS =
-        Collections.unmodifiableSet(EnumSet.of(ElementKind.CLASS,
-                                               ElementKind.ENUM,
-                                               ElementKind.INTERFACE,
-                                               ElementKind.ANNOTATION_TYPE));
+    
+    private static final Set<ElementKind> CONSTRUCTOR_KIND
+        = Collections.unmodifiableSet(EnumSet.of(ElementKind.CONSTRUCTOR));
+    
+    private static final Set<ElementKind> FIELD_KINDS
+        = Collections.unmodifiableSet(EnumSet.of(ElementKind.FIELD, ElementKind.ENUM_CONSTANT));
+    
+    private static final Set<ElementKind> METHOD_KIND
+        = Collections.unmodifiableSet(EnumSet.of(ElementKind.METHOD));
+    
+    private static final Set<ElementKind> PACKAGE_KIND
+        = Collections.unmodifiableSet(EnumSet.of(ElementKind.PACKAGE));
+    
+    private static final Set<ElementKind> MODULE_KIND
+        = Collections.unmodifiableSet(EnumSet.of(ElementKind.MODULE));
+    
+    private static final Set<ElementKind> TYPE_KINDS
+        = Collections.unmodifiableSet(EnumSet.of(ElementKind.CLASS, ElementKind.ENUM, ElementKind.INTERFACE, ElementKind.ANNOTATION_TYPE));
+    
+    
+    
+    private ElementFilter() {
+    } // Do not instantiate.
+    
+    
+    
     /**
      * Returns a list of fields in {@code elements}.
-     * @return a list of fields in {@code elements}
+     *
      * @param elements the elements to filter
+     *
+     * @return a list of fields in {@code elements}
      */
-    public static List<VariableElement>
-            fieldsIn(Iterable<? extends Element> elements) {
+    // 从elements中筛选出符合FIELD_KINDS类型的元素
+    public static List<VariableElement> fieldsIn(Iterable<? extends Element> elements) {
         return listFilter(elements, FIELD_KINDS, VariableElement.class);
     }
-
-    /**
-     * Returns a set of fields in {@code elements}.
-     * @return a set of fields in {@code elements}
-     * @param elements the elements to filter
-     */
-    public static Set<VariableElement>
-            fieldsIn(Set<? extends Element> elements) {
-        return setFilter(elements, FIELD_KINDS, VariableElement.class);
-    }
-
+    
     /**
      * Returns a list of constructors in {@code elements}.
-     * @return a list of constructors in {@code elements}
+     *
      * @param elements the elements to filter
+     *
+     * @return a list of constructors in {@code elements}
      */
-    public static List<ExecutableElement>
-            constructorsIn(Iterable<? extends Element> elements) {
+    // 从elements中筛选出符合CONSTRUCTOR_KIND类型的元素
+    public static List<ExecutableElement> constructorsIn(Iterable<? extends Element> elements) {
         return listFilter(elements, CONSTRUCTOR_KIND, ExecutableElement.class);
     }
-
-    /**
-     * Returns a set of constructors in {@code elements}.
-     * @return a set of constructors in {@code elements}
-     * @param elements the elements to filter
-     */
-    public static Set<ExecutableElement>
-            constructorsIn(Set<? extends Element> elements) {
-        return setFilter(elements, CONSTRUCTOR_KIND, ExecutableElement.class);
-    }
-
+    
     /**
      * Returns a list of methods in {@code elements}.
-     * @return a list of methods in {@code elements}
+     *
      * @param elements the elements to filter
+     *
+     * @return a list of methods in {@code elements}
      */
-    public static List<ExecutableElement>
-            methodsIn(Iterable<? extends Element> elements) {
+    // 从elements中筛选出符合METHOD_KIND类型的元素
+    public static List<ExecutableElement> methodsIn(Iterable<? extends Element> elements) {
         return listFilter(elements, METHOD_KIND, ExecutableElement.class);
     }
-
-    /**
-     * Returns a set of methods in {@code elements}.
-     * @return a set of methods in {@code elements}
-     * @param elements the elements to filter
-     */
-    public static Set<ExecutableElement>
-            methodsIn(Set<? extends Element> elements) {
-        return setFilter(elements, METHOD_KIND, ExecutableElement.class);
-    }
-
+    
     /**
      * Returns a list of types in {@code elements}.
-     * @return a list of types in {@code elements}
+     *
      * @param elements the elements to filter
+     *
+     * @return a list of types in {@code elements}
      */
-    public static List<TypeElement>
-            typesIn(Iterable<? extends Element> elements) {
+    // 从elements中筛选出符合TYPE_KINDS类型的元素
+    public static List<TypeElement> typesIn(Iterable<? extends Element> elements) {
         return listFilter(elements, TYPE_KINDS, TypeElement.class);
     }
-
-    /**
-     * Returns a set of types in {@code elements}.
-     * @return a set of types in {@code elements}
-     * @param elements the elements to filter
-     */
-    public static Set<TypeElement>
-            typesIn(Set<? extends Element> elements) {
-        return setFilter(elements, TYPE_KINDS, TypeElement.class);
-    }
-
+    
     /**
      * Returns a list of packages in {@code elements}.
-     * @return a list of packages in {@code elements}
+     *
      * @param elements the elements to filter
+     *
+     * @return a list of packages in {@code elements}
      */
-    public static List<PackageElement>
-            packagesIn(Iterable<? extends Element> elements) {
+    // 从elements中筛选出符合PACKAGE_KIND类型的元素
+    public static List<PackageElement> packagesIn(Iterable<? extends Element> elements) {
         return listFilter(elements, PACKAGE_KIND, PackageElement.class);
     }
-
-    /**
-     * Returns a set of packages in {@code elements}.
-     * @return a set of packages in {@code elements}
-     * @param elements the elements to filter
-     */
-    public static Set<PackageElement>
-            packagesIn(Set<? extends Element> elements) {
-        return setFilter(elements, PACKAGE_KIND, PackageElement.class);
-    }
-
+    
     /**
      * Returns a list of modules in {@code elements}.
-     * @return a list of modules in {@code elements}
+     *
      * @param elements the elements to filter
-     * @since 9
+     *
+     * @return a list of modules in {@code elements}
+     *
      * @spec JPMS
+     * @since 9
      */
-    public static List<ModuleElement>
-            modulesIn(Iterable<? extends Element> elements) {
+    // 从elements中筛选出符合MODULE_KIND类型的元素
+    public static List<ModuleElement> modulesIn(Iterable<? extends Element> elements) {
         return listFilter(elements, MODULE_KIND, ModuleElement.class);
     }
-
+    
+    
+    
+    /**
+     * Returns a set of fields in {@code elements}.
+     *
+     * @param elements the elements to filter
+     *
+     * @return a set of fields in {@code elements}
+     */
+    // 从elements中筛选出符合FIELD_KINDS类型的元素
+    public static Set<VariableElement> fieldsIn(Set<? extends Element> elements) {
+        return setFilter(elements, FIELD_KINDS, VariableElement.class);
+    }
+    
+    /**
+     * Returns a set of constructors in {@code elements}.
+     *
+     * @param elements the elements to filter
+     *
+     * @return a set of constructors in {@code elements}
+     */
+    // 从elements中筛选出符合CONSTRUCTOR_KIND类型的元素
+    public static Set<ExecutableElement> constructorsIn(Set<? extends Element> elements) {
+        return setFilter(elements, CONSTRUCTOR_KIND, ExecutableElement.class);
+    }
+    
+    /**
+     * Returns a set of methods in {@code elements}.
+     *
+     * @param elements the elements to filter
+     *
+     * @return a set of methods in {@code elements}
+     */
+    // 从elements中筛选出符合METHOD_KIND类型的元素
+    public static Set<ExecutableElement> methodsIn(Set<? extends Element> elements) {
+        return setFilter(elements, METHOD_KIND, ExecutableElement.class);
+    }
+    
+    /**
+     * Returns a set of types in {@code elements}.
+     *
+     * @param elements the elements to filter
+     *
+     * @return a set of types in {@code elements}
+     */
+    // 从elements中筛选出符合TYPE_KINDS类型的元素
+    public static Set<TypeElement> typesIn(Set<? extends Element> elements) {
+        return setFilter(elements, TYPE_KINDS, TypeElement.class);
+    }
+    
+    /**
+     * Returns a set of packages in {@code elements}.
+     *
+     * @param elements the elements to filter
+     *
+     * @return a set of packages in {@code elements}
+     */
+    // 从elements中筛选出符合PACKAGE_KIND类型的元素
+    public static Set<PackageElement> packagesIn(Set<? extends Element> elements) {
+        return setFilter(elements, PACKAGE_KIND, PackageElement.class);
+    }
+    
     /**
      * Returns a set of modules in {@code elements}.
-     * @return a set of modules in {@code elements}
+     *
      * @param elements the elements to filter
-     * @since 9
+     *
+     * @return a set of modules in {@code elements}
+     *
      * @spec JPMS
+     * @since 9
      */
-    public static Set<ModuleElement>
-            modulesIn(Set<? extends Element> elements) {
+    // 从elements中筛选出符合MODULE_KIND类型的元素
+    public static Set<ModuleElement> modulesIn(Set<? extends Element> elements) {
         return setFilter(elements, MODULE_KIND, ModuleElement.class);
     }
-
-    // Assumes targetKinds and E are sensible.
-    private static <E extends Element> List<E> listFilter(Iterable<? extends Element> elements,
-                                                          Set<ElementKind> targetKinds,
-                                                          Class<E> clazz) {
+    
+    
+    
+    /**
+     * Returns a list of {@code exports} directives in {@code directives}.
+     *
+     * @param directives the directives to filter
+     *
+     * @return a list of {@code exports} directives in {@code directives}
+     *
+     * @spec JPMS
+     * @since 9
+     */
+    // 从directives中筛选出exports类型的指令
+    public static List<ExportsDirective> exportsIn(Iterable<? extends Directive> directives) {
+        return listFilter(directives, DirectiveKind.EXPORTS, ExportsDirective.class);
+    }
+    
+    /**
+     * Returns a list of {@code opens} directives in {@code directives}.
+     *
+     * @param directives the directives to filter
+     *
+     * @return a list of {@code opens} directives in {@code directives}
+     *
+     * @since 9
+     */
+    // 从directives中筛选出opens类型的指令
+    public static List<OpensDirective> opensIn(Iterable<? extends Directive> directives) {
+        return listFilter(directives, DirectiveKind.OPENS, OpensDirective.class);
+    }
+    
+    /**
+     * Returns a list of {@code provides} directives in {@code directives}.
+     *
+     * @param directives the directives to filter
+     *
+     * @return a list of {@code provides} directives in {@code directives}
+     *
+     * @spec JPMS
+     * @since 9
+     */
+    // 从directives中筛选出provides类型的指令
+    public static List<ProvidesDirective> providesIn(Iterable<? extends Directive> directives) {
+        return listFilter(directives, DirectiveKind.PROVIDES, ProvidesDirective.class);
+    }
+    
+    /**
+     * Returns a list of {@code requires} directives in {@code directives}.
+     *
+     * @param directives the directives to filter
+     *
+     * @return a list of {@code requires} directives in {@code directives}
+     *
+     * @spec JPMS
+     * @since 9
+     */
+    // 从directives中筛选出requires类型的指令
+    public static List<RequiresDirective> requiresIn(Iterable<? extends Directive> directives) {
+        return listFilter(directives, DirectiveKind.REQUIRES, RequiresDirective.class);
+    }
+    
+    /**
+     * Returns a list of {@code uses} directives in {@code directives}.
+     *
+     * @param directives the directives to filter
+     *
+     * @return a list of {@code uses} directives in {@code directives}
+     *
+     * @spec JPMS
+     * @since 9
+     */
+    // 从directives中筛选出uses类型的指令
+    public static List<UsesDirective> usesIn(Iterable<? extends Directive> directives) {
+        return listFilter(directives, DirectiveKind.USES, UsesDirective.class);
+    }
+    
+    
+    
+    // 从elements中筛选出符合targetKinds类型的元素
+    private static <E extends Element> List<E> listFilter(Iterable<? extends Element> elements, Set<ElementKind> targetKinds, Class<E> clazz) {
         List<E> list = new ArrayList<>();
-        for (Element e : elements) {
-            if (targetKinds.contains(e.getKind()))
+        for(Element e : elements) {
+            if(targetKinds.contains(e.getKind())) {
                 list.add(clazz.cast(e));
+            }
         }
         return list;
     }
-
-    // Assumes targetKinds and E are sensible.
-    private static <E extends Element> Set<E> setFilter(Set<? extends Element> elements,
-                                                        Set<ElementKind> targetKinds,
-                                                        Class<E> clazz) {
+    
+    // 从elements中筛选出符合targetKinds类型的元素
+    private static <E extends Element> Set<E> setFilter(Set<? extends Element> elements, Set<ElementKind> targetKinds, Class<E> clazz) {
         // Return set preserving iteration order of input set.
         Set<E> set = new LinkedHashSet<>();
-        for (Element e : elements) {
-            if (targetKinds.contains(e.getKind()))
+        for(Element e : elements) {
+            if(targetKinds.contains(e.getKind())) {
                 set.add(clazz.cast(e));
+            }
         }
         return set;
     }
-
-    /**
-     * Returns a list of {@code exports} directives in {@code directives}.
-     * @return a list of {@code exports} directives in {@code directives}
-     * @param directives the directives to filter
-     * @since 9
-     * @spec JPMS
-     */
-    public static List<ExportsDirective>
-            exportsIn(Iterable<? extends Directive> directives) {
-        return listFilter(directives, DirectiveKind.EXPORTS, ExportsDirective.class);
-    }
-
-    /**
-     * Returns a list of {@code opens} directives in {@code directives}.
-     * @return a list of {@code opens} directives in {@code directives}
-     * @param directives the directives to filter
-     * @since 9
-     */
-    public static List<OpensDirective>
-            opensIn(Iterable<? extends Directive> directives) {
-        return listFilter(directives, DirectiveKind.OPENS, OpensDirective.class);
-    }
-
-    /**
-     * Returns a list of {@code provides} directives in {@code directives}.
-     * @return a list of {@code provides} directives in {@code directives}
-     * @param directives the directives to filter
-     * @since 9
-     * @spec JPMS
-     */
-    public static List<ProvidesDirective>
-            providesIn(Iterable<? extends Directive> directives) {
-        return listFilter(directives, DirectiveKind.PROVIDES, ProvidesDirective.class);
-    }
-
-    /**
-     * Returns a list of {@code requires} directives in {@code directives}.
-     * @return a list of {@code requires} directives in {@code directives}
-     * @param directives the directives to filter
-     * @since 9
-     * @spec JPMS
-     */
-    public static List<RequiresDirective>
-            requiresIn(Iterable<? extends Directive> directives) {
-        return listFilter(directives, DirectiveKind.REQUIRES, RequiresDirective.class);
-    }
-
-    /**
-     * Returns a list of {@code uses} directives in {@code directives}.
-     * @return a list of {@code uses} directives in {@code directives}
-     * @param directives the directives to filter
-     * @since 9
-     * @spec JPMS
-     */
-    public static List<UsesDirective>
-            usesIn(Iterable<? extends Directive> directives) {
-        return listFilter(directives, DirectiveKind.USES, UsesDirective.class);
-    }
-
-    // Assumes directiveKind and D are sensible.
-    private static <D extends Directive> List<D> listFilter(Iterable<? extends Directive> directives,
-                                                          DirectiveKind directiveKind,
-                                                          Class<D> clazz) {
+    
+    // 从directives中筛选出符合directiveKind类型的指令
+    private static <D extends Directive> List<D> listFilter(Iterable<? extends Directive> directives, DirectiveKind directiveKind, Class<D> clazz) {
         List<D> list = new ArrayList<>();
-        for (Directive d : directives) {
-            if (d.getKind() == directiveKind)
+        for(Directive d : directives) {
+            if(d.getKind() == directiveKind) {
                 list.add(clazz.cast(d));
+            }
         }
         return list;
     }
