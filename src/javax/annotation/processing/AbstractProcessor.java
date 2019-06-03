@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
 import java.util.Objects;
+
 import javax.lang.model.element.*;
 import javax.lang.model.SourceVersion;
 import javax.tools.Diagnostic;
@@ -57,18 +58,55 @@ import javax.tools.Diagnostic;
  * @author Peter von der Ah&eacute;
  * @since 1.6
  */
+/*
+ * 抽象的注解处理器，对注解处理器服务中的大部分方法提供了默认实现
+ * 此外，还对getSupportedOptions、getSupportedAnnotationTypes、getSupportedSourceVersion添加了注解支持
+ */
 public abstract class AbstractProcessor implements Processor {
     /**
      * Processing environment providing by the tool framework.
      */
+    // 缓存注解处理器环境，以便在init方法之外调用
     protected ProcessingEnvironment processingEnv;
+    
     private boolean initialized = false;
-
+    
     /**
      * Constructor for subclasses to call.
      */
-    protected AbstractProcessor() {}
-
+    protected AbstractProcessor() {
+    }
+    
+    /**
+     * Initializes the processor with the processing environment by
+     * setting the {@code processingEnv} field to the value of the
+     * {@code processingEnv} argument.  An {@code
+     * IllegalStateException} will be thrown if this method is called
+     * more than once on the same object.
+     *
+     * @param processingEnv environment to access facilities the tool framework
+     *                      provides to the processor
+     *
+     * @throws IllegalStateException if this method is called more than once.
+     */
+    // 初始化注解处理器环境，只能调用一次
+    public synchronized void init(ProcessingEnvironment processingEnv) {
+        if(initialized) {
+            throw new IllegalStateException("Cannot call init more than once.");
+        }
+        
+        Objects.requireNonNull(processingEnv, "Tool provided null ProcessingEnvironment");
+        
+        this.processingEnv = processingEnv;
+        initialized = true;
+    }
+    
+    /**
+     * {@inheritDoc}
+     */
+    // 注解处理器主方法（相当于程序里的main方法），由子类实现。该方法可能会被多次调用
+    public abstract boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv);
+    
     /**
      * If the processor class is annotated with {@link
      * SupportedOptions}, return an unmodifiable set with the same set
@@ -78,14 +116,15 @@ public abstract class AbstractProcessor implements Processor {
      * @return the options recognized by this processor, or an empty
      * set if none
      */
+    // 当前注解处理器支持java版本
     public Set<String> getSupportedOptions() {
         SupportedOptions so = this.getClass().getAnnotation(SupportedOptions.class);
-        if  (so == null)
+        if(so == null)
             return Collections.emptySet();
         else
             return arrayToSet(so.value(), false);
     }
-
+    
     /**
      * If the processor class is annotated with {@link
      * SupportedAnnotationTypes}, return an unmodifiable set with the
@@ -101,24 +140,20 @@ public abstract class AbstractProcessor implements Processor {
      * @return the names of the annotation types supported by this
      * processor, or an empty set if none
      */
+    // 当前注解处理器支持的注解类型
     public Set<String> getSupportedAnnotationTypes() {
-            SupportedAnnotationTypes sat = this.getClass().getAnnotation(SupportedAnnotationTypes.class);
-            boolean initialized = isInitialized();
-            if  (sat == null) {
-                if (initialized)
-                    processingEnv.getMessager().printMessage(Diagnostic.Kind.WARNING,
-                                                             "No SupportedAnnotationTypes annotation " +
-                                                             "found on " + this.getClass().getName() +
-                                                             ", returning an empty set.");
-                return Collections.emptySet();
-            } else {
-                boolean stripModulePrefixes =
-                        initialized &&
-                        processingEnv.getSourceVersion().compareTo(SourceVersion.RELEASE_8) <= 0;
-                return arrayToSet(sat.value(), stripModulePrefixes);
-            }
+        SupportedAnnotationTypes sat = this.getClass().getAnnotation(SupportedAnnotationTypes.class);
+        boolean initialized = isInitialized();
+        if(sat == null) {
+            if(initialized)
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.WARNING, "No SupportedAnnotationTypes annotation " + "found on " + this.getClass().getName() + ", returning an empty set.");
+            return Collections.emptySet();
+        } else {
+            boolean stripModulePrefixes = initialized && processingEnv.getSourceVersion().compareTo(SourceVersion.RELEASE_8)<=0;
+            return arrayToSet(sat.value(), stripModulePrefixes);
         }
-
+    }
+    
     /**
      * If the processor class is annotated with {@link
      * SupportedSourceVersion}, return the source version in the
@@ -127,63 +162,38 @@ public abstract class AbstractProcessor implements Processor {
      *
      * @return the latest source version supported by this processor
      */
+    // 当前注解处理器支持的参数选项
     public SourceVersion getSupportedSourceVersion() {
         SupportedSourceVersion ssv = this.getClass().getAnnotation(SupportedSourceVersion.class);
         SourceVersion sv = null;
-        if (ssv == null) {
+        if(ssv == null) {
             sv = SourceVersion.RELEASE_6;
-            if (isInitialized())
-                processingEnv.getMessager().printMessage(Diagnostic.Kind.WARNING,
-                                                         "No SupportedSourceVersion annotation " +
-                                                         "found on " + this.getClass().getName() +
-                                                         ", returning " + sv + ".");
-        } else
+            if(isInitialized()) {
+                processingEnv.getMessager()
+                    .printMessage(Diagnostic.Kind.WARNING,
+                        "No SupportedSourceVersion annotation found on "
+                            + this.getClass().getName() + ", returning " + sv + ".");
+            }
+        } else {
             sv = ssv.value();
+        }
+        
         return sv;
     }
-
-
-    /**
-     * Initializes the processor with the processing environment by
-     * setting the {@code processingEnv} field to the value of the
-     * {@code processingEnv} argument.  An {@code
-     * IllegalStateException} will be thrown if this method is called
-     * more than once on the same object.
-     *
-     * @param processingEnv environment to access facilities the tool framework
-     * provides to the processor
-     * @throws IllegalStateException if this method is called more than once.
-     */
-    public synchronized void init(ProcessingEnvironment processingEnv) {
-        if (initialized)
-            throw new IllegalStateException("Cannot call init more than once.");
-        Objects.requireNonNull(processingEnv, "Tool provided null ProcessingEnvironment");
-
-        this.processingEnv = processingEnv;
-        initialized = true;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public abstract boolean process(Set<? extends TypeElement> annotations,
-                                    RoundEnvironment roundEnv);
-
+    
     /**
      * Returns an empty iterable of completions.
      *
-     * @param element {@inheritDoc}
+     * @param element    {@inheritDoc}
      * @param annotation {@inheritDoc}
-     * @param member {@inheritDoc}
-     * @param userText {@inheritDoc}
+     * @param member     {@inheritDoc}
+     * @param userText   {@inheritDoc}
      */
-    public Iterable<? extends Completion> getCompletions(Element element,
-                                                         AnnotationMirror annotation,
-                                                         ExecutableElement member,
-                                                         String userText) {
+    // 获取一些校验信息，这里的默认实现返回空
+    public Iterable<? extends Completion> getCompletions(Element element, AnnotationMirror annotation, ExecutableElement member, String userText) {
         return Collections.emptyList();
     }
-
+    
     /**
      * Returns {@code true} if this object has been {@linkplain #init
      * initialized}, {@code false} otherwise.
@@ -191,18 +201,18 @@ public abstract class AbstractProcessor implements Processor {
      * @return {@code true} if this object has been initialized,
      * {@code false} otherwise.
      */
+    // 当前对象是否已完成初始化
     protected synchronized boolean isInitialized() {
         return initialized;
     }
-
-    private static Set<String> arrayToSet(String[] array,
-                                          boolean stripModulePrefixes) {
+    
+    private static Set<String> arrayToSet(String[] array, boolean stripModulePrefixes) {
         assert array != null;
         Set<String> set = new HashSet<>(array.length);
-        for (String s : array) {
-            if (stripModulePrefixes) {
+        for(String s : array) {
+            if(stripModulePrefixes) {
                 int index = s.indexOf('/');
-                if (index != -1)
+                if(index != -1)
                     s = s.substring(index + 1);
             }
             set.add(s);
