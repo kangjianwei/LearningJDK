@@ -42,6 +42,10 @@ import static java.lang.annotation.ElementType.*;
  * @author Peter von der Ah&eacute;
  * @since 1.6
  */
+/*
+ * 标记注解处理器支持的参数选项
+ * 用以代替Processor#getSupportedOptions的作用
+ */
 @Documented
 @Target(TYPE)
 @Retention(RUNTIME)
