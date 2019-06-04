@@ -25,11 +25,14 @@
 
 package javax.annotation.processing;
 
-import java.lang.annotation.*;
-import static java.lang.annotation.RetentionPolicy.*;
-import static java.lang.annotation.ElementType.*;
+import java.lang.annotation.Documented;
+import java.lang.annotation.Retention;
+import java.lang.annotation.Target;
+
 import javax.lang.model.SourceVersion;
 
+import static java.lang.annotation.ElementType.TYPE;
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 /**
  * An annotation used to indicate the latest source version an
@@ -42,6 +45,10 @@ import javax.lang.model.SourceVersion;
  * @author Scott Seligman
  * @author Peter von der Ah&eacute;
  * @since 1.6
+ */
+/*
+ * 标记注解处理器支持的源码版本
+ * 用以代替Processor#getSupportedSourceVersion的作用
  */
 @Documented
 @Target(TYPE)
