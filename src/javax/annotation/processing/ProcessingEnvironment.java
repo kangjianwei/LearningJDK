@@ -25,8 +25,9 @@
 
 package javax.annotation.processing;
 
-import java.util.Map;
 import java.util.Locale;
+import java.util.Map;
+
 import javax.lang.model.SourceVersion;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
@@ -58,7 +59,45 @@ import javax.lang.model.util.Types;
  * @author Peter von der Ah&eacute;
  * @since 1.6
  */
+// 注解处理器工作环境，从中可获取许多工具类实例
 public interface ProcessingEnvironment {
+    
+    /**
+     * Returns the messager used to report errors, warnings, and other
+     * notices.
+     *
+     * @return the messager
+     */
+    // 获取Messager，以便生成日志信息
+    Messager getMessager();
+    
+    /**
+     * Returns the filer used to create new source, class, or auxiliary
+     * files.
+     *
+     * @return the filer
+     */
+    // 获取Filer，以便创建/读取文件
+    Filer getFiler();
+    
+    /**
+     * Returns an implementation of some utility methods for
+     * operating on elements
+     *
+     * @return element utilities
+     */
+    // 获取元素工具类
+    Elements getElementUtils();
+    
+    /**
+     * Returns an implementation of some utility methods for
+     * operating on types.
+     *
+     * @return type utilities
+     */
+    // 获取类型工具类
+    Types getTypeUtils();
+    
     /**
      * Returns the processor-specific options passed to the annotation
      * processing tool.  Options are returned in the form of a map from
@@ -77,51 +116,22 @@ public interface ProcessingEnvironment {
      *
      * @return the processor-specific options passed to the tool
      */
-    Map<String,String> getOptions();
-
-    /**
-     * Returns the messager used to report errors, warnings, and other
-     * notices.
-     *
-     * @return the messager
-     */
-    Messager getMessager();
-
-    /**
-     * Returns the filer used to create new source, class, or auxiliary
-     * files.
-     *
-     * @return the filer
-     */
-    Filer getFiler();
-
-    /**
-     * Returns an implementation of some utility methods for
-     * operating on elements
-     *
-     * @return element utilities
-     */
-    Elements getElementUtils();
-
-    /**
-     * Returns an implementation of some utility methods for
-     * operating on types.
-     *
-     * @return type utilities
-     */
-    Types getTypeUtils();
-
+    // 返回传给注解处理器的参数（类似main方法中的args形参）
+    Map<String, String> getOptions();
+    
     /**
      * Returns the source version that any generated {@linkplain
      * Filer#createSourceFile source} and {@linkplain
      * Filer#createClassFile class} files should conform to.
      *
      * @return the source version to which generated source and class
-     *         files should conform to
+     * files should conform to
+     *
      * @see Processor#getSupportedSourceVersion
      */
+    // 返回注解处理器支持的java/class文件的版本
     SourceVersion getSourceVersion();
-
+    
     /**
      * Returns the current locale or {@code null} if no locale is in
      * effect.  The locale can be be used to provide localized
@@ -130,5 +140,6 @@ public interface ProcessingEnvironment {
      * @return the current locale or {@code null} if no locale is in
      * effect
      */
+    // 返回本地化信息
     Locale getLocale();
 }
