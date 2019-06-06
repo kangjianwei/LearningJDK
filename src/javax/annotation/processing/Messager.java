@@ -51,15 +51,18 @@ import javax.lang.model.element.*;
  * @see ProcessingEnvironment#getLocale
  * @since 1.6
  */
+// 用于在注解处理器工作期间在控制台生成日志信息
 public interface Messager {
+    
     /**
      * Prints a message of the specified kind.
      *
      * @param kind the kind of message
      * @param msg  the message, or an empty string if none
      */
+    // 打印日志
     void printMessage(Diagnostic.Kind kind, CharSequence msg);
-
+    
     /**
      * Prints a message of the specified kind at the location of the
      * element.
@@ -69,7 +72,7 @@ public interface Messager {
      * @param e    the element to use as a position hint
      */
     void printMessage(Diagnostic.Kind kind, CharSequence msg, Element e);
-
+    
     /**
      * Prints a message of the specified kind at the location of the
      * annotation mirror of the annotated element.
@@ -80,7 +83,7 @@ public interface Messager {
      * @param a    the annotation to use as a position hint
      */
     void printMessage(Diagnostic.Kind kind, CharSequence msg, Element e, AnnotationMirror a);
-
+    
     /**
      * Prints a message of the specified kind at the location of the
      * annotation value inside the annotation mirror of the annotated
@@ -92,9 +95,5 @@ public interface Messager {
      * @param a    the annotation containing the annotation value
      * @param v    the annotation value to use as a position hint
      */
-    void printMessage(Diagnostic.Kind kind,
-                      CharSequence msg,
-                      Element e,
-                      AnnotationMirror a,
-                      AnnotationValue v);
+    void printMessage(Diagnostic.Kind kind, CharSequence msg, Element e, AnnotationMirror a, AnnotationValue v);
 }
