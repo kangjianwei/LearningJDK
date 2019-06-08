@@ -48,14 +48,78 @@ import java.net.URI;
  * @author Jonathan Gibbons
  * @since 1.6
  */
+// 文件对象
 public interface FileObject {
-
+    
+    /**
+     * Returns an InputStream for this file object.
+     *
+     * @return an InputStream
+     *
+     * @throws IllegalStateException         if this file object was
+     *                                       opened for writing and does not support reading
+     * @throws UnsupportedOperationException if this kind of file
+     *                                       object does not support byte access
+     * @throws IOException                   if an I/O error occurred
+     */
+    // 打开输入流，准备读文件
+    InputStream openInputStream() throws IOException;
+    
+    /**
+     * Returns an OutputStream for this file object.
+     *
+     * @return an OutputStream
+     *
+     * @throws IllegalStateException         if this file object was
+     *                                       opened for reading and does not support writing
+     * @throws UnsupportedOperationException if this kind of
+     *                                       file object does not support byte access
+     * @throws IOException                   if an I/O error occurred
+     */
+    // 打开输出流，准备写文件
+    OutputStream openOutputStream() throws IOException;
+    
+    /**
+     * Returns a reader for this object.  The returned reader will
+     * replace bytes that cannot be decoded with the default
+     * translation character.  In addition, the reader may report a
+     * diagnostic unless {@code ignoreEncodingErrors} is true.
+     *
+     * @param ignoreEncodingErrors ignore encoding errors if true
+     *
+     * @return a Reader
+     *
+     * @throws IllegalStateException         if this file object was
+     *                                       opened for writing and does not support reading
+     * @throws UnsupportedOperationException if this kind of
+     *                                       file object does not support character access
+     * @throws IOException                   if an I/O error occurred
+     */
+    // 打开字符输入流，准备读文件
+    Reader openReader(boolean ignoreEncodingErrors) throws IOException;
+    
+    /**
+     * Returns a Writer for this file object.
+     *
+     * @return a Writer
+     *
+     * @throws IllegalStateException         if this file object was
+     *                                       opened for reading and does not support writing
+     * @throws UnsupportedOperationException if this kind of
+     *                                       file object does not support character access
+     * @throws IOException                   if an I/O error occurred
+     */
+    // 打开字符输出流，准备写文件
+    Writer openWriter() throws IOException;
+    
     /**
      * Returns a URI identifying this file object.
+     *
      * @return a URI
      */
+    // 获取文件的UTI
     URI toUri();
-
+    
     /**
      * Returns a user-friendly name for this file object.  The exact
      * value returned is not specified but implementations should take
@@ -68,48 +132,9 @@ public interface FileObject {
      *
      * @return a user-friendly name
      */
+    // 获取文件名称（包括路径）
     String getName();
-
-    /**
-     * Returns an InputStream for this file object.
-     *
-     * @return an InputStream
-     * @throws IllegalStateException if this file object was
-     * opened for writing and does not support reading
-     * @throws UnsupportedOperationException if this kind of file
-     * object does not support byte access
-     * @throws IOException if an I/O error occurred
-     */
-    InputStream openInputStream() throws IOException;
-
-    /**
-     * Returns an OutputStream for this file object.
-     *
-     * @return an OutputStream
-     * @throws IllegalStateException if this file object was
-     * opened for reading and does not support writing
-     * @throws UnsupportedOperationException if this kind of
-     * file object does not support byte access
-     * @throws IOException if an I/O error occurred
-     */
-    OutputStream openOutputStream() throws IOException;
-
-    /**
-     * Returns a reader for this object.  The returned reader will
-     * replace bytes that cannot be decoded with the default
-     * translation character.  In addition, the reader may report a
-     * diagnostic unless {@code ignoreEncodingErrors} is true.
-     *
-     * @param ignoreEncodingErrors ignore encoding errors if true
-     * @return a Reader
-     * @throws IllegalStateException if this file object was
-     * opened for writing and does not support reading
-     * @throws UnsupportedOperationException if this kind of
-     * file object does not support character access
-     * @throws IOException if an I/O error occurred
-     */
-    Reader openReader(boolean ignoreEncodingErrors) throws IOException;
-
+    
     /**
      * Returns the character content of this file object, if available.
      * Any byte that cannot be decoded will be replaced by the default
@@ -117,27 +142,18 @@ public interface FileObject {
      * reported unless {@code ignoreEncodingErrors} is true.
      *
      * @param ignoreEncodingErrors ignore encoding errors if true
-     * @return a CharSequence if available; {@code null} otherwise
-     * @throws IllegalStateException if this file object was
-     * opened for writing and does not support reading
-     * @throws UnsupportedOperationException if this kind of
-     * file object does not support character access
-     * @throws IOException if an I/O error occurred
-     */
-    CharSequence getCharContent(boolean ignoreEncodingErrors) throws IOException;
-
-    /**
-     * Returns a Writer for this file object.
      *
-     * @return a Writer
-     * @throws IllegalStateException if this file object was
-     * opened for reading and does not support writing
+     * @return a CharSequence if available; {@code null} otherwise
+     *
+     * @throws IllegalStateException         if this file object was
+     *                                       opened for writing and does not support reading
      * @throws UnsupportedOperationException if this kind of
-     * file object does not support character access
-     * @throws IOException if an I/O error occurred
+     *                                       file object does not support character access
+     * @throws IOException                   if an I/O error occurred
      */
-    Writer openWriter() throws IOException;
-
+    // 获取文件内容（文件需以读模式打开）
+    CharSequence getCharContent(boolean ignoreEncodingErrors) throws IOException;
+    
     /**
      * Returns the time this file object was last modified.  The time is
      * measured in milliseconds since the epoch (00:00:00 GMT, January
@@ -147,13 +163,16 @@ public interface FileObject {
      * the file object does not exist, if an I/O error occurred, or if
      * the operation is not supported
      */
+    // 返回文件最后一次修改的时间，返回0表示该文件不存在或存在I/O错误或不支持此操作
     long getLastModified();
-
+    
     /**
      * Deletes this file object.  In case of errors, returns false.
+     *
      * @return true if and only if this file object is successfully
      * deleted; false otherwise
      */
+    // 尝试删除文件，返回值表示文件是否删除成功
     boolean delete();
-
+    
 }
