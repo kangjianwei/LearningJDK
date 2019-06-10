@@ -25,9 +25,10 @@
 
 package javax.tools;
 
-import javax.tools.JavaFileManager.Location;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
-import java.util.concurrent.*;
+import javax.tools.JavaFileManager.Location;
 
 /**
  * Standard locations of file objects.
@@ -35,87 +36,98 @@ import java.util.concurrent.*;
  * @author Peter von der Ah&eacute;
  * @since 1.6
  */
+// 标准路径
 public enum StandardLocation implements Location {
-
-    /**
-     * Location of new class files.
-     */
-    CLASS_OUTPUT,
-
+    
     /**
      * Location of new source files.
      */
-    SOURCE_OUTPUT,
-
+    SOURCE_OUTPUT,  // 注解处理器生成的源码存放路径，支持自定义
+    
     /**
-     * Location to search for user class files.
+     * Location of new class files.
      */
-    CLASS_PATH,
-
+    CLASS_OUTPUT,   // 默认在项目的class文件输出目录
+    
+    /**
+     * Location of new native header files.
+     *
+     * @since 1.8
+     */
+    NATIVE_HEADER_OUTPUT,
+    
     /**
      * Location to search for existing source files.
      */
     SOURCE_PATH,
-
+    
+    /**
+     * Location to search for user class files.
+     */
+    CLASS_PATH,
+    
     /**
      * Location to search for annotation processors.
      */
     ANNOTATION_PROCESSOR_PATH,
-
+    
     /**
      * Location to search for modules containing annotation processors.
+     *
      * @spec JPMS
      * @since 9
      */
     ANNOTATION_PROCESSOR_MODULE_PATH,
-
+    
     /**
      * Location to search for platform classes.  Sometimes called
      * the boot class path.
      */
     PLATFORM_CLASS_PATH,
-
-    /**
-     * Location of new native header files.
-     * @since 1.8
-     */
-    NATIVE_HEADER_OUTPUT,
-
+    
     /**
      * Location to search for the source code of modules.
+     *
      * @spec JPMS
      * @since 9
      */
     MODULE_SOURCE_PATH,
-
+    
     /**
      * Location to search for upgradeable system modules.
+     *
      * @spec JPMS
      * @since 9
      */
     UPGRADE_MODULE_PATH,
-
+    
     /**
      * Location to search for system modules.
+     *
      * @spec JPMS
      * @since 9
      */
     SYSTEM_MODULES,
-
+    
     /**
      * Location to search for precompiled user modules.
+     *
      * @spec JPMS
      * @since 9
      */
     MODULE_PATH,
-
+    
     /**
      * Location to search for module patches.
+     *
      * @spec JPMS
      * @since 9
      */
     PATCH_MODULE_PATH;
-
+    
+    //where
+    private static final ConcurrentMap<String, Location> locations = new ConcurrentHashMap<>();
+    
     /**
      * Returns a location object with the given name.  The following
      * property must hold: {@code locationFor(x) ==
@@ -126,36 +138,47 @@ public enum StandardLocation implements Location {
      * {@code "MODULE"}.
      *
      * @param name a name
+     *
      * @return a location
      *
      * @revised 9
      * @spec JPMS
      */
     public static Location locationFor(final String name) {
-        if (locations.isEmpty()) {
+        if(locations.isEmpty()) {
             // can't use valueOf which throws IllegalArgumentException
-            for (Location location : values())
+            for(Location location : values()) {
                 locations.putIfAbsent(location.getName(), location);
+            }
         }
+        
         name.getClass(); /* null-check */
+        
         locations.putIfAbsent(name, new Location() {
-                @Override
-                public String getName() { return name; }
-                @Override
-                public boolean isOutputLocation() { return name.endsWith("_OUTPUT"); }
-            });
+            @Override
+            public String getName() {
+                return name;
+            }
+            
+            @Override
+            public boolean isOutputLocation() {
+                return name.endsWith("_OUTPUT");
+            }
+        });
+        
         return locations.get(name);
     }
-    //where
-        private static final ConcurrentMap<String,Location> locations
-            = new ConcurrentHashMap<>();
-
+    
+    // 位置名称
     @Override
-    public String getName() { return name(); }
-
+    public String getName() {
+        return name();
+    }
+    
+    // 是否为输出位置
     @Override
     public boolean isOutputLocation() {
-        switch (this) {
+        switch(this) {
             case CLASS_OUTPUT:
             case SOURCE_OUTPUT:
             case NATIVE_HEADER_OUTPUT:
@@ -164,14 +187,15 @@ public enum StandardLocation implements Location {
                 return false;
         }
     }
-
+    
     /**
      * {@inheritDoc}
+     *
      * @since 9
      */
     @Override
     public boolean isModuleOrientedLocation() {
-        switch (this) {
+        switch(this) {
             case MODULE_SOURCE_PATH:
             case ANNOTATION_PROCESSOR_MODULE_PATH:
             case UPGRADE_MODULE_PATH:
