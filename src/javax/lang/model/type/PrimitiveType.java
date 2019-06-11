@@ -25,7 +25,6 @@
 
 package javax.lang.model.type;
 
-
 /**
  * Represents a primitive type.  These include
  * {@code boolean}, {@code byte}, {@code short}, {@code int},
@@ -36,5 +35,6 @@ package javax.lang.model.type;
  * @author Peter von der Ah&eacute;
  * @since 1.6
  */
+// 基本类型
 public interface PrimitiveType extends TypeMirror {
 }

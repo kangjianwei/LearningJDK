@@ -63,6 +63,7 @@ import static javax.lang.model.SourceVersion.*;
  * @see AbstractTypeVisitor9
  * @since 1.7
  */
+// 类型访问器的抽象实现（JDK7）
 @SupportedSourceVersion(RELEASE_7)
 public abstract class AbstractTypeVisitor7<R, P> extends AbstractTypeVisitor6<R, P> {
     /**
@@ -72,12 +73,13 @@ public abstract class AbstractTypeVisitor7<R, P> extends AbstractTypeVisitor6<R,
     protected AbstractTypeVisitor7() {
         super();
     }
-
+    
     /**
      * Visits a {@code UnionType} in a manner defined by a subclass.
      *
-     * @param t  {@inheritDoc}
-     * @param p  {@inheritDoc}
+     * @param t {@inheritDoc}
+     * @param p {@inheritDoc}
+     *
      * @return the result of the visit as defined by a subclass
      */
     @Override

@@ -63,6 +63,7 @@ import static javax.lang.model.SourceVersion.*;
  * @see AbstractTypeVisitor9
  * @since 1.8
  */
+// 类型访问器的抽象实现（JDK8）
 @SupportedSourceVersion(RELEASE_8)
 public abstract class AbstractTypeVisitor8<R, P> extends AbstractTypeVisitor7<R, P> {
     /**
@@ -71,12 +72,13 @@ public abstract class AbstractTypeVisitor8<R, P> extends AbstractTypeVisitor7<R,
     protected AbstractTypeVisitor8() {
         super();
     }
-
+    
     /**
      * Visits an {@code IntersectionType} in a manner defined by a subclass.
      *
-     * @param t  {@inheritDoc}
-     * @param p  {@inheritDoc}
+     * @param t {@inheritDoc}
+     * @param p {@inheritDoc}
+     *
      * @return the result of the visit as defined by a subclass
      */
     @Override

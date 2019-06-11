@@ -25,9 +25,10 @@
 
 package javax.lang.model.util;
 
-import static javax.lang.model.SourceVersion.*;
-import javax.lang.model.SourceVersion;
 import javax.annotation.processing.SupportedSourceVersion;
+import javax.lang.model.SourceVersion;
+
+import static javax.lang.model.SourceVersion.RELEASE_11;
 
 /**
  * A skeletal visitor for annotation values with default behavior
@@ -59,9 +60,10 @@ import javax.annotation.processing.SupportedSourceVersion;
  * @see AbstractAnnotationValueVisitor8
  * @since 9
  */
+// 注解值访问器的抽象实现（JDK9）
 @SupportedSourceVersion(RELEASE_11)
 public abstract class AbstractAnnotationValueVisitor9<R, P> extends AbstractAnnotationValueVisitor8<R, P> {
-
+    
     /**
      * Constructor for concrete subclasses to call.
      */

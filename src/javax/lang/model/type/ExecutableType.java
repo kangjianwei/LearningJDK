@@ -25,7 +25,6 @@
 
 package javax.lang.model.type;
 
-
 import java.util.List;
 
 import javax.lang.model.element.ExecutableElement;
@@ -47,17 +46,19 @@ import javax.lang.model.element.ExecutableElement;
  * @see ExecutableElement
  * @since 1.6
  */
+// 可执行类型，包括方法、构造器、初始化块
 public interface ExecutableType extends TypeMirror {
-
+    
     /**
      * Returns the type variables declared by the formal type parameters
      * of this executable.
      *
      * @return the type variables declared by the formal type parameters,
-     *          or an empty list if there are none
+     * or an empty list if there are none
      */
+    // 获取可执行类型上的类型变量
     List<? extends TypeVariable> getTypeVariables();
-
+    
     /**
      * Returns the return type of this executable.
      * Returns a {@link NoType} with kind {@link TypeKind#VOID VOID}
@@ -66,16 +67,18 @@ public interface ExecutableType extends TypeMirror {
      *
      * @return the return type of this executable
      */
+    // 获取可执行类型的返回类型。如果该类型不是方法，或者该方法没有返回值时，则该方法返回NoType
     TypeMirror getReturnType();
-
+    
     /**
      * Returns the types of this executable's formal parameters.
      *
      * @return the types of this executable's formal parameters,
-     *          or an empty list if there are none
+     * or an empty list if there are none
      */
+    // 获取可执行类型的形参，如果没有，返回空集合
     List<? extends TypeMirror> getParameterTypes();
-
+    
     /**
      * Returns the receiver type of this executable,
      * or {@link javax.lang.model.type.NoType NoType} with
@@ -91,17 +94,23 @@ public interface ExecutableType extends TypeMirror {
      * receiver type.
      *
      * @return the receiver type of this executable
+     *
      * @since 1.8
      */
+    /*
+     * 获取可执行类型的接收器类型，如果没有，则返回NoType
+     * 静态方法，非内部类的构造器，或者是初始代码块(静态或者实例的)，没有接收器类型
+     */
     TypeMirror getReceiverType();
-
+    
     /**
      * Returns the exceptions and other throwables listed in this
      * executable's {@code throws} clause.
      *
      * @return the exceptions and other throwables listed in this
-     *          executable's {@code throws} clause,
-     *          or an empty list if there are none.
+     * executable's {@code throws} clause,
+     * or an empty list if there are none.
      */
+    // 获取可执行类型的异常声明列表
     List<? extends TypeMirror> getThrownTypes();
 }

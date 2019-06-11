@@ -25,19 +25,19 @@
 
 package java.util;
 
-import java.io.IOException;
-import java.io.PrintStream;
-import java.io.PrintWriter;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.Reader;
-import java.io.Writer;
-import java.io.OutputStreamWriter;
 import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintStream;
+import java.io.PrintWriter;
+import java.io.Reader;
 import java.io.StreamCorruptedException;
 import java.io.UnsupportedEncodingException;
+import java.io.Writer;
 import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.UnsupportedCharsetException;
@@ -45,7 +45,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-
 import jdk.internal.misc.SharedSecrets;
 import jdk.internal.misc.Unsafe;
 import jdk.internal.util.xml.PropertiesDefaultHandler;
@@ -136,15 +135,22 @@ import jdk.internal.util.xml.PropertiesDefaultHandler;
  * @author  Xueming Shen
  * @since   1.0
  */
-public
-class Properties extends Hashtable<Object,Object> {
+/*
+ * 属性集，以键值对形式在.properties文件或.xml文件中保存一些属性
+ *
+ * 注：在.xml文件中保存键值对时，需要加入下面这句话：
+ * <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+ * 而且，xml的格式是特制的
+ */
+public class Properties extends Hashtable<Object,Object> {
+    
     /**
      * use serialVersionUID from JDK 1.1.X for interoperability
      */
     private static final long serialVersionUID = 4112578634029874840L;
-
+    
     private static final Unsafe UNSAFE = Unsafe.getUnsafe();
-
+    
     /**
      * A property list that contains default values for any keys not
      * found in this property list.
@@ -152,80 +158,111 @@ class Properties extends Hashtable<Object,Object> {
      * @serial
      */
     protected volatile Properties defaults;
-
+    
     /**
-     * Properties does not store values in its inherited Hashtable, but instead
-     * in an internal ConcurrentHashMap.  Synchronization is omitted from
-     * simple read operations.  Writes and bulk operations remain synchronized,
-     * as in Hashtable.
+     * Properties does not store values in its inherited Hashtable, but instead in an internal ConcurrentHashMap.
+     * Synchronization is omitted from simple read operations.
+     * Writes and bulk operations remain synchronized, as in Hashtable.
      */
+    // 属性数据将保存在此map中，而不是继承的Hashtable
     private transient volatile ConcurrentHashMap<Object, Object> map;
-
+    
+    /** A table of hex digits */
+    private static final char[] hexDigit = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+    
+    
+    
+    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates an empty property list with no default values.
      *
      * @implNote The initial capacity of a {@code Properties} object created
      * with this constructor is unspecified.
      */
+    // 创建默认容量的空属性集
     public Properties() {
         this(null, 8);
     }
-
+    
     /**
      * Creates an empty property list with no default values, and with an
      * initial size accommodating the specified number of elements without the
      * need to dynamically resize.
      *
-     * @param  initialCapacity the {@code Properties} will be sized to
-     *         accommodate this many elements
+     * @param initialCapacity the {@code Properties} will be sized to
+     *                        accommodate this many elements
+     *
      * @throws IllegalArgumentException if the initial capacity is less than
-     *         zero.
+     *                                  zero.
      */
+    // 创建指定容量的空属性集
     public Properties(int initialCapacity) {
         this(null, initialCapacity);
     }
-
+    
     /**
      * Creates an empty property list with the specified defaults.
      *
+     * @param defaults the defaults.
+     *
      * @implNote The initial capacity of a {@code Properties} object created
      * with this constructor is unspecified.
-     *
-     * @param   defaults   the defaults.
      */
+    // 创建默认容量的空属性集，并设置默认的Properties
     public Properties(Properties defaults) {
         this(defaults, 8);
     }
-
+    
+    // 创建指定容量的空属性集，并设置默认的Properties
     private Properties(Properties defaults, int initialCapacity) {
-        // use package-private constructor to
-        // initialize unused fields with dummy values
+        // use package-private constructor to initialize unused fields with dummy values
         super((Void) null);
+        
         map = new ConcurrentHashMap<>(initialCapacity);
+        
         this.defaults = defaults;
-
-        // Ensure writes can't be reordered
+        
+        // 加入内容屏障，确保写操作不会被重排序
         UNSAFE.storeFence();
     }
-
+    
+    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 读属性集 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Calls the {@code Hashtable} method {@code put}. Provided for
-     * parallelism with the {@code getProperty} method. Enforces use of
-     * strings for property keys and values. The value returned is the
-     * result of the {@code Hashtable} call to {@code put}.
+     * Reads a property list (key and element pairs) from the input
+     * byte stream. The input stream is in a simple line-oriented
+     * format as specified in
+     * {@link #load(java.io.Reader) load(Reader)} and is assumed to use
+     * the ISO 8859-1 character encoding; that is each byte is one Latin1
+     * character. Characters not in Latin1, and certain special characters,
+     * are represented in keys and elements using Unicode escapes as defined in
+     * section 3.3 of
+     * <cite>The Java&trade; Language Specification</cite>.
+     * <p>
+     * The specified stream remains open after this method returns.
      *
-     * @param key the key to be placed into this property list.
-     * @param value the value corresponding to {@code key}.
-     * @return     the previous value of the specified key in this property
-     *             list, or {@code null} if it did not have one.
-     * @see #getProperty
-     * @since    1.2
+     * @param inStream the input stream.
+     *
+     * @throws IOException              if an error occurred when reading from the
+     *                                  input stream.
+     * @throws IllegalArgumentException if the input stream contains a
+     *                                  malformed Unicode escape sequence.
+     * @throws NullPointerException     if {@code inStream} is null.
+     * @since 1.2
      */
-    public synchronized Object setProperty(String key, String value) {
-        return put(key, value);
+    // 从properties文件加载属性集
+    public synchronized void load(InputStream inStream) throws IOException {
+        Objects.requireNonNull(inStream, "inStream parameter is null");
+        
+        // 从输入流中解析出属性键值对存入map
+        load0(new LineReader(inStream));
     }
-
-
+    
     /**
      * Reads a property list (key and element pairs) from the input
      * character stream in a simple line-oriented format.
@@ -365,438 +402,113 @@ class Properties extends Hashtable<Object,Object> {
      * <p>
      * The specified stream remains open after this method returns.
      *
-     * @param   reader   the input character stream.
-     * @throws  IOException  if an error occurred when reading from the
-     *          input stream.
-     * @throws  IllegalArgumentException if a malformed Unicode escape
-     *          appears in the input.
-     * @throws  NullPointerException if {@code reader} is null.
-     * @since   1.6
+     * @param reader the input character stream.
+     *
+     * @throws IOException              if an error occurred when reading from the
+     *                                  input stream.
+     * @throws IllegalArgumentException if a malformed Unicode escape
+     *                                  appears in the input.
+     * @throws NullPointerException     if {@code reader} is null.
+     * @since 1.6
      */
+    // 从properties文件加载属性集
     public synchronized void load(Reader reader) throws IOException {
         Objects.requireNonNull(reader, "reader parameter is null");
+        
+        // 从输入流中解析出属性键值对存入map
         load0(new LineReader(reader));
     }
-
+    
     /**
-     * Reads a property list (key and element pairs) from the input
-     * byte stream. The input stream is in a simple line-oriented
-     * format as specified in
-     * {@link #load(java.io.Reader) load(Reader)} and is assumed to use
-     * the ISO 8859-1 character encoding; that is each byte is one Latin1
-     * character. Characters not in Latin1, and certain special characters,
-     * are represented in keys and elements using Unicode escapes as defined in
-     * section 3.3 of
-     * <cite>The Java&trade; Language Specification</cite>.
-     * <p>
-     * The specified stream remains open after this method returns.
+     * Loads all of the properties represented by the XML document on the
+     * specified input stream into this properties table.
      *
-     * @param      inStream   the input stream.
-     * @exception  IOException  if an error occurred when reading from the
-     *             input stream.
-     * @throws     IllegalArgumentException if the input stream contains a
-     *             malformed Unicode escape sequence.
-     * @throws     NullPointerException if {@code inStream} is null.
+     * <p>The XML document must have the following DOCTYPE declaration:
+     * <pre>
+     * &lt;!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd"&gt;
+     * </pre>
+     * Furthermore, the document must satisfy the properties DTD described
+     * above.
+     *
+     * <p> An implementation is required to read XML documents that use the
+     * "{@code UTF-8}" or "{@code UTF-16}" encoding. An implementation may
+     * support additional encodings.
+     *
+     * <p>The specified stream is closed after this method returns.
+     *
+     * @param in the input stream from which to read the XML document.
+     *
+     * @throws IOException                          if reading from the specified input stream
+     *                                              results in an {@code IOException}.
+     * @throws java.io.UnsupportedEncodingException if the document's encoding
+     *                                              declaration can be read and it specifies an encoding that is not
+     *                                              supported
+     * @throws InvalidPropertiesFormatException     Data on input stream does not
+     *                                              constitute a valid XML document with the mandated document type.
+     * @throws NullPointerException                 if {@code in} is null.
+     * @see #storeToXML(OutputStream, String, String)
+     * @see <a href="http://www.w3.org/TR/REC-xml/#charencoding">Character
+     * Encoding in Entities</a>
+     * @since 1.5
+     */
+    // 从xml文件加载属性集
+    public synchronized void loadFromXML(InputStream in) throws IOException, InvalidPropertiesFormatException {
+        Objects.requireNonNull(in);
+        PropertiesDefaultHandler handler = new PropertiesDefaultHandler();
+        handler.load(this, in);
+        in.close();
+    }
+    
+    /*▲ 读属性集 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 写属性集 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Writes this property list (key and element pairs) in this
+     * {@code Properties} table to the output stream in a format suitable
+     * for loading into a {@code Properties} table using the
+     * {@link #load(InputStream) load(InputStream)} method.
+     * <p>
+     * Properties from the defaults table of this {@code Properties}
+     * table (if any) are <i>not</i> written out by this method.
+     * <p>
+     * This method outputs the comments, properties keys and values in
+     * the same format as specified in
+     * {@link #store(java.io.Writer, java.lang.String) store(Writer)},
+     * with the following differences:
+     * <ul>
+     * <li>The stream is written using the ISO 8859-1 character encoding.
+     *
+     * <li>Characters not in Latin-1 in the comments are written as
+     * {@code \u005Cu}<i>xxxx</i> for their appropriate unicode
+     * hexadecimal value <i>xxxx</i>.
+     *
+     * <li>Characters less than {@code \u005Cu0020} and characters greater
+     * than {@code \u005Cu007E} in property keys or values are written
+     * as {@code \u005Cu}<i>xxxx</i> for the appropriate hexadecimal
+     * value <i>xxxx</i>.
+     * </ul>
+     * <p>
+     * After the entries have been written, the output stream is flushed.
+     * The output stream remains open after this method returns.
+     *
+     * @param out      an output stream.
+     * @param comments a description of the property list.
+     *
+     * @throws IOException          if writing this property list to the specified
+     *                              output stream throws an {@code IOException}.
+     * @throws ClassCastException   if this {@code Properties} object
+     *                              contains any keys or values that are not {@code Strings}.
+     * @throws NullPointerException if {@code out} is null.
      * @since 1.2
      */
-    public synchronized void load(InputStream inStream) throws IOException {
-        Objects.requireNonNull(inStream, "inStream parameter is null");
-        load0(new LineReader(inStream));
+    // 将属性文件以properties格式写入输出流，comments是将要写入的注释
+    public void store(OutputStream out, String comments) throws IOException {
+        store0(new BufferedWriter(new OutputStreamWriter(out, "8859_1")), comments, true);
     }
-
-    private void load0 (LineReader lr) throws IOException {
-        char[] convtBuf = new char[1024];
-        int limit;
-        int keyLen;
-        int valueStart;
-        char c;
-        boolean hasSep;
-        boolean precedingBackslash;
-
-        while ((limit = lr.readLine()) >= 0) {
-            c = 0;
-            keyLen = 0;
-            valueStart = limit;
-            hasSep = false;
-
-            //System.out.println("line=<" + new String(lineBuf, 0, limit) + ">");
-            precedingBackslash = false;
-            while (keyLen < limit) {
-                c = lr.lineBuf[keyLen];
-                //need check if escaped.
-                if ((c == '=' ||  c == ':') && !precedingBackslash) {
-                    valueStart = keyLen + 1;
-                    hasSep = true;
-                    break;
-                } else if ((c == ' ' || c == '\t' ||  c == '\f') && !precedingBackslash) {
-                    valueStart = keyLen + 1;
-                    break;
-                }
-                if (c == '\\') {
-                    precedingBackslash = !precedingBackslash;
-                } else {
-                    precedingBackslash = false;
-                }
-                keyLen++;
-            }
-            while (valueStart < limit) {
-                c = lr.lineBuf[valueStart];
-                if (c != ' ' && c != '\t' &&  c != '\f') {
-                    if (!hasSep && (c == '=' ||  c == ':')) {
-                        hasSep = true;
-                    } else {
-                        break;
-                    }
-                }
-                valueStart++;
-            }
-            String key = loadConvert(lr.lineBuf, 0, keyLen, convtBuf);
-            String value = loadConvert(lr.lineBuf, valueStart, limit - valueStart, convtBuf);
-            put(key, value);
-        }
-    }
-
-    /* Read in a "logical line" from an InputStream/Reader, skip all comment
-     * and blank lines and filter out those leading whitespace characters
-     * (\u0020, \u0009 and \u000c) from the beginning of a "natural line".
-     * Method returns the char length of the "logical line" and stores
-     * the line in "lineBuf".
-     */
-    class LineReader {
-        public LineReader(InputStream inStream) {
-            this.inStream = inStream;
-            inByteBuf = new byte[8192];
-        }
-
-        public LineReader(Reader reader) {
-            this.reader = reader;
-            inCharBuf = new char[8192];
-        }
-
-        byte[] inByteBuf;
-        char[] inCharBuf;
-        char[] lineBuf = new char[1024];
-        int inLimit = 0;
-        int inOff = 0;
-        InputStream inStream;
-        Reader reader;
-
-        int readLine() throws IOException {
-            int len = 0;
-            char c = 0;
-
-            boolean skipWhiteSpace = true;
-            boolean isCommentLine = false;
-            boolean isNewLine = true;
-            boolean appendedLineBegin = false;
-            boolean precedingBackslash = false;
-            boolean skipLF = false;
-
-            while (true) {
-                if (inOff >= inLimit) {
-                    inLimit = (inStream==null)?reader.read(inCharBuf)
-                                              :inStream.read(inByteBuf);
-                    inOff = 0;
-                    if (inLimit <= 0) {
-                        if (len == 0 || isCommentLine) {
-                            return -1;
-                        }
-                        if (precedingBackslash) {
-                            len--;
-                        }
-                        return len;
-                    }
-                }
-                if (inStream != null) {
-                    //The line below is equivalent to calling a
-                    //ISO8859-1 decoder.
-                    c = (char)(inByteBuf[inOff++] & 0xFF);
-                } else {
-                    c = inCharBuf[inOff++];
-                }
-                if (skipLF) {
-                    skipLF = false;
-                    if (c == '\n') {
-                        continue;
-                    }
-                }
-                if (skipWhiteSpace) {
-                    if (c == ' ' || c == '\t' || c == '\f') {
-                        continue;
-                    }
-                    if (!appendedLineBegin && (c == '\r' || c == '\n')) {
-                        continue;
-                    }
-                    skipWhiteSpace = false;
-                    appendedLineBegin = false;
-                }
-                if (isNewLine) {
-                    isNewLine = false;
-                    if (c == '#' || c == '!') {
-                        // Comment, quickly consume the rest of the line,
-                        // resume on line-break and backslash.
-                        if (inStream != null) {
-                            while (inOff < inLimit) {
-                                byte b = inByteBuf[inOff++];
-                                if (b == '\n' || b == '\r' || b == '\\') {
-                                    c = (char)(b & 0xFF);
-                                    break;
-                                }
-                            }
-                        } else {
-                            while (inOff < inLimit) {
-                                c = inCharBuf[inOff++];
-                                if (c == '\n' || c == '\r' || c == '\\') {
-                                    break;
-                                }
-                            }
-                        }
-                        isCommentLine = true;
-                    }
-                }
-
-                if (c != '\n' && c != '\r') {
-                    lineBuf[len++] = c;
-                    if (len == lineBuf.length) {
-                        int newLength = lineBuf.length * 2;
-                        if (newLength < 0) {
-                            newLength = Integer.MAX_VALUE;
-                        }
-                        char[] buf = new char[newLength];
-                        System.arraycopy(lineBuf, 0, buf, 0, lineBuf.length);
-                        lineBuf = buf;
-                    }
-                    //flip the preceding backslash flag
-                    if (c == '\\') {
-                        precedingBackslash = !precedingBackslash;
-                    } else {
-                        precedingBackslash = false;
-                    }
-                }
-                else {
-                    // reached EOL
-                    if (isCommentLine || len == 0) {
-                        isCommentLine = false;
-                        isNewLine = true;
-                        skipWhiteSpace = true;
-                        len = 0;
-                        continue;
-                    }
-                    if (inOff >= inLimit) {
-                        inLimit = (inStream==null)
-                                  ?reader.read(inCharBuf)
-                                  :inStream.read(inByteBuf);
-                        inOff = 0;
-                        if (inLimit <= 0) {
-                            if (precedingBackslash) {
-                                len--;
-                            }
-                            return len;
-                        }
-                    }
-                    if (precedingBackslash) {
-                        len -= 1;
-                        //skip the leading whitespace characters in following line
-                        skipWhiteSpace = true;
-                        appendedLineBegin = true;
-                        precedingBackslash = false;
-                        if (c == '\r') {
-                            skipLF = true;
-                        }
-                    } else {
-                        return len;
-                    }
-                }
-            }
-        }
-    }
-
-    /*
-     * Converts encoded &#92;uxxxx to unicode chars
-     * and changes special saved chars to their original forms
-     */
-    private String loadConvert (char[] in, int off, int len, char[] convtBuf) {
-        if (convtBuf.length < len) {
-            int newLen = len * 2;
-            if (newLen < 0) {
-                newLen = Integer.MAX_VALUE;
-            }
-            convtBuf = new char[newLen];
-        }
-        char aChar;
-        char[] out = convtBuf;
-        int outLen = 0;
-        int end = off + len;
-
-        while (off < end) {
-            aChar = in[off++];
-            if (aChar == '\\') {
-                aChar = in[off++];
-                if(aChar == 'u') {
-                    // Read the xxxx
-                    int value=0;
-                    for (int i=0; i<4; i++) {
-                        aChar = in[off++];
-                        switch (aChar) {
-                          case '0': case '1': case '2': case '3': case '4':
-                          case '5': case '6': case '7': case '8': case '9':
-                             value = (value << 4) + aChar - '0';
-                             break;
-                          case 'a': case 'b': case 'c':
-                          case 'd': case 'e': case 'f':
-                             value = (value << 4) + 10 + aChar - 'a';
-                             break;
-                          case 'A': case 'B': case 'C':
-                          case 'D': case 'E': case 'F':
-                             value = (value << 4) + 10 + aChar - 'A';
-                             break;
-                          default:
-                              throw new IllegalArgumentException(
-                                           "Malformed \\uxxxx encoding.");
-                        }
-                     }
-                    out[outLen++] = (char)value;
-                } else {
-                    if (aChar == 't') aChar = '\t';
-                    else if (aChar == 'r') aChar = '\r';
-                    else if (aChar == 'n') aChar = '\n';
-                    else if (aChar == 'f') aChar = '\f';
-                    out[outLen++] = aChar;
-                }
-            } else {
-                out[outLen++] = aChar;
-            }
-        }
-        return new String (out, 0, outLen);
-    }
-
-    /*
-     * Converts unicodes to encoded &#92;uxxxx and escapes
-     * special characters with a preceding slash
-     */
-    private String saveConvert(String theString,
-                               boolean escapeSpace,
-                               boolean escapeUnicode) {
-        int len = theString.length();
-        int bufLen = len * 2;
-        if (bufLen < 0) {
-            bufLen = Integer.MAX_VALUE;
-        }
-        StringBuilder outBuffer = new StringBuilder(bufLen);
-
-        for(int x=0; x<len; x++) {
-            char aChar = theString.charAt(x);
-            // Handle common case first, selecting largest block that
-            // avoids the specials below
-            if ((aChar > 61) && (aChar < 127)) {
-                if (aChar == '\\') {
-                    outBuffer.append('\\'); outBuffer.append('\\');
-                    continue;
-                }
-                outBuffer.append(aChar);
-                continue;
-            }
-            switch(aChar) {
-                case ' ':
-                    if (x == 0 || escapeSpace)
-                        outBuffer.append('\\');
-                    outBuffer.append(' ');
-                    break;
-                case '\t':outBuffer.append('\\'); outBuffer.append('t');
-                          break;
-                case '\n':outBuffer.append('\\'); outBuffer.append('n');
-                          break;
-                case '\r':outBuffer.append('\\'); outBuffer.append('r');
-                          break;
-                case '\f':outBuffer.append('\\'); outBuffer.append('f');
-                          break;
-                case '=': // Fall through
-                case ':': // Fall through
-                case '#': // Fall through
-                case '!':
-                    outBuffer.append('\\'); outBuffer.append(aChar);
-                    break;
-                default:
-                    if (((aChar < 0x0020) || (aChar > 0x007e)) & escapeUnicode ) {
-                        outBuffer.append('\\');
-                        outBuffer.append('u');
-                        outBuffer.append(toHex((aChar >> 12) & 0xF));
-                        outBuffer.append(toHex((aChar >>  8) & 0xF));
-                        outBuffer.append(toHex((aChar >>  4) & 0xF));
-                        outBuffer.append(toHex( aChar        & 0xF));
-                    } else {
-                        outBuffer.append(aChar);
-                    }
-            }
-        }
-        return outBuffer.toString();
-    }
-
-    private static void writeComments(BufferedWriter bw, String comments)
-        throws IOException {
-        bw.write("#");
-        int len = comments.length();
-        int current = 0;
-        int last = 0;
-        char[] uu = new char[6];
-        uu[0] = '\\';
-        uu[1] = 'u';
-        while (current < len) {
-            char c = comments.charAt(current);
-            if (c > '\u00ff' || c == '\n' || c == '\r') {
-                if (last != current)
-                    bw.write(comments.substring(last, current));
-                if (c > '\u00ff') {
-                    uu[2] = toHex((c >> 12) & 0xf);
-                    uu[3] = toHex((c >>  8) & 0xf);
-                    uu[4] = toHex((c >>  4) & 0xf);
-                    uu[5] = toHex( c        & 0xf);
-                    bw.write(new String(uu));
-                } else {
-                    bw.newLine();
-                    if (c == '\r' &&
-                        current != len - 1 &&
-                        comments.charAt(current + 1) == '\n') {
-                        current++;
-                    }
-                    if (current == len - 1 ||
-                        (comments.charAt(current + 1) != '#' &&
-                        comments.charAt(current + 1) != '!'))
-                        bw.write("#");
-                }
-                last = current + 1;
-            }
-            current++;
-        }
-        if (last != current)
-            bw.write(comments.substring(last, current));
-        bw.newLine();
-    }
-
-    /**
-     * Calls the {@code store(OutputStream out, String comments)} method
-     * and suppresses IOExceptions that were thrown.
-     *
-     * @deprecated This method does not throw an IOException if an I/O error
-     * occurs while saving the property list.  The preferred way to save a
-     * properties list is via the {@code store(OutputStream out,
-     * String comments)} method or the
-     * {@code storeToXML(OutputStream os, String comment)} method.
-     *
-     * @param   out      an output stream.
-     * @param   comments   a description of the property list.
-     * @exception  ClassCastException  if this {@code Properties} object
-     *             contains any keys or values that are not
-     *             {@code Strings}.
-     */
-    @Deprecated
-    public void save(OutputStream out, String comments)  {
-        try {
-            store(out, comments);
-        } catch (IOException e) {
-        }
-    }
-
+    
     /**
      * Writes this property list (key and element pairs) in this
      * {@code Properties} table to the output character stream in a
@@ -835,134 +547,21 @@ class Properties extends Hashtable<Object,Object> {
      * After the entries have been written, the output stream is flushed.
      * The output stream remains open after this method returns.
      *
-     * @param   writer      an output character stream writer.
-     * @param   comments   a description of the property list.
-     * @exception  IOException if writing this property list to the specified
-     *             output stream throws an {@code IOException}.
-     * @exception  ClassCastException  if this {@code Properties} object
-     *             contains any keys or values that are not {@code Strings}.
-     * @exception  NullPointerException  if {@code writer} is null.
+     * @param writer   an output character stream writer.
+     * @param comments a description of the property list.
+     *
+     * @throws IOException          if writing this property list to the specified
+     *                              output stream throws an {@code IOException}.
+     * @throws ClassCastException   if this {@code Properties} object
+     *                              contains any keys or values that are not {@code Strings}.
+     * @throws NullPointerException if {@code writer} is null.
      * @since 1.6
      */
-    public void store(Writer writer, String comments)
-        throws IOException
-    {
-        store0((writer instanceof BufferedWriter)?(BufferedWriter)writer
-                                                 : new BufferedWriter(writer),
-               comments,
-               false);
+    // 将属性文件以properties格式写入输出流，comments是将要写入的注释
+    public void store(Writer writer, String comments) throws IOException {
+        store0((writer instanceof BufferedWriter) ? (BufferedWriter) writer : new BufferedWriter(writer), comments, false);
     }
-
-    /**
-     * Writes this property list (key and element pairs) in this
-     * {@code Properties} table to the output stream in a format suitable
-     * for loading into a {@code Properties} table using the
-     * {@link #load(InputStream) load(InputStream)} method.
-     * <p>
-     * Properties from the defaults table of this {@code Properties}
-     * table (if any) are <i>not</i> written out by this method.
-     * <p>
-     * This method outputs the comments, properties keys and values in
-     * the same format as specified in
-     * {@link #store(java.io.Writer, java.lang.String) store(Writer)},
-     * with the following differences:
-     * <ul>
-     * <li>The stream is written using the ISO 8859-1 character encoding.
-     *
-     * <li>Characters not in Latin-1 in the comments are written as
-     * {@code \u005Cu}<i>xxxx</i> for their appropriate unicode
-     * hexadecimal value <i>xxxx</i>.
-     *
-     * <li>Characters less than {@code \u005Cu0020} and characters greater
-     * than {@code \u005Cu007E} in property keys or values are written
-     * as {@code \u005Cu}<i>xxxx</i> for the appropriate hexadecimal
-     * value <i>xxxx</i>.
-     * </ul>
-     * <p>
-     * After the entries have been written, the output stream is flushed.
-     * The output stream remains open after this method returns.
-     *
-     * @param   out      an output stream.
-     * @param   comments   a description of the property list.
-     * @exception  IOException if writing this property list to the specified
-     *             output stream throws an {@code IOException}.
-     * @exception  ClassCastException  if this {@code Properties} object
-     *             contains any keys or values that are not {@code Strings}.
-     * @exception  NullPointerException  if {@code out} is null.
-     * @since 1.2
-     */
-    public void store(OutputStream out, String comments)
-        throws IOException
-    {
-        store0(new BufferedWriter(new OutputStreamWriter(out, "8859_1")),
-               comments,
-               true);
-    }
-
-    private void store0(BufferedWriter bw, String comments, boolean escUnicode)
-        throws IOException
-    {
-        if (comments != null) {
-            writeComments(bw, comments);
-        }
-        bw.write("#" + new Date().toString());
-        bw.newLine();
-        synchronized (this) {
-            for (Map.Entry<Object, Object> e : entrySet()) {
-                String key = (String)e.getKey();
-                String val = (String)e.getValue();
-                key = saveConvert(key, true, escUnicode);
-                /* No need to escape embedded and trailing spaces for value, hence
-                 * pass false to flag.
-                 */
-                val = saveConvert(val, false, escUnicode);
-                bw.write(key + "=" + val);
-                bw.newLine();
-            }
-        }
-        bw.flush();
-    }
-
-    /**
-     * Loads all of the properties represented by the XML document on the
-     * specified input stream into this properties table.
-     *
-     * <p>The XML document must have the following DOCTYPE declaration:
-     * <pre>
-     * &lt;!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd"&gt;
-     * </pre>
-     * Furthermore, the document must satisfy the properties DTD described
-     * above.
-     *
-     * <p> An implementation is required to read XML documents that use the
-     * "{@code UTF-8}" or "{@code UTF-16}" encoding. An implementation may
-     * support additional encodings.
-     *
-     * <p>The specified stream is closed after this method returns.
-     *
-     * @param in the input stream from which to read the XML document.
-     * @throws IOException if reading from the specified input stream
-     *         results in an {@code IOException}.
-     * @throws java.io.UnsupportedEncodingException if the document's encoding
-     *         declaration can be read and it specifies an encoding that is not
-     *         supported
-     * @throws InvalidPropertiesFormatException Data on input stream does not
-     *         constitute a valid XML document with the mandated document type.
-     * @throws NullPointerException if {@code in} is null.
-     * @see    #storeToXML(OutputStream, String, String)
-     * @see    <a href="http://www.w3.org/TR/REC-xml/#charencoding">Character
-     *         Encoding in Entities</a>
-     * @since 1.5
-     */
-    public synchronized void loadFromXML(InputStream in)
-        throws IOException, InvalidPropertiesFormatException
-    {
-        Objects.requireNonNull(in);
-        PropertiesDefaultHandler handler = new PropertiesDefaultHandler();
-        handler.load(this, in);
-        in.close();
-    }
-
+    
     /**
      * Emits an XML document representing all of the properties contained
      * in this table.
@@ -971,24 +570,24 @@ class Properties extends Hashtable<Object,Object> {
      * comment)} behaves in exactly the same way as the invocation
      * {@code props.storeToXML(os, comment, "UTF-8");}.
      *
-     * @param os the output stream on which to emit the XML document.
+     * @param os      the output stream on which to emit the XML document.
      * @param comment a description of the property list, or {@code null}
-     *        if no comment is desired.
-     * @throws IOException if writing to the specified output stream
-     *         results in an {@code IOException}.
+     *                if no comment is desired.
+     *
+     * @throws IOException          if writing to the specified output stream
+     *                              results in an {@code IOException}.
      * @throws NullPointerException if {@code os} is null.
-     * @throws ClassCastException  if this {@code Properties} object
-     *         contains any keys or values that are not
-     *         {@code Strings}.
-     * @see    #loadFromXML(InputStream)
+     * @throws ClassCastException   if this {@code Properties} object
+     *                              contains any keys or values that are not
+     *                              {@code Strings}.
+     * @see #loadFromXML(InputStream)
      * @since 1.5
      */
-    public void storeToXML(OutputStream os, String comment)
-        throws IOException
-    {
+    // 将属性文件以XML格式写入输出流，comments是将要写入的注释
+    public void storeToXML(OutputStream os, String comment) throws IOException {
         storeToXML(os, comment, "UTF-8");
     }
-
+    
     /**
      * Emits an XML document representing all of the properties contained
      * in this table, using the specified encoding.
@@ -1012,39 +611,39 @@ class Properties extends Hashtable<Object,Object> {
      * except that it will {@linkplain java.nio.charset.Charset#forName look up the charset}
      * using the given encoding name.
      *
-     * @param os        the output stream on which to emit the XML document.
-     * @param comment   a description of the property list, or {@code null}
-     *                  if no comment is desired.
-     * @param  encoding the name of a supported
-     *                  <a href="../lang/package-summary.html#charenc">
-     *                  character encoding</a>
+     * @param os       the output stream on which to emit the XML document.
+     * @param comment  a description of the property list, or {@code null}
+     *                 if no comment is desired.
+     * @param encoding the name of a supported
+     *                 <a href="../lang/package-summary.html#charenc">
+     *                 character encoding</a>
      *
-     * @throws IOException if writing to the specified output stream
-     *         results in an {@code IOException}.
+     * @throws IOException                          if writing to the specified output stream
+     *                                              results in an {@code IOException}.
      * @throws java.io.UnsupportedEncodingException if the encoding is not
-     *         supported by the implementation.
-     * @throws NullPointerException if {@code os} is {@code null},
-     *         or if {@code encoding} is {@code null}.
-     * @throws ClassCastException  if this {@code Properties} object
-     *         contains any keys or values that are not {@code Strings}.
-     * @see    #loadFromXML(InputStream)
-     * @see    <a href="http://www.w3.org/TR/REC-xml/#charencoding">Character
-     *         Encoding in Entities</a>
+     *                                              supported by the implementation.
+     * @throws NullPointerException                 if {@code os} is {@code null},
+     *                                              or if {@code encoding} is {@code null}.
+     * @throws ClassCastException                   if this {@code Properties} object
+     *                                              contains any keys or values that are not {@code Strings}.
+     * @see #loadFromXML(InputStream)
+     * @see <a href="http://www.w3.org/TR/REC-xml/#charencoding">Character
+     * Encoding in Entities</a>
      * @since 1.5
      */
-    public void storeToXML(OutputStream os, String comment, String encoding)
-        throws IOException {
+    // 将属性文件以XML格式写入输出流，comments是将要写入的注释，encoding代表XML编码
+    public void storeToXML(OutputStream os, String comment, String encoding) throws IOException {
         Objects.requireNonNull(os);
         Objects.requireNonNull(encoding);
-
+        
         try {
             Charset charset = Charset.forName(encoding);
             storeToXML(os, comment, charset);
-        } catch (IllegalCharsetNameException | UnsupportedCharsetException e) {
+        } catch(IllegalCharsetNameException | UnsupportedCharsetException e) {
             throw new UnsupportedEncodingException(encoding);
         }
     }
-
+    
     /**
      * Emits an XML document representing all of the properties contained
      * in this table, using the specified encoding.
@@ -1066,85 +665,223 @@ class Properties extends Hashtable<Object,Object> {
      *
      * <p>The specified stream remains open after this method returns.
      *
-     * @param os        the output stream on which to emit the XML document.
-     * @param comment   a description of the property list, or {@code null}
-     *                  if no comment is desired.
-     * @param charset   the charset
+     * @param os      the output stream on which to emit the XML document.
+     * @param comment a description of the property list, or {@code null}
+     *                if no comment is desired.
+     * @param charset the charset
      *
-     * @throws IOException if writing to the specified output stream
-     *         results in an {@code IOException}.
+     * @throws IOException          if writing to the specified output stream
+     *                              results in an {@code IOException}.
      * @throws NullPointerException if {@code os} or {@code charset} is {@code null}.
-     * @throws ClassCastException  if this {@code Properties} object
-     *         contains any keys or values that are not {@code Strings}.
-     * @see    #loadFromXML(InputStream)
-     * @see    <a href="http://www.w3.org/TR/REC-xml/#charencoding">Character
-     *         Encoding in Entities</a>
+     * @throws ClassCastException   if this {@code Properties} object
+     *                              contains any keys or values that are not {@code Strings}.
+     * @see #loadFromXML(InputStream)
+     * @see <a href="http://www.w3.org/TR/REC-xml/#charencoding">Character
+     * Encoding in Entities</a>
      * @since 10
      */
-    public void storeToXML(OutputStream os, String comment, Charset charset)
-        throws IOException {
+    // 将属性文件以XML格式写入输出流，comments是将要写入的注释，charset代表XML字符集编码
+    public void storeToXML(OutputStream os, String comment, Charset charset) throws IOException {
         Objects.requireNonNull(os, "OutputStream");
         Objects.requireNonNull(charset, "Charset");
         PropertiesDefaultHandler handler = new PropertiesDefaultHandler();
         handler.store(this, os, comment, charset);
     }
-
+    
+    /**
+     * Calls the {@code store(OutputStream out, String comments)} method
+     * and suppresses IOExceptions that were thrown.
+     *
+     * @param out      an output stream.
+     * @param comments a description of the property list.
+     *
+     * @throws ClassCastException if this {@code Properties} object
+     *                            contains any keys or values that are not
+     *                            {@code Strings}.
+     * @deprecated This method does not throw an IOException if an I/O error
+     * occurs while saving the property list.  The preferred way to save a
+     * properties list is via the {@code store(OutputStream out,
+     * String comments)} method or the
+     * {@code storeToXML(OutputStream os, String comment)} method.
+     */
+    @Deprecated
+    public void save(OutputStream out, String comments) {
+        try {
+            store(out, comments);
+        } catch(IOException e) {
+        }
+    }
+    
+    /*▲ 写属性集 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /* 从Hashtable继承的大多数方法均已委托给ConcurrentHashMap */
+    
+    
+    /*▼ 增删改查 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Calls the {@code Hashtable} method {@code put}. Provided for
+     * parallelism with the {@code getProperty} method. Enforces use of
+     * strings for property keys and values. The value returned is the
+     * result of the {@code Hashtable} call to {@code put}.
+     *
+     * @param key   the key to be placed into this property list.
+     * @param value the value corresponding to {@code key}.
+     *
+     * @return the previous value of the specified key in this property
+     * list, or {@code null} if it did not have one.
+     *
+     * @see #getProperty
+     * @since 1.2
+     */
+    // 设置键值对，返回旧值。会覆盖旧值
+    public synchronized Object setProperty(String key, String value) {
+        return put(key, value);
+    }
+    
+    // 设置键值对，返回旧值。会覆盖旧值
+    @Override
+    public synchronized Object put(Object key, Object value) {
+        return map.put(key, value);
+    }
+    
+    // 设置键值对，返回旧值。不覆盖旧值
+    @Override
+    public synchronized Object putIfAbsent(Object key, Object value) {
+        return map.putIfAbsent(key, value);
+    }
+    
+    // 批量设置键值对
+    @Override
+    public synchronized void putAll(Map<?, ?> t) {
+        map.putAll(t);
+    }
+    
+    // 更新键值对
+    @Override
+    public synchronized boolean replace(Object key, Object oldValue, Object newValue) {
+        return map.replace(key, oldValue, newValue);
+    }
+    
+    // 更新键值对
+    @Override
+    public synchronized Object replace(Object key, Object value) {
+        return map.replace(key, value);
+    }
+    
+    // 移除键值对
+    @Override
+    public synchronized Object remove(Object key) {
+        return map.remove(key);
+    }
+    
+    // 精确移除键值对
+    @Override
+    public synchronized boolean remove(Object key, Object value) {
+        return map.remove(key, value);
+    }
+    
+    // 移除所有键值对
+    @Override
+    public synchronized void clear() {
+        map.clear();
+    }
+    
+    // 是否包含某个key
+    @Override
+    public boolean containsKey(Object key) {
+        return map.containsKey(key);
+    }
+    
+    // 是否包含某个value
+    @Override
+    public boolean contains(Object value) {
+        return map.contains(value);
+    }
+    
+    // 是否包含某个value
+    @Override
+    public boolean containsValue(Object value) {
+        return map.containsValue(value);
+    }
+    
     /**
      * Searches for the property with the specified key in this property list.
      * If the key is not found in this property list, the default property list,
      * and its defaults, recursively, are then checked. The method returns
      * {@code null} if the property is not found.
      *
-     * @param   key   the property key.
-     * @return  the value in this property list with the specified key value.
-     * @see     #setProperty
-     * @see     #defaults
+     * @param key the property key.
+     *
+     * @return the value in this property list with the specified key value.
+     *
+     * @see #setProperty
+     * @see #defaults
      */
+    // 获取key关联的value，如果没有该key，就从默认的属性文件中获取
     public String getProperty(String key) {
         Object oval = map.get(key);
-        String sval = (oval instanceof String) ? (String)oval : null;
+        String sval = (oval instanceof String) ? (String) oval : null;
         Properties defaults;
         return ((sval == null) && ((defaults = this.defaults) != null)) ? defaults.getProperty(key) : sval;
     }
-
+    
     /**
      * Searches for the property with the specified key in this property list.
      * If the key is not found in this property list, the default property list,
      * and its defaults, recursively, are then checked. The method returns the
      * default value argument if the property is not found.
      *
-     * @param   key            the hashtable key.
-     * @param   defaultValue   a default value.
+     * @param key          the hashtable key.
+     * @param defaultValue a default value.
      *
-     * @return  the value in this property list with the specified key value.
-     * @see     #setProperty
-     * @see     #defaults
+     * @return the value in this property list with the specified key value.
+     *
+     * @see #setProperty
+     * @see #defaults
      */
+    // 获取key关联的value，如果没有该key，就返回默认值defaultValue
     public String getProperty(String key, String defaultValue) {
         String val = getProperty(key);
         return (val == null) ? defaultValue : val;
     }
-
+    
+    // 获取key关联的value，如果没有该key，返回null
+    @Override
+    public Object get(Object key) {
+        return map.get(key);
+    }
+    
+    // 获取key关联的value，如果没有该key，就返回默认值defaultValue
+    @Override
+    public Object getOrDefault(Object key, Object defaultValue) {
+        return map.getOrDefault(key, defaultValue);
+    }
+    
     /**
      * Returns an enumeration of all the keys in this property list,
      * including distinct keys in the default property list if a key
      * of the same name has not already been found from the main
      * properties list.
      *
-     * @return  an enumeration of all the keys in this property list, including
-     *          the keys in the default property list.
-     * @throws  ClassCastException if any key in this property list
-     *          is not a string.
-     * @see     java.util.Enumeration
-     * @see     java.util.Properties#defaults
-     * @see     #stringPropertyNames
+     * @return an enumeration of all the keys in this property list, including
+     * the keys in the default property list.
+     *
+     * @throws ClassCastException if any key in this property list
+     *                            is not a string.
+     * @see java.util.Enumeration
+     * @see java.util.Properties#defaults
+     * @see #stringPropertyNames
      */
+    // 返回所有key的集合
     public Enumeration<?> propertyNames() {
-        Hashtable<String,Object> h = new Hashtable<>();
+        Hashtable<String, Object> h = new Hashtable<>();
         enumerate(h);
         return h.keys();
     }
-
+    
     /**
      * Returns an unmodifiable set of keys from this property list
      * where the key and its corresponding value are strings,
@@ -1157,383 +894,260 @@ class Properties extends Hashtable<Object,Object> {
      * Changes to this {@code Properties} object are not reflected in the
      * returned set.
      *
-     * @return  an unmodifiable set of keys in this property list where
-     *          the key and its corresponding value are strings,
-     *          including the keys in the default property list.
-     * @see     java.util.Properties#defaults
-     * @since   1.6
+     * @return an unmodifiable set of keys in this property list where
+     * the key and its corresponding value are strings,
+     * including the keys in the default property list.
+     *
+     * @see java.util.Properties#defaults
+     * @since 1.6
      */
+    // 返回所有key的集合
     public Set<String> stringPropertyNames() {
         Map<String, String> h = new HashMap<>();
         enumerateStringProperties(h);
         return Collections.unmodifiableSet(h.keySet());
     }
-
-    /**
-     * Prints this property list out to the specified output stream.
-     * This method is useful for debugging.
-     *
-     * @param   out   an output stream.
-     * @throws  ClassCastException if any key in this property list
-     *          is not a string.
-     */
-    public void list(PrintStream out) {
-        out.println("-- listing properties --");
-        Map<String, Object> h = new HashMap<>();
-        enumerate(h);
-        for (Map.Entry<String, Object> e : h.entrySet()) {
-            String key = e.getKey();
-            String val = (String)e.getValue();
-            if (val.length() > 40) {
-                val = val.substring(0, 37) + "...";
-            }
-            out.println(key + "=" + val);
-        }
-    }
-
-    /**
-     * Prints this property list out to the specified output stream.
-     * This method is useful for debugging.
-     *
-     * @param   out   an output stream.
-     * @throws  ClassCastException if any key in this property list
-     *          is not a string.
-     * @since   1.1
-     */
-    /*
-     * Rather than use an anonymous inner class to share common code, this
-     * method is duplicated in order to ensure that a non-1.1 compiler can
-     * compile this file.
-     */
-    public void list(PrintWriter out) {
-        out.println("-- listing properties --");
-        Map<String, Object> h = new HashMap<>();
-        enumerate(h);
-        for (Map.Entry<String, Object> e : h.entrySet()) {
-            String key = e.getKey();
-            String val = (String)e.getValue();
-            if (val.length() > 40) {
-                val = val.substring(0, 37) + "...";
-            }
-            out.println(key + "=" + val);
-        }
-    }
-
-    /**
-     * Enumerates all key/value pairs into the specified Map.
-     * @param h the Map
-     * @throws ClassCastException if any of the property keys
-     *         is not of String type.
-     */
-    private void enumerate(Map<String, Object> h) {
-        if (defaults != null) {
-            defaults.enumerate(h);
-        }
-        for (Map.Entry<Object, Object> e : entrySet()) {
-            String key = (String)e.getKey();
-            h.put(key, e.getValue());
-        }
-    }
-
-    /**
-     * Enumerates all key/value pairs into the specified Map
-     * and omits the property if the key or value is not a string.
-     * @param h the Map
-     */
-    private void enumerateStringProperties(Map<String, String> h) {
-        if (defaults != null) {
-            defaults.enumerateStringProperties(h);
-        }
-        for (Map.Entry<Object, Object> e : entrySet()) {
-            Object k = e.getKey();
-            Object v = e.getValue();
-            if (k instanceof String && v instanceof String) {
-                h.put((String) k, (String) v);
-            }
-        }
-    }
-
-    /**
-     * Convert a nibble to a hex character
-     * @param   nibble  the nibble to convert.
-     */
-    private static char toHex(int nibble) {
-        return hexDigit[(nibble & 0xF)];
-    }
-
-    /** A table of hex digits */
-    private static final char[] hexDigit = {
-        '0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'
-    };
-
-    //
-    // Hashtable methods overridden and delegated to a ConcurrentHashMap instance
-
-    @Override
-    public int size() {
-        return map.size();
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return map.isEmpty();
-    }
-
+    
+    // 返回所有key的集合
     @Override
     public Enumeration<Object> keys() {
         // CHM.keys() returns Iterator w/ remove() - instead wrap keySet()
         return Collections.enumeration(map.keySet());
     }
-
+    
+    // 返回所有key的集合
+    @Override
+    public Set<Object> keySet() {
+        return Collections.synchronizedSet(map.keySet(), this);
+    }
+    
+    // 返回所有value的集合
+    @Override
+    public Collection<Object> values() {
+        return Collections.synchronizedCollection(map.values(), this);
+    }
+    
+    // 返回所有value的集合
     @Override
     public Enumeration<Object> elements() {
         // CHM.elements() returns Iterator w/ remove() - instead wrap values()
         return Collections.enumeration(map.values());
     }
-
-    @Override
-    public boolean contains(Object value) {
-        return map.contains(value);
-    }
-
-    @Override
-    public boolean containsValue(Object value) {
-        return map.containsValue(value);
-    }
-
-    @Override
-    public boolean containsKey(Object key) {
-        return map.containsKey(key);
-    }
-
-    @Override
-    public Object get(Object key) {
-        return map.get(key);
-    }
-
-    @Override
-    public synchronized Object put(Object key, Object value) {
-        return map.put(key, value);
-    }
-
-    @Override
-    public synchronized Object remove(Object key) {
-        return map.remove(key);
-    }
-
-    @Override
-    public synchronized void putAll(Map<?, ?> t) {
-        map.putAll(t);
-    }
-
-    @Override
-    public synchronized void clear() {
-        map.clear();
-    }
-
-    @Override
-    public synchronized String toString() {
-        return map.toString();
-    }
-
-    @Override
-    public Set<Object> keySet() {
-        return Collections.synchronizedSet(map.keySet(), this);
-    }
-
-    @Override
-    public Collection<Object> values() {
-        return Collections.synchronizedCollection(map.values(), this);
-    }
-
+    
+    // 返回键值对集合
     @Override
     public Set<Map.Entry<Object, Object>> entrySet() {
         return Collections.synchronizedSet(new EntrySet(map.entrySet()), this);
     }
-
+    
+    /*▲ 增删改查 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 流式操作 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /* ====需要理解lambda表达式中各形参的含义==== */
+    
     /*
-     * Properties.entrySet() should not support add/addAll, however
-     * ConcurrentHashMap.entrySet() provides add/addAll.  This class wraps the
-     * Set returned from CHM, changing add/addAll to throw UOE.
+     * 遍历所有键值对，如打印键值对：
+     * properties.forEach((key, value)->System.out.println(key+" "+value));
      */
-    private static class EntrySet implements Set<Map.Entry<Object, Object>> {
-        private Set<Map.Entry<Object,Object>> entrySet;
-
-        private EntrySet(Set<Map.Entry<Object, Object>> entrySet) {
-            this.entrySet = entrySet;
-        }
-
-        @Override public int size() { return entrySet.size(); }
-        @Override public boolean isEmpty() { return entrySet.isEmpty(); }
-        @Override public boolean contains(Object o) { return entrySet.contains(o); }
-        @Override public Object[] toArray() { return entrySet.toArray(); }
-        @Override public <T> T[] toArray(T[] a) { return entrySet.toArray(a); }
-        @Override public void clear() { entrySet.clear(); }
-        @Override public boolean remove(Object o) { return entrySet.remove(o); }
-
-        @Override
-        public boolean add(Map.Entry<Object, Object> e) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean addAll(Collection<? extends Map.Entry<Object, Object>> c) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean containsAll(Collection<?> c) {
-            return entrySet.containsAll(c);
-        }
-
-        @Override
-        public boolean removeAll(Collection<?> c) {
-            return entrySet.removeAll(c);
-        }
-
-        @Override
-        public boolean retainAll(Collection<?> c) {
-            return entrySet.retainAll(c);
-        }
-
-        @Override
-        public Iterator<Map.Entry<Object, Object>> iterator() {
-            return entrySet.iterator();
-        }
-    }
-
-    @Override
-    public synchronized boolean equals(Object o) {
-        return map.equals(o);
-    }
-
-    @Override
-    public synchronized int hashCode() {
-        return map.hashCode();
-    }
-
-    @Override
-    public Object getOrDefault(Object key, Object defaultValue) {
-        return map.getOrDefault(key, defaultValue);
-    }
-
     @Override
     public synchronized void forEach(BiConsumer<? super Object, ? super Object> action) {
         map.forEach(action);
     }
-
+    
+    /*
+     * 批量更新属性值，如将所有value更新为"hello"：
+     * properties.replaceAll((key, value)->"hello");
+     */
     @Override
     public synchronized void replaceAll(BiFunction<? super Object, ? super Object, ?> function) {
         map.replaceAll(function);
     }
-
+    
+    /*
+     * 如果key不存在，设置键值对，如name属性不存在，就将"name"重复三遍作为value存入属性：
+     * properties.computeIfAbsent("name", key->key+""+key+""+key);
+     */
     @Override
-    public synchronized Object putIfAbsent(Object key, Object value) {
-        return map.putIfAbsent(key, value);
-    }
-
-    @Override
-    public synchronized boolean remove(Object key, Object value) {
-        return map.remove(key, value);
-    }
-
-    @Override
-    public synchronized boolean replace(Object key, Object oldValue, Object newValue) {
-        return map.replace(key, oldValue, newValue);
-    }
-
-    @Override
-    public synchronized Object replace(Object key, Object value) {
-        return map.replace(key, value);
-    }
-
-    @Override
-    public synchronized Object computeIfAbsent(Object key,
-            Function<? super Object, ?> mappingFunction) {
+    public synchronized Object computeIfAbsent(Object key, Function<? super Object, ?> mappingFunction) {
         return map.computeIfAbsent(key, mappingFunction);
     }
-
+    
+    /*
+     * 如果key存在，更新键值对，如username属性存在，就将其值更新为key:value的形式：
+     * properties.computeIfPresent("username", (key, value)->key+":"+value);
+     */
     @Override
-    public synchronized Object computeIfPresent(Object key,
-            BiFunction<? super Object, ? super Object, ?> remappingFunction) {
+    public synchronized Object computeIfPresent(Object key, BiFunction<? super Object, ? super Object, ?> remappingFunction) {
         return map.computeIfPresent(key, remappingFunction);
     }
-
+    
+    /**
+     * properties.compute("username", (key, value)->key+":"+value);
+     * 更新key对应的键值对，如果key不存在，就设置一个新的键值对
+     */
     @Override
-    public synchronized Object compute(Object key,
-            BiFunction<? super Object, ? super Object, ?> remappingFunction) {
+    public synchronized Object compute(Object key, BiFunction<? super Object, ? super Object, ?> remappingFunction) {
         return map.compute(key, remappingFunction);
     }
-
+    
+    /**
+     * 使用给定的value更新key对应的键值对，如果key不存在，就设置一个新的键值对
+     * properties.merge("username", "Tom", (oldvalue, newvalue)->oldvalue+"-"+newvalue);
+     */
     @Override
-    public synchronized Object merge(Object key, Object value,
-            BiFunction<? super Object, ? super Object, ?> remappingFunction) {
+    public synchronized Object merge(Object key, Object value, BiFunction<? super Object, ? super Object, ?> remappingFunction) {
         return map.merge(key, value, remappingFunction);
     }
-
-    //
-    // Special Hashtable methods
-
+    
+    /*▲ 流式操作 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    // 返回属性数量
     @Override
-    protected void rehash() { /* no-op */ }
-
+    public int size() {
+        return map.size();
+    }
+    
+    // 判断属性集是否为空
+    @Override
+    public boolean isEmpty() {
+        return map.isEmpty();
+    }
+    
+    /**
+     * Prints this property list out to the specified output stream.
+     * This method is useful for debugging.
+     *
+     * @param out an output stream.
+     *
+     * @throws ClassCastException if any key in this property list
+     *                            is not a string.
+     */
+    // 列出所有属性的键值对
+    public void list(PrintStream out) {
+        out.println("-- listing properties --");
+        Map<String, Object> h = new HashMap<>();
+        enumerate(h);
+        for(Map.Entry<String, Object> e : h.entrySet()) {
+            String key = e.getKey();
+            String val = (String) e.getValue();
+            if(val.length()>40) {
+                val = val.substring(0, 37) + "...";
+            }
+            out.println(key + "=" + val);
+        }
+    }
+    
+    /**
+     * Prints this property list out to the specified output stream.
+     * This method is useful for debugging.
+     *
+     * @param out an output stream.
+     *
+     * @throws ClassCastException if any key in this property list
+     *                            is not a string.
+     * @since 1.1
+     *
+     * Rather than use an anonymous inner class to share common code,
+     * this method is duplicated in order to ensure that a non-1.1 compiler can compile this file.
+     */
+    // 列出所有属性的键值对
+    public void list(PrintWriter out) {
+        out.println("-- listing properties --");
+        Map<String, Object> h = new HashMap<>();
+        enumerate(h);
+        for(Map.Entry<String, Object> e : h.entrySet()) {
+            String key = e.getKey();
+            String val = (String) e.getValue();
+            if(val.length()>40) {
+                val = val.substring(0, 37) + "...";
+            }
+            out.println(key + "=" + val);
+        }
+    }
+    
+    
+    
+    @Override
+    public synchronized String toString() {
+        return map.toString();
+    }
+    
+    @Override
+    public synchronized boolean equals(Object o) {
+        return map.equals(o);
+    }
+    
+    @Override
+    public synchronized int hashCode() {
+        return map.hashCode();
+    }
+    
     @Override
     public synchronized Object clone() {
         Properties clone = (Properties) cloneHashtable();
         clone.map = new ConcurrentHashMap<>(map);
         return clone;
     }
-
-    //
-    // Hashtable serialization overrides
-    // (these should emit and consume Hashtable-compatible stream)
-
+    
+    @Override
+    protected void rehash() { /* no-op */ }
+    
+    
+    
+    /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // Hashtable serialization overrides (these should emit and consume Hashtable-compatible stream)
+    
     @Override
     void writeHashtable(ObjectOutputStream s) throws IOException {
         var map = this.map;
         List<Object> entryStack = new ArrayList<>(map.size() * 2); // an estimate
-
-        for (Map.Entry<Object, Object> entry : map.entrySet()) {
+        
+        for(Map.Entry<Object, Object> entry : map.entrySet()) {
             entryStack.add(entry.getValue());
             entryStack.add(entry.getKey());
         }
-
+        
         // Write out the simulated threshold, loadfactor
         float loadFactor = 0.75f;
         int count = entryStack.size() / 2;
-        int length = (int)(count / loadFactor) + (count / 20) + 3;
-        if (length > count && (length & 1) == 0) {
+        int length = (int) (count / loadFactor) + (count / 20) + 3;
+        if(length>count && (length & 1) == 0) {
             length--;
         }
-        synchronized (map) { // in case of multiple concurrent serializations
+        synchronized(map) { // in case of multiple concurrent serializations
             defaultWriteHashtable(s, length, loadFactor);
         }
-
+        
         // Write out simulated length and real count of elements
         s.writeInt(length);
         s.writeInt(count);
-
+        
         // Write out the key/value objects from the stacked entries
-        for (int i = entryStack.size() - 1; i >= 0; i--) {
+        for(int i = entryStack.size() - 1; i >= 0; i--) {
             s.writeObject(entryStack.get(i));
         }
     }
-
+    
     @Override
-    void readHashtable(ObjectInputStream s) throws IOException,
-            ClassNotFoundException {
+    void readHashtable(ObjectInputStream s) throws IOException, ClassNotFoundException {
         // Read in the threshold and loadfactor
         s.defaultReadObject();
-
+        
         // Read the original length of the array and number of elements
         int origlength = s.readInt();
         int elements = s.readInt();
-
+        
         // Validate # of elements
-        if (elements < 0) {
+        if(elements<0) {
             throw new StreamCorruptedException("Illegal # of Elements: " + elements);
         }
-
+        
         // Constructing the backing map will lazily create an array when the first element is
         // added, so check it before construction. Note that CHM's constructor takes a size
         // that is the number of elements to be stored -- not the table size -- so it must be
@@ -1541,18 +1155,596 @@ class Properties extends Hashtable<Object,Object> {
         // (CHM uses the same power-of-two computation as HashMap, and HashMap.tableSizeFor is
         // accessible here.) Check Map.Entry[].class since it's the nearest public type to
         // what is actually created.
-        SharedSecrets.getJavaObjectInputStreamAccess()
-                     .checkArray(s, Map.Entry[].class, HashMap.tableSizeFor((int)(elements / 0.75)));
-
+        SharedSecrets.getJavaObjectInputStreamAccess().checkArray(s, Map.Entry[].class, HashMap.tableSizeFor((int) (elements / 0.75)));
+        
         // create CHM of appropriate capacity
         var map = new ConcurrentHashMap<>(elements);
-
+        
         // Read all the key/value objects
-        for (; elements > 0; elements--) {
+        for(; elements>0; elements--) {
             Object key = s.readObject();
             Object value = s.readObject();
             map.put(key, value);
         }
         this.map = map;
     }
+    
+    /*▲ 序列化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    private static void writeComments(BufferedWriter bw, String comments) throws IOException {
+        bw.write("#");
+        int len = comments.length();
+        int current = 0;
+        int last = 0;
+        char[] uu = new char[6];
+        uu[0] = '\\';
+        uu[1] = 'u';
+        while(current<len) {
+            char c = comments.charAt(current);
+            if(c>'\u00ff' || c == '\n' || c == '\r') {
+                if(last != current)
+                    bw.write(comments.substring(last, current));
+                if(c>'\u00ff') {
+                    uu[2] = toHex((c >> 12) & 0xf);
+                    uu[3] = toHex((c >> 8) & 0xf);
+                    uu[4] = toHex((c >> 4) & 0xf);
+                    uu[5] = toHex(c & 0xf);
+                    bw.write(new String(uu));
+                } else {
+                    bw.newLine();
+                    if(c == '\r' && current != len - 1 && comments.charAt(current + 1) == '\n') {
+                        current++;
+                    }
+                    if(current == len - 1 || (comments.charAt(current + 1) != '#' && comments.charAt(current + 1) != '!'))
+                        bw.write("#");
+                }
+                last = current + 1;
+            }
+            current++;
+        }
+        if(last != current)
+            bw.write(comments.substring(last, current));
+        bw.newLine();
+    }
+    
+    /**
+     * Convert a nibble to a hex character
+     *
+     * @param nibble the nibble to convert.
+     */
+    private static char toHex(int nibble) {
+        return hexDigit[(nibble & 0xF)];
+    }
+    
+    // 从输入流中解析出属性键值对存入map
+    private void load0(LineReader lr) throws IOException {
+        char[] convtBuf = new char[1024];
+        
+        int limit;  // 当前属性行的长度
+        
+        int keyLen; // key的长度
+        int valueStart; // value的起点
+        
+        char c;
+        
+        boolean hasSep;
+        boolean precedingBackslash;
+        
+        while((limit = lr.readLine()) >= 0) {
+            c = 0;
+            keyLen = 0;
+            valueStart = limit;
+            hasSep = false;
+            
+            precedingBackslash = false;
+            
+            // 获取key的长度
+            while(keyLen<limit) {
+                c = lr.lineBuf[keyLen];
+                //need check if escaped.
+                if((c == '=' || c == ':') && !precedingBackslash) {
+                    valueStart = keyLen + 1;
+                    hasSep = true;
+                    break;
+                } else if((c == ' ' || c == '\t' || c == '\f') && !precedingBackslash) {
+                    valueStart = keyLen + 1;
+                    break;
+                }
+                if(c == '\\') {
+                    precedingBackslash = !precedingBackslash;
+                } else {
+                    precedingBackslash = false;
+                }
+                keyLen++;
+            }
+            
+            // 获取value的起点
+            while(valueStart<limit) {
+                c = lr.lineBuf[valueStart];
+                if(c != ' ' && c != '\t' && c != '\f') {
+                    if(!hasSep && (c == '=' || c == ':')) {
+                        hasSep = true;
+                    } else {
+                        break;
+                    }
+                }
+                valueStart++;
+            }
+            
+            // 获取key
+            String key = loadConvert(lr.lineBuf, 0, keyLen, convtBuf);
+            
+            // 获取value
+            String value = loadConvert(lr.lineBuf, valueStart, limit - valueStart, convtBuf);
+            
+            // 将键值对存入map
+            put(key, value);
+        }
+    }
+    
+    /**
+     * Converts encoded &#92;uxxxx to unicode chars
+     * and changes special saved chars to their original forms
+     */
+    private String loadConvert(char[] in, int off, int len, char[] convtBuf) {
+        if(convtBuf.length<len) {
+            int newLen = len * 2;
+            if(newLen<0) {
+                newLen = Integer.MAX_VALUE;
+            }
+            convtBuf = new char[newLen];
+        }
+        char aChar;
+        char[] out = convtBuf;
+        int outLen = 0;
+        int end = off + len;
+        
+        while(off<end) {
+            aChar = in[off++];
+            if(aChar == '\\') {
+                aChar = in[off++];
+                if(aChar == 'u') {
+                    // Read the xxxx
+                    int value = 0;
+                    for(int i = 0; i<4; i++) {
+                        aChar = in[off++];
+                        switch(aChar) {
+                            case '0':
+                            case '1':
+                            case '2':
+                            case '3':
+                            case '4':
+                            case '5':
+                            case '6':
+                            case '7':
+                            case '8':
+                            case '9':
+                                value = (value << 4) + aChar - '0';
+                                break;
+                            case 'a':
+                            case 'b':
+                            case 'c':
+                            case 'd':
+                            case 'e':
+                            case 'f':
+                                value = (value << 4) + 10 + aChar - 'a';
+                                break;
+                            case 'A':
+                            case 'B':
+                            case 'C':
+                            case 'D':
+                            case 'E':
+                            case 'F':
+                                value = (value << 4) + 10 + aChar - 'A';
+                                break;
+                            default:
+                                throw new IllegalArgumentException("Malformed \\uxxxx encoding.");
+                        }
+                    }
+                    out[outLen++] = (char) value;
+                } else {
+                    if(aChar == 't')
+                        aChar = '\t';
+                    else if(aChar == 'r')
+                        aChar = '\r';
+                    else if(aChar == 'n')
+                        aChar = '\n';
+                    else if(aChar == 'f')
+                        aChar = '\f';
+                    out[outLen++] = aChar;
+                }
+            } else {
+                out[outLen++] = aChar;
+            }
+        }
+        return new String(out, 0, outLen);
+    }
+    
+    /**
+     * Converts unicodes to encoded &#92;uxxxx and escapes
+     * special characters with a preceding slash
+     */
+    private String saveConvert(String theString, boolean escapeSpace, boolean escapeUnicode) {
+        int len = theString.length();
+        int bufLen = len * 2;
+        if(bufLen<0) {
+            bufLen = Integer.MAX_VALUE;
+        }
+        StringBuilder outBuffer = new StringBuilder(bufLen);
+        
+        for(int x = 0; x<len; x++) {
+            char aChar = theString.charAt(x);
+            // Handle common case first, selecting largest block that
+            // avoids the specials below
+            if((aChar>61) && (aChar<127)) {
+                if(aChar == '\\') {
+                    outBuffer.append('\\');
+                    outBuffer.append('\\');
+                    continue;
+                }
+                outBuffer.append(aChar);
+                continue;
+            }
+            switch(aChar) {
+                case ' ':
+                    if(x == 0 || escapeSpace)
+                        outBuffer.append('\\');
+                    outBuffer.append(' ');
+                    break;
+                case '\t':
+                    outBuffer.append('\\');
+                    outBuffer.append('t');
+                    break;
+                case '\n':
+                    outBuffer.append('\\');
+                    outBuffer.append('n');
+                    break;
+                case '\r':
+                    outBuffer.append('\\');
+                    outBuffer.append('r');
+                    break;
+                case '\f':
+                    outBuffer.append('\\');
+                    outBuffer.append('f');
+                    break;
+                case '=': // Fall through
+                case ':': // Fall through
+                case '#': // Fall through
+                case '!':
+                    outBuffer.append('\\');
+                    outBuffer.append(aChar);
+                    break;
+                default:
+                    if(((aChar<0x0020) || (aChar>0x007e)) & escapeUnicode) {
+                        outBuffer.append('\\');
+                        outBuffer.append('u');
+                        outBuffer.append(toHex((aChar >> 12) & 0xF));
+                        outBuffer.append(toHex((aChar >> 8) & 0xF));
+                        outBuffer.append(toHex((aChar >> 4) & 0xF));
+                        outBuffer.append(toHex(aChar & 0xF));
+                    } else {
+                        outBuffer.append(aChar);
+                    }
+            }
+        }
+        return outBuffer.toString();
+    }
+    
+    private void store0(BufferedWriter bw, String comments, boolean escUnicode) throws IOException {
+        if(comments != null) {
+            writeComments(bw, comments);
+        }
+        bw.write("#" + new Date().toString());
+        bw.newLine();
+        synchronized(this) {
+            for(Map.Entry<Object, Object> e : entrySet()) {
+                String key = (String) e.getKey();
+                String val = (String) e.getValue();
+                key = saveConvert(key, true, escUnicode);
+                /* No need to escape embedded and trailing spaces for value, hence pass false to flag. */
+                val = saveConvert(val, false, escUnicode);
+                bw.write(key + "=" + val);
+                bw.newLine();
+            }
+        }
+        bw.flush();
+    }
+    
+    /**
+     * Enumerates all key/value pairs into the specified Map.
+     *
+     * @param h the Map
+     *
+     * @throws ClassCastException if any of the property keys
+     *                            is not of String type.
+     */
+    private void enumerate(Map<String, Object> h) {
+        if(defaults != null) {
+            defaults.enumerate(h);
+        }
+        for(Map.Entry<Object, Object> e : entrySet()) {
+            String key = (String) e.getKey();
+            h.put(key, e.getValue());
+        }
+    }
+    
+    /**
+     * Enumerates all key/value pairs into the specified Map
+     * and omits the property if the key or value is not a string.
+     *
+     * @param h the Map
+     */
+    private void enumerateStringProperties(Map<String, String> h) {
+        if(defaults != null) {
+            defaults.enumerateStringProperties(h);
+        }
+        for(Map.Entry<Object, Object> e : entrySet()) {
+            Object k = e.getKey();
+            Object v = e.getValue();
+            if(k instanceof String && v instanceof String) {
+                h.put((String) k, (String) v);
+            }
+        }
+    }
+    
+    
+    
+    /**
+     * Read in a "logical line" from an InputStream/Reader,
+     * skip all comment and blank lines and filter out those leading whitespace characters
+     * (\u0020, \u0009 and \u000c) from the beginning of a "natural line".
+     * Method returns the char length of the "logical line" and stores the line in "lineBuf".
+     */
+    class LineReader {
+        InputStream inStream;   // 字节输入流
+        byte[] inByteBuf;       // 缓存字节数据
+        
+        Reader reader;          // 字符输入流
+        char[] inCharBuf;       // 缓存字符数据
+        
+        // 当前读入的字节/字符数量
+        int inLimit = 0;
+        
+        // 已遍历的字节/字符数量
+        int inOff = 0;
+        
+        // 缓存属性行
+        char[] lineBuf = new char[1024];
+        
+        
+        public LineReader(InputStream inStream) {
+            this.inStream = inStream;
+            inByteBuf = new byte[8192];
+        }
+        
+        public LineReader(Reader reader) {
+            this.reader = reader;
+            inCharBuf = new char[8192];
+        }
+        
+        // 返回当前读到的属性行的长度
+        int readLine() throws IOException {
+            int len = 0;
+            char c = 0;
+            
+            boolean skipWhiteSpace = true;
+            boolean isCommentLine = false;
+            boolean isNewLine = true;
+            boolean appendedLineBegin = false;
+            boolean precedingBackslash = false;
+            boolean skipLF = false;
+            
+            while(true) {
+                if(inOff >= inLimit) {
+                    // 读取字节/字符
+                    inLimit = (inStream == null) ? reader.read(inCharBuf) : inStream.read(inByteBuf);
+                    
+                    inOff = 0;
+                    
+                    if(inLimit<=0) {
+                        if(len == 0 || isCommentLine) {
+                            return -1;
+                        }
+                        
+                        if(precedingBackslash) {
+                            len--;
+                        }
+                        
+                        return len;
+                    }
+                }
+                
+                if(inStream != null) {
+                    // The line below is equivalent to calling a ISO8859-1 decoder.
+                    c = (char) (inByteBuf[inOff++] & 0xFF); // 逐字节解析（相当于使用ISO8859-1解码）
+                } else {
+                    c = inCharBuf[inOff++];
+                }
+                
+                if(skipLF) {
+                    skipLF = false;
+                    if(c == '\n') {
+                        continue;
+                    }
+                }
+                
+                if(skipWhiteSpace) {
+                    // 跳过前导空白字符
+                    if(c == ' ' || c == '\t' || c == '\f') {
+                        continue;
+                    }
+                    
+                    // 遇到换行符
+                    if(!appendedLineBegin && (c == '\r' || c == '\n')) {
+                        continue;
+                    }
+                    
+                    skipWhiteSpace = false;
+                    appendedLineBegin = false;
+                }
+                
+                if(isNewLine) {
+                    isNewLine = false;
+                    
+                    // 遇到注释，则快速消耗
+                    if(c == '#' || c == '!') {
+                        // Comment, quickly consume the rest of the line, resume on line-break and backslash.
+                        if(inStream != null) {
+                            while(inOff<inLimit) {
+                                byte b = inByteBuf[inOff++];
+                                if(b == '\n' || b == '\r' || b == '\\') {
+                                    c = (char) (b & 0xFF);
+                                    break;
+                                }
+                            }
+                        } else {
+                            while(inOff<inLimit) {
+                                c = inCharBuf[inOff++];
+                                if(c == '\n' || c == '\r' || c == '\\') {
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        isCommentLine = true;
+                    }
+                }
+                
+                // 遇到有效内容则缓存
+                if(c != '\n' && c != '\r') {
+                    lineBuf[len++] = c;
+                    if(len == lineBuf.length) {
+                        int newLength = lineBuf.length * 2;
+                        if(newLength<0) {
+                            newLength = Integer.MAX_VALUE;
+                        }
+                        char[] buf = new char[newLength];
+                        System.arraycopy(lineBuf, 0, buf, 0, lineBuf.length);
+                        lineBuf = buf;
+                    }
+                    //flip the preceding backslash flag
+                    if(c == '\\') {
+                        precedingBackslash = !precedingBackslash;
+                    } else {
+                        precedingBackslash = false;
+                    }
+                } else {
+                    // reached EOL
+                    if(isCommentLine || len == 0) {
+                        isCommentLine = false;
+                        isNewLine = true;
+                        skipWhiteSpace = true;
+                        len = 0;
+                        continue;
+                    }
+                    
+                    if(inOff >= inLimit) {
+                        inLimit = (inStream == null) ? reader.read(inCharBuf) : inStream.read(inByteBuf);
+                        inOff = 0;
+                        if(inLimit<=0) {
+                            if(precedingBackslash) {
+                                len--;
+                            }
+                            return len;
+                        }
+                    }
+                    
+                    if(precedingBackslash) {
+                        len -= 1;
+                        //skip the leading whitespace characters in following line
+                        skipWhiteSpace = true;
+                        appendedLineBegin = true;
+                        precedingBackslash = false;
+                        if(c == '\r') {
+                            skipLF = true;
+                        }
+                    } else {
+                        return len;
+                    }
+                }
+            }
+        }
+    }
+    
+    
+    /**
+     * Properties.entrySet() should not support add/addAll, however
+     * ConcurrentHashMap.entrySet() provides add/addAll.  This class wraps the
+     * Set returned from CHM, changing add/addAll to throw UOE.
+     */
+    private static class EntrySet implements Set<Map.Entry<Object, Object>> {
+        private Set<Map.Entry<Object, Object>> entrySet;
+        
+        private EntrySet(Set<Map.Entry<Object, Object>> entrySet) {
+            this.entrySet = entrySet;
+        }
+        
+        @Override
+        public int size() {
+            return entrySet.size();
+        }
+        
+        @Override
+        public boolean isEmpty() {
+            return entrySet.isEmpty();
+        }
+        
+        @Override
+        public boolean contains(Object o) {
+            return entrySet.contains(o);
+        }
+        
+        @Override
+        public Object[] toArray() {
+            return entrySet.toArray();
+        }
+        
+        @Override
+        public <T> T[] toArray(T[] a) {
+            return entrySet.toArray(a);
+        }
+        
+        @Override
+        public void clear() {
+            entrySet.clear();
+        }
+        
+        @Override
+        public boolean remove(Object o) {
+            return entrySet.remove(o);
+        }
+        
+        @Override
+        public boolean add(Map.Entry<Object, Object> e) {
+            throw new UnsupportedOperationException();
+        }
+        
+        @Override
+        public boolean addAll(Collection<? extends Map.Entry<Object, Object>> c) {
+            throw new UnsupportedOperationException();
+        }
+        
+        @Override
+        public boolean containsAll(Collection<?> c) {
+            return entrySet.containsAll(c);
+        }
+        
+        @Override
+        public boolean removeAll(Collection<?> c) {
+            return entrySet.removeAll(c);
+        }
+        
+        @Override
+        public boolean retainAll(Collection<?> c) {
+            return entrySet.retainAll(c);
+        }
+        
+        @Override
+        public Iterator<Map.Entry<Object, Object>> iterator() {
+            return entrySet.iterator();
+        }
+    }
+    
 }

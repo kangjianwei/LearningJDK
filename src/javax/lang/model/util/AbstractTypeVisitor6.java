@@ -61,95 +61,101 @@ import static javax.lang.model.SourceVersion.*;
  * @author Joseph D. Darcy
  * @author Scott Seligman
  * @author Peter von der Ah&eacute;
- *
  * @see AbstractTypeVisitor7
  * @see AbstractTypeVisitor8
  * @see AbstractTypeVisitor9
  * @since 1.6
  */
+// 类型访问器的抽象实现（JDK6）
 @SupportedSourceVersion(RELEASE_6)
 public abstract class AbstractTypeVisitor6<R, P> implements TypeVisitor<R, P> {
     /**
      * Constructor for concrete subclasses to call.
+     *
      * @deprecated Release 6 is obsolete; update to a visitor for a newer
      * release level.
      */
-    @Deprecated(since="9")
-    protected AbstractTypeVisitor6() {}
-
+    @Deprecated(since = "9")
+    protected AbstractTypeVisitor6() {
+    }
+    
     /**
      * Visits any type mirror as if by passing itself to that type
      * mirror's {@link TypeMirror#accept accept} method.  The
      * invocation {@code v.visit(t, p)} is equivalent to {@code
      * t.accept(v, p)}.
      *
-     * @param t  the type to visit
-     * @param p  a visitor-specified parameter
+     * @param t the type to visit
+     * @param p a visitor-specified parameter
+     *
      * @return a visitor-specified result
      */
     public final R visit(TypeMirror t, P p) {
         return t.accept(this, p);
     }
-
+    
     /**
      * Visits any type mirror as if by passing itself to that type
      * mirror's {@link TypeMirror#accept accept} method and passing
      * {@code null} for the additional parameter.  The invocation
      * {@code v.visit(t)} is equivalent to {@code t.accept(v, null)}.
      *
-     * @param t  the type to visit
+     * @param t the type to visit
+     *
      * @return a visitor-specified result
      */
     public final R visit(TypeMirror t) {
         return t.accept(this, null);
     }
-
+    
     /**
      * {@inheritDoc}
+     *
+     * @param t {@inheritDoc}
+     * @param p {@inheritDoc}
+     *
+     * @return the result of {@code visitUnknown}
      *
      * @implSpec Visits a {@code UnionType} element by calling {@code
      * visitUnknown}.
-     *
-     * @param t  {@inheritDoc}
-     * @param p  {@inheritDoc}
-     * @return the result of {@code visitUnknown}
-     *
      * @since 1.7
      */
+    // JDK6中无法识别联合类型
     public R visitUnion(UnionType t, P p) {
         return visitUnknown(t, p);
     }
-
+    
     /**
      * {@inheritDoc}
      *
-     * @implSpec Visits an {@code IntersectionType} element by calling {@code
-     * visitUnknown}.
+     * @param t {@inheritDoc}
+     * @param p {@inheritDoc}
      *
-     * @param t  {@inheritDoc}
-     * @param p  {@inheritDoc}
      * @return the result of {@code visitUnknown}
      *
+     * @implSpec Visits an {@code IntersectionType} element by calling {@code
+     * visitUnknown}.
      * @since 1.8
      */
+    // JDK6中无法识别交集类型
     @Override
     public R visitIntersection(IntersectionType t, P p) {
         return visitUnknown(t, p);
     }
-
+    
     /**
      * {@inheritDoc}
      *
+     * @param t {@inheritDoc}
+     * @param p {@inheritDoc}
+     *
+     * @return a visitor-specified result
+     *
+     * @throws UnknownTypeException a visitor implementation may optionally throw this exception
      * @implSpec The default implementation of this method in {@code
      * AbstractTypeVisitor6} will always throw {@code
      * new UnknownTypeException(t, p)}.  This behavior is not required of a
      * subclass.
-     *
-     * @param t  {@inheritDoc}
-     * @param p  {@inheritDoc}
-     * @return a visitor-specified result
-     * @throws UnknownTypeException
-     *  a visitor implementation may optionally throw this exception
      */
     @Override
     public R visitUnknown(TypeMirror t, P p) {

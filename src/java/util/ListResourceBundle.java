@@ -115,61 +115,52 @@ import sun.util.ResourceBundleEnumeration;
  * @see PropertyResourceBundle
  * @since 1.1
  */
+// 简化的资源集，属性集硬编码到代码中，子类可以实现为国际化资源，然后从ResourceBundle内加载
 public abstract class ListResourceBundle extends ResourceBundle {
+    // 属性集
+    private volatile Map<String, Object> lookup = null;
+    
     /**
      * Sole constructor.  (For invocation by subclass constructors, typically
      * implicit.)
      */
     public ListResourceBundle() {
     }
-
-    // Implements java.util.ResourceBundle.handleGetObject; inherits javadoc specification.
+    
+    // 由key查找value
     public final Object handleGetObject(String key) {
-        // lazily load the lookup hashtable.
-        if (lookup == null) {
+        // 懒加载，创建属性集
+        if(lookup == null) {
             loadLookup();
         }
-        if (key == null) {
+        
+        if(key == null) {
             throw new NullPointerException();
         }
+        
         return lookup.get(key); // this class ignores locales
     }
-
+    
     /**
      * Returns an <code>Enumeration</code> of the keys contained in
      * this <code>ResourceBundle</code> and its parent bundles.
      *
      * @return an <code>Enumeration</code> of the keys contained in
-     *         this <code>ResourceBundle</code> and its parent bundles.
+     * this <code>ResourceBundle</code> and its parent bundles.
+     *
      * @see #keySet()
      */
+    // 返回所有key的集合，包括父级资源的key
     public Enumeration<String> getKeys() {
         // lazily load the lookup hashtable.
-        if (lookup == null) {
+        if(lookup == null) {
             loadLookup();
         }
-
+        
         ResourceBundle parent = this.parent;
-        return new ResourceBundleEnumeration(lookup.keySet(),
-                (parent != null) ? parent.getKeys() : null);
+        return new ResourceBundleEnumeration(lookup.keySet(), (parent != null) ? parent.getKeys() : null);
     }
-
-    /**
-     * Returns a <code>Set</code> of the keys contained
-     * <em>only</em> in this <code>ResourceBundle</code>.
-     *
-     * @return a <code>Set</code> of the keys contained only in this
-     *         <code>ResourceBundle</code>
-     * @since 1.6
-     * @see #keySet()
-     */
-    protected Set<String> handleKeySet() {
-        if (lookup == null) {
-            loadLookup();
-        }
-        return lookup.keySet();
-    }
-
+    
     /**
      * Returns an array in which each item is a pair of objects in an
      * <code>Object</code> array. The first element of each pair is
@@ -180,31 +171,49 @@ public abstract class ListResourceBundle extends ResourceBundle {
      * @return an array of an <code>Object</code> array representing a
      * key-value pair.
      */
+    // 获取硬编码的所有键值对资源（要求key是非空字符串，值非空）
     protected abstract Object[][] getContents();
-
-    // ==================privates====================
-
+    
+    /**
+     * Returns a <code>Set</code> of the keys contained
+     * <em>only</em> in this <code>ResourceBundle</code>.
+     *
+     * @return a <code>Set</code> of the keys contained only in this
+     * <code>ResourceBundle</code>
+     *
+     * @see #keySet()
+     * @since 1.6
+     */
+    // 返回key的集合
+    protected Set<String> handleKeySet() {
+        if(lookup == null) {
+            loadLookup();
+        }
+        return lookup.keySet();
+    }
+    
     /**
      * We lazily load the lookup hashtable.  This function does the
      * loading.
      */
+    // 创建属性集
     private synchronized void loadLookup() {
-        if (lookup != null)
+        if(lookup != null) {
             return;
-
+        }
+        
         Object[][] contents = getContents();
-        HashMap<String,Object> temp = new HashMap<>(contents.length);
-        for (Object[] content : contents) {
+        HashMap<String, Object> temp = new HashMap<>(contents.length);
+        for(Object[] content : contents) {
             // key must be non-null String, value must be non-null
             String key = (String) content[0];
             Object value = content[1];
-            if (key == null || value == null) {
+            if(key == null || value == null) {
                 throw new NullPointerException();
             }
             temp.put(key, value);
         }
+        
         lookup = temp;
     }
-
-    private volatile Map<String,Object> lookup = null;
 }

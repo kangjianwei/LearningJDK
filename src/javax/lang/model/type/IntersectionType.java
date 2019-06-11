@@ -42,12 +42,14 @@ import java.util.List;
  *
  * @since 1.8
  */
+// 交集类型，交集类型可以隐式或显式地声明在程序中（如出现在泛型声明中的A & B & C）
 public interface IntersectionType extends TypeMirror {
-
+    
     /**
      * Return the bounds comprising this intersection type.
      *
      * @return the bounds of this intersection type
      */
+    // 获取交集类型中包含的各个类型
     List<? extends TypeMirror> getBounds();
 }

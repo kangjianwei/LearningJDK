@@ -26,9 +26,9 @@
 package javax.lang.model.util;
 
 import javax.annotation.processing.SupportedSourceVersion;
-import javax.lang.model.type.*;
 import javax.lang.model.SourceVersion;
-import static javax.lang.model.SourceVersion.*;
+
+import static javax.lang.model.SourceVersion.RELEASE_11;
 
 /**
  * A skeletal visitor of types with default behavior appropriate for
@@ -63,6 +63,7 @@ import static javax.lang.model.SourceVersion.*;
  * @see AbstractTypeVisitor8
  * @since 9
  */
+// 类型访问器的抽象实现（JDK9）
 @SupportedSourceVersion(RELEASE_11)
 public abstract class AbstractTypeVisitor9<R, P> extends AbstractTypeVisitor8<R, P> {
     /**

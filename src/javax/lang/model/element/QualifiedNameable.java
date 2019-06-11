@@ -31,11 +31,13 @@ package javax.lang.model.element;
  * @author Joseph D. Darcy
  * @since 1.7
  */
+// 全限定名
 public interface QualifiedNameable extends Element {
     /**
      * Returns the fully qualified name of an element.
      *
      * @return the fully qualified name of an element
      */
+    // 全限定名称
     Name getQualifiedName();
 }

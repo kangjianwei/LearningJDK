@@ -25,11 +25,14 @@
 
 package javax.annotation.processing;
 
-import javax.tools.JavaFileManager;
-import javax.tools.*;
+import java.io.IOException;
+
 import javax.lang.model.element.Element;
 import javax.lang.model.util.Elements;
-import java.io.IOException;
+import javax.tools.FileObject;
+import javax.tools.JavaFileManager;
+import javax.tools.JavaFileObject;
+import javax.tools.StandardLocation;
 
 /**
  * This interface supports the creation of new files by an annotation
@@ -116,6 +119,9 @@ import java.io.IOException;
  * including a {@code javax.annotation.Generated} annotation if the
  * environment is configured so that that type is accessible.
  *
+ * @author Joseph D. Darcy
+ * @author Scott Seligman
+ * @author Peter von der Ah&eacute;
  * @apiNote Some of the effect of overwriting a file can be
  * achieved by using a <i>decorator</i>-style pattern.  Instead of
  * modifying a class directly, the class is designed so that either
@@ -124,12 +130,9 @@ import java.io.IOException;
  * subclasses are generated, the parent class may be designed to use
  * factories instead of public constructors so that only subclass
  * instances would be presented to clients of the parent class.
- *
- * @author Joseph D. Darcy
- * @author Scott Seligman
- * @author Peter von der Ah&eacute;
  * @since 1.6
  */
+// 用于在注解处理器工作期间创建/读取文件
 public interface Filer {
     /**
      * Creates a new source file and returns an object to allow
@@ -167,6 +170,22 @@ public interface Filer {
      * <p>Creating a source file in or for an unnamed package in a named
      * module is <em>not</em> supported.
      *
+     * @param name                canonical (fully qualified) name of the principal type
+     *                            being declared in this file or a package name followed by
+     *                            {@code ".package-info"} for a package information file
+     * @param originatingElements type or package or module elements causally
+     *                            associated with the creation of this file, may be elided or
+     *                            {@code null}
+     *
+     * @return a {@code JavaFileObject} to write the new source file
+     *
+     * @throws FilerException if the same pathname has already been
+     *                        created, the same type has already been created, the name is
+     *                        otherwise not valid for the entity requested to being created,
+     *                        if the target module cannot be determined, if the target
+     *                        module is not writable, or a module is specified when the environment
+     *                        doesn't support modules.
+     * @throws IOException    if the file cannot be created
      * @apiNote To use a particular {@linkplain
      * java.nio.charset.Charset charset} to encode the contents of the
      * file, an {@code OutputStreamWriter} with the chosen charset can
@@ -182,7 +201,6 @@ public interface Filer {
      * should be compatible with the {@linkplain
      * ProcessingEnvironment#getSourceVersion source version} being used
      * for this run.
-     *
      * @implNote In the reference implementation, if the annotation
      * processing tool is processing a single module <i>M</i>,
      * then <i>M</i> is used as the module for files created without
@@ -193,26 +211,15 @@ public interface Filer {
      * returns a package, the module that owns the returned package is used
      * as the target module. A separate option may be used to provide the target
      * module if it cannot be determined using the above rules.
-     *
-     * @param name  canonical (fully qualified) name of the principal type
-     *          being declared in this file or a package name followed by
-     *          {@code ".package-info"} for a package information file
-     * @param originatingElements type or package or module elements causally
-     * associated with the creation of this file, may be elided or
-     * {@code null}
-     * @return a {@code JavaFileObject} to write the new source file
-     * @throws FilerException if the same pathname has already been
-     * created, the same type has already been created, the name is
-     * otherwise not valid for the entity requested to being created,
-     * if the target module cannot be determined, if the target
-     * module is not writable, or a module is specified when the environment
-     * doesn't support modules.
-     * @throws IOException if the file cannot be created
      * @jls 7.3 Compilation Units
      */
-    JavaFileObject createSourceFile(CharSequence name,
-                                    Element... originatingElements) throws IOException;
-
+    /*
+     * 用来创建一个.java文件，name是全限定名，最后一个参数目前没用
+     * 文件存放路径是相对StandardLocation#SOURCE_OUTPUT而言的
+     */
+    JavaFileObject createSourceFile(CharSequence name, Element... originatingElements)
+        throws IOException;
+    
     /**
      * Creates a new class file, and returns an object to allow
      * writing to it. A class file for a type, or a package can
@@ -243,11 +250,24 @@ public interface Filer {
      * <p>Creating a class file in or for an unnamed package in a named
      * module is <em>not</em> supported.
      *
+     * @param name                binary name of the type being written or a package name followed by
+     *                            {@code ".package-info"} for a package information file
+     * @param originatingElements type or package or module elements causally
+     *                            associated with the creation of this file, may be elided or
+     *                            {@code null}
+     *
+     * @return a {@code JavaFileObject} to write the new class file
+     *
+     * @throws FilerException if the same pathname has already been
+     *                        created, the same type has already been created, the name is
+     *                        not valid for a type, if the target module cannot be determined,
+     *                        if the target module is not writable, or a module is specified when
+     *                        the environment doesn't support modules.
+     * @throws IOException    if the file cannot be created
      * @apiNote To avoid subsequent errors, the contents of the class
      * file should be compatible with the {@linkplain
      * ProcessingEnvironment#getSourceVersion source version} being
      * used for this run.
-     *
      * @implNote In the reference implementation, if the annotation
      * processing tool is processing a single module <i>M</i>,
      * then <i>M</i> is used as the module for files created without
@@ -258,23 +278,14 @@ public interface Filer {
      * returns a package, the module that owns the returned package is used
      * as the target module. A separate option may be used to provide the target
      * module if it cannot be determined using the above rules.
-     *
-     * @param name binary name of the type being written or a package name followed by
-     *          {@code ".package-info"} for a package information file
-     * @param originatingElements type or package or module elements causally
-     * associated with the creation of this file, may be elided or
-     * {@code null}
-     * @return a {@code JavaFileObject} to write the new class file
-     * @throws FilerException if the same pathname has already been
-     * created, the same type has already been created, the name is
-     * not valid for a type, if the target module cannot be determined,
-     * if the target module is not writable, or a module is specified when
-     * the environment doesn't support modules.
-     * @throws IOException if the file cannot be created
      */
-    JavaFileObject createClassFile(CharSequence name,
-                                   Element... originatingElements) throws IOException;
-
+    /*
+     * 用来创建一个.class文件，name是全限定名，最后一个参数目前没用
+     * 文件存放路径是相对StandardLocation#CLASS_OUTPUT而言的
+     */
+    JavaFileObject createClassFile(CharSequence name, Element... originatingElements)
+        throws IOException;
+    
     /**
      * Creates a new auxiliary resource file for writing and returns a
      * file object for it.  The file may be located along with the
@@ -315,6 +326,24 @@ public interface Filer {
      * would correspond to the full pathname of a new source file
      * or new class file.
      *
+     * @param location            location of the new file
+     * @param moduleAndPkg        module and/or package relative to which the file
+     *                            should be named, or the empty string if none
+     * @param relativeName        final pathname components of the file
+     * @param originatingElements type or package or module elements causally
+     *                            associated with the creation of this file, may be elided or
+     *                            {@code null}
+     *
+     * @return a {@code FileObject} to write the new resource
+     *
+     * @throws IOException              if the file cannot be created
+     * @throws FilerException           if the same pathname has already been
+     *                                  created, if the target module cannot be determined,
+     *                                  or if the target module is not writable, or if an explicit
+     *                                  target module is specified and the location does not support it.
+     * @throws IllegalArgumentException for an unsupported location
+     * @throws IllegalArgumentException if {@code moduleAndPkg} is ill-formed
+     * @throws IllegalArgumentException if {@code relativeName} is not relative
      * @implNote In the reference implementation, if the annotation
      * processing tool is processing a single module <i>M</i>,
      * then <i>M</i> is used as the module for files created without
@@ -325,29 +354,14 @@ public interface Filer {
      * returns a package, the module that owns the returned package is used
      * as the target module. A separate option may be used to provide the target
      * module if it cannot be determined using the above rules.
-     *
-     * @param location location of the new file
-     * @param moduleAndPkg module and/or package relative to which the file
-     *           should be named, or the empty string if none
-     * @param relativeName final pathname components of the file
-     * @param originatingElements type or package or module elements causally
-     * associated with the creation of this file, may be elided or
-     * {@code null}
-     * @return a {@code FileObject} to write the new resource
-     * @throws IOException if the file cannot be created
-     * @throws FilerException if the same pathname has already been
-     * created, if the target module cannot be determined,
-     * or if the target module is not writable, or if an explicit
-     * target module is specified and the location does not support it.
-     * @throws IllegalArgumentException for an unsupported location
-     * @throws IllegalArgumentException if {@code moduleAndPkg} is ill-formed
-     * @throws IllegalArgumentException if {@code relativeName} is not relative
      */
-   FileObject createResource(JavaFileManager.Location location,
-                             CharSequence moduleAndPkg,
-                             CharSequence relativeName,
-                             Element... originatingElements) throws IOException;
-
+    /*
+     * 用来创建一个资源文件，可以是任意类型。moduleAndPkg是包名，relativeName是资源名称（带后缀），最后一个参数目前没用
+     * 文件存放路径由location指定
+     */
+    FileObject createResource(JavaFileManager.Location location, CharSequence moduleAndPkg, CharSequence relativeName, Element... originatingElements)
+        throws IOException;
+    
     /**
      * Returns an object for reading an existing resource.  The
      * locations {@link StandardLocation#CLASS_OUTPUT CLASS_OUTPUT}
@@ -377,6 +391,21 @@ public interface Filer {
      * about the configuration of the annotation processing tool
      * as part of the inference.
      *
+     * @param location     location of the file
+     * @param moduleAndPkg module and/or package relative to which the file
+     *                     should be searched for, or the empty string if none
+     * @param relativeName final pathname components of the file
+     *
+     * @return an object to read the file
+     *
+     * @throws FilerException           if the same pathname has already been
+     *                                  opened for writing, if the source module cannot be determined,
+     *                                  or if the target module is not writable, or if an explicit target
+     *                                  module is specified and the location does not support it.
+     * @throws IOException              if the file cannot be opened
+     * @throws IllegalArgumentException for an unsupported location
+     * @throws IllegalArgumentException if {@code moduleAndPkg} is ill-formed
+     * @throws IllegalArgumentException if {@code relativeName} is not relative
      * @implNote In the reference implementation, if the annotation
      * processing tool is processing a single module <i>M</i>,
      * then <i>M</i> is used as the module for files read without
@@ -387,22 +416,11 @@ public interface Filer {
      * returns a package, the module that owns the returned package is used
      * as the source module. A separate option may be used to provide the target
      * module if it cannot be determined using the above rules.
-     *
-     * @param location location of the file
-     * @param moduleAndPkg module and/or package relative to which the file
-     *          should be searched for, or the empty string if none
-     * @param relativeName final pathname components of the file
-     * @return an object to read the file
-     * @throws FilerException if the same pathname has already been
-     * opened for writing, if the source module cannot be determined,
-     * or if the target module is not writable, or if an explicit target
-     * module is specified and the location does not support it.
-     * @throws IOException if the file cannot be opened
-     * @throws IllegalArgumentException for an unsupported location
-     * @throws IllegalArgumentException if {@code moduleAndPkg} is ill-formed
-     * @throws IllegalArgumentException if {@code relativeName} is not relative
      */
-    FileObject getResource(JavaFileManager.Location location,
-                           CharSequence moduleAndPkg,
-                           CharSequence relativeName) throws IOException;
+    /*
+     * 用来读取一个资源文件，可以是任意类型。moduleAndPkg是包名，relativeName是资源名称（带后缀）
+     * 文件读取路径由location指定
+     */
+    FileObject getResource(JavaFileManager.Location location, CharSequence moduleAndPkg, CharSequence relativeName)
+        throws IOException;
 }

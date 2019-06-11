@@ -25,8 +25,6 @@
 
 package javax.lang.model.element;
 
-import javax.lang.model.util.*;
-
 /**
  * A visitor of program elements, in the style of the visitor design
  * pattern.  Classes implementing this interface are used to operate
@@ -75,93 +73,118 @@ import javax.lang.model.util.*;
  * @author Peter von der Ah&eacute;
  * @since 1.6
  */
+// 元素访问器，可以对不同种类的元素执行不同的操作
 public interface ElementVisitor<R, P> {
-    /**
-     * Visits an element.
-     * @param e  the element to visit
-     * @param p  a visitor-specified parameter
-     * @return a visitor-specified result
-     */
-    R visit(Element e, P p);
-
-    /**
-     * A convenience method equivalent to {@code visit(e, null)}.
-     *
-     * @implSpec The default implementation is {@code visit(e, null)}.
-     *
-     * @param e  the element to visit
-     * @return a visitor-specified result
-     */
-    default R visit(Element e) {
-        return visit(e, null);
-    }
-
-    /**
-     * Visits a package element.
-     * @param e  the element to visit
-     * @param p  a visitor-specified parameter
-     * @return a visitor-specified result
-     */
-    R visitPackage(PackageElement e, P p);
-
-    /**
-     * Visits a type element.
-     * @param e  the element to visit
-     * @param p  a visitor-specified parameter
-     * @return a visitor-specified result
-     */
-    R visitType(TypeElement e, P p);
-
-    /**
-     * Visits a variable element.
-     * @param e  the element to visit
-     * @param p  a visitor-specified parameter
-     * @return a visitor-specified result
-     */
-    R visitVariable(VariableElement e, P p);
-
-    /**
-     * Visits an executable element.
-     * @param e  the element to visit
-     * @param p  a visitor-specified parameter
-     * @return a visitor-specified result
-     */
-    R visitExecutable(ExecutableElement e, P p);
-
-    /**
-     * Visits a type parameter element.
-     * @param e  the element to visit
-     * @param p  a visitor-specified parameter
-     * @return a visitor-specified result
-     */
-    R visitTypeParameter(TypeParameterElement e, P p);
-
+    
     /**
      * Visits an unknown kind of element.
      * This can occur if the language evolves and new kinds
      * of elements are added to the {@code Element} hierarchy.
      *
-     * @param e  the element to visit
-     * @param p  a visitor-specified parameter
+     * @param e the element to visit
+     * @param p a visitor-specified parameter
+     *
      * @return a visitor-specified result
-     * @throws UnknownElementException
-     *  a visitor implementation may optionally throw this exception
+     *
+     * @throws UnknownElementException a visitor implementation may optionally throw this exception
      */
+    // 未知种类的元素
     R visitUnknown(Element e, P p);
-
+    
+    /**
+     * Visits an element.
+     *
+     * @param e the element to visit
+     * @param p a visitor-specified parameter
+     *
+     * @return a visitor-specified result
+     */
+    // 访问所有种类的元素
+    R visit(Element e, P p);
+    
+    /**
+     * Visits a variable element.
+     *
+     * @param e the element to visit
+     * @param p a visitor-specified parameter
+     *
+     * @return a visitor-specified result
+     */
+    // 访问字段/变量/参数元素
+    R visitVariable(VariableElement e, P p);
+    
+    /**
+     * Visits an executable element.
+     *
+     * @param e the element to visit
+     * @param p a visitor-specified parameter
+     *
+     * @return a visitor-specified result
+     */
+    // 访问方法/构造器/初始化块元素
+    R visitExecutable(ExecutableElement e, P p);
+    
+    /**
+     * Visits a type parameter element.
+     *
+     * @param e the element to visit
+     * @param p a visitor-specified parameter
+     *
+     * @return a visitor-specified result
+     */
+    // 访问类型参数元素
+    R visitTypeParameter(TypeParameterElement e, P p);
+    
+    /**
+     * Visits a type element.
+     *
+     * @param e the element to visit
+     * @param p a visitor-specified parameter
+     *
+     * @return a visitor-specified result
+     */
+    // 访问类/接口元素
+    R visitType(TypeElement e, P p);
+    
+    /**
+     * Visits a package element.
+     *
+     * @param e the element to visit
+     * @param p a visitor-specified parameter
+     *
+     * @return a visitor-specified result
+     */
+    // 访问包元素
+    R visitPackage(PackageElement e, P p);
+    
     /**
      * Visits a module element.
      *
+     * @param e the element to visit
+     * @param p a visitor-specified parameter
+     *
+     * @return a visitor-specified result
+     *
      * @implSpec The default implementation visits a {@code
      * ModuleElement} by calling {@code visitUnknown(e, p)}.
-     *
-     * @param e  the element to visit
-     * @param p  a visitor-specified parameter
-     * @return a visitor-specified result
-     * @since 9
      * @spec JPMS
+     * @since 9
      */
+    // 访问模块元素
     default R visitModule(ModuleElement e, P p) {
         return visitUnknown(e, p);
     }
+    /**
+     * A convenience method equivalent to {@code visit(e, null)}.
+     *
+     * @param e the element to visit
+     *
+     * @return a visitor-specified result
+     *
+     * @implSpec The default implementation is {@code visit(e, null)}.
+     */
+    default R visit(Element e) {
+        return visit(e, null);
+    }
+    
 }

@@ -25,10 +25,6 @@
 
 package javax.lang.model;
 
-import java.util.Collections;
-import java.util.Set;
-import java.util.HashSet;
-
 /**
  * Source versions of the Java&trade; programming language.
  *
@@ -44,6 +40,7 @@ import java.util.HashSet;
  * @author Peter von der Ah&eacute;
  * @since 1.6
  */
+// 源码版本信息
 public enum SourceVersion {
     /*
      * Summary of language evolution
@@ -59,7 +56,7 @@ public enum SourceVersion {
      *  10: local-variable type inference (var)
      *  11: to be determined changes
      */
-
+    
     /**
      * The original version.
      *
@@ -67,7 +64,7 @@ public enum SourceVersion {
      * <cite>The Java&trade; Language Specification, First Edition</cite>.
      */
     RELEASE_0,
-
+    
     /**
      * The version recognized by the Java Platform 1.1.
      *
@@ -75,7 +72,7 @@ public enum SourceVersion {
      * <cite>The Java&trade; Language Specification, First Edition</cite>.
      */
     RELEASE_1,
-
+    
     /**
      * The version recognized by the Java 2 Platform, Standard Edition,
      * v 1.2.
@@ -86,7 +83,7 @@ public enum SourceVersion {
      * strictfp} modifier.
      */
     RELEASE_2,
-
+    
     /**
      * The version recognized by the Java 2 Platform, Standard Edition,
      * v 1.3.
@@ -94,7 +91,7 @@ public enum SourceVersion {
      * No major changes from {@code RELEASE_2}.
      */
     RELEASE_3,
-
+    
     /**
      * The version recognized by the Java 2 Platform, Standard Edition,
      * v 1.4.
@@ -102,7 +99,7 @@ public enum SourceVersion {
      * Added a simple assertion facility.
      */
     RELEASE_4,
-
+    
     /**
      * The version recognized by the Java 2 Platform, Standard
      * Edition 5.0.
@@ -114,7 +111,7 @@ public enum SourceVersion {
      * for} loop, and hexadecimal floating-point literals.
      */
     RELEASE_5,
-
+    
     /**
      * The version recognized by the Java Platform, Standard Edition
      * 6.
@@ -122,7 +119,7 @@ public enum SourceVersion {
      * No major changes from {@code RELEASE_5}.
      */
     RELEASE_6,
-
+    
     /**
      * The version recognized by the Java Platform, Standard Edition
      * 7.
@@ -133,7 +130,7 @@ public enum SourceVersion {
      * @since 1.7
      */
     RELEASE_7,
-
+    
     /**
      * The version recognized by the Java Platform, Standard Edition
      * 8.
@@ -142,7 +139,7 @@ public enum SourceVersion {
      * @since 1.8
      */
     RELEASE_8,
-
+    
     /**
      * The version recognized by the Java Platform, Standard Edition
      * 9.
@@ -152,8 +149,8 @@ public enum SourceVersion {
      *
      * @since 9
      */
-     RELEASE_9,
-
+    RELEASE_9,
+    
     /**
      * The version recognized by the Java Platform, Standard Edition
      * 10.
@@ -163,34 +160,47 @@ public enum SourceVersion {
      *
      * @since 10
      */
-     RELEASE_10,
-
+    RELEASE_10,
+    
     /**
      * The version recognized by the Java Platform, Standard Edition
      * 11.
      *
      * @since 11
      */
-     RELEASE_11;
-
+    RELEASE_11;
+    
     // Note that when adding constants for newer releases, the
     // behavior of latest() and latestSupported() must be updated too.
-
+    
     /**
      * Returns the latest source version that can be modeled.
      *
      * @return the latest source version that can be modeled
      */
+    // 返回当前可用的最新源码版本
     public static SourceVersion latest() {
         return RELEASE_11;
     }
-
+    
+    /**
+     * Returns the latest source version fully supported by the
+     * current execution environment.  {@code RELEASE_5} or later must
+     * be returned.
+     *
+     * @return the latest source version that is fully supported
+     */
+    // 返回当前需要支持的最高版本，默认为最新版本，可通过属性"java.specification.version"来改变
+    public static SourceVersion latestSupported() {
+        return latestSupported;
+    }
+    
     private static final SourceVersion latestSupported = getLatestSupported();
-
+    
     private static SourceVersion getLatestSupported() {
         try {
             String specVersion = System.getProperty("java.specification.version");
-
+            
             switch (specVersion) {
                 case "11":
                     return RELEASE_11;
@@ -206,21 +216,10 @@ public enum SourceVersion {
                     return RELEASE_6;
             }
         } catch (SecurityException se) {}
-
+        
         return RELEASE_5;
     }
-
-    /**
-     * Returns the latest source version fully supported by the
-     * current execution environment.  {@code RELEASE_5} or later must
-     * be returned.
-     *
-     * @return the latest source version that is fully supported
-     */
-    public static SourceVersion latestSupported() {
-        return latestSupported;
-    }
-
+    
     /**
      * Returns whether or not {@code name} is a syntactically valid
      * identifier (simple name) or keyword in the latest source
@@ -240,9 +239,10 @@ public enum SourceVersion {
      * syntactically valid identifier or keyword, {@code false}
      * otherwise.
      */
+    // 判断name是否为有效的标识符（只是语法检测）
     public static boolean isIdentifier(CharSequence name) {
         String id = name.toString();
-
+        
         if (id.length() == 0) {
             return false;
         }
@@ -251,8 +251,8 @@ public enum SourceVersion {
             return false;
         }
         for (int i = Character.charCount(cp);
-                i < id.length();
-                i += Character.charCount(cp)) {
+             i < id.length();
+             i += Character.charCount(cp)) {
             cp = id.codePointAt(i);
             if (!Character.isJavaIdentifierPart(cp)) {
                 return false;
@@ -260,7 +260,7 @@ public enum SourceVersion {
         }
         return true;
     }
-
+    
     /**
      * Returns whether or not {@code name} is a syntactically valid
      * qualified name in the latest source version.  Unlike {@link
@@ -276,10 +276,11 @@ public enum SourceVersion {
      * @jls 3.9 Keywords
      * @jls 6.2 Names and Identifiers
      */
+    // 判断name是否为最新版本中有效的限定名（包括语义检测，例如关键字就不能做限定名）
     public static boolean isName(CharSequence name) {
         return isName(name, latest());
     }
-
+    
     /**
      * Returns whether or not {@code name} is a syntactically valid
      * qualified name in the given source version.  Unlike {@link
@@ -297,16 +298,23 @@ public enum SourceVersion {
      * @jls 6.2 Names and Identifiers
      * @since 9
      */
+    // 判断name是否为指定版本中有效的限定名（包括语义检测，例如关键字就不能做限定名）
     public static boolean isName(CharSequence name, SourceVersion version) {
         String id = name.toString();
-
+        
         for(String s : id.split("\\.", -1)) {
             if (!isIdentifier(s) || isKeyword(s, version))
                 return false;
         }
         return true;
     }
-
+    
+    /*
+     * 此处关键字中未包括模块系统使用的那些专用单词
+     * null true false 这三个序列在规范中未定义为关键字
+     * 但仍被当成关键字对待
+     */
+    
     /**
      * Returns whether or not {@code s} is a keyword, boolean literal,
      * or null literal in the latest source version.
@@ -320,10 +328,11 @@ public enum SourceVersion {
      * @jls 3.10.3 Boolean Literals
      * @jls 3.10.7 The Null Literal
      */
+    // 是否为最新版本中的关键字
     public static boolean isKeyword(CharSequence s) {
         return isKeyword(s, latest());
     }
-
+    
     /**
      * Returns whether or not {@code s} is a keyword, boolean literal,
      * or null literal in the given source version.
@@ -339,61 +348,63 @@ public enum SourceVersion {
      * @jls 3.10.7 The Null Literal
      * @since 9
      */
+    // 是否为当前版本的关键字
     public static boolean isKeyword(CharSequence s, SourceVersion version) {
         String id = s.toString();
+        
         switch(id) {
             // A trip through history
-        case "strictfp":
-            return version.compareTo(RELEASE_2) >= 0;
-
-        case "assert":
-            return version.compareTo(RELEASE_4) >= 0;
-
-        case "enum":
-            return version.compareTo(RELEASE_5) >= 0;
-
-        case "_":
-            return version.compareTo(RELEASE_9) >= 0;
-
+            case "strictfp":
+                return version.compareTo(RELEASE_2) >= 0;
+            
+            case "assert":
+                return version.compareTo(RELEASE_4) >= 0;
+            
+            case "enum":
+                return version.compareTo(RELEASE_5) >= 0;
+            
+            case "_":
+                return version.compareTo(RELEASE_9) >= 0;
+            
             // Keywords common across versions
-
+            
             // Modifiers
-        case "public":    case "protected": case "private":
-        case "abstract":  case "static":    case "final":
-        case "transient": case "volatile":  case "synchronized":
-        case "native":
-
-            // Declarations
-        case "class":     case "interface": case "extends":
-        case "package":   case "throws":    case "implements":
-
-            // Primitive types and void
-        case "boolean":   case "byte":      case "char":
-        case "short":     case "int":       case "long":
-        case "float":     case "double":
-        case "void":
-
-            // Control flow
-        case "if":      case "else":
-        case "try":     case "catch":    case "finally":
-        case "do":      case "while":
-        case "for":     case "continue":
-        case "switch":  case "case":     case "default":
-        case "break":   case "throw":    case "return":
-
-            // Other keywords
-        case  "this":   case "new":      case "super":
-        case "import":  case "instanceof":
-
-            // Forbidden!
-        case "goto":        case "const":
-
-            // literals
-        case "null":         case "true":       case "false":
-            return true;
-
-        default:
-            return false;
+            case "public":    case "protected": case "private":
+            case "abstract":  case "static":    case "final":
+            case "transient": case "volatile":  case "synchronized":
+            case "native":
+                
+                // Declarations
+            case "class":     case "interface": case "extends":
+            case "package":   case "throws":    case "implements":
+                
+                // Primitive types and void
+            case "boolean":   case "byte":      case "char":
+            case "short":     case "int":       case "long":
+            case "float":     case "double":
+            case "void":
+                
+                // Control flow
+            case "if":      case "else":
+            case "try":     case "catch":    case "finally":
+            case "do":      case "while":
+            case "for":     case "continue":
+            case "switch":  case "case":     case "default":
+            case "break":   case "throw":    case "return":
+                
+                // Other keywords
+            case  "this":   case "new":      case "super":
+            case "import":  case "instanceof":
+                
+                // Forbidden!
+            case "goto":        case "const":
+                
+                // literals
+            case "null":         case "true":       case "false":
+                return true;
+            
+            default:
+                return false;
         }
     }
 }

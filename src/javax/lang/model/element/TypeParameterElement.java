@@ -30,8 +30,7 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.type.TypeVariable;
 
 /**
- * Represents a formal type parameter of a generic class, interface, method,
- * or constructor element.
+ * Represents a formal type parameter of a generic class, interface, method, or constructor element.
  * A type parameter declares a {@link TypeVariable}.
  *
  * @author Joseph D. Darcy
@@ -40,8 +39,9 @@ import javax.lang.model.type.TypeVariable;
  * @see TypeVariable
  * @since 1.6
  */
+// 类型参数元素
 public interface TypeParameterElement extends Element {
-
+    
     /**
      * Returns the generic class, interface, method, or constructor that is
      * parameterized by this type parameter.
@@ -49,8 +49,18 @@ public interface TypeParameterElement extends Element {
      * @return the generic class, interface, method, or constructor that is
      * parameterized by this type parameter
      */
+    // 返回由该类型参数参数化的泛型类、接口、方法或构造器
     Element getGenericElement();
-
+    
+    /**
+     * Returns the {@linkplain TypeParameterElement#getGenericElement generic element} of this type parameter.
+     *
+     * @return the generic element of this type parameter
+     */
+    // 返回包围该类型参数的元素，其实跟getGenericElement()一样
+    @Override
+    Element getEnclosingElement();
+    
     /**
      * Returns the bounds of this type parameter.
      * These are the types given by the {@code extends} clause
@@ -61,13 +71,7 @@ public interface TypeParameterElement extends Element {
      * @return the bounds of this type parameter, or an empty list if
      * there are none
      */
+    // 返回类型参数元素的边界（上界）
     List<? extends TypeMirror> getBounds();
-
-    /**
-     * Returns the {@linkplain TypeParameterElement#getGenericElement generic element} of this type parameter.
-     *
-     * @return the generic element of this type parameter
-     */
-    @Override
-    Element getEnclosingElement();
+    
 }

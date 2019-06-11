@@ -25,10 +25,12 @@
 
 package javax.lang.model.util;
 
-import javax.lang.model.element.*;
 import javax.annotation.processing.SupportedSourceVersion;
-import static javax.lang.model.SourceVersion.*;
 import javax.lang.model.SourceVersion;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+
+import static javax.lang.model.SourceVersion.RELEASE_8;
 
 /**
  * A visitor of program elements based on their {@linkplain
@@ -76,6 +78,7 @@ import javax.lang.model.SourceVersion;
  * @see ElementKindVisitor9
  * @since 1.8
  */
+// 元素访问器的细化版本（JDK8）
 @SupportedSourceVersion(RELEASE_8)
 public class ElementKindVisitor8<R, P> extends ElementKindVisitor7<R, P> {
     /**

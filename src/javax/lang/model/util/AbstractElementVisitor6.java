@@ -28,8 +28,8 @@ package javax.lang.model.util;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.*;
-import static javax.lang.model.SourceVersion.*;
 
+import static javax.lang.model.SourceVersion.*;
 
 /**
  * A skeletal visitor of program elements with default behavior
@@ -62,36 +62,39 @@ import static javax.lang.model.SourceVersion.*;
  * @author Joseph D. Darcy
  * @author Scott Seligman
  * @author Peter von der Ah&eacute;
- *
  * @see AbstractElementVisitor7
  * @see AbstractElementVisitor8
  * @see AbstractElementVisitor9
  * @since 1.6
  */
+// 元素访问器的抽象实现（JDK6）
 @SupportedSourceVersion(RELEASE_6)
 public abstract class AbstractElementVisitor6<R, P> implements ElementVisitor<R, P> {
     /**
      * Constructor for concrete subclasses to call.
+     *
      * @deprecated Release 6 is obsolete; update to a visitor for a newer
      * release level.
      */
-    @Deprecated(since="9")
-    protected AbstractElementVisitor6(){}
-
+    @Deprecated(since = "9")
+    protected AbstractElementVisitor6() {
+    }
+    
     /**
      * Visits any program element as if by passing itself to that
      * element's {@link Element#accept accept} method.  The invocation
      * {@code v.visit(elem, p)} is equivalent to {@code elem.accept(v,
      * p)}.
      *
-     * @param e  the element to visit
-     * @param p  a visitor-specified parameter
+     * @param e the element to visit
+     * @param p a visitor-specified parameter
+     *
      * @return a visitor-specified result
      */
     public final R visit(Element e, P p) {
         return e.accept(this, p);
     }
-
+    
     /**
      * Visits any program element as if by passing itself to that
      * element's {@link Element#accept accept} method and passing
@@ -99,44 +102,45 @@ public abstract class AbstractElementVisitor6<R, P> implements ElementVisitor<R,
      * {@code v.visit(elem)} is equivalent to {@code elem.accept(v,
      * null)}.
      *
-     * @param e  the element to visit
+     * @param e the element to visit
+     *
      * @return a visitor-specified result
      */
     public final R visit(Element e) {
         return e.accept(this, null);
     }
-
+    
     /**
      * {@inheritDoc}
      *
+     * @param e {@inheritDoc}
+     * @param p {@inheritDoc}
+     *
+     * @return {@inheritDoc}
+     *
+     * @throws UnknownElementException a visitor implementation may optionally throw this exception
      * @implSpec The default implementation of this method in
      * {@code AbstractElementVisitor6} will always throw
      * {@code new UnknownElementException(e, p)}.
      * This behavior is not required of a subclass.
-     *
-     * @param e {@inheritDoc}
-     * @param p {@inheritDoc}
-     * @return  {@inheritDoc}
-     * @throws UnknownElementException
-     *          a visitor implementation may optionally throw this exception
      */
     @Override
     public R visitUnknown(Element e, P p) {
         throw new UnknownElementException(e, p);
     }
-
+    
     /**
      * {@inheritDoc}
      *
+     * @param e {@inheritDoc}
+     * @param p {@inheritDoc}
+     *
+     * @return {@inheritDoc}
+     *
      * @implSpec Visits a {@code ModuleElement} by calling {@code
      * visitUnknown}.
-     *
-     * @param e  {@inheritDoc}
-     * @param p  {@inheritDoc}
-     * @return   {@inheritDoc}
-     *
-     * @since 9
      * @spec JPMS
+     * @since 9
      */
     @Override
     public R visitModule(ModuleElement e, P p) {

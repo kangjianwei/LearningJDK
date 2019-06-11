@@ -28,6 +28,7 @@ package javax.lang.model.util;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.type.IntersectionType;
+
 import static javax.lang.model.SourceVersion.*;
 
 /**
@@ -72,37 +73,39 @@ import static javax.lang.model.SourceVersion.*;
  * @see SimpleTypeVisitor9
  * @since 1.8
  */
+// 类型访问器的简单实现（JDK8）
 @SupportedSourceVersion(RELEASE_8)
 public class SimpleTypeVisitor8<R, P> extends SimpleTypeVisitor7<R, P> {
     /**
      * Constructor for concrete subclasses; uses {@code null} for the
      * default value.
      */
-    protected SimpleTypeVisitor8(){
+    protected SimpleTypeVisitor8() {
         super(null);
     }
-
+    
     /**
      * Constructor for concrete subclasses; uses the argument for the
      * default value.
      *
      * @param defaultValue the value to assign to {@link #DEFAULT_VALUE}
      */
-    protected SimpleTypeVisitor8(R defaultValue){
+    protected SimpleTypeVisitor8(R defaultValue) {
         super(defaultValue);
     }
-
+    
     /**
      * {@inheritDoc}
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param t {@inheritDoc}
      * @param p {@inheritDoc}
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
     @Override
-    public R visitIntersection(IntersectionType t, P p){
+    public R visitIntersection(IntersectionType t, P p) {
         return defaultAction(t, p);
     }
 }

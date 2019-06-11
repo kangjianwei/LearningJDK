@@ -81,30 +81,31 @@ package javax.lang.model.element;
  * @author Peter von der Ah&eacute;
  * @since 1.6
  */
+// 元素的嵌套结构类别
 public enum NestingKind {
     /**
      * A top-level type, not contained within another type.
      */
-    TOP_LEVEL,
-
+    TOP_LEVEL,  // 顶级类型，没有被其他类型包含
+    
     /**
      * A type that is a named member of another type.
      * @jls 8.5 Member Type Declarations
      */
-    MEMBER,
-
+    MEMBER,     // 成员类型，其他类型的一个命名成员
+    
     /**
      * A named type declared within a construct other than a type.
      * @jls 14.3 Local Class Declarations
      */
-    LOCAL,
-
+    LOCAL,      // 局部类型，在类型之外的结构中声明的命名类型
+    
     /**
      * A type without a name.
      * @jls 15.9.5 Anonymous Class Declarations
      */
-    ANONYMOUS;
-
+    ANONYMOUS;  // 匿名类型
+    
     /**
      * Does this constant correspond to a nested type element?
      * A <i>nested</i> type element is any that is not top-level.
@@ -113,6 +114,7 @@ public enum NestingKind {
      * @return whether or not the constant is nested
      * @jls 14.3 Inner Classes and Enclosing Instances
      */
+    // 是否为顶级类型
     public boolean isNested() {
         return this != TOP_LEVEL;
     }

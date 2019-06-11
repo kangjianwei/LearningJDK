@@ -79,6 +79,7 @@ import static javax.lang.model.SourceVersion.*;
  * @see SimpleElementVisitor9
  * @since 1.6
  */
+// 元素访问器的简单实现（JDK6）
 @SupportedSourceVersion(RELEASE_6)
 public class SimpleElementVisitor6<R, P> extends AbstractElementVisitor6<R, P> {
     /**

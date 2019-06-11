@@ -34,44 +34,49 @@ import java.util.Set;
  * Implements an Enumeration that combines elements from a Set and
  * an Enumeration. Used by ListResourceBundle and PropertyResourceBundle.
  */
+// 存储资源属性集中的key（包括此级资源之上的父级资源中的key）
 public class ResourceBundleEnumeration implements Enumeration<String> {
-
-    Set<String> set;
-    Iterator<String> iterator;
-    Enumeration<String> enumeration; // may remain null
-
+    
+    Set<String> set;    // 当前资源属性集的key的集合
+    Iterator<String> iterator;  // 用来遍历set的迭代器
+    Enumeration<String> enumeration; // 父级资源的属性集中key的集合，可能为空
+    String next = null;
+    
     /**
      * Constructs a resource bundle enumeration.
-     * @param set an set providing some elements of the enumeration
+     *
+     * @param set         an set providing some elements of the enumeration
      * @param enumeration an enumeration providing more elements of the enumeration.
-     *        enumeration may be null.
+     *                    enumeration may be null.
      */
     public ResourceBundleEnumeration(Set<String> set, Enumeration<String> enumeration) {
         this.set = set;
         this.iterator = set.iterator();
         this.enumeration = enumeration;
     }
-
-    String next = null;
-
+    
+    // 是否存在下一个元素，会从子级资源一直遍历到父级资源
     public boolean hasMoreElements() {
-        if (next == null) {
-            if (iterator.hasNext()) {
+        if(next == null) {
+            // 在当前资源属性集中查找
+            if(iterator.hasNext()) {
                 next = iterator.next();
-            } else if (enumeration != null) {
-                while (next == null && enumeration.hasMoreElements()) {
+            } else if(enumeration != null) {    // 在父级资源属性集中查找
+                while(next == null && enumeration.hasMoreElements()) {
                     next = enumeration.nextElement();
-                    if (set.contains(next)) {
+                    if(set.contains(next)) {
                         next = null;
                     }
                 }
             }
         }
+        
         return next != null;
     }
-
+    
+    // 返回下一个元素
     public String nextElement() {
-        if (hasMoreElements()) {
+        if(hasMoreElements()) {
             String result = next;
             next = null;
             return result;

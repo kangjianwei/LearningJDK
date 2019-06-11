@@ -65,6 +65,7 @@ import static javax.lang.model.SourceVersion.*;
  * @since 9
  * @spec JPMS
  */
+// 元素访问器的抽象实现（JDK9）
 @SupportedSourceVersion(RELEASE_11)
 public abstract class AbstractElementVisitor9<R, P> extends AbstractElementVisitor8<R, P> {
     /**

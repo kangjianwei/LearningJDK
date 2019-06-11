@@ -26,11 +26,13 @@
 package javax.lang.model.util;
 
 
-import javax.lang.model.element.*;
-
-import static javax.lang.model.SourceVersion.*;
-import javax.lang.model.SourceVersion;
 import javax.annotation.processing.SupportedSourceVersion;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.AnnotationValue;
+import javax.lang.model.element.AnnotationValueVisitor;
+import javax.lang.model.element.UnknownAnnotationValueException;
+
+import static javax.lang.model.SourceVersion.RELEASE_6;
 
 /**
  * A skeletal visitor for annotation values with default behavior
@@ -60,60 +62,66 @@ import javax.annotation.processing.SupportedSourceVersion;
  * @author Joseph D. Darcy
  * @author Scott Seligman
  * @author Peter von der Ah&eacute;
- *
  * @see AbstractAnnotationValueVisitor7
  * @see AbstractAnnotationValueVisitor8
  * @see AbstractAnnotationValueVisitor9
  * @since 1.6
  */
+// 注解值访问器的抽象实现（JDK6）
 @SupportedSourceVersion(RELEASE_6)
-public abstract class AbstractAnnotationValueVisitor6<R, P>
-    implements AnnotationValueVisitor<R, P> {
-
+public abstract class AbstractAnnotationValueVisitor6<R, P> implements AnnotationValueVisitor<R, P> {
+    
     /**
      * Constructor for concrete subclasses to call.
+     *
      * @deprecated Release 6 is obsolete; update to a visitor for a newer
      * release level.
      */
-    @Deprecated(since="9")
-    protected AbstractAnnotationValueVisitor6() {}
-
+    @Deprecated(since = "9")
+    protected AbstractAnnotationValueVisitor6() {
+    }
+    
     /**
      * Visits any annotation value as if by passing itself to that
      * value's {@link AnnotationValue#accept accept}.  The invocation
      * {@code v.visit(av, p)} is equivalent to {@code av.accept(v, p)}.
+     *
      * @param av {@inheritDoc}
      * @param p  {@inheritDoc}
-     * @return   {@inheritDoc}
+     *
+     * @return {@inheritDoc}
      */
     public final R visit(AnnotationValue av, P p) {
         return av.accept(this, p);
     }
-
+    
     /**
      * Visits an annotation value as if by passing itself to that
      * value's {@link AnnotationValue#accept accept} method passing
      * {@code null} for the additional parameter.  The invocation
      * {@code v.visit(av)} is equivalent to {@code av.accept(v,
      * null)}.
+     *
      * @param av {@inheritDoc}
-     * @return   {@inheritDoc}
+     *
+     * @return {@inheritDoc}
      */
     public final R visit(AnnotationValue av) {
         return av.accept(this, null);
     }
-
+    
     /**
      * {@inheritDoc}
+     *
+     * @param av {@inheritDoc}
+     * @param p  {@inheritDoc}
+     *
+     * @return {@inheritDoc}
      *
      * @implSpec The default implementation of this method in {@code
      * AbstractAnnotationValueVisitor6} will always throw {@code
      * new UnknownAnnotationValueException(av, p)}.  This behavior is not
      * required of a subclass.
-     *
-     * @param av {@inheritDoc}
-     * @param p  {@inheritDoc}
-     * @return   {@inheritDoc}
      */
     @Override
     public R visitUnknown(AnnotationValue av, P p) {

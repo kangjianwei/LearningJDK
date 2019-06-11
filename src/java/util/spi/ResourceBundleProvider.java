@@ -136,27 +136,32 @@ import java.util.ResourceBundle;
  * the resource bundle in other modules and class path per the specification
  * of the {@code ResourceBundle.getBundle} method being called.
  *
+ * @spec JPMS
  * @see AbstractResourceBundleProvider
  * @see <a href="../ResourceBundle.html#resource-bundle-modules">
- *      Resource Bundles and Named Modules</a>
+ * Resource Bundles and Named Modules</a>
  * @see java.util.ServiceLoader
  * @since 9
- * @spec JPMS
  */
+// 资源供给服务接口，提供ResourceBundle。一般需要先创建子接口，再创建子接口的实现类
 public interface ResourceBundleProvider {
     /**
      * Returns a {@code ResourceBundle} for the given bundle name and locale.
      * This method returns {@code null} if there is no {@code ResourceBundle}
      * found for the given parameters.
      *
+     * @param baseName the base bundle name of the resource bundle, a fully
+     *                 qualified class name
+     * @param locale   the locale for which the resource bundle should be loaded
      *
-     * @param baseName
-     *        the base bundle name of the resource bundle, a fully
-     *        qualified class name
-     * @param locale
-     *        the locale for which the resource bundle should be loaded
      * @return the ResourceBundle created for the given parameters, or null if no
-     *         {@code ResourceBundle} for the given parameters is found
+     * {@code ResourceBundle} for the given parameters is found
+     */
+    /*
+     * 返回资源集实例
+     *
+     * baseName 待加载资源的全限定名
+     * locale   待加载的资源的本地化信息
      */
     public ResourceBundle getBundle(String baseName, Locale locale);
 }

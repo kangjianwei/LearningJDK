@@ -39,6 +39,7 @@ import javax.lang.model.type.*;
  * @see ExecutableType
  * @since 1.6
  */
+// 可执行元素，如方法/构造器/初始化块
 public interface ExecutableElement extends Element, Parameterizable {
     /**
      * Returns the formal type parameters of this executable
@@ -47,8 +48,9 @@ public interface ExecutableElement extends Element, Parameterizable {
      * @return the formal type parameters, or an empty list
      * if there are none
      */
+    // 获取类型参数
     List<? extends TypeParameterElement> getTypeParameters();
-
+    
     /**
      * Returns the return type of this executable.
      * Returns a {@link NoType} with kind {@link TypeKind#VOID VOID}
@@ -57,8 +59,9 @@ public interface ExecutableElement extends Element, Parameterizable {
      *
      * @return the return type of this executable
      */
+    // 获取返回类型
     TypeMirror getReturnType();
-
+    
     /**
      * Returns the formal parameters of this executable.
      * They are returned in declaration order.
@@ -66,8 +69,9 @@ public interface ExecutableElement extends Element, Parameterizable {
      * @return the formal parameters,
      * or an empty list if there are none
      */
+    // 获取形参
     List<? extends VariableElement> getParameters();
-
+    
     /**
      * Returns the receiver type of this executable,
      * or {@link javax.lang.model.type.NoType NoType} with
@@ -85,8 +89,15 @@ public interface ExecutableElement extends Element, Parameterizable {
      * @return the receiver type of this executable
      * @since 1.8
      */
+    /*
+     * 获取接收器类型
+     *
+     * 如果没有对应的接收器,则返回由NoType和TypeKind#NONE组成的TypeMirror
+     * 如果当前是一个实例方法、构造器或者是一个内部类，则其接收器类型可以由Element.getEnclosingElement()方法获得
+     * 如果当前是一个静态方法，或者是非内部类的构造器，或者是初始块(静态的或者是实例的)，则没有接收器类型
+     */
     TypeMirror getReceiverType();
-
+    
     /**
      * Returns {@code true} if this method or constructor accepts a variable
      * number of arguments and returns {@code false} otherwise.
@@ -94,18 +105,21 @@ public interface ExecutableElement extends Element, Parameterizable {
      * @return {@code true} if this method or constructor accepts a variable
      * number of arguments and {@code false} otherwise
      */
+    // 是否为可变形参
     boolean isVarArgs();
-
+    
     /**
      * Returns {@code true} if this method is a default method and
      * returns {@code false} otherwise.
      *
      * @return {@code true} if this method is a default method and
      * {@code false} otherwise
+     *
      * @since 1.8
      */
+    // 是否为（接口中的）默认方法
     boolean isDefault();
-
+    
     /**
      * Returns the exceptions and other throwables listed in this
      * method or constructor's {@code throws} clause in declaration
@@ -114,8 +128,9 @@ public interface ExecutableElement extends Element, Parameterizable {
      * @return the exceptions and other throwables listed in the
      * {@code throws} clause, or an empty list if there are none
      */
+    // 获取抛出的异常列表
     List<? extends TypeMirror> getThrownTypes();
-
+    
     /**
      * Returns the default value if this executable is an annotation
      * type element.  Returns {@code null} if this method is not an
@@ -124,8 +139,9 @@ public interface ExecutableElement extends Element, Parameterizable {
      *
      * @return the default value, or {@code null} if none
      */
+    // 获取默认值（注解方法上的默认值）
     AnnotationValue getDefaultValue();
-
+    
     /**
      * Returns the simple name of a constructor, method, or
      * initializer.  For a constructor, the name {@code "<init>"} is
@@ -135,6 +151,12 @@ public interface ExecutableElement extends Element, Parameterizable {
      *
      * @return the simple name of a constructor, method, or
      * initializer
+     */
+    /*
+     * 获取元素的简单名称
+     *
+     * 对于构造器，方法或者初始化块，返回其相应的Name
+     * 对于构造器,返回<init>,对于静态代码块,返回<clinit>，对于匿名类或者实例代码块,返回空的Name
      */
     @Override
     Name getSimpleName();

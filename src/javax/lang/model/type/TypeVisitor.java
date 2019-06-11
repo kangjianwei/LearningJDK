@@ -25,8 +25,6 @@
 
 package javax.lang.model.type;
 
-import javax.lang.model.element.*;
-
 /**
  * A visitor of types, in the style of the
  * visitor design pattern.  Classes implementing this
@@ -75,128 +73,170 @@ import javax.lang.model.element.*;
  * @author Peter von der Ah&eacute;
  * @since 1.6
  */
+// 类型访问器，可以对不同的类型执行相应的操作
 public interface TypeVisitor<R, P> {
+    
     /**
      * Visits a type.
+     *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  a visitor-specified result
+     *
+     * @return a visitor-specified result
      */
+    // 任意类型
     R visit(TypeMirror t, P p);
-
-    /**
-     * A convenience method equivalent to {@code visit(t, null)}.
-     *
-     * @implSpec The default implementation is {@code visit(t, null)}.
-     *
-     * @param t the element to visit
-     * @return  a visitor-specified result
-     */
-    default R visit(TypeMirror t) {
-        return visit(t, null);
-    }
-
+    
     /**
      * Visits a primitive type.
+     *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  a visitor-specified result
+     *
+     * @return a visitor-specified result
      */
+    // 基本类型
     R visitPrimitive(PrimitiveType t, P p);
-
+    
     /**
      * Visits the null type.
+     *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  a visitor-specified result
+     *
+     * @return a visitor-specified result
      */
+    // null
     R visitNull(NullType t, P p);
-
+    
     /**
      * Visits an array type.
+     *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  a visitor-specified result
+     *
+     * @return a visitor-specified result
      */
+    // 数组类型
     R visitArray(ArrayType t, P p);
-
+    
     /**
      * Visits a declared type.
+     *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  a visitor-specified result
+     *
+     * @return a visitor-specified result
      */
+    // 声明类型，如类或接口
     R visitDeclared(DeclaredType t, P p);
-
+    
     /**
      * Visits an error type.
+     *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  a visitor-specified result
+     *
+     * @return a visitor-specified result
      */
+    // 错误类型
     R visitError(ErrorType t, P p);
-
+    
     /**
      * Visits a type variable.
+     *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  a visitor-specified result
+     *
+     * @return a visitor-specified result
      */
+    // 类型变量
     R visitTypeVariable(TypeVariable t, P p);
-
+    
     /**
      * Visits a wildcard type.
+     *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  a visitor-specified result
+     *
+     * @return a visitor-specified result
      */
+    // 通配符
     R visitWildcard(WildcardType t, P p);
-
+    
     /**
      * Visits an executable type.
+     *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  a visitor-specified result
+     *
+     * @return a visitor-specified result
      */
+    // 可执行类型，如方法、构造器、初始化块
     R visitExecutable(ExecutableType t, P p);
-
+    
     /**
      * Visits a {@link NoType} instance.
+     *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  a visitor-specified result
+     *
+     * @return a visitor-specified result
      */
+    // 代表没有合适的类型与之对应
     R visitNoType(NoType t, P p);
-
+    
     /**
      * Visits an unknown kind of type.
      * This can occur if the language evolves and new kinds
      * of types are added to the {@code TypeMirror} hierarchy.
+     *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  a visitor-specified result
-     * @throws UnknownTypeException
-     *  a visitor implementation may optionally throw this exception
+     *
+     * @return a visitor-specified result
+     *
+     * @throws UnknownTypeException a visitor implementation may optionally throw this exception
      */
+    // 未知类型
     R visitUnknown(TypeMirror t, P p);
-
+    
     /**
      * Visits a union type.
      *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  a visitor-specified result
+     *
+     * @return a visitor-specified result
+     *
      * @since 1.7
      */
+    // 联合类型，如多个异常类型联合使用 ExceptionA | ExceptionB e
     R visitUnion(UnionType t, P p);
-
+    
     /**
      * Visits an intersection type.
      *
      * @param t the type to visit
      * @param p a visitor-specified parameter
-     * @return  a visitor-specified result
+     *
+     * @return a visitor-specified result
+     *
      * @since 1.8
      */
+    // 交集类型，如 Number & Runnable
     R visitIntersection(IntersectionType t, P p);
+    
+    /**
+     * A convenience method equivalent to {@code visit(t, null)}.
+     *
+     * @param t the element to visit
+     *
+     * @return a visitor-specified result
+     *
+     * @implSpec The default implementation is {@code visit(t, null)}.
+     */
+    default R visit(TypeMirror t) {
+        return visit(t, null);
+    }
 }

@@ -28,6 +28,7 @@ package javax.lang.model.util;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.type.*;
+
 import static javax.lang.model.SourceVersion.*;
 
 /**
@@ -77,8 +78,10 @@ import static javax.lang.model.SourceVersion.*;
  * @see TypeKindVisitor8
  * @since 9
  */
+// 类型访问器的细化版本（JDK8）
 @SupportedSourceVersion(RELEASE_11)
 public class TypeKindVisitor9<R, P> extends TypeKindVisitor8<R, P> {
+    
     /**
      * Constructor for concrete subclasses to call; uses {@code null}
      * for the default value.
@@ -86,7 +89,7 @@ public class TypeKindVisitor9<R, P> extends TypeKindVisitor8<R, P> {
     protected TypeKindVisitor9() {
         super(null);
     }
-
+    
     /**
      * Constructor for concrete subclasses to call; uses the argument
      * for the default value.
@@ -96,16 +99,16 @@ public class TypeKindVisitor9<R, P> extends TypeKindVisitor8<R, P> {
     protected TypeKindVisitor9(R defaultValue) {
         super(defaultValue);
     }
-
+    
     /**
      * {@inheritDoc}
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param t {@inheritDoc}
      * @param p {@inheritDoc}
-     * @return  the result of {@code defaultAction}
      *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      * @since 10
      */
     @Override

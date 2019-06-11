@@ -43,13 +43,14 @@ import java.util.ResourceBundle;
  * <p>All {@code ResourceBundleControlProvider}s are ignored in named modules.
  *
  * @author Masayoshi Okutsu
- * @since 1.8
  * @revised 9
  * @spec JPMS
  * @see ResourceBundle#getBundle(String, java.util.Locale, ClassLoader, ResourceBundle.Control)
- *      ResourceBundle.getBundle
+ * ResourceBundle.getBundle
  * @see java.util.ServiceLoader#load(Class)
+ * @since 1.8
  */
+// 服务接口，提供自定义的ResourceBundle.Control
 public interface ResourceBundleControlProvider {
     /**
      * Returns a {@code ResourceBundle.Control} instance that is used
@@ -58,9 +59,11 @@ public interface ResourceBundleControlProvider {
      * {@code baseName} isn't handled by this provider.
      *
      * @param baseName the base name of the resource bundle
+     *
      * @return a {@code ResourceBundle.Control} instance,
-     *         or {@code null} if the given {@code baseName} is not
-     *         applicable to this provider.
+     * or {@code null} if the given {@code baseName} is not
+     * applicable to this provider.
+     *
      * @throws NullPointerException if {@code baseName} is {@code null}
      */
     public ResourceBundle.Control getControl(String baseName);

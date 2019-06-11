@@ -40,65 +40,80 @@ import java.util.Objects;
  * for loading properties files. This first tries to load the properties
  * file with UTF-8 encoding). If it fails, then load the file with ISO-8859-1
  */
+// 属性资源字符集，用于解码属性文件，默认使用UTF-8去解码
 public class PropertyResourceBundleCharset extends Charset {
-
+    
+    // 该字符集是否为UTF-8
     private boolean strictUTF8 = false;
-
+    
+    // 构造解码ResourceBundle的字符集
     public PropertyResourceBundleCharset(boolean strictUTF8) {
         this(PropertyResourceBundleCharset.class.getCanonicalName(), null);
         this.strictUTF8 = strictUTF8;
     }
-
+    
     public PropertyResourceBundleCharset(String canonicalName, String[] aliases) {
         super(canonicalName, aliases);
     }
-
+    
     @Override
     public boolean contains(Charset cs) {
         return false;
     }
-
+    
+    // 创建解码器
     @Override
     public CharsetDecoder newDecoder() {
         return new PropertiesFileDecoder(this, 1.0f, 1.0f);
     }
-
+    
+    // 不支持编码器（没必要）
     @Override
     public CharsetEncoder newEncoder() {
         throw new UnsupportedOperationException("Encoding is not supported");
     }
-
+    
+    // 属性资源解码器
     private final class PropertiesFileDecoder extends CharsetDecoder {
-
+        // 先使用UTF-8解码器尝试解码
         private CharsetDecoder cdUTF_8 = StandardCharsets.UTF_8.newDecoder()
-                                .onMalformedInput(CodingErrorAction.REPORT)
-                                .onUnmappableCharacter(CodingErrorAction.REPORT);
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT);
+        
         private CharsetDecoder cdISO_8859_1 = null;
-
-        protected PropertiesFileDecoder(Charset cs,
-                float averageCharsPerByte, float maxCharsPerByte) {
+        
+        protected PropertiesFileDecoder(Charset cs, float averageCharsPerByte, float maxCharsPerByte) {
             super(cs, averageCharsPerByte, maxCharsPerByte);
         }
-
+        
+        // 将一个或多个byte解码为一个或多个char
         protected CoderResult decodeLoop(ByteBuffer in, CharBuffer out) {
+            // 使用的字符集预设为ISO_8859_1
             if (Objects.nonNull(cdISO_8859_1)) {
                 return cdISO_8859_1.decode(in, out, false);
             }
+            
+            /* 设置了其他解码器，则尝试使用UTF-8解码器解码 */
+            
             in.mark();
             out.mark();
-
+            
+            // 使用UTF_8解码器解码字节流
             CoderResult cr = cdUTF_8.decode(in, out, false);
-            if (cr.isUnderflow() || cr.isOverflow() ||
-                PropertyResourceBundleCharset.this.strictUTF8) {
+            
+            if (cr.isUnderflow() || cr.isOverflow() || PropertyResourceBundleCharset.this.strictUTF8) {
                 return cr;
             }
-
+            
             // Invalid or unmappable UTF-8 sequence detected.
             // Switching to the ISO 8859-1 decorder.
             assert cr.isMalformed() || cr.isUnmappable();
+            
             in.reset();
             out.reset();
+            
             cdISO_8859_1 = StandardCharsets.ISO_8859_1.newDecoder();
+            
             return cdISO_8859_1.decode(in, out, false);
         }
     }

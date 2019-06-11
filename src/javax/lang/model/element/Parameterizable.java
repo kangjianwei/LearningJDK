@@ -33,6 +33,7 @@ import java.util.List;
  * @author Joseph D. Darcy
  * @since 1.7
  */
+// 参数化类型
 public interface Parameterizable extends Element {
     /**
      * Returns the formal type parameters of an element in
@@ -41,5 +42,6 @@ public interface Parameterizable extends Element {
      * @return the formal type parameters, or an empty list
      * if there are none
      */
+    // 获取参数化类型元素上的类型参数元素
     List<? extends TypeParameterElement> getTypeParameters();
 }

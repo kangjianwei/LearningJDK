@@ -25,10 +25,13 @@
 
 package javax.lang.model.util;
 
-import javax.lang.model.type.*;
 import javax.annotation.processing.SupportedSourceVersion;
-import static javax.lang.model.SourceVersion.*;
 import javax.lang.model.SourceVersion;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.type.UnionType;
+
+import static javax.lang.model.SourceVersion.RELEASE_7;
 
 /**
  * A visitor of types based on their {@linkplain TypeKind kind} with
@@ -73,8 +76,10 @@ import javax.lang.model.SourceVersion;
  * @see TypeKindVisitor8
  * @since 1.7
  */
+// 类型访问器的细化版本（JDK7）
 @SupportedSourceVersion(RELEASE_7)
 public class TypeKindVisitor7<R, P> extends TypeKindVisitor6<R, P> {
+    
     /**
      * Constructor for concrete subclasses to call; uses {@code null}
      * for the default value.
@@ -83,7 +88,7 @@ public class TypeKindVisitor7<R, P> extends TypeKindVisitor6<R, P> {
     protected TypeKindVisitor7() {
         super(null);
     }
-
+    
     /**
      * Constructor for concrete subclasses to call; uses the argument
      * for the default value.
@@ -94,15 +99,16 @@ public class TypeKindVisitor7<R, P> extends TypeKindVisitor6<R, P> {
     protected TypeKindVisitor7(R defaultValue) {
         super(defaultValue);
     }
-
+    
     /**
      * {@inheritDoc}
      *
-     * @implSpec This implementation calls {@code defaultAction}.
+     * @param t {@inheritDoc}
+     * @param p {@inheritDoc}
      *
-     * @param t  {@inheritDoc}
-     * @param p  {@inheritDoc}
      * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
     @Override
     public R visitUnion(UnionType t, P p) {

@@ -37,8 +37,9 @@ import javax.lang.model.util.Elements;
  * @author Peter von der Ah&eacute;
  * @since 1.6
  */
+// 变量元素，包括字段、枚举常量、方法或构造器的形参、局部变量、资源变量以及异常参数
 public interface VariableElement extends Element {
-
+    
     /**
      * Returns the value of this variable if this is a {@code final}
      * field initialized to a compile-time constant.  Returns {@code
@@ -61,12 +62,17 @@ public interface VariableElement extends Element {
      * @jls 15.28 Constant Expression
      * @jls 4.12.4 final Variables
      */
+    /*
+     * 返回运行时常量元素的值（即final字段的值），对于其他类型的变量，返回Null
+     * 返回值只能是原始类型（包装类型）或String
+     * 注：枚举常量不是运行时常量，所以在这里返回null
+     */
     Object getConstantValue();
-
+    
     /**
      * Returns the simple name of this variable element.
      *
-     * <p>For method and constructor parameters, the name of each
+     * For method and constructor parameters, the name of each
      * parameter must be distinct from the names of all other
      * parameters of the same executable.  If the original source
      * names are not available, an implementation may synthesize names
@@ -74,9 +80,15 @@ public interface VariableElement extends Element {
      *
      * @return the simple name of this variable element
      */
+    /*
+     * 返回该元素的简单名称
+     *
+     * 对于在同一方法或者同一构造器的参数来说，其名称应该与其他的参数是不同的
+     * 如果变量名称在源文件中不可视，则实现可以合成符合上述不同性要求的名称
+     */
     @Override
     Name getSimpleName();
-
+    
     /**
      * Returns the enclosing element of this variable.
      *
@@ -84,6 +96,11 @@ public interface VariableElement extends Element {
      * the executable declaring the parameter.
      *
      * @return the enclosing element of this variable
+     */
+    /*
+     * 返回包围该元素的最内层的元素
+     *
+     * 对于方法或者构造器的参数来说，包围它的元素是其所对应的可执行元素
      */
     @Override
     Element getEnclosingElement();

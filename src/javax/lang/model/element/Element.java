@@ -25,16 +25,15 @@
 
 package javax.lang.model.element;
 
-
 import java.lang.annotation.Annotation;
-import java.lang.annotation.AnnotationTypeMismatchException;
-import java.lang.annotation.IncompleteAnnotationException;
 import java.util.List;
 import java.util.Set;
 
-import javax.lang.model.type.*;
-import javax.lang.model.util.*;
-
+import javax.lang.model.AnnotatedConstruct;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.ElementFilter;
+import javax.lang.model.util.Elements;
+import javax.lang.model.util.Types;
 
 /**
  * Represents a program element such as a module, package, class, or method.
@@ -60,42 +59,13 @@ import javax.lang.model.util.*;
  * @see TypeMirror
  * @since 1.6
  */
-public interface Element extends javax.lang.model.AnnotatedConstruct {
-    /**
-     * Returns the type defined by this element.
-     *
-     * <p> A generic element defines a family of types, not just one.
-     * If this is a generic element, a <i>prototypical</i> type is
-     * returned.  This is the element's invocation on the
-     * type variables corresponding to its own formal type parameters.
-     * For example,
-     * for the generic class element {@code C<N extends Number>},
-     * the parameterized type {@code C<N>} is returned.
-     * The {@link Types} utility interface has more general methods
-     * for obtaining the full range of types defined by an element.
-     *
-     * @see Types
-     *
-     * @return the type defined by this element
-     */
-    TypeMirror asType();
 
-    /**
-     * Returns the {@code kind} of this element.
-     *
-     * @return the kind of this element
-     */
-    ElementKind getKind();
-
-    /**
-     * Returns the modifiers of this element, excluding annotations.
-     * Implicit modifiers, such as the {@code public} and {@code static}
-     * modifiers of interface members, are included.
-     *
-     * @return the modifiers of this element, or an empty set if there are none
-     */
-    Set<Modifier> getModifiers();
-
+/*
+ * 源码中的元素（结构），是一种静态结构，区别于运行时结构
+ * 实现基于元素对象的操作时，应当配合使用ElementVisitor和getKind()
+ */
+public interface Element extends AnnotatedConstruct {
+    
     /**
      * Returns the simple (unqualified) name of this element.  The
      * name of a generic type does not include any reference to its
@@ -126,11 +96,57 @@ public interface Element extends javax.lang.model.AnnotatedConstruct {
      * @revised 9
      * @spec JPMS
      */
+    /*
+     * 获取元素的简单名称（不含包名）
+     *
+     * 泛型会进行类型擦除
+     * 未命名的包返回空的Name
+     * 构造器返回<init>
+     * 静态代码块返回<clinit>
+     * 匿名类或普通初始化块，返回空的Name
+     */
     Name getSimpleName();
-
+    
     /**
-     * Returns the innermost element
-     * within which this element is, loosely speaking, enclosed.
+     * Returns the {@code kind} of this element.
+     *
+     * @return the kind of this element
+     */
+    // 获取元素的种类标记
+    ElementKind getKind();
+    
+    /**
+     * Returns the type defined by this element.
+     *
+     * <p> A generic element defines a family of types, not just one.
+     * If this is a generic element, a <i>prototypical</i> type is
+     * returned.  This is the element's invocation on the
+     * type variables corresponding to its own formal type parameters.
+     * For example,
+     * for the generic class element {@code C<N extends Number>},
+     * the parameterized type {@code C<N>} is returned.
+     * The {@link Types} utility interface has more general methods
+     * for obtaining the full range of types defined by an element.
+     *
+     * @see Types
+     *
+     * @return the type defined by this element
+     */
+    // 获取元素类型
+    TypeMirror asType();
+    
+    /**
+     * Returns the modifiers of this element, excluding annotations.
+     * Implicit modifiers, such as the {@code public} and {@code static}
+     * modifiers of interface members, are included.
+     *
+     * @return the modifiers of this element, or an empty set if there are none
+     */
+    // 返回该元素的修饰符，隐式修饰符也包含,比如接口方法中的public和static
+    Set<Modifier> getModifiers();
+    
+    /**
+     * Returns the innermost element within which this element is, loosely speaking, enclosed.
      * <ul>
      * <li> If this element is one whose declaration is lexically enclosed
      * immediately within the declaration of another element, that other
@@ -163,8 +179,17 @@ public interface Element extends javax.lang.model.AnnotatedConstruct {
      * @revised 9
      * @spec JPMS
      */
+    /*
+     * 返回包围该元素（模块/包/类/接口/类型参数/变量）的最内层的元素
+     *
+     * 包含包的元素是模块
+     * 包含类的元素是包
+     * 包含内部类的元素是外部类
+     * 包含方法、字段的元素是类
+     * 包含形参的元素是方法、构造方法
+     */
     Element getEnclosingElement();
-
+    
     /**
      * Returns the elements that are, loosely speaking, directly
      * enclosed by this element.
@@ -183,9 +208,8 @@ public interface Element extends javax.lang.model.AnnotatedConstruct {
      * Enclosed elements may include implicitly declared {@linkplain
      * Elements.Origin#MANDATED mandated} elements.
      *
-     * Other kinds of elements are not currently considered to enclose
-     * any elements; however, that may change as this API or the
-     * programming language evolves.
+     * Other kinds of elements are not currently considered to enclose any elements;
+     * however, that may change as this API or the programming language evolves.
      *
      * @apiNote Elements of certain kinds can be isolated using
      * methods in {@link ElementFilter}.
@@ -200,8 +224,42 @@ public interface Element extends javax.lang.model.AnnotatedConstruct {
      * @revised 9
      * @spec JPMS
      */
+    // 返回该元素（类/接口/包/模块）直接包含的元素
     List<? extends Element> getEnclosedElements();
-
+    
+    /**
+     * {@inheritDoc}
+     *
+     * <p> To get inherited annotations as well, use {@link
+     * Elements#getAllAnnotationMirrors(Element)
+     * getAllAnnotationMirrors}.
+     *
+     * @since 1.6
+     */
+    // 获取直接声明在该元素上的注解镜像，不包括继承的注解
+    @Override
+    List<? extends AnnotationMirror> getAnnotationMirrors();
+    
+    /**
+     * {@inheritDoc}
+     * @since 1.6
+     */
+    // 返回指定类型的注解
+    @Override
+    <A extends Annotation> A getAnnotation(Class<A> annotationType);
+    
+    /**
+     * Applies a visitor to this element.
+     *
+     * @param <R> the return type of the visitor's methods
+     * @param <P> the type of the additional parameter to the visitor's methods
+     * @param v   the visitor operating on this element
+     * @param p   additional parameter to the visitor
+     * @return a visitor-specified result
+     */
+    // 使用元素访问器访问元素
+    <R, P> R accept(ElementVisitor<R, P> v, P p);
+    
     /**
      * Returns {@code true} if the argument represents the same
      * element as {@code this}, or {@code false} otherwise.
@@ -221,7 +279,7 @@ public interface Element extends javax.lang.model.AnnotatedConstruct {
      */
     @Override
     boolean equals(Object obj);
-
+    
     /**
      * Obeys the general contract of {@link Object#hashCode Object.hashCode}.
      *
@@ -229,35 +287,4 @@ public interface Element extends javax.lang.model.AnnotatedConstruct {
      */
     @Override
     int hashCode();
-
-
-    /**
-     * {@inheritDoc}
-     *
-     * <p> To get inherited annotations as well, use {@link
-     * Elements#getAllAnnotationMirrors(Element)
-     * getAllAnnotationMirrors}.
-     *
-     * @since 1.6
-     */
-    @Override
-    List<? extends AnnotationMirror> getAnnotationMirrors();
-
-    /**
-     * {@inheritDoc}
-     * @since 1.6
-     */
-    @Override
-    <A extends Annotation> A getAnnotation(Class<A> annotationType);
-
-    /**
-     * Applies a visitor to this element.
-     *
-     * @param <R> the return type of the visitor's methods
-     * @param <P> the type of the additional parameter to the visitor's methods
-     * @param v   the visitor operating on this element
-     * @param p   additional parameter to the visitor
-     * @return a visitor-specified result
-     */
-    <R, P> R accept(ElementVisitor<R, P> v, P p);
 }

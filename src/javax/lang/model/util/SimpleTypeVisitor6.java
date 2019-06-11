@@ -28,8 +28,8 @@ package javax.lang.model.util;
 import javax.lang.model.type.*;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
-import static javax.lang.model.SourceVersion.*;
 
+import static javax.lang.model.SourceVersion.*;
 
 /**
  * A simple visitor of types with default behavior appropriate for the
@@ -73,12 +73,12 @@ import static javax.lang.model.SourceVersion.*;
  * @author Joseph D. Darcy
  * @author Scott Seligman
  * @author Peter von der Ah&eacute;
- *
  * @see SimpleTypeVisitor7
  * @see SimpleTypeVisitor8
  * @see SimpleTypeVisitor9
  * @since 1.6
  */
+// 类型访问器的简单实现（JDK6）
 @SupportedSourceVersion(RELEASE_6)
 public class SimpleTypeVisitor6<R, P> extends AbstractTypeVisitor6<R, P> {
     /**
@@ -87,159 +87,171 @@ public class SimpleTypeVisitor6<R, P> extends AbstractTypeVisitor6<R, P> {
      * overridden.
      */
     protected final R DEFAULT_VALUE;
-
+    
     /**
      * Constructor for concrete subclasses; uses {@code null} for the
      * default value.
+     *
      * @deprecated Release 6 is obsolete; update to a visitor for a newer
      * release level.
      */
-    @Deprecated(since="9")
-    protected SimpleTypeVisitor6(){
+    @Deprecated(since = "9")
+    protected SimpleTypeVisitor6() {
         DEFAULT_VALUE = null;
     }
-
+    
     /**
      * Constructor for concrete subclasses; uses the argument for the
      * default value.
      *
      * @param defaultValue the value to assign to {@link #DEFAULT_VALUE}
+     *
      * @deprecated Release 6 is obsolete; update to a visitor for a newer
      * release level.
      */
-    @Deprecated(since="9")
-    protected SimpleTypeVisitor6(R defaultValue){
+    @Deprecated(since = "9")
+    protected SimpleTypeVisitor6(R defaultValue) {
         DEFAULT_VALUE = defaultValue;
     }
-
-    /**
-     * The default action for visit methods.
-     *
-     * @implSpec The implementation in this class just returns {@link
-     * #DEFAULT_VALUE}; subclasses will commonly override this method.
-     *
-     * @param e the type to process
-     * @param p a visitor-specified parameter
-     * @return {@code DEFAULT_VALUE} unless overridden
-     */
-    protected R defaultAction(TypeMirror e, P p) {
-        return DEFAULT_VALUE;
-    }
-
+    
     /**
      * {@inheritDoc}
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param t {@inheritDoc}
      * @param p {@inheritDoc}
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
     public R visitPrimitive(PrimitiveType t, P p) {
         return defaultAction(t, p);
     }
-
+    
     /**
      * {@inheritDoc} This implementation calls {@code defaultAction}.
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param t {@inheritDoc}
      * @param p {@inheritDoc}
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
-    public R visitNull(NullType t, P p){
+    public R visitNull(NullType t, P p) {
         return defaultAction(t, p);
     }
-
+    
     /**
      * {@inheritDoc}
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param t {@inheritDoc}
      * @param p {@inheritDoc}
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
-    public R visitArray(ArrayType t, P p){
+    public R visitArray(ArrayType t, P p) {
         return defaultAction(t, p);
     }
-
+    
     /**
      * {@inheritDoc}
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param t {@inheritDoc}
      * @param p {@inheritDoc}
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
-    public R visitDeclared(DeclaredType t, P p){
+    public R visitDeclared(DeclaredType t, P p) {
         return defaultAction(t, p);
     }
-
+    
     /**
      * {@inheritDoc}
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param t {@inheritDoc}
      * @param p {@inheritDoc}
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
-    public R visitError(ErrorType t, P p){
+    public R visitError(ErrorType t, P p) {
         return defaultAction(t, p);
     }
-
+    
     /**
      * {@inheritDoc}
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param t {@inheritDoc}
      * @param p {@inheritDoc}
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
-    public R visitTypeVariable(TypeVariable t, P p){
+    public R visitTypeVariable(TypeVariable t, P p) {
         return defaultAction(t, p);
     }
-
+    
     /**
      * {@inheritDoc}
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param t {@inheritDoc}
      * @param p {@inheritDoc}
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
-    public R visitWildcard(WildcardType t, P p){
+    public R visitWildcard(WildcardType t, P p) {
         return defaultAction(t, p);
     }
-
+    
     /**
      * {@inheritDoc}
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param t {@inheritDoc}
      * @param p {@inheritDoc}
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
     public R visitExecutable(ExecutableType t, P p) {
         return defaultAction(t, p);
     }
-
+    
     /**
      * {@inheritDoc}
      *
-     * @implSpec This implementation calls {@code defaultAction}.
-     *
      * @param t {@inheritDoc}
      * @param p {@inheritDoc}
-     * @return  the result of {@code defaultAction}
+     *
+     * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
-    public R visitNoType(NoType t, P p){
+    public R visitNoType(NoType t, P p) {
         return defaultAction(t, p);
+    }
+    
+    /**
+     * The default action for visit methods.
+     *
+     * @param e the type to process
+     * @param p a visitor-specified parameter
+     *
+     * @return {@code DEFAULT_VALUE} unless overridden
+     *
+     * @implSpec The implementation in this class just returns {@link
+     * #DEFAULT_VALUE}; subclasses will commonly override this method.
+     */
+    protected R defaultAction(TypeMirror e, P p) {
+        return DEFAULT_VALUE;
     }
 }

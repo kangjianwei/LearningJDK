@@ -25,7 +25,6 @@
 
 package javax.lang.model.type;
 
-
 /**
  * Represents a wildcard type argument.
  * Examples include:    <pre><code>
@@ -38,13 +37,14 @@ package javax.lang.model.type;
  * {@code extends} clause, its lower bound explicitly set by a
  * {@code super} clause, or neither (but not both).
  *
- * @author Joseph D. Darcy
+ * @author Joseph D. Darcy。
  * @author Scott Seligman
  * @author Peter von der Ah&eacute;
  * @since 1.6
  */
+// 通配符类型
 public interface WildcardType extends TypeMirror {
-
+    
     /**
      * Returns the upper bound of this wildcard.
      * If no upper bound is explicitly declared,
@@ -52,8 +52,9 @@ public interface WildcardType extends TypeMirror {
      *
      * @return the upper bound of this wildcard
      */
+    // 返回通配符类型的上界，如果没有的话，则返回null
     TypeMirror getExtendsBound();
-
+    
     /**
      * Returns the lower bound of this wildcard.
      * If no lower bound is explicitly declared,
@@ -61,5 +62,6 @@ public interface WildcardType extends TypeMirror {
      *
      * @return the lower bound of this wildcard
      */
+    // 返回通配符类型的下界，如果没有的话，则返回null
     TypeMirror getSuperBound();
 }

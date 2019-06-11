@@ -38,72 +38,93 @@ package javax.lang.model.element;
  * @see Element
  * @since 1.6
  */
+// 元素的种类标记
 public enum ElementKind {
-
+    
+    /**
+     * A module.
+     *
+     * @spec JPMS
+     * @since 9
+     */
+    MODULE,             // 模块
+    
     /** A package. */
-    PACKAGE,
-
-    // Declared types
+    PACKAGE,            // 包
+    
+    
+    /* Declared types */
+    
     /** An enum type. */
-    ENUM,
+    ENUM,               // 枚举
+    
     /** A class not described by a more specific kind (like {@code ENUM}). */
-    CLASS,
+    CLASS,              // 类
+    
     /** An annotation type. */
-    ANNOTATION_TYPE,
+    ANNOTATION_TYPE,    // 注解
+    
     /**
      * An interface not described by a more specific kind (like
      * {@code ANNOTATION_TYPE}).
      */
-    INTERFACE,
-
-    // Variables
+    INTERFACE,          // 接口
+    
+    
+    /* Variables */
+    
     /** An enum constant. */
-    ENUM_CONSTANT,
+    ENUM_CONSTANT,      // 枚举常量
+    
     /**
      * A field not described by a more specific kind (like
      * {@code ENUM_CONSTANT}).
      */
-    FIELD,
+    FIELD,              // 字段
+    
     /** A parameter of a method or constructor. */
-    PARAMETER,
+    PARAMETER,          // 方法或者构造器中的形参
+    
     /** A local variable. */
-    LOCAL_VARIABLE,
+    LOCAL_VARIABLE,     // 局部变量
+    
     /** A parameter of an exception handler. */
-    EXCEPTION_PARAMETER,
-
-    // Executables
+    EXCEPTION_PARAMETER,    // 异常参数
+    
+    
+    /* Executables */
+    
     /** A method. */
-    METHOD,
+    METHOD,         // 方法
+    
     /** A constructor. */
-    CONSTRUCTOR,
+    CONSTRUCTOR,    // 构造器
+    
     /** A static initializer. */
-    STATIC_INIT,
+    STATIC_INIT,    // 静态初始块
+    
     /** An instance initializer. */
-    INSTANCE_INIT,
-
+    INSTANCE_INIT,  // 初始块
+    
+    
     /** A type parameter. */
-    TYPE_PARAMETER,
-
-    /**
-     * An implementation-reserved element.  This is not the element
-     * you are looking for.
-     */
-    OTHER,
-
+    TYPE_PARAMETER,     // 类型参数
+    
     /**
      * A resource variable.
+     *
      * @since 1.7
      */
-     RESOURCE_VARIABLE,
-
+    RESOURCE_VARIABLE,  // 资源变量（try-with-resources结构中的参数）
+    
+    
     /**
-     * A module.
-     * @since 9
-     * @spec JPMS
+     * An implementation-reserved element.
+     * This is not the element you are looking for.
      */
-     MODULE;
-
-
+    OTHER;
+    
+    
     /**
      * Returns {@code true} if this is a kind of class:
      * either {@code CLASS} or {@code ENUM}.
@@ -113,7 +134,7 @@ public enum ElementKind {
     public boolean isClass() {
         return this == CLASS || this == ENUM;
     }
-
+    
     /**
      * Returns {@code true} if this is a kind of interface:
      * either {@code INTERFACE} or {@code ANNOTATION_TYPE}.
@@ -123,7 +144,7 @@ public enum ElementKind {
     public boolean isInterface() {
         return this == INTERFACE || this == ANNOTATION_TYPE;
     }
-
+    
     /**
      * Returns {@code true} if this is a kind of field:
      * either {@code FIELD} or {@code ENUM_CONSTANT}.
@@ -132,5 +153,4 @@ public enum ElementKind {
      */
     public boolean isField() {
         return this == FIELD || this == ENUM_CONSTANT;
-    }
-}
+    }}

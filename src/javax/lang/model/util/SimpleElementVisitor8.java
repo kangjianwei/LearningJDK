@@ -71,6 +71,7 @@ import static javax.lang.model.SourceVersion.*;
  * @see SimpleElementVisitor9
  * @since 1.8
  */
+// 元素访问器的简单实现（JDK8）
 @SupportedSourceVersion(RELEASE_8)
 public class SimpleElementVisitor8<R, P> extends SimpleElementVisitor7<R, P> {
     /**

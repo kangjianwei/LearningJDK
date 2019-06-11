@@ -28,6 +28,7 @@ package javax.lang.model.util;
 import javax.lang.model.type.*;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
+
 import static javax.lang.model.SourceVersion.*;
 
 /**
@@ -72,6 +73,7 @@ import static javax.lang.model.SourceVersion.*;
  * @see SimpleTypeVisitor9
  * @since 1.7
  */
+// 类型访问器的简单实现（JDK7）
 @SupportedSourceVersion(RELEASE_7)
 public class SimpleTypeVisitor7<R, P> extends SimpleTypeVisitor6<R, P> {
     /**
@@ -79,10 +81,10 @@ public class SimpleTypeVisitor7<R, P> extends SimpleTypeVisitor6<R, P> {
      * default value.
      */
     @SuppressWarnings("deprecation") // Superclass constructor deprecated
-    protected SimpleTypeVisitor7(){
+    protected SimpleTypeVisitor7() {
         super(null);
     }
-
+    
     /**
      * Constructor for concrete subclasses; uses the argument for the
      * default value.
@@ -90,18 +92,19 @@ public class SimpleTypeVisitor7<R, P> extends SimpleTypeVisitor6<R, P> {
      * @param defaultValue the value to assign to {@link #DEFAULT_VALUE}
      */
     @SuppressWarnings("deprecation") // Superclass constructor deprecated
-    protected SimpleTypeVisitor7(R defaultValue){
+    protected SimpleTypeVisitor7(R defaultValue) {
         super(defaultValue);
     }
-
+    
     /**
      * {@inheritDoc}
      *
-     * @implSpec This implementation calls {@code defaultAction}.
+     * @param t {@inheritDoc}
+     * @param p {@inheritDoc}
      *
-     * @param t  {@inheritDoc}
-     * @param p  {@inheritDoc}
      * @return the result of {@code defaultAction}
+     *
+     * @implSpec This implementation calls {@code defaultAction}.
      */
     @Override
     public R visitUnion(UnionType t, P p) {

@@ -27,17 +27,17 @@ package javax.lang.model;
 
 import java.lang.annotation.*;
 import java.util.List;
+
 import javax.lang.model.element.*;
 import javax.lang.model.type.*;
 
 /**
  * Represents a construct that can be annotated.
  *
- * A construct is either an {@linkplain
- * javax.lang.model.element.Element element} or a {@linkplain
- * javax.lang.model.type.TypeMirror type}.  Annotations on an element
- * are on a <em>declaration</em>, whereas annotations on a type are on
- * a specific <em>use</em> of a type name.
+ * A construct is either an {@linkplain javax.lang.model.element.Element element}
+ * or a {@linkplain javax.lang.model.type.TypeMirror type}.
+ * Annotations on an element are on a <em>declaration</em>,
+ * whereas annotations on a type are on a specific <em>use</em> of a type name.
  *
  * The terms <em>directly present</em>, <em>present</em>,
  * <em>indirectly present</em>, and <em>associated </em> are used
@@ -62,7 +62,9 @@ import javax.lang.model.type.*;
  *
  * If there are multiple annotations of type <i>AT</i> present on
  * <i>C</i>, then if <i>AT</i> is repeatable annotation type, an
- * annotation of type <i>ATC</i> is {@linkplain javax.lang.model.util.Elements#getOrigin(AnnotatedConstruct, AnnotationMirror) implicitly declared} on <i>C</i>.
+ * annotation of type <i>ATC</i> is {@linkplain
+ * javax.lang.model.util.Elements#getOrigin(AnnotatedConstruct, AnnotationMirror) implicitly declared}
+ * on <i>C</i>.
  *
  * <li> A representation of <i>A</i> appears in the executable output
  * for <i>C</i>, such as the {@code RuntimeVisibleAnnotations} or
@@ -112,10 +114,11 @@ import javax.lang.model.type.*;
  *
  * </ul>
  *
- * @since 1.8
  * @jls 9.6 Annotation Types
  * @jls 9.6.3.3 @Inherited
+ * @since 1.8
  */
+// 表示一个可以被注解的结构,这个结构可以是Element或TypeMirror
 public interface AnnotatedConstruct {
     /**
      * Returns the annotations that are <em>directly present</em> on
@@ -124,8 +127,9 @@ public interface AnnotatedConstruct {
      * @return the annotations <em>directly present</em> on this
      * construct; an empty list if there are none
      */
+    // 返回直接声明在该结构上的注解，如果没有直接声明的注解，则返回空集合.
     List<? extends AnnotationMirror> getAnnotationMirrors();
-
+    
     /**
      * Returns this construct's annotation of the specified type if
      * such an annotation is <em>present</em>, else {@code null}.
@@ -155,12 +159,14 @@ public interface AnnotatedConstruct {
      * annotation types.
      * </blockquote>
      *
-     * @param <A>  the annotation type
-     * @param annotationType  the {@code Class} object corresponding to
-     *          the annotation type
+     * @param <A>            the annotation type
+     * @param annotationType the {@code Class} object corresponding to
+     *                       the annotation type
+     *
      * @return this construct's annotation for the specified
      * annotation type if present, else {@code null}
      *
+     * @jls 9.6.1 Annotation Type Elements
      * @see #getAnnotationMirrors()
      * @see java.lang.reflect.AnnotatedElement#getAnnotation
      * @see EnumConstantNotPresentException
@@ -168,10 +174,10 @@ public interface AnnotatedConstruct {
      * @see IncompleteAnnotationException
      * @see MirroredTypeException
      * @see MirroredTypesException
-     * @jls 9.6.1 Annotation Type Elements
      */
+    // 返回指定类型的注解
     <A extends Annotation> A getAnnotation(Class<A> annotationType);
-
+    
     /**
      * Returns annotations that are <em>associated</em> with this construct.
      *
@@ -214,12 +220,15 @@ public interface AnnotatedConstruct {
      * annotation types.
      * </blockquote>
      *
-     * @param <A>  the annotation type
-     * @param annotationType  the {@code Class} object corresponding to
-     *          the annotation type
-     * @return this construct's annotations for the specified annotation
-     *         type if present on this construct, else an empty array
+     * @param <A>            the annotation type
+     * @param annotationType the {@code Class} object corresponding to
+     *                       the annotation type
      *
+     * @return this construct's annotations for the specified annotation
+     * type if present on this construct, else an empty array
+     *
+     * @jls 9.6 Annotation Types
+     * @jls 9.6.1 Annotation Type Elements
      * @see #getAnnotationMirrors()
      * @see #getAnnotation(Class)
      * @see java.lang.reflect.AnnotatedElement#getAnnotationsByType(Class)
@@ -228,8 +237,7 @@ public interface AnnotatedConstruct {
      * @see IncompleteAnnotationException
      * @see MirroredTypeException
      * @see MirroredTypesException
-     * @jls 9.6 Annotation Types
-     * @jls 9.6.1 Annotation Type Elements
      */
+    // 返回指定类型的注解，支持可重复注解
     <A extends Annotation> A[] getAnnotationsByType(Class<A> annotationType);
 }
