@@ -1895,6 +1895,45 @@ public final class String implements Serializable, Comparable<String>, CharSeque
     }
     
     /**
+     * Splits this string around matches of the given <a href="../util/regex/Pattern.html#sum">regular expression</a>.
+     *
+     * <p> This method works as if by invoking the two-argument {@link #split(String, int) split} method with the given expression and a limit argument of zero.
+     * Trailing empty strings are therefore not included in the resulting array.
+     *
+     * <p> The string {@code "boo:and:foo"}, for example, yields the following
+     * results with these expressions:
+     *
+     * <blockquote><table class="plain">
+     * <caption style="display:none">Split examples showing regex and result</caption>
+     * <thead>
+     * <tr>
+     * <th scope="col">Regex</th>
+     * <th scope="col">Result</th>
+     * </tr>
+     * </thead>
+     * <tbody>
+     * <tr><th scope="row" style="text-weight:normal">:</th>
+     * <td>{@code { "boo", "and", "foo" }}</td></tr>
+     * <tr><th scope="row" style="text-weight:normal">o</th>
+     * <td>{@code { "b", "", ":and:f" }}</td></tr>
+     * </tbody>
+     * </table></blockquote>
+     *
+     * @param regex the delimiting regular expression
+     *
+     * @return the array of strings computed by splitting this string around matches of the given regular expression
+     *
+     * @throws PatternSyntaxException if the regular expression's syntax is invalid
+     * @spec JSR-51
+     * @see Pattern
+     * @since 1.4
+     */
+    // 将当前String从正则表达式regex匹配的地方切割，返回切割后的子串集合（忽略结尾空串），参见Pattern#split(CharSequence)
+    public String[] split(String regex) {
+        return split(regex, 0);
+    }
+    
+    /**
      * Splits this string around matches of the given
      * <a href="../util/regex/Pattern.html#sum">regular expression</a>.
      *
@@ -1977,7 +2016,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * @see Pattern
      * @since 1.4
      */
-    // 以正则表达式regex形式切割String，返回切割后的子串集合
+    // 将当前String从正则表达式regex匹配的地方切割，返回切割后的子串集合，参见Pattern#split(CharSequence, int)
     public String[] split(String regex, int limit) {
         /*
          * fastpath if the regex is a
@@ -2035,45 +2074,6 @@ public final class String implements Serializable, Comparable<String>, CharSeque
         return Pattern.compile(regex).split(this, limit);
     }
     
-    /**
-     * Splits this string around matches of the given <a href="../util/regex/Pattern.html#sum">regular expression</a>.
-     *
-     * <p> This method works as if by invoking the two-argument {@link #split(String, int) split} method with the given expression and a limit argument of zero.
-     * Trailing empty strings are therefore not included in the resulting array.
-     *
-     * <p> The string {@code "boo:and:foo"}, for example, yields the following
-     * results with these expressions:
-     *
-     * <blockquote><table class="plain">
-     * <caption style="display:none">Split examples showing regex and result</caption>
-     * <thead>
-     * <tr>
-     * <th scope="col">Regex</th>
-     * <th scope="col">Result</th>
-     * </tr>
-     * </thead>
-     * <tbody>
-     * <tr><th scope="row" style="text-weight:normal">:</th>
-     * <td>{@code { "boo", "and", "foo" }}</td></tr>
-     * <tr><th scope="row" style="text-weight:normal">o</th>
-     * <td>{@code { "b", "", ":and:f" }}</td></tr>
-     * </tbody>
-     * </table></blockquote>
-     *
-     * @param regex the delimiting regular expression
-     *
-     * @return the array of strings computed by splitting this string around matches of the given regular expression
-     *
-     * @throws PatternSyntaxException if the regular expression's syntax is invalid
-     * @spec JSR-51
-     * @see Pattern
-     * @since 1.4
-     */
-    // 以正则表达式regex形式切割String，返回切割后的子串集合
-    public String[] split(String regex) {
-        return split(regex, 0);
-    }
-    
     /*▲ 求子串 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
@@ -2112,7 +2112,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * @see Pattern
      * @since 1.4
      */
-    // 使用replacement替换正则表达式regex匹配到的首个子串
+    // 使用replacement替换正则表达式regex匹配到的首个子串，replacement可以是捕获组的引用
     public String replaceFirst(String regex, String replacement) {
         return Pattern.compile(regex).matcher(this).replaceFirst(replacement);
     }
@@ -2148,7 +2148,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * @see Pattern
      * @since 1.4
      */
-    // 使用replacement替换正则表达式regex匹配到的全部子串
+    // 使用replacement替换正则表达式regex匹配到的全部子串，replacement可以是捕获组的引用
     public String replaceAll(String regex, String replacement) {
         return Pattern.compile(regex).matcher(this).replaceAll(replacement);
     }
@@ -2580,7 +2580,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * @see Pattern
      * @since 1.4
      */
-    // 当前字符串与给定的正则表达式是否匹配
+    // 当前字符串与给定的正则表达式是否完全匹配，参见Pattern#matches(String, CharSequence)和Matcher#matches()
     public boolean matches(String regex) {
         return Pattern.matches(regex, this);
     }

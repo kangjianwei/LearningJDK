@@ -96,7 +96,7 @@ import static java.lang.module.ModuleDescriptor.Modifier.SYNTHETIC;
  * <li>A proxy class extends {@code java.lang.reflect.Proxy}.
  *
  * <li>A proxy class implements exactly the interfaces specified at its
- * creation, in the same order. Invoking {@link Class#getInterfaces getInterfaces}
+ * creation, in the same order. Invoking {@link Class#getInterfaces() getInterfaces}
  * on its {@code Class} object will return an array containing the same
  * list of interfaces (in the order specified at its creation), invoking
  * {@link Class#getMethods getMethods} on its {@code Class} object will return
@@ -322,7 +322,7 @@ public class Proxy implements Serializable {
      *
      * @serial
      */
-    protected InvocationHandler h;  // 回到处理器
+    protected InvocationHandler h;  // 回调处理器(InvocationHandler实现类)
     
     /** parameter types of a proxy class constructor */
     private static final Class<?>[] constructorParams = {InvocationHandler.class};
@@ -335,7 +335,7 @@ public class Proxy implements Serializable {
     
     private static final Class<?>[] EMPTY_CLASS_ARRAY = new Class<?>[0];
     
-    // 非public代理接口使用的包名
+    // 代理接口为public时，代理类使用的包名
     private static final String PROXY_PACKAGE_PREFIX = ReflectUtil.PROXY_PACKAGE;
     
     
@@ -467,14 +467,15 @@ public class Proxy implements Serializable {
      */
     /*
      * 生成动态代理对象
-     * loader：加载代理对象的类加载器，一般与被代理对象一致
-     * interfaces：代理对象需要实现的接口，一般与被代理对象一致
+     * loader：用于加载代理对象的类加载器，一般与被代理对象的类加载器一致
+     * interfaces：代理对象需要实现的接口，一般与被代理对象实现的接口一致
      * h：回调处理器
      */
     @CallerSensitive
     public static Object newProxyInstance(ClassLoader loader, Class<?>[] interfaces, InvocationHandler h) {
         Objects.requireNonNull(h);
         
+        // 如果存在安全管理器，返回当前newProxyInstance方法所处的类（动态代理对象所在的类）
         final Class<?> caller = System.getSecurityManager() == null ? null : Reflection.getCallerClass();
         
         /* Look up or generate the designated proxy class and its constructor. */
@@ -506,7 +507,9 @@ public class Proxy implements Serializable {
         // 如果被代理类只有一个接口
         if(interfaces.length == 1) {
             Class<?> intf = interfaces[0];
+            
             if(caller != null) {
+                // 检查caller对代理接口interfaces的访问权限，以及loader为null时检查getClassLoader权限
                 checkProxyAccess(caller, loader, intf);
             }
             
@@ -515,9 +518,12 @@ public class Proxy implements Serializable {
         } else {
             // interfaces cloned
             final Class<?>[] intfsArray = interfaces.clone();
+            
             if(caller != null) {
+                // 检查caller对代理接口interfaces的访问权限，以及loader为null时检查getClassLoader权限
                 checkProxyAccess(caller, loader, intfsArray);
             }
+            
             final List<Class<?>> intfs = Arrays.asList(intfsArray);
             return proxyCache.sub(intfs) // 孕育sub-ClassLoaderValue对象，并将代理类的父接口缓存到该对象中
                 .computeIfAbsent(loader, (ld, clv) -> new ProxyBuilder(ld, clv.key()).build()); // 返回代理接口对应的构造器
@@ -531,6 +537,7 @@ public class Proxy implements Serializable {
          */
         try {
             if(caller != null) {
+                // 判断代理对象所在的类是否可以访问代理类（如果不能访问则无法调用构造方法）
                 checkNewProxyPermission(caller, cons.getDeclaringClass());
             }
             
@@ -661,10 +668,14 @@ public class Proxy implements Serializable {
         
         final InvocationHandler ih = p.h;
         
+        // 如果存在安全管理器
         if(System.getSecurityManager() != null) {
-            Class<?> ihClass = ih.getClass();
             Class<?> caller = Reflection.getCallerClass();
+            Class<?> ihClass = ih.getClass();
+            
+            // 判断在caller访问ihClass时，是否需要检查包访问权限
             if(ReflectUtil.needsPackageAccessCheck(caller.getClassLoader(), ihClass.getClassLoader())) {
+                // 使用系统安全管理器检查当前类对ihClass所在的包的访问权限
                 ReflectUtil.checkPackageAccess(ihClass);
             }
         }
@@ -701,30 +712,35 @@ public class Proxy implements Serializable {
      * will throw IllegalAccessError when the generated proxy class is
      * being defined.
      */
+    // 检查caller对代理接口interfaces的访问权限，以及loader为null时检查getClassLoader权限
     private static void checkProxyAccess(Class<?> caller, ClassLoader loader, Class<?>... interfaces) {
         SecurityManager sm = System.getSecurityManager();
         if(sm != null) {
             ClassLoader ccl = caller.getClassLoader();
+            
             if(loader == null && ccl != null) {
                 sm.checkPermission(SecurityConstants.GET_CLASSLOADER_PERMISSION);
             }
+            
+            // 检查ccl（加载的类）对代理接口interfaces的访问权限
             ReflectUtil.checkProxyPackageAccess(ccl, interfaces);
         }
     }
     
+    // 判断caller是否可以访问proxyClass
     private static void checkNewProxyPermission(Class<?> caller, Class<?> proxyClass) {
         SecurityManager sm = System.getSecurityManager();
         if(sm != null) {
+            // 判断proxyClass是否为实现了非public接口的代理类
             if(ReflectUtil.isNonPublicProxyClass(proxyClass)) {
                 ClassLoader ccl = caller.getClassLoader();
                 ClassLoader pcl = proxyClass.getClassLoader();
                 
-                // do permission check if the caller is in a different runtime package
-                // of the proxy class
-                String pkg = proxyClass.getPackageName();
+                // do permission check if the caller is in a different runtime package of the proxy class
                 String callerPkg = caller.getPackageName();
+                String pkg = proxyClass.getPackageName();
                 
-                if(pcl != ccl || !pkg.equals(callerPkg)) {
+                if(ccl!= pcl || !pkg.equals(callerPkg)) {
                     sm.checkPermission(new ReflectPermission("newProxyInPackage." + pkg));
                 }
             }
@@ -837,10 +853,16 @@ public class Proxy implements Serializable {
              * proxy class will be defined in the same package.  Verify that
              * all non-public proxy interfaces are in the same package.
              */
+            // 遍历代理接口
             for(Class<?> intf : interfaces) {
+                // 获取代理接口修饰符
                 int flags = intf.getModifiers();
+                
+                // 如果dialing接口不是public
                 if(!Modifier.isPublic(flags)) {
+                    // 需要为生成的代理类添加final标记
                     accessFlags = Modifier.FINAL;  // non-public, final
+                    
                     // 当前代理接口的包名
                     String pkg = intf.getPackageName();
                     
@@ -853,7 +875,7 @@ public class Proxy implements Serializable {
                 }
             }
             
-            // 如果是非public代理接口，则使用统一的包名："com.sun.proxy"
+            // proxyPkg为null意味着代理接口是public的，则使用统一的包名："com.sun.proxy"
             if(proxyPkg == null) {
                 // all proxy interfaces are public
                 proxyPkg = m.isNamed()

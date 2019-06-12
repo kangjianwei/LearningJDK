@@ -201,13 +201,14 @@ import java.util.Spliterator;
  *     通过allocateDirect()分配直接缓冲区，将缓冲区建立在物理内存中，可以提高效率。通过Unsafe存取元素。
  */
 public abstract class Buffer {
-    // Cached unsafe-access object
-    static final Unsafe UNSAFE = Unsafe.getUnsafe();
-    
     /**
      * The characteristics of Spliterators that traverse and split elements maintained in Buffers.
      */
+    // 流标记
     static final int SPLITERATOR_CHARACTERISTICS = Spliterator.SIZED | Spliterator.SUBSIZED | Spliterator.ORDERED;
+    
+    // Cached unsafe-access object
+    static final Unsafe UNSAFE = Unsafe.getUnsafe();
     
     // Used by heap byte buffers or direct buffers with Unsafe access
     // For heap byte buffers this field will be the address relative to the array base address and offset into that array.
@@ -216,7 +217,7 @@ public abstract class Buffer {
     // The address might not align on a word boundary for slices, nor when created using JNI, see NewDirectByteBuffer(void*, long).
     // Should ideally be declared final
     // NOTE: hoisted here for speed in JNI GetDirectBufferAddress
-    long address;   // 缓冲区【绝对】起始地址，仅用于Unsafe类访问直接缓冲区的内部存储结构
+    long address;   // 缓冲区【绝对】起始地址，用于Unsafe类访问堆缓冲区或访问直接缓冲区
     
     /*
      * 关系: mark <= position <= limit <= capacity
