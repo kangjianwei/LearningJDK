@@ -46,69 +46,158 @@ import java.lang.invoke.VarHandle;
  * references by creating internal objects representing "boxed"
  * [reference, integer] pairs.
  *
- * @since 1.5
- * @author Doug Lea
  * @param <V> The type of object referred to by this reference
+ *
+ * @author Doug Lea
+ * @since 1.5
  */
+// 捆绑了int标记的reference，在特定场合下可以解决CAS中的ABA问题
 public class AtomicStampedReference<V> {
-
-    private static class Pair<T> {
-        final T reference;
-        final int stamp;
-        private Pair(T reference, int stamp) {
-            this.reference = reference;
-            this.stamp = stamp;
-        }
-        static <T> Pair<T> of(T reference, int stamp) {
-            return new Pair<T>(reference, stamp);
+    // 捆绑了int标记的reference
+    private volatile Pair<V> pair;
+    
+    // VarHandle mechanics
+    private static final VarHandle PAIR;
+    static {
+        try {
+            MethodHandles.Lookup l = MethodHandles.lookup();
+            PAIR = l.findVarHandle(AtomicStampedReference.class, "pair", Pair.class);
+        } catch(ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
         }
     }
-
-    private volatile Pair<V> pair;
-
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates a new {@code AtomicStampedReference} with the given
      * initial values.
      *
-     * @param initialRef the initial reference
+     * @param initialRef   the initial reference
      * @param initialStamp the initial stamp
      */
     public AtomicStampedReference(V initialRef, int initialStamp) {
         pair = Pair.of(initialRef, initialStamp);
     }
-
-    /**
-     * Returns the current value of the reference.
-     *
-     * @return the current value of the reference
-     */
-    public V getReference() {
-        return pair.reference;
-    }
-
-    /**
-     * Returns the current value of the stamp.
-     *
-     * @return the current value of the stamp
-     */
-    public int getStamp() {
-        return pair.stamp;
-    }
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 获取值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns the current values of both the reference and the stamp.
      * Typical usage is {@code int[1] holder; ref = v.get(holder); }.
      *
      * @param stampHolder an array of size of at least one.  On return,
-     * {@code stampHolder[0]} will hold the value of the stamp.
+     *                    {@code stampHolder[0]} will hold the value of the stamp.
+     *
      * @return the current value of the reference
      */
+    // 获取reference值（返回值）和stamp值（形参）
     public V get(int[] stampHolder) {
         Pair<V> pair = this.pair;
         stampHolder[0] = pair.stamp;
         return pair.reference;
     }
-
+    
+    /**
+     * Returns the current value of the reference.
+     *
+     * @return the current value of the reference
+     */
+    // 获取reference值（返回值）
+    public V getReference() {
+        return pair.reference;
+    }
+    
+    /**
+     * Returns the current value of the stamp.
+     *
+     * @return the current value of the stamp
+     */
+    // 获取stamp值（返回值）
+    public int getStamp() {
+        return pair.stamp;
+    }
+    
+    /*▲ 获取值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 设置值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Unconditionally sets the value of both the reference and stamp.
+     *
+     * @param newReference the new value for the reference
+     * @param newStamp     the new value for the stamp
+     */
+    // 使用newReference和newStamp无条件地更新pair
+    public void set(V newReference, int newStamp) {
+        Pair<V> current = pair;
+        
+        if(newReference != current.reference || newStamp != current.stamp) {
+            this.pair = Pair.of(newReference, newStamp);
+        }
+    }
+    
+    /*▲ 设置值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ CAS ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 原子地更新pair，返回值指示是否更新成功
+    private boolean casPair(Pair<V> cmp, Pair<V> val) {
+        return PAIR.compareAndSet(this, cmp, val);
+    }
+    
+    /**
+     * Atomically sets the value of the stamp to the given update value
+     * if the current reference is {@code ==} to the expected
+     * reference.  Any given invocation of this operation may fail
+     * (return {@code false}) spuriously, but repeated invocation
+     * when the current value holds the expected value and no other
+     * thread is also attempting to set the value will eventually
+     * succeed.
+     *
+     * @param expectedReference the expected value of the reference
+     * @param newStamp          the new value for the stamp
+     *
+     * @return {@code true} if successful
+     */
+    // 如果当前引用reference与期望引用expectedReference一致，则使用newStamp原子地更新pair
+    public boolean attemptStamp(V expectedReference, int newStamp) {
+        Pair<V> current = pair;
+        return expectedReference == current.reference
+            && (newStamp == current.stamp || casPair(current, Pair.of(expectedReference, newStamp)));
+    }
+    
+    /**
+     * Atomically sets the value of both the reference and stamp
+     * to the given update values if the
+     * current reference is {@code ==} to the expected reference
+     * and the current stamp is equal to the expected stamp.
+     *
+     * @param expectedReference the expected value of the reference
+     * @param newReference      the new value for the reference
+     * @param expectedStamp     the expected value of the stamp
+     * @param newStamp          the new value for the stamp
+     *
+     * @return {@code true} if successful
+     */
+    // 使用newReference和newStamp原子地更新Pair（更新前需要先与期望值作比对）
+    public boolean compareAndSet(V expectedReference, V newReference, int expectedStamp, int newStamp) {
+        Pair<V> current = pair;
+        return expectedReference == current.reference
+            && expectedStamp == current.stamp
+            && ((newReference == current.reference && newStamp == current.stamp) || casPair(current, Pair.of(newReference, newStamp)));
+    }
+    
     /**
      * Atomically sets the value of both the reference and stamp
      * to the given update values if the
@@ -120,90 +209,33 @@ public class AtomicStampedReference<V> {
      * only rarely an appropriate alternative to {@code compareAndSet}.
      *
      * @param expectedReference the expected value of the reference
-     * @param newReference the new value for the reference
-     * @param expectedStamp the expected value of the stamp
-     * @param newStamp the new value for the stamp
+     * @param newReference      the new value for the reference
+     * @param expectedStamp     the expected value of the stamp
+     * @param newStamp          the new value for the stamp
+     *
      * @return {@code true} if successful
      */
-    public boolean weakCompareAndSet(V   expectedReference,
-                                     V   newReference,
-                                     int expectedStamp,
-                                     int newStamp) {
-        return compareAndSet(expectedReference, newReference,
-                             expectedStamp, newStamp);
+    // 使用newReference和newStamp原子地更新Pair（更新前需要先与期望值作比对）
+    public boolean weakCompareAndSet(V expectedReference, V newReference, int expectedStamp, int newStamp) {
+        return compareAndSet(expectedReference, newReference, expectedStamp, newStamp);
     }
-
-    /**
-     * Atomically sets the value of both the reference and stamp
-     * to the given update values if the
-     * current reference is {@code ==} to the expected reference
-     * and the current stamp is equal to the expected stamp.
-     *
-     * @param expectedReference the expected value of the reference
-     * @param newReference the new value for the reference
-     * @param expectedStamp the expected value of the stamp
-     * @param newStamp the new value for the stamp
-     * @return {@code true} if successful
-     */
-    public boolean compareAndSet(V   expectedReference,
-                                 V   newReference,
-                                 int expectedStamp,
-                                 int newStamp) {
-        Pair<V> current = pair;
-        return
-            expectedReference == current.reference &&
-            expectedStamp == current.stamp &&
-            ((newReference == current.reference &&
-              newStamp == current.stamp) ||
-             casPair(current, Pair.of(newReference, newStamp)));
-    }
-
-    /**
-     * Unconditionally sets the value of both the reference and stamp.
-     *
-     * @param newReference the new value for the reference
-     * @param newStamp the new value for the stamp
-     */
-    public void set(V newReference, int newStamp) {
-        Pair<V> current = pair;
-        if (newReference != current.reference || newStamp != current.stamp)
-            this.pair = Pair.of(newReference, newStamp);
-    }
-
-    /**
-     * Atomically sets the value of the stamp to the given update value
-     * if the current reference is {@code ==} to the expected
-     * reference.  Any given invocation of this operation may fail
-     * (return {@code false}) spuriously, but repeated invocation
-     * when the current value holds the expected value and no other
-     * thread is also attempting to set the value will eventually
-     * succeed.
-     *
-     * @param expectedReference the expected value of the reference
-     * @param newStamp the new value for the stamp
-     * @return {@code true} if successful
-     */
-    public boolean attemptStamp(V expectedReference, int newStamp) {
-        Pair<V> current = pair;
-        return
-            expectedReference == current.reference &&
-            (newStamp == current.stamp ||
-             casPair(current, Pair.of(expectedReference, newStamp)));
-    }
-
-    // VarHandle mechanics
-    private static final VarHandle PAIR;
-    static {
-        try {
-            MethodHandles.Lookup l = MethodHandles.lookup();
-            PAIR = l.findVarHandle(AtomicStampedReference.class, "pair",
-                                   Pair.class);
-        } catch (ReflectiveOperationException e) {
-            throw new ExceptionInInitializerError(e);
+    
+    /*▲ CAS ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    // 当前类的内部实现，Pair中包含了捆绑了int标记的reference
+    private static class Pair<T> {
+        final T reference;
+        final int stamp;
+        
+        private Pair(T reference, int stamp) {
+            this.reference = reference;
+            this.stamp = stamp;
         }
-    }
-
-    private boolean casPair(Pair<V> cmp, Pair<V> val) {
-        return PAIR.compareAndSet(this, cmp, val);
+        
+        static <T> Pair<T> of(T reference, int stamp) {
+            return new Pair<T>(reference, stamp);
+        }
     }
 }
