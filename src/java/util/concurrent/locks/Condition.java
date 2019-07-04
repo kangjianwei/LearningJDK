@@ -174,11 +174,49 @@ import java.util.concurrent.TimeUnit;
  * shown that the interrupt occurred after another action that may have
  * unblocked the thread. An implementation should document this behavior.
  *
- * @since 1.5
  * @author Doug Lea
+ * @since 1.5
  */
+// 条件对象接口，用于更精细地指导线程的同步行为
 public interface Condition {
-
+    
+    /**
+     * Causes the current thread to wait until it is signalled.
+     *
+     * <p>The lock associated with this condition is atomically
+     * released and the current thread becomes disabled for thread scheduling
+     * purposes and lies dormant until <em>one</em> of three things happens:
+     * <ul>
+     * <li>Some other thread invokes the {@link #signal} method for this
+     * {@code Condition} and the current thread happens to be chosen as the
+     * thread to be awakened; or
+     * <li>Some other thread invokes the {@link #signalAll} method for this
+     * {@code Condition}; or
+     * <li>A &quot;<em>spurious wakeup</em>&quot; occurs.
+     * </ul>
+     *
+     * <p>In all cases, before this method can return the current thread must
+     * re-acquire the lock associated with this condition. When the
+     * thread returns it is <em>guaranteed</em> to hold this lock.
+     *
+     * <p>If the current thread's interrupted status is set when it enters
+     * this method, or it is {@linkplain Thread#interrupt interrupted}
+     * while waiting, it will continue to wait until signalled. When it finally
+     * returns from this method its interrupted status will still
+     * be set.
+     *
+     * <p><b>Implementation Considerations</b>
+     *
+     * <p>The current thread is assumed to hold the lock associated with this
+     * {@code Condition} when this method is called.
+     * It is up to the implementation to determine if this is
+     * the case and if not, how to respond. Typically, an exception will be
+     * thrown (such as {@link IllegalMonitorStateException}) and the
+     * implementation must document that fact.
+     */
+    // 使当前活跃的线程暂时陷入阻塞，允许阻塞带有中断标记的线程
+    void awaitUninterruptibly();
+    
     /**
      * Causes the current thread to wait until it is signalled or
      * {@linkplain Thread#interrupt interrupted}.
@@ -227,46 +265,11 @@ public interface Condition {
      * there is one.
      *
      * @throws InterruptedException if the current thread is interrupted
-     *         (and interruption of thread suspension is supported)
+     *                              (and interruption of thread suspension is supported)
      */
+    // 使当前活跃的线程暂时陷入阻塞，禁止阻塞带有中断标记的线程
     void await() throws InterruptedException;
-
-    /**
-     * Causes the current thread to wait until it is signalled.
-     *
-     * <p>The lock associated with this condition is atomically
-     * released and the current thread becomes disabled for thread scheduling
-     * purposes and lies dormant until <em>one</em> of three things happens:
-     * <ul>
-     * <li>Some other thread invokes the {@link #signal} method for this
-     * {@code Condition} and the current thread happens to be chosen as the
-     * thread to be awakened; or
-     * <li>Some other thread invokes the {@link #signalAll} method for this
-     * {@code Condition}; or
-     * <li>A &quot;<em>spurious wakeup</em>&quot; occurs.
-     * </ul>
-     *
-     * <p>In all cases, before this method can return the current thread must
-     * re-acquire the lock associated with this condition. When the
-     * thread returns it is <em>guaranteed</em> to hold this lock.
-     *
-     * <p>If the current thread's interrupted status is set when it enters
-     * this method, or it is {@linkplain Thread#interrupt interrupted}
-     * while waiting, it will continue to wait until signalled. When it finally
-     * returns from this method its interrupted status will still
-     * be set.
-     *
-     * <p><b>Implementation Considerations</b>
-     *
-     * <p>The current thread is assumed to hold the lock associated with this
-     * {@code Condition} when this method is called.
-     * It is up to the implementation to determine if this is
-     * the case and if not, how to respond. Typically, an exception will be
-     * thrown (such as {@link IllegalMonitorStateException}) and the
-     * implementation must document that fact.
-     */
-    void awaitUninterruptibly();
-
+    
     /**
      * Causes the current thread to wait until it is signalled or interrupted,
      * or the specified waiting time elapses.
@@ -349,17 +352,20 @@ public interface Condition {
      * there is one.
      *
      * @param nanosTimeout the maximum time to wait, in nanoseconds
+     *
      * @return an estimate of the {@code nanosTimeout} value minus
-     *         the time spent waiting upon return from this method.
-     *         A positive value may be used as the argument to a
-     *         subsequent call to this method to finish waiting out
-     *         the desired time.  A value less than or equal to zero
-     *         indicates that no time remains.
+     * the time spent waiting upon return from this method.
+     * A positive value may be used as the argument to a
+     * subsequent call to this method to finish waiting out
+     * the desired time.  A value less than or equal to zero
+     * indicates that no time remains.
+     *
      * @throws InterruptedException if the current thread is interrupted
-     *         (and interruption of thread suspension is supported)
+     *                              (and interruption of thread suspension is supported)
      */
+    // 使当前活跃的线程暂时陷入阻塞，禁止阻塞带有中断标记的线程，nanosTimeout为相对时间，用于设置超时
     long awaitNanos(long nanosTimeout) throws InterruptedException;
-
+    
     /**
      * Causes the current thread to wait until it is signalled or interrupted,
      * or the specified waiting time elapses. This method is behaviorally
@@ -368,13 +374,16 @@ public interface Condition {
      *
      * @param time the maximum time to wait
      * @param unit the time unit of the {@code time} argument
+     *
      * @return {@code false} if the waiting time detectably elapsed
-     *         before return from the method, else {@code true}
+     * before return from the method, else {@code true}
+     *
      * @throws InterruptedException if the current thread is interrupted
-     *         (and interruption of thread suspension is supported)
+     *                              (and interruption of thread suspension is supported)
      */
+    // 使当前活跃的线程暂时陷入阻塞，禁止阻塞带有中断标记的线程，time为相对时间，需经过unit处理，用于设置超时
     boolean await(long time, TimeUnit unit) throws InterruptedException;
-
+    
     /**
      * Causes the current thread to wait until it is signalled or interrupted,
      * or the specified deadline elapses.
@@ -445,13 +454,16 @@ public interface Condition {
      * there is one.
      *
      * @param deadline the absolute time to wait until
+     *
      * @return {@code false} if the deadline has elapsed upon return, else
-     *         {@code true}
+     * {@code true}
+     *
      * @throws InterruptedException if the current thread is interrupted
-     *         (and interruption of thread suspension is supported)
+     *                              (and interruption of thread suspension is supported)
      */
+    // 使当前活跃的线程暂时陷入阻塞，禁止阻塞带有中断标记的线程，deadline为绝对时间，用于设置超时
     boolean awaitUntil(Date deadline) throws InterruptedException;
-
+    
     /**
      * Wakes up one waiting thread.
      *
@@ -468,8 +480,9 @@ public interface Condition {
      * not held. Typically, an exception such as {@link
      * IllegalMonitorStateException} will be thrown.
      */
+    // 使一个被await()阻塞的线程重新投入运行
     void signal();
-
+    
     /**
      * Wakes up all waiting threads.
      *
@@ -486,5 +499,6 @@ public interface Condition {
      * not held. Typically, an exception such as {@link
      * IllegalMonitorStateException} will be thrown.
      */
+    // 使当前所有被await()阻塞的线程重新投入运行
     void signalAll();
 }
