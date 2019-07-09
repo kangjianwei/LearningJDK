@@ -159,15 +159,15 @@ import java.util.concurrent.TimeUnit;
  * shown that the interrupt occurred after another action may have unblocked
  * the thread. An implementation should document this behavior.
  *
+ * @author Doug Lea
  * @see ReentrantLock
  * @see Condition
  * @see ReadWriteLock
- *
  * @since 1.5
- * @author Doug Lea
  */
+// 锁，用于并发编程，该接口声明了申请锁和释放锁的方法
 public interface Lock {
-
+    
     /**
      * Acquires the lock.
      *
@@ -183,8 +183,9 @@ public interface Lock {
      * circumstances and the exception type must be documented by that
      * {@code Lock} implementation.
      */
+    // 申请锁，允许阻塞带有中断标记的线程（不一定成功）
     void lock();
-
+    
     /**
      * Acquires the lock unless the current thread is
      * {@linkplain Thread#interrupt interrupted}.
@@ -228,11 +229,12 @@ public interface Lock {
      * be documented by that {@code Lock} implementation.
      *
      * @throws InterruptedException if the current thread is
-     *         interrupted while acquiring the lock (and interruption
-     *         of lock acquisition is supported)
+     *                              interrupted while acquiring the lock (and interruption
+     *                              of lock acquisition is supported)
      */
+    // 申请锁，不允许阻塞带有中断标记的线程（不一定成功）
     void lockInterruptibly() throws InterruptedException;
-
+    
     /**
      * Acquires the lock only if it is free at the time of invocation.
      *
@@ -258,10 +260,11 @@ public interface Lock {
      * doesn't try to unlock if the lock was not acquired.
      *
      * @return {@code true} if the lock was acquired and
-     *         {@code false} otherwise
+     * {@code false} otherwise
      */
+    // 申请锁，只申请一次，失败后不再尝试
     boolean tryLock();
-
+    
     /**
      * Acquires the lock if it is free within the given waiting time and the
      * current thread has not been {@linkplain Thread#interrupt interrupted}.
@@ -313,15 +316,17 @@ public interface Lock {
      *
      * @param time the maximum time to wait for the lock
      * @param unit the time unit of the {@code time} argument
+     *
      * @return {@code true} if the lock was acquired and {@code false}
-     *         if the waiting time elapsed before the lock was acquired
+     * if the waiting time elapsed before the lock was acquired
      *
      * @throws InterruptedException if the current thread is interrupted
-     *         while acquiring the lock (and interruption of lock
-     *         acquisition is supported)
+     *                              while acquiring the lock (and interruption of lock
+     *                              acquisition is supported)
      */
+    // 申请锁，不允许阻塞带有中断标记的线程（一次失败后，带着超时标记继续申请）
     boolean tryLock(long time, TimeUnit unit) throws InterruptedException;
-
+    
     /**
      * Releases the lock.
      *
@@ -334,8 +339,9 @@ public interface Lock {
      * Any restrictions and the exception
      * type must be documented by that {@code Lock} implementation.
      */
+    // 释放锁
     void unlock();
-
+    
     /**
      * Returns a new {@link Condition} instance that is bound to this
      * {@code Lock} instance.
@@ -352,8 +358,10 @@ public interface Lock {
      * implementation.
      *
      * @return A new {@link Condition} instance for this {@code Lock} instance
+     *
      * @throws UnsupportedOperationException if this {@code Lock}
-     *         implementation does not support conditions
+     *                                       implementation does not support conditions
      */
+    // 获取条件对象实例
     Condition newCondition();
 }
