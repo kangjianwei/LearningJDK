@@ -151,56 +151,38 @@ import java.util.concurrent.locks.AbstractQueuedSynchronizer;
  * actions following a successful return from a corresponding
  * {@code await()} in another thread.
  *
- * @since 1.5
  * @author Doug Lea
+ * @since 1.5
+ */
+/*
+ * 闭锁
+ *
+ * 初始化时，可以设置一定数量的闸门
+ * 只要存在闸门，线程申请闭锁的操作必然失败
+ * 换句话说，在闸门存在的情形下，所有申请闭锁的线程都会陷入阻塞
+ * 后续可以通过撤销闸门来唤醒阻塞线程
+ * 但是，必须等所有闸门都撤销后，所有等待的线程才能顺次被唤醒
+ * 这个过程就像开闸放水一样...
  */
 public class CountDownLatch {
-    /**
-     * Synchronization control For CountDownLatch.
-     * Uses AQS state to represent count.
-     */
-    private static final class Sync extends AbstractQueuedSynchronizer {
-        private static final long serialVersionUID = 4982264981922014374L;
-
-        Sync(int count) {
-            setState(count);
-        }
-
-        int getCount() {
-            return getState();
-        }
-
-        protected int tryAcquireShared(int acquires) {
-            return (getState() == 0) ? 1 : -1;
-        }
-
-        protected boolean tryReleaseShared(int releases) {
-            // Decrement count; signal when transition to zero
-            for (;;) {
-                int c = getState();
-                if (c == 0)
-                    return false;
-                int nextc = c - 1;
-                if (compareAndSetState(c, nextc))
-                    return nextc == 0;
-            }
-        }
-    }
-
     private final Sync sync;
-
+    
     /**
      * Constructs a {@code CountDownLatch} initialized with the given count.
      *
      * @param count the number of times {@link #countDown} must be invoked
-     *        before threads can pass through {@link #await}
+     *              before threads can pass through {@link #await}
+     *
      * @throws IllegalArgumentException if {@code count} is negative
      */
+    // 初始化一定数量的闸门
     public CountDownLatch(int count) {
-        if (count < 0) throw new IllegalArgumentException("count < 0");
+        if(count<0) {
+            throw new IllegalArgumentException("count < 0");
+        }
         this.sync = new Sync(count);
     }
-
+    
     /**
      * Causes the current thread to wait until the latch has counted down to
      * zero, unless the thread is {@linkplain Thread#interrupt interrupted}.
@@ -226,12 +208,13 @@ public class CountDownLatch {
      * interrupted status is cleared.
      *
      * @throws InterruptedException if the current thread is interrupted
-     *         while waiting
+     *                              while waiting
      */
+    // 使线程陷入阻塞，不允许阻塞带有中断标记的线程
     public void await() throws InterruptedException {
         sync.acquireSharedInterruptibly(1);
     }
-
+    
     /**
      * Causes the current thread to wait until the latch has counted down to
      * zero, unless the thread is {@linkplain Thread#interrupt interrupted},
@@ -267,17 +250,19 @@ public class CountDownLatch {
      * will not wait at all.
      *
      * @param timeout the maximum time to wait
-     * @param unit the time unit of the {@code timeout} argument
+     * @param unit    the time unit of the {@code timeout} argument
+     *
      * @return {@code true} if the count reached zero and {@code false}
-     *         if the waiting time elapsed before the count reached zero
+     * if the waiting time elapsed before the count reached zero
+     *
      * @throws InterruptedException if the current thread is interrupted
-     *         while waiting
+     *                              while waiting
      */
-    public boolean await(long timeout, TimeUnit unit)
-        throws InterruptedException {
+    // 使线程陷入阻塞，不允许阻塞带有中断标记的线程（一次失败后，带着超时标记继续申请）
+    public boolean await(long timeout, TimeUnit unit) throws InterruptedException {
         return sync.tryAcquireSharedNanos(1, unit.toNanos(timeout));
     }
-
+    
     /**
      * Decrements the count of the latch, releasing all waiting threads if
      * the count reaches zero.
@@ -288,10 +273,11 @@ public class CountDownLatch {
      *
      * <p>If the current count equals zero then nothing happens.
      */
+    // 撤去一道闸门
     public void countDown() {
         sync.releaseShared(1);
     }
-
+    
     /**
      * Returns the current count.
      *
@@ -299,10 +285,11 @@ public class CountDownLatch {
      *
      * @return the current count
      */
+    // 返回当前的闸门总数
     public long getCount() {
         return sync.getCount();
     }
-
+    
     /**
      * Returns a string identifying this latch, as well as its state.
      * The state, in brackets, includes the String {@code "Count ="}
@@ -312,5 +299,42 @@ public class CountDownLatch {
      */
     public String toString() {
         return super.toString() + "[Count = " + sync.getCount() + "]";
+    }
+    
+    /**
+     * Synchronization control For CountDownLatch.
+     * Uses AQS state to represent count.
+     */
+    private static final class Sync extends AbstractQueuedSynchronizer {
+        private static final long serialVersionUID = 4982264981922014374L;
+        
+        Sync(int count) {
+            setState(count);
+        }
+        
+        // 查询是否可以运行，只要存在闸门，就继续阻塞
+        protected int tryAcquireShared(int acquires) {
+            return (getState() == 0) ? 1 : -1;
+        }
+        
+        // 撤销闸门
+        protected boolean tryReleaseShared(int releases) {
+            // Decrement count; signal when transition to zero
+            for(; ; ) {
+                int c = getState();
+                if(c == 0) {
+                    return false;
+                }
+                int nextc = c - 1;
+                if(compareAndSetState(c, nextc)) {
+                    return nextc == 0;
+                }
+            }
+        }
+        
+        // 返回当前的闸门总数
+        int getCount() {
+            return getState();
+        }
     }
 }
