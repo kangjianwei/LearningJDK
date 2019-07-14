@@ -118,20 +118,22 @@ package java.util.concurrent;
  * <a href="package-summary.html#MemoryVisibility"><i>happen-before</i></a>
  * its execution begins, perhaps in another thread.
  *
- * @since 1.5
  * @author Doug Lea
+ * @since 1.5
  */
+// Executor表示一个【任务执行器】，该【任务执行器】有能力执行Runnable类型的任务
 public interface Executor {
-
     /**
      * Executes the given command at some time in the future.  The command
      * may execute in a new thread, in a pooled thread, or in the calling
      * thread, at the discretion of the {@code Executor} implementation.
      *
      * @param command the runnable task
+     *
      * @throws RejectedExecutionException if this task cannot be
-     * accepted for execution
-     * @throws NullPointerException if command is null
+     *                                    accepted for execution
+     * @throws NullPointerException       if command is null
      */
+    // 执行Runnable类型的任务
     void execute(Runnable command);
 }
