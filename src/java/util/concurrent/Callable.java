@@ -49,10 +49,31 @@ package java.util.concurrent;
  * <p>The {@link Executors} class contains utility methods to
  * convert from other common forms to {@code Callable} classes.
  *
+ * @param <V> the result type of method {@code call}
+ *
+ * @author Doug Lea
  * @see Executor
  * @since 1.5
- * @author Doug Lea
- * @param <V> the result type of method {@code call}
+ */
+/*
+ * Callable表示一类带有返回值的任务，这类任务在计算过程中可能抛出异常
+ *
+ * Callable类任务通常由【任务执行器】Executor来执行
+ * 它可以与Runnable与Future协作
+ *
+ * 该接口已函数化：
+ * Callable callable = new Callable<Result>() {
+ *     @Override
+ *     public Result call() throws Exception {
+ *         System.out.println("Callable");
+ *         return new Result();
+ *     }
+ * };
+ * 可以简写为：
+ * Callable callable = (Callable<Result>) () -> {
+ *     System.out.println("Callable");
+ *     return new Result();
+ * };
  */
 @FunctionalInterface
 public interface Callable<V> {
@@ -60,7 +81,9 @@ public interface Callable<V> {
      * Computes a result, or throws an exception if unable to do so.
      *
      * @return computed result
+     *
      * @throws Exception if unable to compute a result
      */
+    // 任务执行入口
     V call() throws Exception;
 }
