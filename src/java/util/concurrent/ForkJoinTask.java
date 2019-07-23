@@ -35,6 +35,9 @@
 
 package java.util.concurrent;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -44,6 +47,7 @@ import java.lang.reflect.Constructor;
 import java.util.Collection;
 import java.util.List;
 import java.util.RandomAccess;
+import java.util.concurrent.ForkJoinPool.WorkQueue;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -203,8 +207,27 @@ import java.util.concurrent.locks.ReentrantLock;
  * @since 1.7
  * @author Doug Lea
  */
+/*
+ * 并行任务，有多种类型的实现：
+ *
+ * ForkJoinTask.AdaptedCallable
+ * ForkJoinTask.AdaptedRunnable
+ * ForkJoinTask.AdaptedRunnableAction
+ * ForkJoinTask.RunnableExecuteAction
+ *
+ * CountedCompleter
+ * RecursiveTask
+ * RecursiveAction
+ *
+ * CompletableFuture.AsyncRun
+ * CompletableFuture.AsyncSupply
+ * CompletableFuture.Completion
+ *
+ * SubmissionPublisher.ConsumerTask
+ */
 public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
-
+    private static final long serialVersionUID = -7721805057305804111L;
+    
     /*
      * See the internal documentation of class ForkJoinPool for a
      * general implementation overview.  ForkJoinTasks are mainly
@@ -218,7 +241,7 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      * This is sometimes hard to see because this file orders exported
      * methods in a way that flows well in javadocs.
      */
-
+    
     /**
      * The status field holds run control status bits packed into a
      * single int to ensure atomicity.  Status is initially zero, and
@@ -234,186 +257,18 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      * bits) of status field. The lower bits are used for user-defined
      * tags.
      */
+    // 任务状态信息，包含DONE|ABNORMAL|THROWN|SIGNAL
     volatile int status; // accessed directly by pool and workers
-
-    private static final int DONE     = 1 << 31; // must be negative
-    private static final int ABNORMAL = 1 << 18; // set atomically with DONE
-    private static final int THROWN   = 1 << 17; // set atomically with ABNORMAL
-    private static final int SIGNAL   = 1 << 16; // true if joiner waiting
+    
+    private static final int DONE     = 1 << 31; // [已完成]，must be negative
+    private static final int ABNORMAL = 1 << 18; // [非正常完成]，set atomically with DONE
+    private static final int THROWN   = 1 << 17; // [有异常]，set atomically with ABNORMAL
+    private static final int SIGNAL   = 1 << 16; // [等待]，true if joiner waiting
+    
+    // 任务状态掩码
     private static final int SMASK    = 0xffff;  // short bits for tags
-
-    static boolean isExceptionalStatus(int s) {  // needed by subclasses
-        return (s & THROWN) != 0;
-    }
-
-    /**
-     * Sets DONE status and wakes up threads waiting to join this task.
-     *
-     * @return status on exit
-     */
-    private int setDone() {
-        int s;
-        if (((s = (int)STATUS.getAndBitwiseOr(this, DONE)) & SIGNAL) != 0)
-            synchronized (this) { notifyAll(); }
-        return s | DONE;
-    }
-
-    /**
-     * Marks cancelled or exceptional completion unless already done.
-     *
-     * @param completion must be DONE | ABNORMAL, ORed with THROWN if exceptional
-     * @return status on exit
-     */
-    private int abnormalCompletion(int completion) {
-        for (int s, ns;;) {
-            if ((s = status) < 0)
-                return s;
-            else if (STATUS.weakCompareAndSet(this, s, ns = s | completion)) {
-                if ((s & SIGNAL) != 0)
-                    synchronized (this) { notifyAll(); }
-                return ns;
-            }
-        }
-    }
-
-    /**
-     * Primary execution method for stolen tasks. Unless done, calls
-     * exec and records status if completed, but doesn't wait for
-     * completion otherwise.
-     *
-     * @return status on exit from this method
-     */
-    final int doExec() {
-        int s; boolean completed;
-        if ((s = status) >= 0) {
-            try {
-                completed = exec();
-            } catch (Throwable rex) {
-                completed = false;
-                s = setExceptionalCompletion(rex);
-            }
-            if (completed)
-                s = setDone();
-        }
-        return s;
-    }
-
-    /**
-     * If not done, sets SIGNAL status and performs Object.wait(timeout).
-     * This task may or may not be done on exit. Ignores interrupts.
-     *
-     * @param timeout using Object.wait conventions.
-     */
-    final void internalWait(long timeout) {
-        if ((int)STATUS.getAndBitwiseOr(this, SIGNAL) >= 0) {
-            synchronized (this) {
-                if (status >= 0)
-                    try { wait(timeout); } catch (InterruptedException ie) { }
-                else
-                    notifyAll();
-            }
-        }
-    }
-
-    /**
-     * Blocks a non-worker-thread until completion.
-     * @return status upon completion
-     */
-    private int externalAwaitDone() {
-        int s = tryExternalHelp();
-        if (s >= 0 && (s = (int)STATUS.getAndBitwiseOr(this, SIGNAL)) >= 0) {
-            boolean interrupted = false;
-            synchronized (this) {
-                for (;;) {
-                    if ((s = status) >= 0) {
-                        try {
-                            wait(0L);
-                        } catch (InterruptedException ie) {
-                            interrupted = true;
-                        }
-                    }
-                    else {
-                        notifyAll();
-                        break;
-                    }
-                }
-            }
-            if (interrupted)
-                Thread.currentThread().interrupt();
-        }
-        return s;
-    }
-
-    /**
-     * Blocks a non-worker-thread until completion or interruption.
-     */
-    private int externalInterruptibleAwaitDone() throws InterruptedException {
-        int s = tryExternalHelp();
-        if (s >= 0 && (s = (int)STATUS.getAndBitwiseOr(this, SIGNAL)) >= 0) {
-            synchronized (this) {
-                for (;;) {
-                    if ((s = status) >= 0)
-                        wait(0L);
-                    else {
-                        notifyAll();
-                        break;
-                    }
-                }
-            }
-        }
-        else if (Thread.interrupted())
-            throw new InterruptedException();
-        return s;
-    }
-
-    /**
-     * Tries to help with tasks allowed for external callers.
-     *
-     * @return current status
-     */
-    private int tryExternalHelp() {
-        int s;
-        return ((s = status) < 0 ? s:
-                (this instanceof CountedCompleter) ?
-                ForkJoinPool.common.externalHelpComplete(
-                    (CountedCompleter<?>)this, 0) :
-                ForkJoinPool.common.tryExternalUnpush(this) ?
-                doExec() : 0);
-    }
-
-    /**
-     * Implementation for join, get, quietlyJoin. Directly handles
-     * only cases of already-completed, external wait, and
-     * unfork+exec.  Others are relayed to ForkJoinPool.awaitJoin.
-     *
-     * @return status upon completion
-     */
-    private int doJoin() {
-        int s; Thread t; ForkJoinWorkerThread wt; ForkJoinPool.WorkQueue w;
-        return (s = status) < 0 ? s :
-            ((t = Thread.currentThread()) instanceof ForkJoinWorkerThread) ?
-            (w = (wt = (ForkJoinWorkerThread)t).workQueue).
-            tryUnpush(this) && (s = doExec()) < 0 ? s :
-            wt.pool.awaitJoin(w, this, 0L) :
-            externalAwaitDone();
-    }
-
-    /**
-     * Implementation for invoke, quietlyInvoke.
-     *
-     * @return status upon completion
-     */
-    private int doInvoke() {
-        int s; Thread t; ForkJoinWorkerThread wt;
-        return (s = doExec()) < 0 ? s :
-            ((t = Thread.currentThread()) instanceof ForkJoinWorkerThread) ?
-            (wt = (ForkJoinWorkerThread)t).pool.
-            awaitJoin(wt.workQueue, this, 0L) :
-            externalAwaitDone();
-    }
-
-    // Exception table support
-
+    
+    
     /**
      * Hash table of exceptions thrown by tasks, to enable reporting
      * by callers. Because exceptions are rare, we don't directly keep
@@ -423,264 +278,67 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      *
      * The exception table has a fixed capacity.
      */
-    private static final ExceptionNode[] exceptionTable
-        = new ExceptionNode[32];
-
-    /** Lock protecting access to exceptionTable. */
-    private static final ReentrantLock exceptionTableLock
-        = new ReentrantLock();
-
+    // 由异常记录哈希表，每个结点存储的是键值对<任务, 异常>
+    private static final ExceptionNode[] exceptionTable = new ExceptionNode[32];
+    
     /** Reference queue of stale exceptionally completed tasks. */
-    private static final ReferenceQueue<ForkJoinTask<?>> exceptionTableRefQueue
-        = new ReferenceQueue<>();
-
-    /**
-     * Key-value nodes for exception table.  The chained hash table
-     * uses identity comparisons, full locking, and weak references
-     * for keys. The table has a fixed capacity because it only
-     * maintains task exceptions long enough for joiners to access
-     * them, so should never become very large for sustained
-     * periods. However, since we do not know when the last joiner
-     * completes, we must use weak references and expunge them. We do
-     * so on each operation (hence full locking). Also, some thread in
-     * any ForkJoinPool will call helpExpungeStaleExceptions when its
-     * pool becomes isQuiescent.
-     */
-    static final class ExceptionNode extends WeakReference<ForkJoinTask<?>> {
-        final Throwable ex;
-        ExceptionNode next;
-        final long thrower;  // use id not ref to avoid weak cycles
-        final int hashCode;  // store task hashCode before weak ref disappears
-        ExceptionNode(ForkJoinTask<?> task, Throwable ex, ExceptionNode next,
-                      ReferenceQueue<ForkJoinTask<?>> exceptionTableRefQueue) {
-            super(task, exceptionTableRefQueue);
-            this.ex = ex;
-            this.next = next;
-            this.thrower = Thread.currentThread().getId();
-            this.hashCode = System.identityHashCode(task);
-        }
-    }
-
-    /**
-     * Records exception and sets status.
-     *
-     * @return status on exit
-     */
-    final int recordExceptionalCompletion(Throwable ex) {
-        int s;
-        if ((s = status) >= 0) {
-            int h = System.identityHashCode(this);
-            final ReentrantLock lock = exceptionTableLock;
-            lock.lock();
-            try {
-                expungeStaleExceptions();
-                ExceptionNode[] t = exceptionTable;
-                int i = h & (t.length - 1);
-                for (ExceptionNode e = t[i]; ; e = e.next) {
-                    if (e == null) {
-                        t[i] = new ExceptionNode(this, ex, t[i],
-                                                 exceptionTableRefQueue);
-                        break;
-                    }
-                    if (e.get() == this) // already present
-                        break;
-                }
-            } finally {
-                lock.unlock();
-            }
-            s = abnormalCompletion(DONE | ABNORMAL | THROWN);
-        }
-        return s;
-    }
-
-    /**
-     * Records exception and possibly propagates.
-     *
-     * @return status on exit
-     */
-    private int setExceptionalCompletion(Throwable ex) {
-        int s = recordExceptionalCompletion(ex);
-        if ((s & THROWN) != 0)
-            internalPropagateException(ex);
-        return s;
-    }
-
-    /**
-     * Hook for exception propagation support for tasks with completers.
-     */
-    void internalPropagateException(Throwable ex) {
-    }
-
-    /**
-     * Cancels, ignoring any exceptions thrown by cancel. Used during
-     * worker and pool shutdown. Cancel is spec'ed not to throw any
-     * exceptions, but if it does anyway, we have no recourse during
-     * shutdown, so guard against this case.
-     */
-    static final void cancelIgnoringExceptions(ForkJoinTask<?> t) {
-        if (t != null && t.status >= 0) {
-            try {
-                t.cancel(false);
-            } catch (Throwable ignore) {
-            }
-        }
-    }
-
-    /**
-     * Removes exception node and clears status.
-     */
-    private void clearExceptionalCompletion() {
-        int h = System.identityHashCode(this);
-        final ReentrantLock lock = exceptionTableLock;
-        lock.lock();
+    // 存储GC之后“已失效”的异常记录
+    private static final ReferenceQueue<ForkJoinTask<?>> exceptionTableRefQueue = new ReferenceQueue<>();
+    
+    /** Lock protecting access to exceptionTable. */
+    // 操作异常信息时候需要的锁
+    private static final ReentrantLock exceptionTableLock = new ReentrantLock();
+    
+    
+    // VarHandle mechanics
+    private static final VarHandle STATUS;
+    static {
         try {
-            ExceptionNode[] t = exceptionTable;
-            int i = h & (t.length - 1);
-            ExceptionNode e = t[i];
-            ExceptionNode pred = null;
-            while (e != null) {
-                ExceptionNode next = e.next;
-                if (e.get() == this) {
-                    if (pred == null)
-                        t[i] = next;
-                    else
-                        pred.next = next;
-                    break;
-                }
-                pred = e;
-                e = next;
-            }
-            expungeStaleExceptions();
-            status = 0;
-        } finally {
-            lock.unlock();
+            MethodHandles.Lookup l = MethodHandles.lookup();
+            STATUS = l.findVarHandle(ForkJoinTask.class, "status", int.class);
+        } catch(ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
         }
     }
-
+    
+    
+    
+    /*▼ 信息 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns a rethrowable exception for this task, if available.
-     * To provide accurate stack traces, if the exception was not
-     * thrown by the current thread, we try to create a new exception
-     * of the same type as the one thrown, but with the recorded
-     * exception as its cause. If there is no such constructor, we
-     * instead try to use a no-arg constructor, followed by initCause,
-     * to the same effect. If none of these apply, or any fail due to
-     * other exceptions, we return the recorded exception, which is
-     * still correct, although it may contain a misleading stack
-     * trace.
+     * Returns the pool hosting the current thread, or {@code null}
+     * if the current thread is executing outside of any ForkJoinPool.
      *
-     * @return the exception, or null if none
+     * <p>This method returns {@code null} if and only if {@link
+     * #inForkJoinPool} returns {@code false}.
+     *
+     * @return the pool, or {@code null} if none
      */
-    private Throwable getThrowableException() {
-        int h = System.identityHashCode(this);
-        ExceptionNode e;
-        final ReentrantLock lock = exceptionTableLock;
-        lock.lock();
-        try {
-            expungeStaleExceptions();
-            ExceptionNode[] t = exceptionTable;
-            e = t[h & (t.length - 1)];
-            while (e != null && e.get() != this)
-                e = e.next;
-        } finally {
-            lock.unlock();
-        }
-        Throwable ex;
-        if (e == null || (ex = e.ex) == null)
-            return null;
-        if (e.thrower != Thread.currentThread().getId()) {
-            try {
-                Constructor<?> noArgCtor = null;
-                // public ctors only
-                for (Constructor<?> c : ex.getClass().getConstructors()) {
-                    Class<?>[] ps = c.getParameterTypes();
-                    if (ps.length == 0)
-                        noArgCtor = c;
-                    else if (ps.length == 1 && ps[0] == Throwable.class)
-                        return (Throwable)c.newInstance(ex);
-                }
-                if (noArgCtor != null) {
-                    Throwable wx = (Throwable)noArgCtor.newInstance();
-                    wx.initCause(ex);
-                    return wx;
-                }
-            } catch (Exception ignore) {
-            }
-        }
-        return ex;
+    // 返回【工作线程】所属的工作池
+    public static ForkJoinPool getPool() {
+        Thread t = Thread.currentThread();
+        return (t instanceof ForkJoinWorkerThread) ? ((ForkJoinWorkerThread) t).pool : null;
     }
-
+    
     /**
-     * Polls stale refs and removes them. Call only while holding lock.
+     * Returns {@code true} if the current thread is a {@link
+     * ForkJoinWorkerThread} executing as a ForkJoinPool computation.
+     *
+     * @return {@code true} if the current thread is a {@link
+     * ForkJoinWorkerThread} executing as a ForkJoinPool computation,
+     * or {@code false} otherwise
      */
-    private static void expungeStaleExceptions() {
-        for (Object x; (x = exceptionTableRefQueue.poll()) != null;) {
-            if (x instanceof ExceptionNode) {
-                ExceptionNode[] t = exceptionTable;
-                int i = ((ExceptionNode)x).hashCode & (t.length - 1);
-                ExceptionNode e = t[i];
-                ExceptionNode pred = null;
-                while (e != null) {
-                    ExceptionNode next = e.next;
-                    if (e == x) {
-                        if (pred == null)
-                            t[i] = next;
-                        else
-                            pred.next = next;
-                        break;
-                    }
-                    pred = e;
-                    e = next;
-                }
-            }
-        }
+    // 判断当前线程是否属于【工作线程】
+    public static boolean inForkJoinPool() {
+        return Thread.currentThread() instanceof ForkJoinWorkerThread;
     }
-
-    /**
-     * If lock is available, polls stale refs and removes them.
-     * Called from ForkJoinPool when pools become quiescent.
-     */
-    static final void helpExpungeStaleExceptions() {
-        final ReentrantLock lock = exceptionTableLock;
-        if (lock.tryLock()) {
-            try {
-                expungeStaleExceptions();
-            } finally {
-                lock.unlock();
-            }
-        }
-    }
-
-    /**
-     * A version of "sneaky throw" to relay exceptions.
-     */
-    static void rethrow(Throwable ex) {
-        ForkJoinTask.<RuntimeException>uncheckedThrow(ex);
-    }
-
-    /**
-     * The sneaky part of sneaky throw, relying on generics
-     * limitations to evade compiler complaints about rethrowing
-     * unchecked exceptions.
-     */
-    @SuppressWarnings("unchecked") static <T extends Throwable>
-    void uncheckedThrow(Throwable t) throws T {
-        if (t != null)
-            throw (T)t; // rely on vacuous cast
-        else
-            throw new Error("Unknown Exception");
-    }
-
-    /**
-     * Throws exception, if any, associated with the given status.
-     */
-    private void reportException(int s) {
-        rethrow((s & THROWN) != 0 ? getThrowableException() :
-                new CancellationException());
-    }
-
-    // public methods
-
+    
+    /*▲ 信息 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 分发/移除 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Arranges to asynchronously execute this task in the pool the
      * current task is running in, if applicable, or using the {@link
@@ -696,15 +354,220 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      *
      * @return {@code this}, to simplify usage
      */
+    /*
+     * 分发任务。分发任务去排队，并创建/唤醒【工作线程】
+     *
+     * 将当前任务放入当前线程所辖【队列】的top处排队，
+     * 如果在【工作线程】fork任务，该任务会放入【工作队列】top处
+     * 如果在【提交线程】fork任务，该任务会统一放入【共享工作池】的【共享队列】top处
+     *
+     * 任务进入排队后，创建/唤醒【工作线程】
+     */
     public final ForkJoinTask<V> fork() {
-        Thread t;
-        if ((t = Thread.currentThread()) instanceof ForkJoinWorkerThread)
-            ((ForkJoinWorkerThread)t).workQueue.push(this);
-        else
+        // 获取当前线程的引用
+        Thread thread = Thread.currentThread();
+        
+        if(thread instanceof ForkJoinWorkerThread) {
+            // 分发任务。task进入【工作队列】top处排队
+            ((ForkJoinWorkerThread) thread).workQueue.push(this);
+        } else {
+            // 分发任务。task进入【共享工作池】的【共享队列】top处排队
             ForkJoinPool.common.externalPush(this);
+        }
+        
+        // 当前任务就位后，返回任务自身
         return this;
     }
-
+    
+    /**
+     * Tries to unschedule this task for execution. This method will
+     * typically (but is not guaranteed to) succeed if this task is
+     * the most recently forked task by the current thread, and has
+     * not commenced executing in another thread.  This method may be
+     * useful when arranging alternative local processing of tasks
+     * that could have been, but were not, stolen.
+     *
+     * @return {@code true} if unforked
+     */
+    // 移除任务，将任务从【队列】的top处移除
+    public boolean tryUnfork() {
+        Thread thread = Thread.currentThread();
+        
+        if(thread instanceof ForkJoinWorkerThread) {
+            // 移除任务。【工作线程】尝试将指定的task从【工作队列】top处移除，返回值代表是否成功移除
+            return ((ForkJoinWorkerThread) thread).workQueue.tryUnpush(this);
+        }
+        
+        // 移除任务。【提交线程】尝试将指定的task从【共享工作池】上的【共享队列】top处移除，返回值代表是否成功移除
+        return ForkJoinPool.common.tryExternalUnpush(this);
+    }
+    
+    /*▲ 分发/移除 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 执行 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Immediately performs the base action of this task and returns
+     * true if, upon return from this method, this task is guaranteed
+     * to have completed normally. This method may return false
+     * otherwise, to indicate that this task is not necessarily
+     * complete (or is not known to be complete), for example in
+     * asynchronous actions that require explicit invocations of
+     * completion methods. This method may also throw an (unchecked)
+     * exception to indicate abnormal exit. This method is designed to
+     * support extensions, and should not in general be called
+     * otherwise.
+     *
+     * @return {@code true} if this task is known to have completed normally
+     */
+    // 执行任务，执行细节由子类实现。返回值指示任务是否正常完成
+    protected abstract boolean exec();
+    
+    /**
+     * Primary execution method for stolen tasks. Unless done, calls
+     * exec and records status if completed, but doesn't wait for
+     * completion otherwise.
+     *
+     * @return status on exit from this method
+     */
+    // 执行任务，并返回任务执行后的状态。任务具体的执行逻辑由子类实现
+    final int doExec() {
+        int s = status;
+        
+        boolean completed;
+        
+        // 如果任务没有执行完，则执行任务
+        if (s >= 0) {
+            try {
+                // 执行任务，执行细节由子类实现
+                completed = exec();
+            } catch (Throwable rex) {
+                completed = false;
+                // 如果执行期间出现了异常，需要添加异常标记
+                s = setExceptionalCompletion(rex);
+            }
+            
+            // 如果任务已经执行完了
+            if (completed) {
+                // 将当前任务标记为已完成状态
+                s = setDone();
+            }
+        }
+        
+        return s;
+    }
+    
+    /**
+     * Implementation for invoke, quietlyInvoke.
+     *
+     * @return status upon completion
+     */
+    /*
+     * 直接执行任务，最后返回任务状态。必要时，需要等待其他任务的完成
+     *
+     * 有些任务还没执行完就会返回状态码，
+     * 这可能会使当前线程进入wait状态，并标记任务为SIGNAL状态，
+     * 直到任务执行完之后，当前线程被唤醒并返回任务执行后的状态
+     */
+    private int doInvoke() {
+        // 执行任务，返回任务执行后的状态。任务具体的执行逻辑由子类实现
+        int s = doExec();
+        
+        // 如果任务已经完成，直接返回任务的状态
+        if(s<0) {
+            return s;
+        }
+        
+        /* 至此，任务返回了状态码，但是没有[已完成]标记，此时需要继续处理 */
+        
+        Thread thread = Thread.currentThread();
+        
+        // 如果当前操作发生在【工作线程】中
+        if(thread instanceof ForkJoinWorkerThread) {
+            ForkJoinWorkerThread wt = (ForkJoinWorkerThread) thread;
+            
+            // 【工作线程】尝试加速task的完成，如果无法加速，则当前的【工作线程】考虑进入wait状态，直到task完成后被唤醒
+            return wt.pool.awaitJoin(wt.workQueue, this, 0L);
+        }
+        
+        // 如果当前操作发生在【提交线程】中，【提交线程】尝试加速当前任务的完成，如果无法加速，则进入wait状态等待task完成
+        return externalAwaitDone();
+    }
+    
+    /**
+     * Implementation for join, get, quietlyJoin.
+     * Directly handles only cases of already-completed, external wait, and unfork+exec.
+     * Others are relayed to ForkJoinPool.awaitJoin.
+     *
+     * @return status upon completion
+     */
+    // 从【工作队列】的top处取出当前任务并执行，最后返回任务状态。必要时，需要等待其他任务的完成
+    private int doJoin() {
+        // 获取任务当前的状态
+        int s = status;
+        
+        // status<0代表已经执行完成
+        if(s < 0){
+            // 如果当前任务已经执行完了，就返回任务的状态
+            return s;
+        }
+        
+        Thread thread = Thread.currentThread();
+        
+        // 如果当前操作发生在【工作线程】中
+        if(thread instanceof ForkJoinWorkerThread){
+            // 获取当前的【工作线程】
+            ForkJoinWorkerThread wt = (ForkJoinWorkerThread)thread;
+            
+            // 移除任务。【工作线程】尝试将指定的task从【工作队列】top处移除，返回值代表是否成功移除
+            if(wt.workQueue.tryUnpush(this)){
+                
+                // 如果成功移除了任务，说明该任务还未被执行，那么从这里开始执行任务，并返回任务在执行后的状态
+                s = doExec();
+                
+                // status<0代表已经执行完成
+                if(s < 0){
+                    // 如果当前任务已经执行完了，就返回任务的状态
+                    return s;
+                }
+            }
+            
+            /*
+             * 至此，可能是没有在top处取到当前任务（可能不在栈顶，也可能被别的【工作线程】窃取了），
+             * 也可能是任务没有被标记为[已完成]（是否真的完成未知）
+             */
+            
+            // 【工作线程】尝试加速task的完成，如果无法加速，则当前的【工作线程】考虑进入wait状态，直到task完成后被唤醒
+            return wt.pool.awaitJoin(wt.workQueue, this, 0L);
+        }
+        
+        // 如果当前操作发生在【提交线程】中，【提交线程】尝试加速当前任务的完成，如果无法加速，则进入wait状态等待task完成
+        return externalAwaitDone();
+    }
+    
+    /**
+     * Commences performing this task, awaits its completion if necessary, and returns its result,
+     * or throws an (unchecked) {@code RuntimeException} or {@code Error} if the underlying computation did so.
+     *
+     * @return the computed result
+     */
+    // 直接执行任务，返回任务的执行结果。必要时，需要等待其他任务的完成
+    public final V invoke() {
+        // 直接执行任务，最后返回任务状态。必要时，需要等待其他任务的完成
+        int s = doInvoke();
+        
+        // 如果任务带有[非正常完成]的标记，则需要报告异常
+        if((s & ABNORMAL) != 0) {
+            // 报告异常信息
+            reportException(s);
+        }
+        
+        // 返回当前任务的执行结果
+        return getRawResult();
+    }
+    
     /**
      * Returns the result of the computation when it
      * {@linkplain #isDone is done}.
@@ -716,54 +579,59 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      *
      * @return the computed result
      */
+    // 从【工作队列】的top处取出当前任务并执行，最后返回任务的执行结果。必要时，需要等待其他任务的完成
     public final V join() {
-        int s;
-        if (((s = doJoin()) & ABNORMAL) != 0)
+        // 从【工作队列】的top处取出当前任务并执行，最后返回任务状态。必要时，需要等待其他任务的完成
+        int s = doJoin();
+        
+        // 如果任务带有[非正常完成]的标记，则需要报告异常
+        if((s & ABNORMAL) != 0) {
+            // 报告异常信息
             reportException(s);
+        }
+        
+        // 返回当前任务的执行结果
         return getRawResult();
     }
-
+    
     /**
-     * Commences performing this task, awaits its completion if
-     * necessary, and returns its result, or throws an (unchecked)
-     * {@code RuntimeException} or {@code Error} if the underlying
-     * computation did so.
+     * Forks the given tasks, returning when {@code isDone} holds for each task or an (unchecked) exception is encountered,
+     * in which case the exception is rethrown.
+     * If more than one task encounters an exception, then this method throws any one of these exceptions.
+     * If any task encounters an exception, the other may be cancelled.
+     * However, the execution status of individual tasks is not guaranteed upon exceptional return.
+     * The status of each task may be obtained using {@link #getException()} and related methods to check if they have been cancelled,
+     * completed normally or exceptionally, or left unprocessed.
      *
-     * @return the computed result
-     */
-    public final V invoke() {
-        int s;
-        if (((s = doInvoke()) & ABNORMAL) != 0)
-            reportException(s);
-        return getRawResult();
-    }
-
-    /**
-     * Forks the given tasks, returning when {@code isDone} holds for
-     * each task or an (unchecked) exception is encountered, in which
-     * case the exception is rethrown. If more than one task
-     * encounters an exception, then this method throws any one of
-     * these exceptions. If any task encounters an exception, the
-     * other may be cancelled. However, the execution status of
-     * individual tasks is not guaranteed upon exceptional return. The
-     * status of each task may be obtained using {@link
-     * #getException()} and related methods to check if they have been
-     * cancelled, completed normally or exceptionally, or left
-     * unprocessed.
+     * @param task1 the first task
+     * @param task2 the second task
      *
-     * @param t1 the first task
-     * @param t2 the second task
      * @throws NullPointerException if any task is null
      */
-    public static void invokeAll(ForkJoinTask<?> t1, ForkJoinTask<?> t2) {
-        int s1, s2;
-        t2.fork();
-        if (((s1 = t1.doInvoke()) & ABNORMAL) != 0)
-            t1.reportException(s1);
-        if (((s2 = t2.doJoin()) & ABNORMAL) != 0)
-            t2.reportException(s2);
+    // 同时执行两个任务。task1选择doInvoke()，而task2选择fork()/doJoin()
+    public static void invokeAll(ForkJoinTask<?> task1, ForkJoinTask<?> task2) {
+        
+        task2.fork();
+        
+        // 直接执行任务，最后返回任务状态。必要时，需要等待其他任务的完成
+        int s1 = task1.doInvoke();
+        
+        // 如果任务带有[非正常完成]的标记，则需要报告异常
+        if((s1 & ABNORMAL) != 0) {
+            // 报告异常信息
+            task1.reportException(s1);
+        }
+        
+        // 从【工作队列】的top处取出当前任务并执行，最后返回任务状态。必要时，需要等待其他任务的完成
+        int s2 = task2.doJoin();
+        
+        // 如果任务带有[非正常完成]的标记，则需要报告异常
+        if((s2 & ABNORMAL) != 0) {
+            // 报告异常信息
+            task2.reportException(s2);
+        }
     }
-
+    
     /**
      * Forks the given tasks, returning when {@code isDone} holds for
      * each task or an (unchecked) exception is encountered, in which
@@ -777,35 +645,46 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      * normally or exceptionally, or left unprocessed.
      *
      * @param tasks the tasks
+     *
      * @throws NullPointerException if any task is null
      */
+    // 批量执行任务。第一个任务使用doInvoke()，其他任务使用fork()/doJoin()
     public static void invokeAll(ForkJoinTask<?>... tasks) {
         Throwable ex = null;
-        int last = tasks.length - 1;
-        for (int i = last; i >= 0; --i) {
-            ForkJoinTask<?> t = tasks[i];
-            if (t == null) {
-                if (ex == null)
+        
+        for(int i = tasks.length - 1; i >= 0; --i) {
+            ForkJoinTask<?> task = tasks[i];
+            
+            if(task == null) {
+                if(ex == null) {
                     ex = new NullPointerException();
-            }
-            else if (i != 0)
-                t.fork();
-            else if ((t.doInvoke() & ABNORMAL) != 0 && ex == null)
-                ex = t.getException();
-        }
-        for (int i = 1; i <= last; ++i) {
-            ForkJoinTask<?> t = tasks[i];
-            if (t != null) {
-                if (ex != null)
-                    t.cancel(false);
-                else if ((t.doJoin() & ABNORMAL) != 0)
-                    ex = t.getException();
+                }
+            } else if(i != 0) {
+                task.fork();
+            } else if((task.doInvoke() & ABNORMAL) != 0 && ex == null) {
+                // 如果任务被非正常关闭，则返回其异常信息
+                ex = task.getException();
             }
         }
-        if (ex != null)
+        
+        for(int i = 1; i<=tasks.length - 1; ++i) {
+            ForkJoinTask<?> task = tasks[i];
+            if(task != null) {
+                if(ex != null) {
+                    // 取消任务，即将当前任务标记为[已完成]|[非正常完成]状态
+                    task.cancel(false);
+                } else if((task.doJoin() & ABNORMAL) != 0) {
+                    // 如果任务被非正常关闭，则返回其异常信息
+                    ex = task.getException();
+                }
+            }
+        }
+        
+        if(ex != null) {
             rethrow(ex);
+        }
     }
-
+    
     /**
      * Forks all tasks in the specified collection, returning when
      * {@code isDone} holds for each task or an (unchecked) exception
@@ -820,45 +699,327 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      * unprocessed.
      *
      * @param tasks the collection of tasks
-     * @param <T> the type of the values returned from the tasks
+     * @param <T>   the type of the values returned from the tasks
+     *
      * @return the tasks argument, to simplify usage
+     *
      * @throws NullPointerException if tasks or any element are null
      */
+    // 批量执行任务。第一个任务使用doInvoke()，其他任务使用fork()/doJoin()。最后返回任务的集合。
     public static <T extends ForkJoinTask<?>> Collection<T> invokeAll(Collection<T> tasks) {
-        if (!(tasks instanceof RandomAccess) || !(tasks instanceof List<?>)) {
+        if(!(tasks instanceof RandomAccess) || !(tasks instanceof List<?>)) {
+            // 将所有task存入数组后再批量执行
             invokeAll(tasks.toArray(new ForkJoinTask<?>[0]));
             return tasks;
         }
+        
         @SuppressWarnings("unchecked")
-        List<? extends ForkJoinTask<?>> ts =
-            (List<? extends ForkJoinTask<?>>) tasks;
+        List<? extends ForkJoinTask<?>> ts = (List<? extends ForkJoinTask<?>>) tasks;
         Throwable ex = null;
         int last = ts.size() - 1;
-        for (int i = last; i >= 0; --i) {
+        for(int i = last; i >= 0; --i) {
             ForkJoinTask<?> t = ts.get(i);
-            if (t == null) {
-                if (ex == null)
+            if(t == null) {
+                if(ex == null) {
                     ex = new NullPointerException();
-            }
-            else if (i != 0)
+                }
+            } else if(i != 0) {
                 t.fork();
-            else if ((t.doInvoke() & ABNORMAL) != 0 && ex == null)
+            } else if((t.doInvoke() & ABNORMAL) != 0 && ex == null) {
+                // 如果任务被非正常关闭，则返回其异常信息
                 ex = t.getException();
-        }
-        for (int i = 1; i <= last; ++i) {
-            ForkJoinTask<?> t = ts.get(i);
-            if (t != null) {
-                if (ex != null)
-                    t.cancel(false);
-                else if ((t.doJoin() & ABNORMAL) != 0)
-                    ex = t.getException();
             }
         }
-        if (ex != null)
+        
+        for(int i = 1; i<=last; ++i) {
+            ForkJoinTask<?> t = ts.get(i);
+            if(t != null) {
+                if(ex != null) {
+                    // 取消任务，即将当前任务标记为[已完成]|[非正常完成]状态
+                    t.cancel(false);
+                } else {if((t.doJoin() & ABNORMAL) != 0) {
+                    // 如果任务被非正常关闭，则返回其异常信息
+                    ex = t.getException();
+                }}
+            }
+        }
+        
+        if(ex != null) {
             rethrow(ex);
+        }
+        
         return tasks;
     }
-
+    
+    /**
+     * Joins this task, without returning its result or throwing its
+     * exception. This method may be useful when processing
+     * collections of tasks when some have been cancelled or otherwise
+     * known to have aborted.
+     */
+    // 从【工作队列】的top处取出当前任务并执行，不返回任务状态。必要时，需要等待其他任务的完成
+    public final void quietlyJoin() {
+        doJoin();
+    }
+    
+    /**
+     * Commences performing this task and awaits its completion if
+     * necessary, without returning its result or throwing its
+     * exception.
+     */
+    // 直接执行任务，不返回任务状态。必要时，需要等待其他任务的完成
+    public final void quietlyInvoke() {
+        doInvoke();
+    }
+    
+    /*▲ 执行 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 加速完成任务 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Blocks a non-worker-thread until completion or interruption.
+     */
+    // 【提交线程】先尝试加速当前任务的完成。如果加速失败，则转入wait，等待当前任务执行完后再被唤醒
+    private int externalInterruptibleAwaitDone() throws InterruptedException {
+        // 【提交线程】尝试加速当前任务的完成
+        int s = tryExternalHelp();
+        
+        // 等待当前任务的完成
+        if(s >= 0 && (s = (int) STATUS.getAndBitwiseOr(this, SIGNAL)) >= 0) {
+            synchronized(this) {
+                for(; ; ) {
+                    if((s = status) >= 0) {
+                        wait(0L);
+                    } else {
+                        notifyAll();
+                        break;
+                    }
+                }
+            }
+        } else {
+            if(Thread.interrupted()) {
+                throw new InterruptedException();
+            }
+        }
+        
+        return s;
+    }
+    
+    /**
+     * Tries to help with tasks allowed for external callers.
+     *
+     * @return current status
+     */
+    // 【提交线程】尝试加速当前任务的完成
+    private int tryExternalHelp() {
+        // 如果任务已完成，直接返回状态标记
+        if(status<0) {
+            return status;
+        }
+        
+        // 如果是CC型任务
+        if(this instanceof CountedCompleter) {
+            // 【提交线程】尝试加速task的完成，并在最终返回任务的状态
+            return ForkJoinPool.common.externalHelpComplete((CountedCompleter<?>) this, 0);
+        }
+        
+        // 移除任务。【提交线程】尝试将当前task从【共享工作池】上的【共享队列】top处移除，返回值代表是否成功移除
+        if(ForkJoinPool.common.tryExternalUnpush(this)) {
+            // 执行任务，返回任务执行后的状态
+            return doExec();
+        }
+        
+        return 0;
+    }
+    
+    /**
+     * Possibly executes tasks until the pool hosting the current task
+     * {@linkplain ForkJoinPool#isQuiescent is quiescent}.  This
+     * method may be of use in designs in which many tasks are forked,
+     * but none are explicitly joined, instead executing them until
+     * all are processed.
+     */
+    // 促进【工作线程】走向空闲
+    public static void helpQuiesce() {
+        Thread t = Thread.currentThread();
+        
+        if(t instanceof ForkJoinWorkerThread) {
+            ForkJoinWorkerThread wt = (ForkJoinWorkerThread) t;
+            // 【工作线程】促进【工作队列】中任务的完成（使【工作线程】走向空闲）
+            wt.pool.helpQuiescePool(wt.workQueue);
+        } else {
+            // 等待【共享工作池】上的所有【工作队列】变为空闲
+            ForkJoinPool.quiesceCommonPool();
+        }
+    }
+    
+    /*▲ 加速完成任务 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 阻塞 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * If not done, sets SIGNAL status and performs Object.wait(timeout).
+     * This task may or may not be done on exit. Ignores interrupts.
+     *
+     * @param timeout using Object.wait conventions.
+     */
+    // 如果任务还未完成，将任务状态标记为[等待]，并进入wait状态
+    final void internalWait(long timeout) {
+        if((int) STATUS.getAndBitwiseOr(this, SIGNAL) >= 0) {
+            synchronized(this) {
+                if(status >= 0) {
+                    try {
+                        wait(timeout);
+                    } catch(InterruptedException ie) {
+                    }
+                } else {
+                    notifyAll();
+                }
+            }
+        }
+    }
+    
+    /**
+     * Blocks a non-worker-thread until completion.
+     * @return status upon completion
+     */
+    /*
+     * 【提交线程】尝试加速当前任务的完成
+     * 如果加速失败，则使【提交线程】进入wait状态，
+     * 直到该任务完成后才唤醒该线程
+     */
+    private int externalAwaitDone() {
+        // 【提交线程】尝试加速当前任务的完成
+        int s = tryExternalHelp();
+        
+        if (s >= 0) {
+            // 添加阻塞标记
+            s = (int)STATUS.getAndBitwiseOr(this, SIGNAL);
+            
+            if(s>=0){
+                boolean interrupted = false;
+                synchronized (this) {
+                    // 陷入死循环
+                    while(true) {
+                        s = status;
+                        
+                        if (s >= 0) {
+                            try {
+                                wait(0L);
+                            } catch (InterruptedException ie) {
+                                interrupted = true;
+                            }
+                        } else {
+                            notifyAll();
+                            break;
+                        }
+                    }
+                } // while(true)
+                
+                if (interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+        
+        return s;
+    }
+    
+    /*▲ 阻塞 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 完成 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 当前任务是否[已完成]
+    public final boolean isDone() {
+        return status<0;
+    }
+    
+    /**
+     * Returns {@code true} if this task completed without throwing an
+     * exception and was not cancelled.
+     *
+     * @return {@code true} if this task completed without throwing an
+     * exception and was not cancelled
+     */
+    // 当前任务[已完成]，且是正常完成
+    public final boolean isCompletedNormally() {
+        return (status & (DONE | ABNORMAL)) == DONE;
+    }
+    
+    /**
+     * Returns {@code true} if this task threw an exception or was cancelled.
+     *
+     * @return {@code true} if this task threw an exception or was cancelled
+     */
+    // 当前任务是否[非正常完成]
+    public final boolean isCompletedAbnormally() {
+        return (status & ABNORMAL) != 0;
+    }
+    
+    /**
+     * Sets DONE status and wakes up threads waiting to join this task.
+     *
+     * @return status on exit
+     */
+    // 将当前任务标记为[已完成]状态，如果当前任务带有SIGNAL标记，则需唤醒所有处于wait的线程
+    private int setDone() {
+        // 更新任务状态为已完成
+        int s= (int) STATUS.getAndBitwiseOr(this, DONE);
+        
+        // 如果该任务带有阻塞标记，则唤醒全部线程
+        if((s & SIGNAL) != 0) {
+            synchronized(this) {
+                // 被wait的任务无法定点唤醒，只能全部唤醒
+                notifyAll();
+            }
+        }
+        
+        // 添加[已完成]标记
+        return s | DONE;
+    }
+    
+    /**
+     * Completes this task normally without setting a value.
+     * The most recent value established by {@link #setRawResult} (or {@code null} by default)
+     * will be returned as the result of subsequent invocations of {@code join} and related operations.
+     *
+     * @since 1.8
+     */
+    // 静默完成，即将当前任务标记为[已完成]状态（不会改变当前任务挂起的次数）
+    public final void quietlyComplete() {
+        setDone();
+    }
+    
+    /*▲ 完成 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 中止 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Cancels, ignoring any exceptions thrown by cancel. Used during
+     * worker and pool shutdown. Cancel is spec'ed not to throw any
+     * exceptions, but if it does anyway, we have no recourse during
+     * shutdown, so guard against this case.
+     */
+    // 取消任务，即将当前任务标记为DONE|ABNORMAL状态
+    static void cancelIgnoringExceptions(ForkJoinTask<?> task) {
+        // 如果task存在且未完成
+        if(task != null && task.status >= 0) {
+            try {
+                // 取消任务，即将当前任务标记为[已完成]|[非正常完成]状态
+                task.cancel(false);
+            } catch(Throwable ignore) {
+            }
+        }
+    }
+    
     /**
      * Attempts to cancel execution of this task. This attempt will
      * fail if the task has already completed or could not be
@@ -881,58 +1042,38 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      * invoke {@link #completeExceptionally(Throwable)}.
      *
      * @param mayInterruptIfRunning this value has no effect in the
-     * default implementation because interrupts are not used to
-     * control cancellation.
+     *                              default implementation because interrupts are not used to
+     *                              control cancellation.
      *
      * @return {@code true} if this task is now cancelled
      */
+    /*
+     * 取消任务，即将当前任务标记为[已完成]|[非正常完成]状态
+     *
+     * 如果返回true，代表任务含有[非正常完成]标记，但不包含[有异常]标记
+     */
     public boolean cancel(boolean mayInterruptIfRunning) {
+        // 将当前任务标记为DONE|ABNORMAL状态
         int s = abnormalCompletion(DONE | ABNORMAL);
         return (s & (ABNORMAL | THROWN)) == ABNORMAL;
     }
-
-    public final boolean isDone() {
-        return status < 0;
-    }
-
+    
+    // 当前任务是否无异常地被取消
     public final boolean isCancelled() {
         return (status & (ABNORMAL | THROWN)) == ABNORMAL;
     }
-
-    /**
-     * Returns {@code true} if this task threw an exception or was cancelled.
-     *
-     * @return {@code true} if this task threw an exception or was cancelled
-     */
-    public final boolean isCompletedAbnormally() {
-        return (status & ABNORMAL) != 0;
+    
+    /*▲ 中止 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 异常 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 是否处于[有异常]状态
+    static boolean isExceptionalStatus(int s) {
+        return (s & THROWN) != 0;
     }
-
-    /**
-     * Returns {@code true} if this task completed without throwing an
-     * exception and was not cancelled.
-     *
-     * @return {@code true} if this task completed without throwing an
-     * exception and was not cancelled
-     */
-    public final boolean isCompletedNormally() {
-        return (status & (DONE | ABNORMAL)) == DONE;
-    }
-
-    /**
-     * Returns the exception thrown by the base computation, or a
-     * {@code CancellationException} if cancelled, or {@code null} if
-     * none or if the method has not yet completed.
-     *
-     * @return the exception, or {@code null} if none
-     */
-    public final Throwable getException() {
-        int s = status;
-        return ((s & ABNORMAL) == 0 ? null :
-                (s & THROWN)   == 0 ? new CancellationException() :
-                getThrowableException());
-    }
-
+    
     /**
      * Completes this task abnormally, and if not already aborted or
      * cancelled, causes it to throw the given exception upon
@@ -944,166 +1085,62 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      * implementation to maintain guarantees.
      *
      * @param ex the exception to throw. If this exception is not a
-     * {@code RuntimeException} or {@code Error}, the actual exception
-     * thrown will be a {@code RuntimeException} with cause {@code ex}.
+     *           {@code RuntimeException} or {@code Error}, the actual exception
+     *           thrown will be a {@code RuntimeException} with cause {@code ex}.
      */
+    // 设置异常
     public void completeExceptionally(Throwable ex) {
-        setExceptionalCompletion((ex instanceof RuntimeException) ||
-                                 (ex instanceof Error) ? ex :
-                                 new RuntimeException(ex));
+        setExceptionalCompletion((ex instanceof RuntimeException) || (ex instanceof Error) ? ex : new RuntimeException(ex));
     }
-
+    
     /**
-     * Completes this task, and if not already aborted or cancelled,
-     * returning the given value as the result of subsequent
-     * invocations of {@code join} and related operations. This method
-     * may be used to provide results for asynchronous tasks, or to
-     * provide alternative handling for tasks that would not otherwise
-     * complete normally. Its use in other situations is
-     * discouraged. This method is overridable, but overridden
-     * versions must invoke {@code super} implementation to maintain
-     * guarantees.
+     * Records exception and possibly propagates.
      *
-     * @param value the result value for this task
+     * @return status on exit
      */
-    public void complete(V value) {
-        try {
-            setRawResult(value);
-        } catch (Throwable rex) {
-            setExceptionalCompletion(rex);
-            return;
+    // 记录当前任务中的异常，并触发回调
+    private int setExceptionalCompletion(Throwable ex) {
+        // 将当前任务的"异常信息"打包成一个"异常记录"结点存入异常记录哈希表
+        int s = recordExceptionalCompletion(ex);
+        
+        // 如果任务状态被标记为[有异常]
+        if((s & THROWN) != 0) {
+            // 执行回调方法
+            internalPropagateException(ex);
         }
-        setDone();
+        
+        return s;
     }
-
+    
     /**
-     * Completes this task normally without setting a value. The most
-     * recent value established by {@link #setRawResult} (or {@code
-     * null} by default) will be returned as the result of subsequent
-     * invocations of {@code join} and related operations.
-     *
-     * @since 1.8
+     * Hook for exception propagation support for tasks with completers.
      */
-    public final void quietlyComplete() {
-        setDone();
+    // 将任务状态标记为[有异常]之后的回调
+    void internalPropagateException(Throwable ex) {
     }
-
+    
     /**
-     * Waits if necessary for the computation to complete, and then
-     * retrieves its result.
-     *
-     * @return the computed result
-     * @throws CancellationException if the computation was cancelled
-     * @throws ExecutionException if the computation threw an
-     * exception
-     * @throws InterruptedException if the current thread is not a
-     * member of a ForkJoinPool and was interrupted while waiting
+     * A version of "sneaky throw" to relay exceptions.
      */
-    public final V get() throws InterruptedException, ExecutionException {
-        int s = (Thread.currentThread() instanceof ForkJoinWorkerThread) ?
-            doJoin() : externalInterruptibleAwaitDone();
-        if ((s & THROWN) != 0)
-            throw new ExecutionException(getThrowableException());
-        else if ((s & ABNORMAL) != 0)
-            throw new CancellationException();
-        else
-            return getRawResult();
+    // 抛出异常，抑制了对未检查异常（未捕获异常）的警告信息
+    static void rethrow(Throwable ex) {
+        ForkJoinTask.uncheckedThrow(ex);
     }
-
+    
     /**
-     * Waits if necessary for at most the given time for the computation
-     * to complete, and then retrieves its result, if available.
-     *
-     * @param timeout the maximum time to wait
-     * @param unit the time unit of the timeout argument
-     * @return the computed result
-     * @throws CancellationException if the computation was cancelled
-     * @throws ExecutionException if the computation threw an
-     * exception
-     * @throws InterruptedException if the current thread is not a
-     * member of a ForkJoinPool and was interrupted while waiting
-     * @throws TimeoutException if the wait timed out
+     * The sneaky part of sneaky throw,
+     * relying on generics limitations to evade compiler complaints about rethrowing unchecked exceptions.
      */
-    public final V get(long timeout, TimeUnit unit)
-        throws InterruptedException, ExecutionException, TimeoutException {
-        int s;
-        long nanos = unit.toNanos(timeout);
-        if (Thread.interrupted())
-            throw new InterruptedException();
-        if ((s = status) >= 0 && nanos > 0L) {
-            long d = System.nanoTime() + nanos;
-            long deadline = (d == 0L) ? 1L : d; // avoid 0
-            Thread t = Thread.currentThread();
-            if (t instanceof ForkJoinWorkerThread) {
-                ForkJoinWorkerThread wt = (ForkJoinWorkerThread)t;
-                s = wt.pool.awaitJoin(wt.workQueue, this, deadline);
-            }
-            else if ((s = ((this instanceof CountedCompleter) ?
-                           ForkJoinPool.common.externalHelpComplete(
-                               (CountedCompleter<?>)this, 0) :
-                           ForkJoinPool.common.tryExternalUnpush(this) ?
-                           doExec() : 0)) >= 0) {
-                long ns, ms; // measure in nanosecs, but wait in millisecs
-                while ((s = status) >= 0 &&
-                       (ns = deadline - System.nanoTime()) > 0L) {
-                    if ((ms = TimeUnit.NANOSECONDS.toMillis(ns)) > 0L &&
-                        (s = (int)STATUS.getAndBitwiseOr(this, SIGNAL)) >= 0) {
-                        synchronized (this) {
-                            if (status >= 0)
-                                wait(ms); // OK to throw InterruptedException
-                            else
-                                notifyAll();
-                        }
-                    }
-                }
-            }
+    // 抛出异常
+    @SuppressWarnings("unchecked")
+    static <T extends Throwable> void uncheckedThrow(Throwable t) throws T {
+        if(t != null) {
+            throw (T) t; // rely on vacuous cast
         }
-        if (s >= 0)
-            throw new TimeoutException();
-        else if ((s & THROWN) != 0)
-            throw new ExecutionException(getThrowableException());
-        else if ((s & ABNORMAL) != 0)
-            throw new CancellationException();
-        else
-            return getRawResult();
+        
+        throw new Error("Unknown Exception");
     }
-
-    /**
-     * Joins this task, without returning its result or throwing its
-     * exception. This method may be useful when processing
-     * collections of tasks when some have been cancelled or otherwise
-     * known to have aborted.
-     */
-    public final void quietlyJoin() {
-        doJoin();
-    }
-
-    /**
-     * Commences performing this task and awaits its completion if
-     * necessary, without returning its result or throwing its
-     * exception.
-     */
-    public final void quietlyInvoke() {
-        doInvoke();
-    }
-
-    /**
-     * Possibly executes tasks until the pool hosting the current task
-     * {@linkplain ForkJoinPool#isQuiescent is quiescent}.  This
-     * method may be of use in designs in which many tasks are forked,
-     * but none are explicitly joined, instead executing them until
-     * all are processed.
-     */
-    public static void helpQuiesce() {
-        Thread t;
-        if ((t = Thread.currentThread()) instanceof ForkJoinWorkerThread) {
-            ForkJoinWorkerThread wt = (ForkJoinWorkerThread)t;
-            wt.pool.helpQuiescePool(wt.workQueue);
-        }
-        else
-            ForkJoinPool.quiesceCommonPool();
-    }
-
+    
     /**
      * Resets the internal bookkeeping state of this task, allowing a
      * subsequent {@code fork}. This method allows repeated reuse of
@@ -1120,129 +1157,546 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      * unaffected. To clear this value, you can invoke {@code
      * setRawResult(null)}.
      */
+    // 重置任务状态信息，并清理包含的异常
     public void reinitialize() {
-        if ((status & THROWN) != 0)
+        if((status & THROWN) != 0) {
             clearExceptionalCompletion();
-        else
+        } else {
             status = 0;
+        }
     }
-
+    
     /**
-     * Returns the pool hosting the current thread, or {@code null}
-     * if the current thread is executing outside of any ForkJoinPool.
-     *
-     * <p>This method returns {@code null} if and only if {@link
-     * #inForkJoinPool} returns {@code false}.
-     *
-     * @return the pool, or {@code null} if none
+     * Polls stale refs and removes them. Call only while holding lock.
      */
-    public static ForkJoinPool getPool() {
-        Thread t = Thread.currentThread();
-        return (t instanceof ForkJoinWorkerThread) ?
-            ((ForkJoinWorkerThread) t).pool : null;
+    // 清理失效的"异常记录"。即如果"任务"被GC回收，则将其所在的异常记录从异常记录哈希表中移除
+    private static void expungeStaleExceptions() {
+        for(Object x; (x = exceptionTableRefQueue.poll()) != null; ) {
+            if(x instanceof ExceptionNode) {
+                ExceptionNode[] ens = exceptionTable;
+                
+                int i = ((ExceptionNode) x).hashCode & (ens.length - 1);
+                
+                ExceptionNode e = ens[i];
+                ExceptionNode pred = null;
+                
+                while(e != null) {
+                    ExceptionNode next = e.next;
+                    if(e == x) {
+                        if(pred == null) {
+                            ens[i] = next;
+                        } else {
+                            pred.next = next;
+                        }
+                        break;
+                    }
+                    pred = e;
+                    e = next;
+                }
+            }
+        }
     }
-
+    
     /**
-     * Returns {@code true} if the current thread is a {@link
-     * ForkJoinWorkerThread} executing as a ForkJoinPool computation.
-     *
-     * @return {@code true} if the current thread is a {@link
-     * ForkJoinWorkerThread} executing as a ForkJoinPool computation,
-     * or {@code false} otherwise
+     * If lock is available, polls stale refs and removes them.
+     * Called from ForkJoinPool when pools become quiescent.
      */
-    public static boolean inForkJoinPool() {
-        return Thread.currentThread() instanceof ForkJoinWorkerThread;
+    // 清理失效的"异常记录"。即如果"任务"被GC回收，则将其所在的异常记录从异常记录哈希表中移除
+    static void helpExpungeStaleExceptions() {
+        final ReentrantLock lock = exceptionTableLock;
+        if(lock.tryLock()) {
+            try {
+                expungeStaleExceptions();
+            } finally {
+                lock.unlock();
+            }
+        }
     }
-
+    
     /**
-     * Tries to unschedule this task for execution. This method will
-     * typically (but is not guaranteed to) succeed if this task is
-     * the most recently forked task by the current thread, and has
-     * not commenced executing in another thread.  This method may be
-     * useful when arranging alternative local processing of tasks
-     * that could have been, but were not, stolen.
+     * Records exception and sets status.
      *
-     * @return {@code true} if unforked
+     * @return status on exit
      */
-    public boolean tryUnfork() {
-        Thread t;
-        return (((t = Thread.currentThread()) instanceof ForkJoinWorkerThread) ?
-                ((ForkJoinWorkerThread)t).workQueue.tryUnpush(this) :
-                ForkJoinPool.common.tryExternalUnpush(this));
+    // 将当前任务的"异常信息"打包成一个"异常记录"结点存入异常记录哈希表
+    final int recordExceptionalCompletion(Throwable ex) {
+        int s = status;
+        
+        if(s >= 0) {
+            // 获取当前任务的哈希码
+            int h = System.identityHashCode(this);
+            
+            final ReentrantLock lock = exceptionTableLock;
+            
+            lock.lock();
+            try {
+                // 清理失效的"异常记录"。即如果"任务"被GC回收，则将其所在的异常记录从异常记录哈希表中移除
+                expungeStaleExceptions();
+                
+                ExceptionNode[] ens = exceptionTable;
+                
+                // 计算当前任务在异常记录哈希表中的索引
+                int i = h & (ens.length - 1);
+                
+                // 将具有相同哈希化索引的对象串在一起
+                for(ExceptionNode e = ens[i]; ; e = e.next) {
+                    if(e == null) {
+                        // 头插法
+                        ens[i] = new ExceptionNode(this, ex, ens[i], exceptionTableRefQueue);
+                        break;
+                    }
+                    
+                    // 如果该结点已经存在，则退出循环
+                    if(e.get() == this) {
+                        break;
+                    }
+                }
+            } finally {
+                lock.unlock();
+            }
+            
+            // 将当前任务标记为[已完成]|[非正常完成]|[有异常]状态
+            s = abnormalCompletion(DONE | ABNORMAL | THROWN);
+        }
+        
+        return s;
     }
-
+    
     /**
-     * Returns an estimate of the number of tasks that have been
-     * forked by the current worker thread but not yet executed. This
-     * value may be useful for heuristic decisions about whether to
-     * fork other tasks.
-     *
-     * @return the number of tasks
+     * Removes exception node and clears status.
      */
-    public static int getQueuedTaskCount() {
-        Thread t; ForkJoinPool.WorkQueue q;
-        if ((t = Thread.currentThread()) instanceof ForkJoinWorkerThread)
-            q = ((ForkJoinWorkerThread)t).workQueue;
-        else
-            q = ForkJoinPool.commonSubmitterQueue();
-        return (q == null) ? 0 : q.queueSize();
+    // 将当前"任务"所在的异常记录从异常记录哈希表中清除，并且需要清理所有"失效记录"
+    private void clearExceptionalCompletion() {
+        // 获取当前任务的哈希码
+        int h = System.identityHashCode(this);
+        
+        final ReentrantLock lock = exceptionTableLock;
+        
+        lock.lock();
+        try {
+            ExceptionNode[] ens = exceptionTable;
+            
+            // 计算当前任务在异常记录哈希表中的索引
+            int i = h & (ens.length - 1);
+            
+            ExceptionNode e = ens[i];
+            ExceptionNode pred = null;
+            
+            while(e != null) {
+                ExceptionNode next = e.next;
+                if(e.get() == this) {
+                    if(pred == null) {
+                        ens[i] = next;
+                    } else {
+                        pred.next = next;
+                    }
+                    break;
+                }
+                pred = e;
+                e = next;
+            }
+            
+            // 清理失效的"异常记录"。即如果"任务"被GC回收，则将其所在的异常记录从异常记录哈希表中移除
+            expungeStaleExceptions();
+            
+            status = 0;
+        } finally {
+            lock.unlock();
+        }
     }
-
+    
     /**
-     * Returns an estimate of how many more locally queued tasks are
-     * held by the current worker thread than there are other worker
-     * threads that might steal them, or zero if this thread is not
-     * operating in a ForkJoinPool. This value may be useful for
-     * heuristic decisions about whether to fork other tasks. In many
-     * usages of ForkJoinTasks, at steady state, each worker should
-     * aim to maintain a small constant surplus (for example, 3) of
-     * tasks, and to process computations locally if this threshold is
-     * exceeded.
+     * Returns a rethrowable exception for this task, if available.
+     * To provide accurate stack traces, if the exception was not thrown by the current thread,
+     * we try to create a new exception of the same type as the one thrown,
+     * but with the recorded exception as its cause.
+     * If there is no such constructor, we instead try to use a no-arg constructor,
+     * followed by initCause, to the same effect.
+     * If none of these apply, or any fail due to other exceptions,
+     * we return the recorded exception, which is still correct,
+     * although it may contain a misleading stack trace.
      *
-     * @return the surplus number of tasks, which may be negative
+     * @return the exception, or null if none
      */
-    public static int getSurplusQueuedTaskCount() {
-        return ForkJoinPool.getSurplusQueuedTaskCount();
+    // 获取当前任务抛出的异常
+    private Throwable getThrowableException() {
+        // 获取当前任务的哈希码
+        int h = System.identityHashCode(this);
+        
+        ExceptionNode en;
+        
+        final ReentrantLock lock = exceptionTableLock;
+        
+        lock.lock();
+        // 在异常记录哈希表中查找当前任务所在的结点
+        try {
+            // 清理失效的"异常记录"。即如果"任务"被GC回收，则将其所在的异常记录从异常记录哈希表中移除
+            expungeStaleExceptions();
+            ExceptionNode[] ens = exceptionTable;
+            en = ens[h & (ens.length - 1)];
+            while(en != null && en.get() != this) {
+                en = en.next;
+            }
+        } finally {
+            lock.unlock();
+        }
+        
+        Throwable ex;
+        // 如果不存在查找异常记录，或者该异常记录的异常信息为空，则返回null
+        if(en == null || (ex = en.ex) == null) {
+            return null;
+        }
+        
+        // 如果当前线程不是之前抛异常的线程，则需要重新构造一个异常并抛出
+        if(en.thrower != Thread.currentThread().getId()) {
+            try {
+                Constructor<?> noArgCtor = null;
+                // 遍历标记为public的构造方法
+                for(Constructor<?> c : ex.getClass().getConstructors()) {
+                    // 获取所有形参的类型
+                    Class<?>[] ps = c.getParameterTypes();
+                    if(ps.length == 0) {
+                        // 记下无参构造方法
+                        noArgCtor = c;
+                    } else {
+                        // 如果存在单参数构造方法，且形参类型为Throwable，则构造异常并抛出
+                        if(ps.length == 1 && ps[0] == Throwable.class) {
+                            return (Throwable) c.newInstance(ex);
+                        }
+                    }
+                }
+                
+                // 利用无参构造方法构造异常后抛出
+                if(noArgCtor != null) {
+                    Throwable wx = (Throwable) noArgCtor.newInstance();
+                    wx.initCause(ex);
+                    return wx;
+                }
+            } catch(Exception ignore) {
+            }
+        }
+        
+        // 返回当前任务抛出的异常
+        return ex;
     }
-
-    // Extension methods
-
+    
     /**
-     * Returns the result that would be returned by {@link #join}, even
-     * if this task completed abnormally, or {@code null} if this task
-     * is not known to have been completed.  This method is designed
-     * to aid debugging, as well as to support extensions. Its use in
-     * any other context is discouraged.
-     *
-     * @return the result, or {@code null} if not completed
+     * Throws exception, if any, associated with the given status.
      */
-    public abstract V getRawResult();
-
+    // 报告任务的异常信息
+    private void reportException(int status) {
+        Throwable throwable = null;
+        
+        // 如果当前任务包含[有异常]标记，则抛出其产生的异常
+        if((status & THROWN) != 0) {
+            throwable = getThrowableException();
+            rethrow(throwable);
+        }
+        
+        // 否则，抛出"已取消"异常
+        throwable = new CancellationException();
+        rethrow(throwable);
+    }
+    
     /**
-     * Forces the given value to be returned as a result.  This method
-     * is designed to support extensions, and should not in general be
-     * called otherwise.
+     * Returns the exception thrown by the base computation, or a
+     * {@code CancellationException} if cancelled, or {@code null} if
+     * none or if the method has not yet completed.
+     *
+     * @return the exception, or {@code null} if none
+     */
+    // 如果任务被非正常关闭，则返回其异常信息
+    public final Throwable getException() {
+        int s = status;
+        if((s & ABNORMAL) == 0) {
+            return null;
+        } else {
+            if((s & THROWN) == 0) {
+                // 返回"取消"异常
+                return new CancellationException();
+            } else {
+                // 获取当前任务抛出的异常
+                return getThrowableException();
+            }
+        }
+    }
+    
+    /*▲ 异常 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 任务状态 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the tag for this task.
+     *
+     * @return the tag for this task
+     *
+     * @since 1.8
+     */
+    // 返回任务状态
+    public final short getForkJoinTaskTag() {
+        return (short) status;
+    }
+    
+    /**
+     * Atomically sets the tag value for this task and returns the old value.
+     *
+     * @param newValue the new tag value
+     *
+     * @return the previous value of the tag
+     *
+     * @since 1.8
+     */
+    // 设置任务状态
+    public final short setForkJoinTaskTag(short newValue) {
+        for(int s; ; ) {
+            if(STATUS.weakCompareAndSet(this, s = status, (s & ~SMASK) | (newValue & SMASK))) {
+                return (short) s;
+            }
+        }
+    }
+    
+    /**
+     * Atomically conditionally sets the tag value for this task.
+     * Among other applications, tags can be used as visit markers
+     * in tasks operating on graphs, as in methods that check: {@code
+     * if (task.compareAndSetForkJoinTaskTag((short)0, (short)1))}
+     * before processing, otherwise exiting because the node has
+     * already been visited.
+     *
+     * @param expect the expected tag value
+     * @param update the new tag value
+     *
+     * @return {@code true} if successful; i.e., the current value was
+     * equal to {@code expect} and was changed to {@code update}.
+     *
+     * @since 1.8
+     */
+    // 原子地更新任务状态
+    public final boolean compareAndSetForkJoinTaskTag(short expect, short update) {
+        for(int s; ; ) {
+            if((short) (s = status) != expect) {
+                return false;
+            }
+            
+            if(STATUS.weakCompareAndSet(this, s, (s & ~SMASK) | (update & SMASK))) {
+                return true;
+            }
+        }
+    }
+    
+    /**
+     * Marks cancelled or exceptional completion unless already done.
+     *
+     * @param completion must be DONE | ABNORMAL, ORed with THROWN if exceptional
+     * @return status on exit
+     */
+    // 将当前任务标记为completion状态（多数情形下为[已完成]|[非正常完成]状态，特殊情形下需要与THROWN协作）
+    private int abnormalCompletion(int completion) {
+        for(; ; ) {
+            int s = status;
+            
+            // 如果该任务已完成，则直接返回
+            if(s<0) {
+                return s;
+            } else {
+                // 添加完成标记
+                int ns = s | completion;
+                // 更新任务状态
+                if(STATUS.weakCompareAndSet(this, s, ns)) {
+                    // 如果该任务是阻塞的，这里需要唤醒它(们)
+                    if((s & SIGNAL) != 0) {
+                        synchronized(this) {
+                            notifyAll();
+                        }
+                    }
+                    // 返回更新后的标记
+                    return ns;
+                }
+            }
+        }
+    }
+    
+    /*▲ 任务状态 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 任务结果 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Forces the given value to be returned as a result.
+     * This method is designed to support extensions, and should not in general be called otherwise.
      *
      * @param value the value
      */
+    // 设置指定的值为当前任务的执行结果，设置期间可以对其进一步操作，具体逻辑由子类实现
     protected abstract void setRawResult(V value);
-
+    
     /**
-     * Immediately performs the base action of this task and returns
-     * true if, upon return from this method, this task is guaranteed
-     * to have completed normally. This method may return false
-     * otherwise, to indicate that this task is not necessarily
-     * complete (or is not known to be complete), for example in
-     * asynchronous actions that require explicit invocations of
-     * completion methods. This method may also throw an (unchecked)
-     * exception to indicate abnormal exit. This method is designed to
-     * support extensions, and should not in general be called
-     * otherwise.
+     * Completes this task, and if not already aborted or cancelled,
+     * returning the given value as the result of subsequent invocations of {@code join} and related operations.
+     * This method may be used to provide results for asynchronous tasks,
+     * or to provide alternative handling for tasks that would not otherwise complete normally.
+     * Its use in other situations is discouraged.
+     * This method is overridable, but overridden versions must invoke {@code super} implementation to maintain guarantees.
      *
-     * @return {@code true} if this task is known to have completed normally
+     * @param value the result value for this task
      */
-    protected abstract boolean exec();
-
+    /*
+     * 传入(某个)任务的执行结果，并继续对其操作
+     * 只有当任务没有被取消或没有抛出异常时才应该使用
+     * 通常用于执行异步任务，或者用于处理一系列任务中的某个阶段
+     */
+    public void complete(V value) {
+        try {
+            setRawResult(value);
+        } catch(Throwable rex) {
+            // 记录当前异常，并触发回调
+            setExceptionalCompletion(rex);
+            return;
+        }
+        
+        // 将当前任务标记为[已完成]状态
+        setDone();
+    }
+    
+    /**
+     * Returns the result that would be returned by {@link #join}, even if this task completed abnormally,
+     * or {@code null} if this task is not known to have been completed.
+     * This method is designed to aid debugging, as well as to support extensions.
+     * Its use in any other context is discouraged.
+     *
+     * @return the result, or {@code null} if not completed
+     */
+    // 返回当前任务的执行结果，具体逻辑由子类实现
+    public abstract V getRawResult();
+    
+    /**
+     * Waits if necessary for the computation to complete, and then
+     * retrieves its result.
+     *
+     * @return the computed result
+     *
+     * @throws CancellationException if the computation was cancelled
+     * @throws ExecutionException    if the computation threw an
+     *                               exception
+     * @throws InterruptedException  if the current thread is not a
+     *                               member of a ForkJoinPool and was interrupted while waiting
+     */
+    // 返回任务执行结果（中途会触发计算）。如果任务未完成，则线程转入wait状态，直到任务完成后被唤醒
+    public final V get()
+        throws InterruptedException, ExecutionException {
+        int s;
+        
+        // 【工作线程】从【工作队列】的top处取出当前任务并执行，最后返回任务状态。必要时，需要等待其他任务的完成
+        if(Thread.currentThread() instanceof ForkJoinWorkerThread) {
+            s = doJoin();
+        } else {
+            // 【提交线程】先尝试加速当前任务的完成。如果加速失败，则转入wait，等待当前任务执行完后再被唤醒
+            s = externalInterruptibleAwaitDone();
+        }
+        
+        if((s & THROWN) != 0) {
+            // 获取当前任务抛出的异常
+            Throwable throwable = getThrowableException();
+            // 将抛出的异常包装到"执行异常"中之后再抛出
+            throw new ExecutionException(throwable);
+        } else if((s & ABNORMAL) != 0) {
+            // 抛出"已取消"异常
+            throw new CancellationException();
+        } else {
+            // 返回计算结果
+            return getRawResult();
+        }
+    }
+    
+    /**
+     * Waits if necessary for at most the given time for the computation
+     * to complete, and then retrieves its result, if available.
+     *
+     * @param timeout the maximum time to wait
+     * @param unit    the time unit of the timeout argument
+     *
+     * @return the computed result
+     *
+     * @throws CancellationException if the computation was cancelled
+     * @throws ExecutionException    if the computation threw an
+     *                               exception
+     * @throws InterruptedException  if the current thread is not a
+     *                               member of a ForkJoinPool and was interrupted while waiting
+     * @throws TimeoutException      if the wait timed out
+     */
+    // 返回任务执行结果（中途会触发计算）。如果任务在指定的时间内未完成，则抛出异常
+    public final V get(long timeout, TimeUnit unit)
+        throws InterruptedException, ExecutionException, TimeoutException {
+        int s;
+        
+        long nanos = unit.toNanos(timeout);
+        
+        if(Thread.interrupted()) {
+            throw new InterruptedException();
+        }
+        
+        if((s = status) >= 0 && nanos>0L) {
+            long d = System.nanoTime() + nanos;
+            long deadline = (d == 0L) ? 1L : d; // avoid 0
+            Thread t = Thread.currentThread();
+            
+            if(t instanceof ForkJoinWorkerThread) {
+                ForkJoinWorkerThread wt = (ForkJoinWorkerThread) t;
+                
+                // 【工作线程】尝试加速task的完成，如果无法加速，则当前的【工作线程】考虑进入wait状态，直到task完成后被唤醒
+                s = wt.pool.awaitJoin(wt.workQueue, this, deadline);
+            } else {
+                if(this instanceof CountedCompleter){
+                    // 【提交线程】尝试加速task的完成，并在最终返回任务的状态
+                    s = ForkJoinPool.common.externalHelpComplete((CountedCompleter<?>) this, 0);
+                } else {
+                    // 移除任务。【提交线程】尝试将指定的task从【共享工作池】上的【共享队列】top处移除，返回值代表是否成功移除
+                    if(ForkJoinPool.common.tryExternalUnpush(this)){
+                        // 执行任务，返回任务执行后的状态
+                        s = doExec();
+                    } else {
+                        s = 0;
+                    }
+                }
+                
+                if(s >= 0) {
+                    long ns, ms; // measure in nanosecs, but wait in millisecs
+                    // 未超时，且任务还未完成，则让【工作线程】继续等待
+                    while((s = status) >= 0 && (ns = deadline - System.nanoTime())>0L) {
+                        if((ms = TimeUnit.NANOSECONDS.toMillis(ns))>0L && (s = (int) STATUS.getAndBitwiseOr(this, SIGNAL)) >= 0) {
+                            synchronized(this) {
+                                if(status >= 0) {
+                                    wait(ms); // OK to throw InterruptedException
+                                } else {
+                                    notifyAll();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        if(s >= 0) {
+            throw new TimeoutException();
+        } else if((s & THROWN) != 0) {
+            throw new ExecutionException(getThrowableException());
+        } else if((s & ABNORMAL) != 0) {
+            throw new CancellationException();
+        } else {
+            return getRawResult();
+        }
+    }
+    
+    /*▲ 任务结果 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 获取任务 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns, but does not unschedule or execute, a task queued by
      * the current thread but not yet executed, if one is immediately
@@ -1255,31 +1709,26 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      *
      * @return the next task, or {@code null} if none are available
      */
-    protected static ForkJoinTask<?> peekNextLocalTask() {
-        Thread t; ForkJoinPool.WorkQueue q;
-        if ((t = Thread.currentThread()) instanceof ForkJoinWorkerThread)
-            q = ((ForkJoinWorkerThread)t).workQueue;
-        else
-            q = ForkJoinPool.commonSubmitterQueue();
-        return (q == null) ? null : q.peek();
-    }
-
-    /**
-     * Unschedules and returns, without executing, the next task
-     * queued by the current thread but not yet executed, if the
-     * current thread is operating in a ForkJoinPool.  This method is
-     * designed primarily to support extensions, and is unlikely to be
-     * useful otherwise.
-     *
-     * @return the next task, or {@code null} if none are available
+    /*
+     * 从【队列】中获取任务（由调用线程决定从哪类【队列】上获取任务）
+     * 如果【队列】带有FIFO标记，则从base处获取task，否则从top处获取任务
      */
-    protected static ForkJoinTask<?> pollNextLocalTask() {
-        Thread t;
-        return ((t = Thread.currentThread()) instanceof ForkJoinWorkerThread) ?
-            ((ForkJoinWorkerThread)t).workQueue.nextLocalTask() :
-            null;
+    protected static ForkJoinTask<?> peekNextLocalTask() {
+        Thread t = Thread.currentThread();
+        WorkQueue wq;
+        
+        if(t instanceof ForkJoinWorkerThread) {
+            // 获取当前【工作线程】管辖的【工作队列】
+            wq = ((ForkJoinWorkerThread) t).workQueue;
+        } else {
+            // 获取当前【提交线程】管辖的【共享队列】（从【共享工作池】中获取）
+            wq = ForkJoinPool.commonSubmitterQueue();
+        }
+        
+        // 如果【队列】带有FIFO标记，则从base处获取task，否则从top处获取任务
+        return (wq == null) ? null : wq.peek();
     }
-
+    
     /**
      * If the current thread is operating in a ForkJoinPool,
      * unschedules and returns, without executing, the next task
@@ -1293,13 +1742,41 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      *
      * @return a task, or {@code null} if none are available
      */
+    // 如果在【工作线程】上调用，则返回一个[本地任务]或窃取的[外部任务]
     protected static ForkJoinTask<?> pollTask() {
-        Thread t; ForkJoinWorkerThread wt;
-        return ((t = Thread.currentThread()) instanceof ForkJoinWorkerThread) ?
-            (wt = (ForkJoinWorkerThread)t).pool.nextTaskFor(wt.workQueue) :
-            null;
+        Thread thread = Thread.currentThread();
+        
+        if(thread instanceof ForkJoinWorkerThread){
+            ForkJoinWorkerThread wt = (ForkJoinWorkerThread) thread;
+            
+            // 获取一个[本地任务]或窃取的[外部任务]
+            return wt.pool.nextTaskFor(wt.workQueue);
+        }
+        
+        return null;
     }
-
+    
+    /**
+     * Unschedules and returns, without executing, the next task
+     * queued by the current thread but not yet executed, if the
+     * current thread is operating in a ForkJoinPool.  This method is
+     * designed primarily to support extensions, and is unlikely to be
+     * useful otherwise.
+     *
+     * @return the next task, or {@code null} if none are available
+     */
+    // 如果在【工作线程】上调用，则返回一个[本地任务]
+    protected static ForkJoinTask<?> pollNextLocalTask() {
+        Thread t = Thread.currentThread();
+        
+        if(t instanceof ForkJoinWorkerThread){
+            // 让【工作线程】尝试从自身的【工作队列】中取出[本地任务]
+            return ((ForkJoinWorkerThread) t).workQueue.nextLocalTask();
+        }
+        
+        return null;
+    }
+    
     /**
      * If the current thread is operating in a ForkJoinPool,
      * unschedules and returns, without executing, a task externally
@@ -1309,183 +1786,106 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      * support extensions, and is unlikely to be useful otherwise.
      *
      * @return a task, or {@code null} if none are available
+     *
      * @since 9
      */
+    // 如果在【工作线程】上调用，则随机从某个【共享队列】中获取一个[外部任务]
     protected static ForkJoinTask<?> pollSubmission() {
-        Thread t;
-        return ((t = Thread.currentThread()) instanceof ForkJoinWorkerThread) ?
-            ((ForkJoinWorkerThread)t).pool.pollSubmission() : null;
+        Thread t = Thread.currentThread();
+        
+        if(t instanceof ForkJoinWorkerThread){
+            // 让【工作线程】随机从某个【共享队列】中获取一个任务
+            return ((ForkJoinWorkerThread) t).pool.pollSubmission();
+        }
+        
+        return null;
     }
-
-    // tag operations
-
+    
+    /*▲ 获取任务 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 统计信息 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns the tag for this task.
+     * Returns an estimate of the number of tasks that have been
+     * forked by the current worker thread but not yet executed. This
+     * value may be useful for heuristic decisions about whether to
+     * fork other tasks.
      *
-     * @return the tag for this task
-     * @since 1.8
+     * @return the number of tasks
      */
-    public final short getForkJoinTaskTag() {
-        return (short)status;
+    // 返回【队列】中的任务数（近似）
+    public static int getQueuedTaskCount() {
+        Thread t = Thread.currentThread();
+        WorkQueue wq;
+        
+        if(t instanceof ForkJoinWorkerThread) {
+            // 获取当前【工作线程】管辖的【工作队列】
+            wq = ((ForkJoinWorkerThread) t).workQueue;
+        } else {
+            // 获取当前【提交线程】管辖的【共享队列】（从【共享工作池】中获取）
+            wq = ForkJoinPool.commonSubmitterQueue();
+        }
+        
+        // 返回【队列】中的任务数（近似）
+        return (wq == null) ? 0 : wq.queueSize();
     }
-
+    
     /**
-     * Atomically sets the tag value for this task and returns the old value.
+     * Returns an estimate of how many more locally queued tasks are
+     * held by the current worker thread than there are other worker
+     * threads that might steal them, or zero if this thread is not
+     * operating in a ForkJoinPool. This value may be useful for
+     * heuristic decisions about whether to fork other tasks. In many
+     * usages of ForkJoinTasks, at steady state, each worker should
+     * aim to maintain a small constant surplus (for example, 3) of
+     * tasks, and to process computations locally if this threshold is
+     * exceeded.
      *
-     * @param newValue the new tag value
-     * @return the previous value of the tag
-     * @since 1.8
+     * @return the surplus number of tasks, which may be negative
      */
-    public final short setForkJoinTaskTag(short newValue) {
-        for (int s;;) {
-            if (STATUS.weakCompareAndSet(this, s = status,
-                                         (s & ~SMASK) | (newValue & SMASK)))
-                return (short)s;
-        }
+    // 估算当前【工作线程】剩余的排队任务数量
+    public static int getSurplusQueuedTaskCount() {
+        return ForkJoinPool.getSurplusQueuedTaskCount();
     }
-
-    /**
-     * Atomically conditionally sets the tag value for this task.
-     * Among other applications, tags can be used as visit markers
-     * in tasks operating on graphs, as in methods that check: {@code
-     * if (task.compareAndSetForkJoinTaskTag((short)0, (short)1))}
-     * before processing, otherwise exiting because the node has
-     * already been visited.
-     *
-     * @param expect the expected tag value
-     * @param update the new tag value
-     * @return {@code true} if successful; i.e., the current value was
-     * equal to {@code expect} and was changed to {@code update}.
-     * @since 1.8
-     */
-    public final boolean compareAndSetForkJoinTaskTag(short expect, short update) {
-        for (int s;;) {
-            if ((short)(s = status) != expect)
-                return false;
-            if (STATUS.weakCompareAndSet(this, s,
-                                         (s & ~SMASK) | (update & SMASK)))
-                return true;
-        }
-    }
-
-    /**
-     * Adapter for Runnables. This implements RunnableFuture
-     * to be compliant with AbstractExecutorService constraints
-     * when used in ForkJoinPool.
-     */
-    static final class AdaptedRunnable<T> extends ForkJoinTask<T>
-        implements RunnableFuture<T> {
-        final Runnable runnable;
-        T result;
-        AdaptedRunnable(Runnable runnable, T result) {
-            if (runnable == null) throw new NullPointerException();
-            this.runnable = runnable;
-            this.result = result; // OK to set this even before completion
-        }
-        public final T getRawResult() { return result; }
-        public final void setRawResult(T v) { result = v; }
-        public final boolean exec() { runnable.run(); return true; }
-        public final void run() { invoke(); }
-        public String toString() {
-            return super.toString() + "[Wrapped task = " + runnable + "]";
-        }
-        private static final long serialVersionUID = 5232453952276885070L;
-    }
-
-    /**
-     * Adapter for Runnables without results.
-     */
-    static final class AdaptedRunnableAction extends ForkJoinTask<Void>
-        implements RunnableFuture<Void> {
-        final Runnable runnable;
-        AdaptedRunnableAction(Runnable runnable) {
-            if (runnable == null) throw new NullPointerException();
-            this.runnable = runnable;
-        }
-        public final Void getRawResult() { return null; }
-        public final void setRawResult(Void v) { }
-        public final boolean exec() { runnable.run(); return true; }
-        public final void run() { invoke(); }
-        public String toString() {
-            return super.toString() + "[Wrapped task = " + runnable + "]";
-        }
-        private static final long serialVersionUID = 5232453952276885070L;
-    }
-
-    /**
-     * Adapter for Runnables in which failure forces worker exception.
-     */
-    static final class RunnableExecuteAction extends ForkJoinTask<Void> {
-        final Runnable runnable;
-        RunnableExecuteAction(Runnable runnable) {
-            if (runnable == null) throw new NullPointerException();
-            this.runnable = runnable;
-        }
-        public final Void getRawResult() { return null; }
-        public final void setRawResult(Void v) { }
-        public final boolean exec() { runnable.run(); return true; }
-        void internalPropagateException(Throwable ex) {
-            rethrow(ex); // rethrow outside exec() catches.
-        }
-        private static final long serialVersionUID = 5232453952276885070L;
-    }
-
-    /**
-     * Adapter for Callables.
-     */
-    static final class AdaptedCallable<T> extends ForkJoinTask<T>
-        implements RunnableFuture<T> {
-        final Callable<? extends T> callable;
-        T result;
-        AdaptedCallable(Callable<? extends T> callable) {
-            if (callable == null) throw new NullPointerException();
-            this.callable = callable;
-        }
-        public final T getRawResult() { return result; }
-        public final void setRawResult(T v) { result = v; }
-        public final boolean exec() {
-            try {
-                result = callable.call();
-                return true;
-            } catch (RuntimeException rex) {
-                throw rex;
-            } catch (Exception ex) {
-                throw new RuntimeException(ex);
-            }
-        }
-        public final void run() { invoke(); }
-        public String toString() {
-            return super.toString() + "[Wrapped task = " + callable + "]";
-        }
-        private static final long serialVersionUID = 2838392045355241008L;
-    }
-
-    /**
-     * Returns a new {@code ForkJoinTask} that performs the {@code run}
-     * method of the given {@code Runnable} as its action, and returns
-     * a null result upon {@link #join}.
-     *
-     * @param runnable the runnable action
-     * @return the task
-     */
-    public static ForkJoinTask<?> adapt(Runnable runnable) {
-        return new AdaptedRunnableAction(runnable);
-    }
-
+    
+    /*▲ 统计信息 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 适配方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns a new {@code ForkJoinTask} that performs the {@code run}
      * method of the given {@code Runnable} as its action, and returns
      * the given result upon {@link #join}.
      *
      * @param runnable the runnable action
-     * @param result the result upon completion
-     * @param <T> the type of the result
+     * @param result   the result upon completion
+     * @param <T>      the type of the result
+     *
      * @return the task
      */
+    // 适配方法，返回AdaptedRunnable类型的任务
     public static <T> ForkJoinTask<T> adapt(Runnable runnable, T result) {
         return new AdaptedRunnable<T>(runnable, result);
     }
-
+    
+    /**
+     * Returns a new {@code ForkJoinTask} that performs the {@code run}
+     * method of the given {@code Runnable} as its action, and returns
+     * a null result upon {@link #join}.
+     *
+     * @param runnable the runnable action
+     *
+     * @return the task
+     */
+    // 适配方法，返回AdaptedRunnableAction类型的任务
+    public static ForkJoinTask<?> adapt(Runnable runnable) {
+        return new AdaptedRunnableAction(runnable);
+    }
+    
     /**
      * Returns a new {@code ForkJoinTask} that performs the {@code call}
      * method of the given {@code Callable} as its action, and returns
@@ -1493,55 +1893,276 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      * encountered into {@code RuntimeException}.
      *
      * @param callable the callable action
-     * @param <T> the type of the callable's result
+     * @param <T>      the type of the callable's result
+     *
      * @return the task
      */
+    // 适配方法，返回AdaptedCallable类型的任务
     public static <T> ForkJoinTask<T> adapt(Callable<? extends T> callable) {
         return new AdaptedCallable<T>(callable);
     }
-
-    // Serialization support
-
-    private static final long serialVersionUID = -7721805057305804111L;
-
+    
+    /*▲ 适配方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Saves this task to a stream (that is, serializes it).
      *
      * @param s the stream
+     *
      * @throws java.io.IOException if an I/O error occurs
      * @serialData the current run status and the exception thrown
      * during execution, or {@code null} if none
      */
-    private void writeObject(java.io.ObjectOutputStream s)
-        throws java.io.IOException {
+    private void writeObject(ObjectOutputStream s) throws IOException {
         s.defaultWriteObject();
         s.writeObject(getException());
     }
-
+    
     /**
      * Reconstitutes this task from a stream (that is, deserializes it).
+     *
      * @param s the stream
+     *
      * @throws ClassNotFoundException if the class of a serialized object
-     *         could not be found
-     * @throws java.io.IOException if an I/O error occurs
+     *                                could not be found
+     * @throws java.io.IOException    if an I/O error occurs
      */
-    private void readObject(java.io.ObjectInputStream s)
-        throws java.io.IOException, ClassNotFoundException {
+    private void readObject(ObjectInputStream s) throws IOException, ClassNotFoundException {
         s.defaultReadObject();
         Object ex = s.readObject();
-        if (ex != null)
-            setExceptionalCompletion((Throwable)ex);
-    }
-
-    // VarHandle mechanics
-    private static final VarHandle STATUS;
-    static {
-        try {
-            MethodHandles.Lookup l = MethodHandles.lookup();
-            STATUS = l.findVarHandle(ForkJoinTask.class, "status", int.class);
-        } catch (ReflectiveOperationException e) {
-            throw new ExceptionInInitializerError(e);
+        if(ex != null) {
+            setExceptionalCompletion((Throwable) ex);
         }
     }
-
+    
+    /*▲ 序列化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    
+    
+    
+    /**
+     * Adapter for Runnables.
+     * This implements RunnableFuture to be compliant with AbstractExecutorService constraints when used in ForkJoinPool.
+     */
+    /*
+     * 通过继承与组合的方式，兼容了Runnable
+     * 如果需要该类任务有返回值，则应该在计算过程中动态赋值
+     */
+    static final class AdaptedRunnable<T> extends ForkJoinTask<T> implements RunnableFuture<T> {
+        private static final long serialVersionUID = 5232453952276885070L;
+        
+        final Runnable runnable;
+        T result;
+        
+        AdaptedRunnable(Runnable runnable, T result) {
+            if(runnable == null) {
+                throw new NullPointerException();
+            }
+            this.runnable = runnable;
+            this.result = result; // OK to set this even before completion
+        }
+        
+        public final T getRawResult() {
+            return result;
+        }
+        
+        public final void setRawResult(T v) {
+            result = v;
+        }
+        
+        // 通过继承的方式兼容Runnable，间接执行组合的Runnable中的任务（动作）
+        public final void run() {
+            // 并行执行任务
+            invoke();
+        }
+        
+        /*
+         * 通过组合的方式兼容Runnable，直接执行组合的Runnable中的任务（动作）
+         * 该方法总是true，代表任务执行完成
+         */
+        public final boolean exec() {
+            runnable.run();
+            return true;
+        }
+        
+        public String toString() {
+            return super.toString() + "[Wrapped task = " + runnable + "]";
+        }
+    }
+    
+    /**
+     * Adapter for Runnables without results.
+     */
+    /*
+     * 通过继承与组合的方式，兼容了Runnable
+     * 该类任务没有返回值
+     */
+    static final class AdaptedRunnableAction extends ForkJoinTask<Void> implements RunnableFuture<Void> {
+        private static final long serialVersionUID = 5232453952276885070L;
+        
+        final Runnable runnable;
+        
+        AdaptedRunnableAction(Runnable runnable) {
+            if(runnable == null) {
+                throw new NullPointerException();
+            }
+            this.runnable = runnable;
+        }
+        
+        public final Void getRawResult() {
+            return null;
+        }
+        
+        public final void setRawResult(Void v) {
+        }
+        
+        // 通过继承的方式兼容Runnable，间接执行组合的Runnable中的任务（动作）
+        public final void run() {
+            invoke();
+        }
+        
+        /*
+         * 通过组合的方式兼容Runnable，直接执行组合的Runnable中的任务（动作）
+         * 该方法总是true，代表任务执行完成
+         */
+        public final boolean exec() {
+            runnable.run();
+            return true;
+        }
+        
+        public String toString() {
+            return super.toString() + "[Wrapped task = " + runnable + "]";
+        }
+    }
+    
+    /**
+     * Adapter for Runnables in which failure forces worker exception.
+     */
+    // 通过组合的方式，兼容了Runnable，该类任务没有返回值
+    static final class RunnableExecuteAction extends ForkJoinTask<Void> {
+        private static final long serialVersionUID = 5232453952276885070L;
+        
+        final Runnable runnable;
+        
+        RunnableExecuteAction(Runnable runnable) {
+            if(runnable == null) {
+                throw new NullPointerException();
+            }
+            this.runnable = runnable;
+        }
+        
+        public final Void getRawResult() {
+            return null;
+        }
+        
+        public final void setRawResult(Void v) {
+        }
+        
+        /*
+         * 通过组合的方式兼容Runnable，直接执行组合的Runnable中的任务（动作）
+         * 该方法总是true，代表任务执行完成
+         */
+        public final boolean exec() {
+            runnable.run();
+            return true;
+        }
+        
+        void internalPropagateException(Throwable ex) {
+            rethrow(ex); // rethrow outside exec() catches.
+        }
+    }
+    
+    /**
+     * Adapter for Callables.
+     */
+    /*
+     * 既通过继承的方式，兼容了Runnable
+     * 又通过组合的方式，兼容了Callable
+     * 如果需要该类任务有返回值，则应该在计算过程中动态赋值
+     */
+    static final class AdaptedCallable<T> extends ForkJoinTask<T> implements RunnableFuture<T> {
+        private static final long serialVersionUID = 2838392045355241008L;
+        
+        final Callable<? extends T> callable;
+        T result;
+        
+        
+        AdaptedCallable(Callable<? extends T> callable) {
+            if(callable == null) {
+                throw new NullPointerException();
+            }
+            this.callable = callable;
+        }
+        
+        public final T getRawResult() {
+            return result;
+        }
+        
+        public final void setRawResult(T v) {
+            result = v;
+        }
+        
+        // 通过继承的方式兼容Runnable，间接执行组合的Callable中的任务（动作）
+        public final void run() {
+            invoke();
+        }
+        
+        /*
+         * 通过组合的方式兼容Callable，直接执行组合的Callable中的任务（动作）
+         * 该方法总是true，代表任务执行完成
+         */
+        public final boolean exec() {
+            try {
+                result = callable.call();
+                return true;
+            } catch(RuntimeException rex) {
+                throw rex;
+            } catch(Exception ex) {
+                throw new RuntimeException(ex);
+            }
+        }
+        
+        public String toString() {
+            return super.toString() + "[Wrapped task = " + callable + "]";
+        }
+    }
+    
+    
+    
+    /**
+     * Key-value nodes for exception table.
+     * The chained hash table uses identity comparisons, full locking, and weak references for keys.
+     * The table has a fixed capacity because it only maintains task exceptions long enough for joiners to access them,
+     * so should never become very large for sustained periods.
+     * However, since we do not know when the last joiner completes, we must use weak references and expunge them.
+     * We do so on each operation (hence full locking).
+     * Also, some thread in any ForkJoinPool will call helpExpungeStaleExceptions when its pool becomes isQuiescent.
+     */
+    // 异常记录结点（可以组成一张哈希表）【该类继承自弱引用】
+    static final class ExceptionNode extends WeakReference<ForkJoinTask<?>> {
+        final Throwable ex;
+        ExceptionNode next;
+        
+        // 记下抛出异常ex的线程
+        final long thrower;  // use id not ref to avoid weak cycles
+        
+        // 记下异常所属的任务的哈希码，将来用作计算该任务在哈希表中的索引
+        final int hashCode;  // store task hashCode before weak ref disappears
+        
+        ExceptionNode(ForkJoinTask<?> task, Throwable ex, ExceptionNode next,
+                      ReferenceQueue<ForkJoinTask<?>> exceptionTableRefQueue) {
+            super(task, exceptionTableRefQueue);
+            this.ex = ex;
+            this.next = next;
+            this.thrower = Thread.currentThread().getId();
+            this.hashCode = System.identityHashCode(task);
+        }
+    }
+    
 }
