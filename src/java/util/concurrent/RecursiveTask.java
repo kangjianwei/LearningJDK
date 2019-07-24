@@ -62,37 +62,56 @@ package java.util.concurrent;
  * minimum granularity size (for example 10 here) for which you always
  * sequentially solve rather than subdividing.
  *
- * @since 1.7
  * @author Doug Lea
+ * @since 1.7
  */
+// 带有返回值的任务
 public abstract class RecursiveTask<V> extends ForkJoinTask<V> {
     private static final long serialVersionUID = 5232453952276485270L;
-
+    
     /**
      * The result of the computation.
      */
-    V result;
-
+    V result;   // 存储该任务的计算结果
+    
+    
+    
+    /*▼ 执行任务 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * The main computation performed by this task.
+     *
      * @return the result of the computation
      */
+    // 由子类完成执行任务的细节
     protected abstract V compute();
-
-    public final V getRawResult() {
-        return result;
-    }
-
-    protected final void setRawResult(V value) {
-        result = value;
-    }
-
+    
     /**
      * Implements execution conventions for RecursiveTask.
      */
+    // 执行任务，并存储执行结果
     protected final boolean exec() {
+        // 存储该任务执行后产生的值
         result = compute();
         return true;
     }
-
+    
+    /*▲ 执行任务 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 任务结果 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 返回任务的执行结果
+    public final V getRawResult() {
+        return result;
+    }
+    
+    // 设置任务的执行结果
+    protected final void setRawResult(V value) {
+        result = value;
+    }
+    
+    /*▲ 任务结果 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }
