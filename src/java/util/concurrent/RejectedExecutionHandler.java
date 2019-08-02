@@ -38,11 +38,11 @@ package java.util.concurrent;
 /**
  * A handler for tasks that cannot be executed by a {@link ThreadPoolExecutor}.
  *
- * @since 1.5
  * @author Doug Lea
+ * @since 1.5
  */
+// 线程池的拒绝策略
 public interface RejectedExecutionHandler {
-
     /**
      * Method that may be invoked by a {@link ThreadPoolExecutor} when
      * {@link ThreadPoolExecutor#execute execute} cannot accept a
@@ -54,9 +54,11 @@ public interface RejectedExecutionHandler {
      * an unchecked {@link RejectedExecutionException}, which will be
      * propagated to the caller of {@code execute}.
      *
-     * @param r the runnable task requested to be executed
+     * @param r        the runnable task requested to be executed
      * @param executor the executor attempting to execute this task
+     *
      * @throws RejectedExecutionException if there is no remedy
      */
+    // 拒绝策略的实现
     void rejectedExecution(Runnable r, ThreadPoolExecutor executor);
 }
