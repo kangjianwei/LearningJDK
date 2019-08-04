@@ -60,67 +60,88 @@ package java.util.concurrent;
  *
  * @since 1.5
  */
+/*
+ * 【任务执行-剥离框架】
+ *
+ * 先通过submit()提交任务，随后不断将已结束的任务（不管是否正常完成）存储到一个容器当中，
+ * 后续可通过take()/poll()取出这些已结束任务，并获取它们的计算结果或任务状态。
+ * 这样一来，已结束的任务和未结束（包括还未开始）的任务就被分离开了。
+ */
 public interface CompletionService<V> {
+    
     /**
      * Submits a value-returning task for execution and returns a Future
      * representing the pending results of the task.  Upon completion,
      * this task may be taken or polled.
      *
      * @param task the task to submit
+     *
      * @return a Future representing pending completion of the task
+     *
      * @throws RejectedExecutionException if the task cannot be
-     *         scheduled for execution
-     * @throws NullPointerException if the task is null
+     *                                    scheduled for execution
+     * @throws NullPointerException       if the task is null
      */
+    // 提交/执行任务
     Future<V> submit(Callable<V> task);
-
+    
     /**
      * Submits a Runnable task for execution and returns a Future
      * representing that task.  Upon completion, this task may be
      * taken or polled.
      *
-     * @param task the task to submit
+     * @param task   the task to submit
      * @param result the result to return upon successful completion
+     *
      * @return a Future representing pending completion of the task,
-     *         and whose {@code get()} method will return the given
-     *         result value upon completion
+     * and whose {@code get()} method will return the given
+     * result value upon completion
+     *
      * @throws RejectedExecutionException if the task cannot be
-     *         scheduled for execution
-     * @throws NullPointerException if the task is null
+     *                                    scheduled for execution
+     * @throws NullPointerException       if the task is null
      */
+    // 提交/执行任务
     Future<V> submit(Runnable task, V result);
-
+    
     /**
      * Retrieves and removes the Future representing the next
      * completed task, waiting if none are yet present.
      *
      * @return the Future representing the next completed task
+     *
      * @throws InterruptedException if interrupted while waiting
      */
+    // 取出一个已结束任务，可能会被阻塞
     Future<V> take() throws InterruptedException;
-
+    
     /**
      * Retrieves and removes the Future representing the next
      * completed task, or {@code null} if none are present.
      *
      * @return the Future representing the next completed task, or
-     *         {@code null} if none are present
+     * {@code null} if none are present
      */
+    // 取出一个已结束任务，不会被阻塞，但可能返回null
     Future<V> poll();
-
+    
     /**
      * Retrieves and removes the Future representing the next
      * completed task, waiting if necessary up to the specified wait
      * time if none are yet present.
      *
      * @param timeout how long to wait before giving up, in units of
-     *        {@code unit}
-     * @param unit a {@code TimeUnit} determining how to interpret the
-     *        {@code timeout} parameter
+     *                {@code unit}
+     * @param unit    a {@code TimeUnit} determining how to interpret the
+     *                {@code timeout} parameter
+     *
      * @return the Future representing the next completed task or
-     *         {@code null} if the specified waiting time elapses
-     *         before one is present
+     * {@code null} if the specified waiting time elapses
+     * before one is present
+     *
      * @throws InterruptedException if interrupted while waiting
      */
+    // 取出一个已结束任务，如果没有合适任务，会在指定的时间内阻塞，超时后返回null
     Future<V> poll(long timeout, TimeUnit unit) throws InterruptedException;
+    
 }
