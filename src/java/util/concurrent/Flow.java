@@ -163,10 +163,37 @@ package java.util.concurrent;
  * @author Doug Lea
  * @since 9
  */
+/*
+ * 响应式编程接口，完成【生产-消费】/【发布-订阅】/【推送-接收】模式的编程
+ *
+ * 注：以下的发布统称为生产，订阅统称为消费
+ *
+ * Publisher    -【生产】消息和【控制】信号，以下简称【生产者】
+ * Subscriber   -【消费】消息和信号，以下简称【消费者】
+ * Subscription -【链接】Publisher和Subscriber，以下简称【中介】
+ * Processor    - 执行一些高级操作，如【转换】Publisher到Subscriber
+ */
 public final class Flow {
-
-    private Flow() {} // uninstantiable
-
+    static final int DEFAULT_BUFFER_SIZE = 256;
+    
+    private Flow() {
+        // uninstantiable
+    }
+    
+    /**
+     * Returns a default value for Publisher or Subscriber buffering,
+     * that may be used in the absence of other constraints.
+     *
+     * @return the buffer size value
+     *
+     * @implNote The current value returned is 256.
+     */
+    public static int defaultBufferSize() {
+        return DEFAULT_BUFFER_SIZE;
+    }
+    
+    
+    
     /**
      * A producer of items (and related control messages) received by
      * Subscribers.  Each current {@link Subscriber} receives the same
@@ -189,8 +216,9 @@ public final class Flow {
      *
      * @param <T> the published item type
      */
+    // 生产者，【生产】消息和【控制】信号
     @FunctionalInterface
-    public static interface Publisher<T> {
+    public interface Publisher<T> {
         /**
          * Adds the given Subscriber if possible.  If already
          * subscribed, or the attempt to subscribe fails due to policy
@@ -203,11 +231,13 @@ public final class Flow {
          * invoking its {@code cancel} method.
          *
          * @param subscriber the subscriber
+         *
          * @throws NullPointerException if subscriber is null
          */
-        public void subscribe(Subscriber<? super T> subscriber);
+        // 注册消费者
+        void subscribe(Subscriber<? super T> subscriber);
     }
-
+    
     /**
      * A receiver of messages.  The methods in this interface are
      * invoked in strict sequential order for each {@link
@@ -215,7 +245,8 @@ public final class Flow {
      *
      * @param <T> the subscribed item type
      */
-    public static interface Subscriber<T> {
+    // 消费者，【消费】消息和信号
+    public interface Subscriber<T> {
         /**
          * Method invoked prior to invoking any other Subscriber
          * methods for the given Subscription. If this method throws
@@ -227,8 +258,12 @@ public final class Flow {
          *
          * @param subscription a new subscription
          */
-        public void onSubscribe(Subscription subscription);
-
+        /*
+         * 中介已准备就绪时的回调（中介刚刚设置了OPEN标记）
+         * 一般在这里需要拿到中介的引用，进而向生产者发出消费请求
+         */
+        void onSubscribe(Subscription subscription);
+        
         /**
          * Method invoked with a Subscription's next item.  If this
          * method throws an exception, resulting behavior is not
@@ -236,8 +271,23 @@ public final class Flow {
          *
          * @param item the item
          */
-        public void onNext(T item);
-
+        /*
+         * 消费者开始消费指定的消息(item)
+         * 一般在这里消费完成后，需要继续向生产者发出消费请求
+         */
+        void onNext(T item);
+        
+        /**
+         * Method invoked when it is known that no additional
+         * Subscriber method invocations will occur for a Subscription
+         * that is not already terminated by error, after which no
+         * other Subscriber methods are invoked by the Subscription.
+         * If this method throws an exception, resulting behavior is
+         * undefined.
+         */
+        // （从中介内部调用）如果消费者在消费的时候，消息队列已经消费完了，且中介已被关闭时，回调此方法
+        void onComplete();
+        
         /**
          * Method invoked upon an unrecoverable error encountered by a
          * Publisher or Subscription, after which no other Subscriber
@@ -247,19 +297,10 @@ public final class Flow {
          *
          * @param throwable the exception
          */
-        public void onError(Throwable throwable);
-
-        /**
-         * Method invoked when it is known that no additional
-         * Subscriber method invocations will occur for a Subscription
-         * that is not already terminated by error, after which no
-         * other Subscriber methods are invoked by the Subscription.
-         * If this method throws an exception, resulting behavior is
-         * undefined.
-         */
-        public void onComplete();
+        // （从中介内部调用）如果消费者在注册时（onSubscribe()内部）发生了异常，或者在消费中（onNext()内部）发生了异常，回调此方法
+        void onError(Throwable throwable);
     }
-
+    
     /**
      * Message control linking a {@link Publisher} and {@link
      * Subscriber}.  Subscribers receive items only when requested,
@@ -267,7 +308,8 @@ public final class Flow {
      * intended to be invoked only by their Subscribers; usages in
      * other contexts have undefined effects.
      */
-    public static interface Subscription {
+    // 中介，内部包含注册的消费者，自身注册在生产者内。用于连接生产者与消费者，为它们提供通讯渠道
+    public interface Subscription {
         /**
          * Adds the given number {@code n} of items to the current
          * unfulfilled demand for this subscription.  If {@code n} is
@@ -278,42 +320,29 @@ public final class Flow {
          * onNext} invocations (or fewer if terminated).
          *
          * @param n the increment of demand; a value of {@code
-         * Long.MAX_VALUE} may be considered as effectively unbounded
+         *          Long.MAX_VALUE} may be considered as effectively unbounded
          */
-        public void request(long n);
-
+        // （消费者通过中介发出）消费请求
+        void request(long n);
+        
         /**
-         * Causes the Subscriber to (eventually) stop receiving
-         * messages.  Implementation is best-effort -- additional
+         * Causes the Subscriber to (eventually) stop receiving messages.
+         * Implementation is best-effort -- additional
          * messages may be received after invoking this method.
          * A cancelled subscription need not ever receive an
          * {@code onComplete} or {@code onError} signal.
          */
-        public void cancel();
+        // （尽力）使消费者停止接收消息
+        void cancel();
     }
-
+    
     /**
      * A component that acts as both a Subscriber and Publisher.
      *
      * @param <T> the subscribed item type
      * @param <R> the published item type
      */
-    public static interface Processor<T,R> extends Subscriber<T>, Publisher<R> {
+    // 执行一些高级操作，如【转换】Publisher到Subscriber
+    public interface Processor<T, R> extends Subscriber<T>, Publisher<R> {
     }
-
-    static final int DEFAULT_BUFFER_SIZE = 256;
-
-    /**
-     * Returns a default value for Publisher or Subscriber buffering,
-     * that may be used in the absence of other constraints.
-     *
-     * @implNote
-     * The current value returned is 256.
-     *
-     * @return the buffer size value
-     */
-    public static int defaultBufferSize() {
-        return DEFAULT_BUFFER_SIZE;
-    }
-
 }
