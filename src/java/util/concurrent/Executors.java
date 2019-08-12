@@ -35,7 +35,6 @@
 
 package java.util.concurrent;
 
-import static java.lang.ref.Reference.reachabilityFence;
 import java.security.AccessControlContext;
 import java.security.AccessControlException;
 import java.security.AccessController;
@@ -47,6 +46,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import sun.security.util.SecurityConstants;
 
+import static java.lang.ref.Reference.reachabilityFence;
+
 /**
  * Factory and utility methods for {@link Executor}, {@link
  * ExecutorService}, {@link ScheduledExecutorService}, {@link
@@ -54,46 +55,49 @@ import sun.security.util.SecurityConstants;
  * package. This class supports the following kinds of methods:
  *
  * <ul>
- *   <li>Methods that create and return an {@link ExecutorService}
- *       set up with commonly useful configuration settings.
- *   <li>Methods that create and return a {@link ScheduledExecutorService}
- *       set up with commonly useful configuration settings.
- *   <li>Methods that create and return a "wrapped" ExecutorService, that
- *       disables reconfiguration by making implementation-specific methods
- *       inaccessible.
- *   <li>Methods that create and return a {@link ThreadFactory}
- *       that sets newly created threads to a known state.
- *   <li>Methods that create and return a {@link Callable}
- *       out of other closure-like forms, so they can be used
- *       in execution methods requiring {@code Callable}.
+ * <li>Methods that create and return an {@link ExecutorService}
+ * set up with commonly useful configuration settings.
+ * <li>Methods that create and return a {@link ScheduledExecutorService}
+ * set up with commonly useful configuration settings.
+ * <li>Methods that create and return a "wrapped" ExecutorService, that
+ * disables reconfiguration by making implementation-specific methods
+ * inaccessible.
+ * <li>Methods that create and return a {@link ThreadFactory}
+ * that sets newly created threads to a known state.
+ * <li>Methods that create and return a {@link Callable}
+ * out of other closure-like forms, so they can be used
+ * in execution methods requiring {@code Callable}.
  * </ul>
  *
- * @since 1.5
  * @author Doug Lea
+ * @since 1.5
  */
+// 【任务执行框架】的工厂，该类负责生成：【任务执行框架】对象、Callable类型的任务对象、线程工厂对象
 public class Executors {
-
-    /**
-     * Creates a thread pool that reuses a fixed number of threads
-     * operating off a shared unbounded queue.  At any point, at most
-     * {@code nThreads} threads will be active processing tasks.
-     * If additional tasks are submitted when all threads are active,
-     * they will wait in the queue until a thread is available.
-     * If any thread terminates due to a failure during execution
-     * prior to shutdown, a new one will take its place if needed to
-     * execute subsequent tasks.  The threads in the pool will exist
-     * until it is explicitly {@link ExecutorService#shutdown shutdown}.
-     *
-     * @param nThreads the number of threads in the pool
-     * @return the newly created thread pool
-     * @throws IllegalArgumentException if {@code nThreads <= 0}
-     */
-    public static ExecutorService newFixedThreadPool(int nThreads) {
-        return new ThreadPoolExecutor(nThreads, nThreads,
-                                      0L, TimeUnit.MILLISECONDS,
-                                      new LinkedBlockingQueue<Runnable>());
+    
+    /** Cannot instantiate. */
+    private Executors() {
     }
-
+    
+    
+    
+    /*▼ 【工作池】 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Creates a work-stealing thread pool using the number of
+     * {@linkplain Runtime#availableProcessors available processors}
+     * as its target parallelism level.
+     *
+     * @return the newly created thread pool
+     *
+     * @see #newWorkStealingPool(int)
+     * @since 1.8
+     */
+    // 并行度与处理器数量相同的【工作池】
+    public static ExecutorService newWorkStealingPool() {
+        return new ForkJoinPool(Runtime.getRuntime().availableProcessors(), ForkJoinPool.defaultForkJoinWorkerThreadFactory, null, true);
+    }
+    
     /**
      * Creates a thread pool that maintains enough threads to support
      * the given parallelism level, and may use multiple queues to
@@ -105,99 +109,23 @@ public class Executors {
      * executed.
      *
      * @param parallelism the targeted parallelism level
+     *
      * @return the newly created thread pool
+     *
      * @throws IllegalArgumentException if {@code parallelism <= 0}
      * @since 1.8
      */
+    // 并行度为parallelism的【工作池】
     public static ExecutorService newWorkStealingPool(int parallelism) {
-        return new ForkJoinPool
-            (parallelism,
-             ForkJoinPool.defaultForkJoinWorkerThreadFactory,
-             null, true);
+        return new ForkJoinPool(parallelism, ForkJoinPool.defaultForkJoinWorkerThreadFactory, null, true);
     }
-
-    /**
-     * Creates a work-stealing thread pool using the number of
-     * {@linkplain Runtime#availableProcessors available processors}
-     * as its target parallelism level.
-     *
-     * @return the newly created thread pool
-     * @see #newWorkStealingPool(int)
-     * @since 1.8
-     */
-    public static ExecutorService newWorkStealingPool() {
-        return new ForkJoinPool
-            (Runtime.getRuntime().availableProcessors(),
-             ForkJoinPool.defaultForkJoinWorkerThreadFactory,
-             null, true);
-    }
-
-    /**
-     * Creates a thread pool that reuses a fixed number of threads
-     * operating off a shared unbounded queue, using the provided
-     * ThreadFactory to create new threads when needed.  At any point,
-     * at most {@code nThreads} threads will be active processing
-     * tasks.  If additional tasks are submitted when all threads are
-     * active, they will wait in the queue until a thread is
-     * available.  If any thread terminates due to a failure during
-     * execution prior to shutdown, a new one will take its place if
-     * needed to execute subsequent tasks.  The threads in the pool will
-     * exist until it is explicitly {@link ExecutorService#shutdown
-     * shutdown}.
-     *
-     * @param nThreads the number of threads in the pool
-     * @param threadFactory the factory to use when creating new threads
-     * @return the newly created thread pool
-     * @throws NullPointerException if threadFactory is null
-     * @throws IllegalArgumentException if {@code nThreads <= 0}
-     */
-    public static ExecutorService newFixedThreadPool(int nThreads, ThreadFactory threadFactory) {
-        return new ThreadPoolExecutor(nThreads, nThreads,
-                                      0L, TimeUnit.MILLISECONDS,
-                                      new LinkedBlockingQueue<Runnable>(),
-                                      threadFactory);
-    }
-
-    /**
-     * Creates an Executor that uses a single worker thread operating
-     * off an unbounded queue. (Note however that if this single
-     * thread terminates due to a failure during execution prior to
-     * shutdown, a new one will take its place if needed to execute
-     * subsequent tasks.)  Tasks are guaranteed to execute
-     * sequentially, and no more than one task will be active at any
-     * given time. Unlike the otherwise equivalent
-     * {@code newFixedThreadPool(1)} the returned executor is
-     * guaranteed not to be reconfigurable to use additional threads.
-     *
-     * @return the newly created single-threaded Executor
-     */
-    public static ExecutorService newSingleThreadExecutor() {
-        return new FinalizableDelegatedExecutorService
-            (new ThreadPoolExecutor(1, 1,
-                                    0L, TimeUnit.MILLISECONDS,
-                                    new LinkedBlockingQueue<Runnable>()));
-    }
-
-    /**
-     * Creates an Executor that uses a single worker thread operating
-     * off an unbounded queue, and uses the provided ThreadFactory to
-     * create a new thread when needed. Unlike the otherwise
-     * equivalent {@code newFixedThreadPool(1, threadFactory)} the
-     * returned executor is guaranteed not to be reconfigurable to use
-     * additional threads.
-     *
-     * @param threadFactory the factory to use when creating new threads
-     * @return the newly created single-threaded Executor
-     * @throws NullPointerException if threadFactory is null
-     */
-    public static ExecutorService newSingleThreadExecutor(ThreadFactory threadFactory) {
-        return new FinalizableDelegatedExecutorService
-            (new ThreadPoolExecutor(1, 1,
-                                    0L, TimeUnit.MILLISECONDS,
-                                    new LinkedBlockingQueue<Runnable>(),
-                                    threadFactory));
-    }
-
+    
+    /*▲ 【工作池】 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 【线程池】 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates a thread pool that creates new threads as needed, but
      * will reuse previously constructed threads when they are
@@ -214,12 +142,11 @@ public class Executors {
      *
      * @return the newly created thread pool
      */
+    // 使用的阻塞队列为SynchronousQueue，线程池【核心阙值】为0，【最大阙值】无限
     public static ExecutorService newCachedThreadPool() {
-        return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
-                                      60L, TimeUnit.SECONDS,
-                                      new SynchronousQueue<Runnable>());
+        return new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<Runnable>());
     }
-
+    
     /**
      * Creates a thread pool that creates new threads as needed, but
      * will reuse previously constructed threads when they are
@@ -227,16 +154,111 @@ public class Executors {
      * ThreadFactory to create new threads when needed.
      *
      * @param threadFactory the factory to use when creating new threads
+     *
      * @return the newly created thread pool
+     *
      * @throws NullPointerException if threadFactory is null
      */
+    // 使用的阻塞队列为SynchronousQueue，线程池【核心阙值】为0，【最大阙值】无限
     public static ExecutorService newCachedThreadPool(ThreadFactory threadFactory) {
-        return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
-                                      60L, TimeUnit.SECONDS,
-                                      new SynchronousQueue<Runnable>(),
-                                      threadFactory);
+        return new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(), threadFactory);
     }
-
+    
+    /**
+     * Creates a thread pool that reuses a fixed number of threads
+     * operating off a shared unbounded queue.  At any point, at most
+     * {@code nThreads} threads will be active processing tasks.
+     * If additional tasks are submitted when all threads are active,
+     * they will wait in the queue until a thread is available.
+     * If any thread terminates due to a failure during execution
+     * prior to shutdown, a new one will take its place if needed to
+     * execute subsequent tasks.  The threads in the pool will exist
+     * until it is explicitly {@link ExecutorService#shutdown shutdown}.
+     *
+     * @param nThreads the number of threads in the pool
+     *
+     * @return the newly created thread pool
+     *
+     * @throws IllegalArgumentException if {@code nThreads <= 0}
+     */
+    // 使用的阻塞队列为LinkedBlockingQueue，线程池【核心阙值】/【最大阙值】为nThreads
+    public static ExecutorService newFixedThreadPool(int nThreads) {
+        return new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
+    }
+    
+    /**
+     * Creates a thread pool that reuses a fixed number of threads
+     * operating off a shared unbounded queue, using the provided
+     * ThreadFactory to create new threads when needed.  At any point,
+     * at most {@code nThreads} threads will be active processing
+     * tasks.  If additional tasks are submitted when all threads are
+     * active, they will wait in the queue until a thread is
+     * available.  If any thread terminates due to a failure during
+     * execution prior to shutdown, a new one will take its place if
+     * needed to execute subsequent tasks.  The threads in the pool will
+     * exist until it is explicitly {@link ExecutorService#shutdown
+     * shutdown}.
+     *
+     * @param nThreads      the number of threads in the pool
+     * @param threadFactory the factory to use when creating new threads
+     *
+     * @return the newly created thread pool
+     *
+     * @throws NullPointerException     if threadFactory is null
+     * @throws IllegalArgumentException if {@code nThreads <= 0}
+     */
+    // 使用的阻塞队列为LinkedBlockingQueue，线程池【核心阙值】/【最大阙值】为nThreads
+    public static ExecutorService newFixedThreadPool(int nThreads, ThreadFactory threadFactory) {
+        return new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(), threadFactory);
+    }
+    
+    /*▲ 【线程池】 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 【定时任务线程池】 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Creates a thread pool that can schedule commands to run after a
+     * given delay, or to execute periodically.
+     *
+     * @param corePoolSize the number of threads to keep in the pool,
+     *                     even if they are idle
+     *
+     * @return the newly created scheduled thread pool
+     *
+     * @throws IllegalArgumentException if {@code corePoolSize < 0}
+     */
+    // 线程池【核心阙值】为corePoolSize，【最大阙值】无限
+    public static ScheduledExecutorService newScheduledThreadPool(int corePoolSize) {
+        return new ScheduledThreadPoolExecutor(corePoolSize);
+    }
+    
+    /**
+     * Creates a thread pool that can schedule commands to run after a
+     * given delay, or to execute periodically.
+     *
+     * @param corePoolSize  the number of threads to keep in the pool,
+     *                      even if they are idle
+     * @param threadFactory the factory to use when the executor
+     *                      creates a new thread
+     *
+     * @return the newly created scheduled thread pool
+     *
+     * @throws IllegalArgumentException if {@code corePoolSize < 0}
+     * @throws NullPointerException     if threadFactory is null
+     */
+    // 线程池【核心阙值】为corePoolSize，【最大阙值】无限
+    public static ScheduledExecutorService newScheduledThreadPool(int corePoolSize, ThreadFactory threadFactory) {
+        return new ScheduledThreadPoolExecutor(corePoolSize, threadFactory);
+    }
+    
+    /*▲ 【定时任务线程池】 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 【定时任务线程池代理】 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates a single-threaded executor that can schedule commands
      * to run after a given delay, or to execute periodically.
@@ -251,11 +273,11 @@ public class Executors {
      *
      * @return the newly created scheduled executor
      */
+    // 单线程
     public static ScheduledExecutorService newSingleThreadScheduledExecutor() {
-        return new DelegatedScheduledExecutorService
-            (new ScheduledThreadPoolExecutor(1));
+        return new DelegatedScheduledExecutorService(new ScheduledThreadPoolExecutor(1));
     }
-
+    
     /**
      * Creates a single-threaded executor that can schedule commands
      * to run after a given delay, or to execute periodically.  (Note
@@ -269,74 +291,263 @@ public class Executors {
      * use additional threads.
      *
      * @param threadFactory the factory to use when creating new threads
+     *
      * @return the newly created scheduled executor
+     *
      * @throws NullPointerException if threadFactory is null
      */
+    // 单线程
     public static ScheduledExecutorService newSingleThreadScheduledExecutor(ThreadFactory threadFactory) {
-        return new DelegatedScheduledExecutorService
-            (new ScheduledThreadPoolExecutor(1, threadFactory));
+        return new DelegatedScheduledExecutorService(new ScheduledThreadPoolExecutor(1, threadFactory));
     }
-
-    /**
-     * Creates a thread pool that can schedule commands to run after a
-     * given delay, or to execute periodically.
-     * @param corePoolSize the number of threads to keep in the pool,
-     * even if they are idle
-     * @return the newly created scheduled thread pool
-     * @throws IllegalArgumentException if {@code corePoolSize < 0}
-     */
-    public static ScheduledExecutorService newScheduledThreadPool(int corePoolSize) {
-        return new ScheduledThreadPoolExecutor(corePoolSize);
-    }
-
-    /**
-     * Creates a thread pool that can schedule commands to run after a
-     * given delay, or to execute periodically.
-     * @param corePoolSize the number of threads to keep in the pool,
-     * even if they are idle
-     * @param threadFactory the factory to use when the executor
-     * creates a new thread
-     * @return the newly created scheduled thread pool
-     * @throws IllegalArgumentException if {@code corePoolSize < 0}
-     * @throws NullPointerException if threadFactory is null
-     */
-    public static ScheduledExecutorService newScheduledThreadPool(
-            int corePoolSize, ThreadFactory threadFactory) {
-        return new ScheduledThreadPoolExecutor(corePoolSize, threadFactory);
-    }
-
-    /**
-     * Returns an object that delegates all defined {@link
-     * ExecutorService} methods to the given executor, but not any
-     * other methods that might otherwise be accessible using
-     * casts. This provides a way to safely "freeze" configuration and
-     * disallow tuning of a given concrete implementation.
-     * @param executor the underlying implementation
-     * @return an {@code ExecutorService} instance
-     * @throws NullPointerException if executor null
-     */
-    public static ExecutorService unconfigurableExecutorService(ExecutorService executor) {
-        if (executor == null)
-            throw new NullPointerException();
-        return new DelegatedExecutorService(executor);
-    }
-
+    
     /**
      * Returns an object that delegates all defined {@link
      * ScheduledExecutorService} methods to the given executor, but
      * not any other methods that might otherwise be accessible using
      * casts. This provides a way to safely "freeze" configuration and
      * disallow tuning of a given concrete implementation.
+     *
      * @param executor the underlying implementation
+     *
      * @return a {@code ScheduledExecutorService} instance
+     *
      * @throws NullPointerException if executor null
      */
+    // 不可配置
     public static ScheduledExecutorService unconfigurableScheduledExecutorService(ScheduledExecutorService executor) {
-        if (executor == null)
+        if(executor == null) {
             throw new NullPointerException();
+        }
+        
         return new DelegatedScheduledExecutorService(executor);
     }
-
+    
+    /*▲ 【定时任务线程池代理】 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 【Finalizable线程池】 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Creates an Executor that uses a single worker thread operating
+     * off an unbounded queue. (Note however that if this single
+     * thread terminates due to a failure during execution prior to
+     * shutdown, a new one will take its place if needed to execute
+     * subsequent tasks.)  Tasks are guaranteed to execute
+     * sequentially, and no more than one task will be active at any
+     * given time. Unlike the otherwise equivalent
+     * {@code newFixedThreadPool(1)} the returned executor is
+     * guaranteed not to be reconfigurable to use additional threads.
+     *
+     * @return the newly created single-threaded Executor
+     */
+    // 单线程
+    public static ExecutorService newSingleThreadExecutor() {
+        return new FinalizableDelegatedExecutorService(new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>()));
+    }
+    
+    /**
+     * Creates an Executor that uses a single worker thread operating
+     * off an unbounded queue, and uses the provided ThreadFactory to
+     * create a new thread when needed. Unlike the otherwise
+     * equivalent {@code newFixedThreadPool(1, threadFactory)} the
+     * returned executor is guaranteed not to be reconfigurable to use
+     * additional threads.
+     *
+     * @param threadFactory the factory to use when creating new threads
+     *
+     * @return the newly created single-threaded Executor
+     *
+     * @throws NullPointerException if threadFactory is null
+     */
+    // 单线程
+    public static ExecutorService newSingleThreadExecutor(ThreadFactory threadFactory) {
+        return new FinalizableDelegatedExecutorService(new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(), threadFactory));
+    }
+    
+    /*▲ 【Finalizable线程池】 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 【任务执行框架代理】 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns an object that delegates all defined {@link
+     * ExecutorService} methods to the given executor, but not any
+     * other methods that might otherwise be accessible using
+     * casts. This provides a way to safely "freeze" configuration and
+     * disallow tuning of a given concrete implementation.
+     *
+     * @param executor the underlying implementation
+     *
+     * @return an {@code ExecutorService} instance
+     *
+     * @throws NullPointerException if executor null
+     */
+    // 不可配置
+    public static ExecutorService unconfigurableExecutorService(ExecutorService executor) {
+        if(executor == null) {
+            throw new NullPointerException();
+        }
+        
+        return new DelegatedExecutorService(executor);
+    }
+    
+    /*▲ 【任务执行框架代理】 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 任务对象 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a {@link Callable} object that, when
+     * called, runs the given task and returns {@code null}.
+     *
+     * @param task the task to run
+     *
+     * @return a callable object
+     *
+     * @throws NullPointerException if task null
+     */
+    // 包装Runnable任务，无返回值
+    public static Callable<Object> callable(Runnable task) {
+        if(task == null) {
+            throw new NullPointerException();
+        }
+        return new RunnableAdapter<Object>(task, null);
+    }
+    
+    /**
+     * Returns a {@link Callable} object that, when
+     * called, runs the given task and returns the given result.  This
+     * can be useful when applying methods requiring a
+     * {@code Callable} to an otherwise resultless action.
+     *
+     * @param task   the task to run
+     * @param result the result to return
+     * @param <T>    the type of the result
+     *
+     * @return a callable object
+     *
+     * @throws NullPointerException if task null
+     */
+    // 包装Runnable任务，有返回值
+    public static <T> Callable<T> callable(Runnable task, T result) {
+        if(task == null) {
+            throw new NullPointerException();
+        }
+        return new RunnableAdapter<T>(task, result);
+    }
+    
+    /**
+     * Returns a {@link Callable} object that will, when called,
+     * execute the given {@code callable} under the current access
+     * control context. This method should normally be invoked within
+     * an {@link AccessController#doPrivileged AccessController.doPrivileged}
+     * action to create callables that will, if possible, execute
+     * under the selected permission settings holding within that
+     * action; or if not possible, throw an associated {@link
+     * AccessControlException}.
+     *
+     * @param callable the underlying task
+     * @param <T>      the type of the callable's result
+     *
+     * @return a callable object
+     *
+     * @throws NullPointerException if callable null
+     */
+    // 包装Callable任务，使用上下文访问权限控制器
+    public static <T> Callable<T> privilegedCallable(Callable<T> callable) {
+        if(callable == null) {
+            throw new NullPointerException();
+        }
+        return new PrivilegedCallable<T>(callable);
+    }
+    
+    /**
+     * Returns a {@link Callable} object that will, when called,
+     * execute the given {@code callable} under the current access
+     * control context, with the current context class loader as the
+     * context class loader. This method should normally be invoked
+     * within an
+     * {@link AccessController#doPrivileged AccessController.doPrivileged}
+     * action to create callables that will, if possible, execute
+     * under the selected permission settings holding within that
+     * action; or if not possible, throw an associated {@link
+     * AccessControlException}.
+     *
+     * @param callable the underlying task
+     * @param <T>      the type of the callable's result
+     *
+     * @return a callable object
+     *
+     * @throws NullPointerException   if callable null
+     * @throws AccessControlException if the current access control
+     *                                context does not have permission to both set and get context
+     *                                class loader
+     */
+    // 包装Callable任务，使用上下文访问权限控制器和当前线程的类加载器
+    public static <T> Callable<T> privilegedCallableUsingCurrentClassLoader(Callable<T> callable) {
+        if(callable == null) {
+            throw new NullPointerException();
+        }
+        return new PrivilegedCallableUsingCurrentClassLoader<T>(callable);
+    }
+    
+    /**
+     * Returns a {@link Callable} object that, when
+     * called, runs the given privileged action and returns its result.
+     *
+     * @param action the privileged action to run
+     *
+     * @return a callable object
+     *
+     * @throws NullPointerException if action null
+     */
+    // 包装PrivilegedAction任务
+    public static Callable<Object> callable(final PrivilegedAction<?> action) {
+        if(action == null) {
+            throw new NullPointerException();
+        }
+        
+        return new Callable<Object>() {
+            public Object call() {
+                return action.run();
+            }
+        };
+    }
+    
+    /**
+     * Returns a {@link Callable} object that, when
+     * called, runs the given privileged exception action and returns
+     * its result.
+     *
+     * @param action the privileged exception action to run
+     *
+     * @return a callable object
+     *
+     * @throws NullPointerException if action null
+     */
+    // 包装PrivilegedExceptionAction任务
+    public static Callable<Object> callable(final PrivilegedExceptionAction<?> action) {
+        if(action == null) {
+            throw new NullPointerException();
+        }
+        
+        return new Callable<Object>() {
+            public Object call() throws Exception {
+                return action.run();
+            }
+        };
+    }
+    
+    /*▲ 任务对象 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 线程工厂 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns a default thread factory used to create new threads.
      * This factory creates all new threads used by an Executor in the
@@ -351,12 +562,14 @@ public class Executors {
      * <em>pool-N-thread-M</em>, where <em>N</em> is the sequence
      * number of this factory, and <em>M</em> is the sequence number
      * of the thread created by this factory.
+     *
      * @return a thread factory
      */
+    // 默认线程工厂，创建默认线程优先级的非守护线程
     public static ThreadFactory defaultThreadFactory() {
         return new DefaultThreadFactory();
     }
-
+    
     /**
      * Returns a thread factory used to create new threads that
      * have the same permissions as the current thread.
@@ -386,188 +599,257 @@ public class Executors {
      * others that will inherit its values.
      *
      * @return a thread factory
+     *
      * @throws AccessControlException if the current access control
-     * context does not have permission to both get and set context
-     * class loader
+     *                                context does not have permission to both get and set context
+     *                                class loader
      */
+    // 特权线程工厂
     public static ThreadFactory privilegedThreadFactory() {
         return new PrivilegedThreadFactory();
     }
-
-    /**
-     * Returns a {@link Callable} object that, when
-     * called, runs the given task and returns the given result.  This
-     * can be useful when applying methods requiring a
-     * {@code Callable} to an otherwise resultless action.
-     * @param task the task to run
-     * @param result the result to return
-     * @param <T> the type of the result
-     * @return a callable object
-     * @throws NullPointerException if task null
-     */
-    public static <T> Callable<T> callable(Runnable task, T result) {
-        if (task == null)
-            throw new NullPointerException();
-        return new RunnableAdapter<T>(task, result);
-    }
-
-    /**
-     * Returns a {@link Callable} object that, when
-     * called, runs the given task and returns {@code null}.
-     * @param task the task to run
-     * @return a callable object
-     * @throws NullPointerException if task null
-     */
-    public static Callable<Object> callable(Runnable task) {
-        if (task == null)
-            throw new NullPointerException();
-        return new RunnableAdapter<Object>(task, null);
-    }
-
-    /**
-     * Returns a {@link Callable} object that, when
-     * called, runs the given privileged action and returns its result.
-     * @param action the privileged action to run
-     * @return a callable object
-     * @throws NullPointerException if action null
-     */
-    public static Callable<Object> callable(final PrivilegedAction<?> action) {
-        if (action == null)
-            throw new NullPointerException();
-        return new Callable<Object>() {
-            public Object call() { return action.run(); }};
-    }
-
-    /**
-     * Returns a {@link Callable} object that, when
-     * called, runs the given privileged exception action and returns
-     * its result.
-     * @param action the privileged exception action to run
-     * @return a callable object
-     * @throws NullPointerException if action null
-     */
-    public static Callable<Object> callable(final PrivilegedExceptionAction<?> action) {
-        if (action == null)
-            throw new NullPointerException();
-        return new Callable<Object>() {
-            public Object call() throws Exception { return action.run(); }};
-    }
-
-    /**
-     * Returns a {@link Callable} object that will, when called,
-     * execute the given {@code callable} under the current access
-     * control context. This method should normally be invoked within
-     * an {@link AccessController#doPrivileged AccessController.doPrivileged}
-     * action to create callables that will, if possible, execute
-     * under the selected permission settings holding within that
-     * action; or if not possible, throw an associated {@link
-     * AccessControlException}.
-     * @param callable the underlying task
-     * @param <T> the type of the callable's result
-     * @return a callable object
-     * @throws NullPointerException if callable null
-     */
-    public static <T> Callable<T> privilegedCallable(Callable<T> callable) {
-        if (callable == null)
-            throw new NullPointerException();
-        return new PrivilegedCallable<T>(callable);
-    }
-
-    /**
-     * Returns a {@link Callable} object that will, when called,
-     * execute the given {@code callable} under the current access
-     * control context, with the current context class loader as the
-     * context class loader. This method should normally be invoked
-     * within an
-     * {@link AccessController#doPrivileged AccessController.doPrivileged}
-     * action to create callables that will, if possible, execute
-     * under the selected permission settings holding within that
-     * action; or if not possible, throw an associated {@link
-     * AccessControlException}.
+    
+    /*▲ 线程工厂 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    
+    
+    
+    /*
+     * 以下定义了各种类型的：
      *
-     * @param callable the underlying task
-     * @param <T> the type of the callable's result
-     * @return a callable object
-     * @throws NullPointerException if callable null
-     * @throws AccessControlException if the current access control
-     * context does not have permission to both set and get context
-     * class loader
+     * - 任务执行框架
+     * - 任务
+     * - 线程工厂
      */
-    public static <T> Callable<T> privilegedCallableUsingCurrentClassLoader(Callable<T> callable) {
-        if (callable == null)
-            throw new NullPointerException();
-        return new PrivilegedCallableUsingCurrentClassLoader<T>(callable);
+    
+    /**
+     * A wrapper class that exposes only the ExecutorService methods of an ExecutorService implementation.
+     */
+    // 【任务执行框架代理】，限制只能执行ExecutorService接口内的方法
+    private static class DelegatedExecutorService implements ExecutorService {
+        private final ExecutorService e;
+        
+        DelegatedExecutorService(ExecutorService executor) {
+            e = executor;
+        }
+        
+        public void execute(Runnable command) {
+            try {
+                e.execute(command);
+            } finally {
+                reachabilityFence(this);
+            }
+        }
+        
+        public void shutdown() {
+            e.shutdown();
+        }
+        
+        public List<Runnable> shutdownNow() {
+            try {
+                return e.shutdownNow();
+            } finally {
+                reachabilityFence(this);
+            }
+        }
+        
+        public boolean isShutdown() {
+            try {
+                return e.isShutdown();
+            } finally {
+                reachabilityFence(this);
+            }
+        }
+        
+        public boolean isTerminated() {
+            try {
+                return e.isTerminated();
+            } finally {
+                reachabilityFence(this);
+            }
+        }
+        
+        public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+            try {
+                return e.awaitTermination(timeout, unit);
+            } finally {
+                reachabilityFence(this);
+            }
+        }
+        
+        public Future<?> submit(Runnable task) {
+            try {
+                return e.submit(task);
+            } finally {
+                reachabilityFence(this);
+            }
+        }
+        
+        public <T> Future<T> submit(Callable<T> task) {
+            try {
+                return e.submit(task);
+            } finally {
+                reachabilityFence(this);
+            }
+        }
+        
+        public <T> Future<T> submit(Runnable task, T result) {
+            try {
+                return e.submit(task, result);
+            } finally {
+                reachabilityFence(this);
+            }
+        }
+        
+        public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) throws InterruptedException {
+            try {
+                return e.invokeAll(tasks);
+            } finally {
+                reachabilityFence(this);
+            }
+        }
+        
+        public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) throws InterruptedException {
+            try {
+                return e.invokeAll(tasks, timeout, unit);
+            } finally {
+                reachabilityFence(this);
+            }
+        }
+        
+        public <T> T invokeAny(Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
+            try {
+                return e.invokeAny(tasks);
+            } finally {
+                reachabilityFence(this);
+            }
+        }
+        
+        public <T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+            try {
+                return e.invokeAny(tasks, timeout, unit);
+            } finally {
+                reachabilityFence(this);
+            }
+        }
     }
-
-    // Non-public classes supporting the public methods
-
+    
+    /**
+     * A wrapper class that exposes only the ScheduledExecutorService
+     * methods of a ScheduledExecutorService implementation.
+     */
+    // 【定时任务执行框架代理】，限制只能执行ExecutorService接口与ScheduledExecutorService接口内的方法
+    private static class DelegatedScheduledExecutorService extends DelegatedExecutorService implements ScheduledExecutorService {
+        private final ScheduledExecutorService e;
+        
+        DelegatedScheduledExecutorService(ScheduledExecutorService executor) {
+            super(executor);
+            e = executor;
+        }
+        
+        public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
+            return e.schedule(command, delay, unit);
+        }
+        
+        public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
+            return e.schedule(callable, delay, unit);
+        }
+        
+        public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
+            return e.scheduleAtFixedRate(command, initialDelay, period, unit);
+        }
+        
+        public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
+            return e.scheduleWithFixedDelay(command, initialDelay, delay, unit);
+        }
+    }
+    
+    // 【Finalizable任务执行框架代理】
+    private static class FinalizableDelegatedExecutorService extends DelegatedExecutorService {
+        FinalizableDelegatedExecutorService(ExecutorService executor) {
+            super(executor);
+        }
+        
+        @SuppressWarnings("deprecation")
+        protected void finalize() {
+            super.shutdown();
+        }
+    }
+    
+    
     /**
      * A callable that runs given task and returns given result.
      */
+    // 包装Runnable任务
     private static final class RunnableAdapter<T> implements Callable<T> {
         private final Runnable task;
         private final T result;
+        
         RunnableAdapter(Runnable task, T result) {
             this.task = task;
             this.result = result;
         }
+        
         public T call() {
             task.run();
             return result;
         }
+        
         public String toString() {
             return super.toString() + "[Wrapped task = " + task + "]";
         }
     }
-
+    
     /**
      * A callable that runs under established access control settings.
      */
+    // 包装Callable任务，使用上下文访问权限控制器
     private static final class PrivilegedCallable<T> implements Callable<T> {
         final Callable<T> task;
         final AccessControlContext acc;
-
+        
         PrivilegedCallable(Callable<T> task) {
             this.task = task;
             this.acc = AccessController.getContext();
         }
-
+        
         public T call() throws Exception {
             try {
-                return AccessController.doPrivileged(
-                    new PrivilegedExceptionAction<T>() {
-                        public T run() throws Exception {
-                            return task.call();
-                        }
-                    }, acc);
-            } catch (PrivilegedActionException e) {
+                return AccessController.doPrivileged(new PrivilegedExceptionAction<T>() {
+                    public T run() throws Exception {
+                        return task.call();
+                    }
+                }, acc);
+            } catch(PrivilegedActionException e) {
                 throw e.getException();
             }
         }
-
+        
         public String toString() {
             return super.toString() + "[Wrapped task = " + task + "]";
         }
     }
-
+    
     /**
      * A callable that runs under established access control settings and
      * current ClassLoader.
      */
-    private static final class PrivilegedCallableUsingCurrentClassLoader<T>
-            implements Callable<T> {
+    // 包装Callable任务，使用上下文访问权限控制器和当前线程的类加载器
+    private static final class PrivilegedCallableUsingCurrentClassLoader<T> implements Callable<T> {
         final Callable<T> task;
         final AccessControlContext acc;
         final ClassLoader ccl;
-
+        
         PrivilegedCallableUsingCurrentClassLoader(Callable<T> task) {
             SecurityManager sm = System.getSecurityManager();
-            if (sm != null) {
+            if(sm != null) {
                 // Calls to getContextClassLoader from this class
                 // never trigger a security check, but we check
                 // whether our callers have this permission anyways.
                 sm.checkPermission(SecurityConstants.GET_CLASSLOADER_PERMISSION);
-
+                
                 // Whether setContextClassLoader turns out to be necessary
                 // or not, we fail fast if permission is not available.
                 sm.checkPermission(new RuntimePermission("setContextClassLoader"));
@@ -576,89 +858,90 @@ public class Executors {
             this.acc = AccessController.getContext();
             this.ccl = Thread.currentThread().getContextClassLoader();
         }
-
+        
         public T call() throws Exception {
             try {
-                return AccessController.doPrivileged(
-                    new PrivilegedExceptionAction<T>() {
-                        public T run() throws Exception {
-                            Thread t = Thread.currentThread();
-                            ClassLoader cl = t.getContextClassLoader();
-                            if (ccl == cl) {
+                return AccessController.doPrivileged(new PrivilegedExceptionAction<T>() {
+                    public T run() throws Exception {
+                        Thread t = Thread.currentThread();
+                        ClassLoader cl = t.getContextClassLoader();
+                        if(ccl == cl) {
+                            return task.call();
+                        } else {
+                            t.setContextClassLoader(ccl);
+                            try {
                                 return task.call();
-                            } else {
-                                t.setContextClassLoader(ccl);
-                                try {
-                                    return task.call();
-                                } finally {
-                                    t.setContextClassLoader(cl);
-                                }
+                            } finally {
+                                t.setContextClassLoader(cl);
                             }
                         }
-                    }, acc);
-            } catch (PrivilegedActionException e) {
+                    }
+                }, acc);
+            } catch(PrivilegedActionException e) {
                 throw e.getException();
             }
         }
-
+        
         public String toString() {
             return super.toString() + "[Wrapped task = " + task + "]";
         }
     }
-
+    
+    
     /**
      * The default thread factory.
      */
+    // 默认线程工厂，创建默认线程优先级的非守护线程
     private static class DefaultThreadFactory implements ThreadFactory {
         private static final AtomicInteger poolNumber = new AtomicInteger(1);
-        private final ThreadGroup group;
-        private final AtomicInteger threadNumber = new AtomicInteger(1);
+        private        final AtomicInteger threadNumber = new AtomicInteger(1);
         private final String namePrefix;
-
+        private final ThreadGroup group;
+        
         DefaultThreadFactory() {
             SecurityManager s = System.getSecurityManager();
-            group = (s != null) ? s.getThreadGroup() :
-                                  Thread.currentThread().getThreadGroup();
-            namePrefix = "pool-" +
-                          poolNumber.getAndIncrement() +
-                         "-thread-";
+            group = (s != null) ? s.getThreadGroup() : Thread.currentThread().getThreadGroup();
+            namePrefix = "pool-" + poolNumber.getAndIncrement() + "-thread-";
         }
-
+        
         public Thread newThread(Runnable r) {
-            Thread t = new Thread(group, r,
-                                  namePrefix + threadNumber.getAndIncrement(),
-                                  0);
-            if (t.isDaemon())
+            Thread t = new Thread(group, r, namePrefix + threadNumber.getAndIncrement(), 0);
+            if(t.isDaemon()) {
                 t.setDaemon(false);
-            if (t.getPriority() != Thread.NORM_PRIORITY)
+            }
+            
+            if(t.getPriority() != Thread.NORM_PRIORITY) {
                 t.setPriority(Thread.NORM_PRIORITY);
+            }
+            
             return t;
         }
     }
-
+    
     /**
      * Thread factory capturing access control context and class loader.
      */
+    // 特权线程工厂
     private static class PrivilegedThreadFactory extends DefaultThreadFactory {
         final AccessControlContext acc;
         final ClassLoader ccl;
-
+        
         PrivilegedThreadFactory() {
             super();
             SecurityManager sm = System.getSecurityManager();
-            if (sm != null) {
+            if(sm != null) {
                 // Calls to getContextClassLoader from this class
                 // never trigger a security check, but we check
                 // whether our callers have this permission anyways.
                 sm.checkPermission(SecurityConstants.GET_CLASSLOADER_PERMISSION);
-
+                
                 // Fail fast
                 sm.checkPermission(new RuntimePermission("setContextClassLoader"));
             }
             this.acc = AccessController.getContext();
             this.ccl = Thread.currentThread().getContextClassLoader();
         }
-
+        
         public Thread newThread(final Runnable r) {
             return super.newThread(new Runnable() {
                 public void run() {
@@ -673,122 +956,4 @@ public class Executors {
             });
         }
     }
-
-    /**
-     * A wrapper class that exposes only the ExecutorService methods
-     * of an ExecutorService implementation.
-     */
-    private static class DelegatedExecutorService
-            implements ExecutorService {
-        private final ExecutorService e;
-        DelegatedExecutorService(ExecutorService executor) { e = executor; }
-        public void execute(Runnable command) {
-            try {
-                e.execute(command);
-            } finally { reachabilityFence(this); }
-        }
-        public void shutdown() { e.shutdown(); }
-        public List<Runnable> shutdownNow() {
-            try {
-                return e.shutdownNow();
-            } finally { reachabilityFence(this); }
-        }
-        public boolean isShutdown() {
-            try {
-                return e.isShutdown();
-            } finally { reachabilityFence(this); }
-        }
-        public boolean isTerminated() {
-            try {
-                return e.isTerminated();
-            } finally { reachabilityFence(this); }
-        }
-        public boolean awaitTermination(long timeout, TimeUnit unit)
-            throws InterruptedException {
-            try {
-                return e.awaitTermination(timeout, unit);
-            } finally { reachabilityFence(this); }
-        }
-        public Future<?> submit(Runnable task) {
-            try {
-                return e.submit(task);
-            } finally { reachabilityFence(this); }
-        }
-        public <T> Future<T> submit(Callable<T> task) {
-            try {
-                return e.submit(task);
-            } finally { reachabilityFence(this); }
-        }
-        public <T> Future<T> submit(Runnable task, T result) {
-            try {
-                return e.submit(task, result);
-            } finally { reachabilityFence(this); }
-        }
-        public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks)
-            throws InterruptedException {
-            try {
-                return e.invokeAll(tasks);
-            } finally { reachabilityFence(this); }
-        }
-        public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks,
-                                             long timeout, TimeUnit unit)
-            throws InterruptedException {
-            try {
-                return e.invokeAll(tasks, timeout, unit);
-            } finally { reachabilityFence(this); }
-        }
-        public <T> T invokeAny(Collection<? extends Callable<T>> tasks)
-            throws InterruptedException, ExecutionException {
-            try {
-                return e.invokeAny(tasks);
-            } finally { reachabilityFence(this); }
-        }
-        public <T> T invokeAny(Collection<? extends Callable<T>> tasks,
-                               long timeout, TimeUnit unit)
-            throws InterruptedException, ExecutionException, TimeoutException {
-            try {
-                return e.invokeAny(tasks, timeout, unit);
-            } finally { reachabilityFence(this); }
-        }
-    }
-
-    private static class FinalizableDelegatedExecutorService
-            extends DelegatedExecutorService {
-        FinalizableDelegatedExecutorService(ExecutorService executor) {
-            super(executor);
-        }
-        @SuppressWarnings("deprecation")
-        protected void finalize() {
-            super.shutdown();
-        }
-    }
-
-    /**
-     * A wrapper class that exposes only the ScheduledExecutorService
-     * methods of a ScheduledExecutorService implementation.
-     */
-    private static class DelegatedScheduledExecutorService
-            extends DelegatedExecutorService
-            implements ScheduledExecutorService {
-        private final ScheduledExecutorService e;
-        DelegatedScheduledExecutorService(ScheduledExecutorService executor) {
-            super(executor);
-            e = executor;
-        }
-        public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-            return e.schedule(command, delay, unit);
-        }
-        public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
-            return e.schedule(callable, delay, unit);
-        }
-        public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
-            return e.scheduleAtFixedRate(command, initialDelay, period, unit);
-        }
-        public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
-            return e.scheduleWithFixedDelay(command, initialDelay, delay, unit);
-        }
-    }
-
-    /** Cannot instantiate. */
-    private Executors() {}
 }

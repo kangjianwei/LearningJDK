@@ -45,8 +45,11 @@ package java.util.concurrent;
  * @author Doug Lea
  * @param <V> The result type returned by this Future's {@code get} method
  */
+/*
+ * RunnableScheduledFuture集合了Delayed、Future、Runnable特性的定时任务
+ * 它表示一类带有返回值的，可异步执行的定时任务（具有延时属性）
+ */
 public interface RunnableScheduledFuture<V> extends RunnableFuture<V>, ScheduledFuture<V> {
-
     /**
      * Returns {@code true} if this task is periodic. A periodic task may
      * re-run according to some schedule. A non-periodic task can be
@@ -54,5 +57,6 @@ public interface RunnableScheduledFuture<V> extends RunnableFuture<V>, Scheduled
      *
      * @return {@code true} if this task is periodic
      */
+    // 是否为重复性任务
     boolean isPeriodic();
 }

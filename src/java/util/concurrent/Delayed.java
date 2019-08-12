@@ -43,18 +43,25 @@ package java.util.concurrent;
  * {@code compareTo} method that provides an ordering consistent with
  * its {@code getDelay} method.
  *
- * @since 1.5
  * @author Doug Lea
+ * @since 1.5
+ */
+/*
+ * Delayed是一个延时性接口，一般用来约束带有延时属性的任务或组件
+ *
+ * 与此同时，Delayed还继承了内部比较器Comparable接口，
+ * 这意味着该接口的子类本身必须具备"可比较性"，
  */
 public interface Delayed extends Comparable<Delayed> {
-
     /**
-     * Returns the remaining delay associated with this object, in the
-     * given time unit.
+     * Returns the remaining delay associated with this object, in the given time unit.
      *
      * @param unit the time unit
+     *
      * @return the remaining delay; zero or negative values indicate
      * that the delay has already elapsed
      */
+    // 获取距任务触发还剩余的时间
     long getDelay(TimeUnit unit);
 }
+

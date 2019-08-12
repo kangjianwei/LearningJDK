@@ -45,10 +45,15 @@ package java.util.concurrent;
  * @author Doug Lea
  * @param <V> The result type returned by this Future's {@code get} method
  */
+/*
+ * Runnable和Future的合体，可以表示兼容Runnable的带有异步计算的任务
+ * 当run()执行完任务后，可访问其执行结果
+ */
 public interface RunnableFuture<V> extends Runnable, Future<V> {
     /**
      * Sets this Future to the result of its computation
      * unless it has been cancelled.
      */
+    // 任务执行入口
     void run();
 }

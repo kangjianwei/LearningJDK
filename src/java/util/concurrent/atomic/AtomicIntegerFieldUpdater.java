@@ -35,6 +35,7 @@
 
 package java.util.concurrent.atomic;
 
+import java.lang.invoke.VarHandle;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.security.AccessController;
@@ -46,7 +47,7 @@ import java.util.function.IntUnaryOperator;
 import jdk.internal.misc.Unsafe;
 import jdk.internal.reflect.CallerSensitive;
 import jdk.internal.reflect.Reflection;
-import java.lang.invoke.VarHandle;
+import sun.reflect.misc.ReflectUtil;
 
 /**
  * A reflection-based utility that enables atomic updates to
@@ -66,40 +67,114 @@ import java.lang.invoke.VarHandle;
  * instances of the class passed to {@link #newUpdater} will result in
  * a {@link ClassCastException} being thrown.
  *
- * @since 1.5
- * @author Doug Lea
  * @param <T> The type of the object holding the updatable field
+ *
+ * @author Doug Lea
+ * @since 1.5
  */
+// 对目标类中volatile修饰的名为fieldName的int字段进行原子操作
 public abstract class AtomicIntegerFieldUpdater<T> {
-    /**
-     * Creates and returns an updater for objects with the given field.
-     * The Class argument is needed to check that reflective types and
-     * generic types match.
-     *
-     * @param tclass the class of the objects holding the field
-     * @param fieldName the name of the field to be updated
-     * @param <U> the type of instances of tclass
-     * @return the updater
-     * @throws IllegalArgumentException if the field is not a
-     * volatile integer type
-     * @throws RuntimeException with a nested reflection-based
-     * exception if the class does not hold field or is the wrong type,
-     * or the field is inaccessible to the caller according to Java language
-     * access control
-     */
-    @CallerSensitive
-    public static <U> AtomicIntegerFieldUpdater<U> newUpdater(Class<U> tclass,
-                                                              String fieldName) {
-        return new AtomicIntegerFieldUpdaterImpl<U>
-            (tclass, fieldName, Reflection.getCallerClass());
-    }
-
+    
+    /*▼ 构造器/工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Protected do-nothing constructor for use by subclasses.
      */
     protected AtomicIntegerFieldUpdater() {
     }
-
+    
+    /**
+     * Creates and returns an updater for objects with the given field.
+     * The Class argument is needed to check that reflective types and
+     * generic types match.
+     *
+     * @param tclass    the class of the objects holding the field
+     * @param fieldName the name of the field to be updated
+     * @param <U>       the type of instances of tclass
+     *
+     * @return the updater
+     *
+     * @throws IllegalArgumentException if the field is not a
+     *                                  volatile integer type
+     * @throws RuntimeException         with a nested reflection-based
+     *                                  exception if the class does not hold field or is the wrong type,
+     *                                  or the field is inaccessible to the caller according to Java language
+     *                                  access control
+     */
+    @CallerSensitive
+    public static <U> AtomicIntegerFieldUpdater<U> newUpdater(Class<U> tclass, String fieldName) {
+        return new AtomicIntegerFieldUpdaterImpl<U>(tclass, fieldName, Reflection.getCallerClass());
+    }
+    
+    /*▲ 构造器/工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    /*▼ 获取值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the current value held in the field of the given object
+     * managed by this updater.
+     *
+     * @param obj An object whose field to get
+     *
+     * @return the current value
+     */
+    // 获取对象obj中的目标字段值
+    public abstract int get(T obj);
+    
+    /*▲ 获取值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 设置值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Sets the field of the given object managed by this updater to the
+     * given updated value. This operation is guaranteed to act as a volatile
+     * store with respect to subsequent invocations of {@code compareAndSet}.
+     *
+     * @param obj      An object whose field to set
+     * @param newValue the new value
+     */
+    // 设置对象obj中的目标字段的值为newValue
+    public abstract void set(T obj, int newValue);
+    
+    /**
+     * Eventually sets the field of the given object managed by this
+     * updater to the given updated value.
+     *
+     * @param obj      An object whose field to set
+     * @param newValue the new value
+     *
+     * @since 1.6
+     */
+    // 设置对象obj中的目标字段的值为newValue
+    public abstract void lazySet(T obj, int newValue);
+    
+    /**
+     * Atomically sets the field of the given object managed by this updater
+     * to the given value and returns the old value.
+     *
+     * @param obj      An object whose field to get and set
+     * @param newValue the new value
+     *
+     * @return the previous value
+     */
+    // 设置对象obj中的目标字段的值为newValue，并返回旧值
+    public int getAndSet(T obj, int newValue) {
+        int prev;
+        do {
+            prev = get(obj);
+        } while(!compareAndSet(obj, prev, newValue));
+        return prev;
+    }
+    
+    /*▲ 设置值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 比较并更新 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Atomically sets the field of the given object managed by this updater
      * to the given updated value if the current value {@code ==} the
@@ -107,13 +182,15 @@ public abstract class AtomicIntegerFieldUpdater<T> {
      * other calls to {@code compareAndSet} and {@code set}, but not
      * necessarily with respect to other changes in the field.
      *
-     * @param obj An object whose field to conditionally set
+     * @param obj    An object whose field to conditionally set
      * @param expect the expected value
      * @param update the new value
+     *
      * @return {@code true} if successful
      */
+    // 如果obj中目标字段的值为expect，则将其更新为update
     public abstract boolean compareAndSet(T obj, int expect, int update);
-
+    
     /**
      * Atomically sets the field of the given object managed by this updater
      * to the given updated value if the current value {@code ==} the
@@ -125,156 +202,137 @@ public abstract class AtomicIntegerFieldUpdater<T> {
      * spuriously and does not provide ordering guarantees</a>, so is
      * only rarely an appropriate alternative to {@code compareAndSet}.
      *
-     * @param obj An object whose field to conditionally set
+     * @param obj    An object whose field to conditionally set
      * @param expect the expected value
      * @param update the new value
+     *
      * @return {@code true} if successful
      */
+    // 如果obj中目标字段的值为expect，则将其更新为update
     public abstract boolean weakCompareAndSet(T obj, int expect, int update);
-
-    /**
-     * Sets the field of the given object managed by this updater to the
-     * given updated value. This operation is guaranteed to act as a volatile
-     * store with respect to subsequent invocations of {@code compareAndSet}.
-     *
-     * @param obj An object whose field to set
-     * @param newValue the new value
-     */
-    public abstract void set(T obj, int newValue);
-
-    /**
-     * Eventually sets the field of the given object managed by this
-     * updater to the given updated value.
-     *
-     * @param obj An object whose field to set
-     * @param newValue the new value
-     * @since 1.6
-     */
-    public abstract void lazySet(T obj, int newValue);
-
-    /**
-     * Returns the current value held in the field of the given object
-     * managed by this updater.
-     *
-     * @param obj An object whose field to get
-     * @return the current value
-     */
-    public abstract int get(T obj);
-
-    /**
-     * Atomically sets the field of the given object managed by this updater
-     * to the given value and returns the old value.
-     *
-     * @param obj An object whose field to get and set
-     * @param newValue the new value
-     * @return the previous value
-     */
-    public int getAndSet(T obj, int newValue) {
-        int prev;
-        do {
-            prev = get(obj);
-        } while (!compareAndSet(obj, prev, newValue));
-        return prev;
-    }
-
-    /**
-     * Atomically increments by one the current value of the field of the
-     * given object managed by this updater.
-     *
-     * @param obj An object whose field to get and set
-     * @return the previous value
-     */
-    public int getAndIncrement(T obj) {
-        int prev, next;
-        do {
-            prev = get(obj);
-            next = prev + 1;
-        } while (!compareAndSet(obj, prev, next));
-        return prev;
-    }
-
-    /**
-     * Atomically decrements by one the current value of the field of the
-     * given object managed by this updater.
-     *
-     * @param obj An object whose field to get and set
-     * @return the previous value
-     */
-    public int getAndDecrement(T obj) {
-        int prev, next;
-        do {
-            prev = get(obj);
-            next = prev - 1;
-        } while (!compareAndSet(obj, prev, next));
-        return prev;
-    }
-
+    
+    /*▲ 比较并更新 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 增/减 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Atomically adds the given value to the current value of the field of
      * the given object managed by this updater.
      *
-     * @param obj An object whose field to get and set
+     * @param obj   An object whose field to get and set
      * @param delta the value to add
+     *
      * @return the previous value
      */
+    // 将对象obj内的目标字段原子地增加delta，并返回旧值
     public int getAndAdd(T obj, int delta) {
         int prev, next;
         do {
             prev = get(obj);
             next = prev + delta;
-        } while (!compareAndSet(obj, prev, next));
+        } while(!compareAndSet(obj, prev, next));
         return prev;
     }
-
-    /**
-     * Atomically increments by one the current value of the field of the
-     * given object managed by this updater.
-     *
-     * @param obj An object whose field to get and set
-     * @return the updated value
-     */
-    public int incrementAndGet(T obj) {
-        int prev, next;
-        do {
-            prev = get(obj);
-            next = prev + 1;
-        } while (!compareAndSet(obj, prev, next));
-        return next;
-    }
-
-    /**
-     * Atomically decrements by one the current value of the field of the
-     * given object managed by this updater.
-     *
-     * @param obj An object whose field to get and set
-     * @return the updated value
-     */
-    public int decrementAndGet(T obj) {
-        int prev, next;
-        do {
-            prev = get(obj);
-            next = prev - 1;
-        } while (!compareAndSet(obj, prev, next));
-        return next;
-    }
-
+    
     /**
      * Atomically adds the given value to the current value of the field of
      * the given object managed by this updater.
      *
-     * @param obj An object whose field to get and set
+     * @param obj   An object whose field to get and set
      * @param delta the value to add
+     *
      * @return the updated value
      */
+    // 将对象obj内的目标字段原子地增加delta，并返回新值
     public int addAndGet(T obj, int delta) {
         int prev, next;
         do {
             prev = get(obj);
             next = prev + delta;
-        } while (!compareAndSet(obj, prev, next));
+        } while(!compareAndSet(obj, prev, next));
         return next;
     }
-
+    
+    /**
+     * Atomically increments by one the current value of the field of the
+     * given object managed by this updater.
+     *
+     * @param obj An object whose field to get and set
+     *
+     * @return the previous value
+     */
+    // 将对象obj内的目标字段原子地递增，并返回旧值
+    public int getAndIncrement(T obj) {
+        int prev, next;
+        do {
+            prev = get(obj);
+            next = prev + 1;
+        } while(!compareAndSet(obj, prev, next));
+        return prev;
+    }
+    
+    /**
+     * Atomically increments by one the current value of the field of the
+     * given object managed by this updater.
+     *
+     * @param obj An object whose field to get and set
+     *
+     * @return the updated value
+     */
+    // 将对象obj内的目标字段原子地递增，并返回新值
+    public int incrementAndGet(T obj) {
+        int prev, next;
+        do {
+            prev = get(obj);
+            next = prev + 1;
+        } while(!compareAndSet(obj, prev, next));
+        return next;
+    }
+    
+    /**
+     * Atomically decrements by one the current value of the field of the
+     * given object managed by this updater.
+     *
+     * @param obj An object whose field to get and set
+     *
+     * @return the previous value
+     */
+    // 将对象obj内的目标字段原子地递减，并返回旧值
+    public int getAndDecrement(T obj) {
+        int prev, next;
+        do {
+            prev = get(obj);
+            next = prev - 1;
+        } while(!compareAndSet(obj, prev, next));
+        return prev;
+    }
+    
+    /**
+     * Atomically decrements by one the current value of the field of the
+     * given object managed by this updater.
+     *
+     * @param obj An object whose field to get and set
+     *
+     * @return the updated value
+     */
+    // 将对象obj内的目标字段原子地递减，并返回新值
+    public int decrementAndGet(T obj) {
+        int prev, next;
+        do {
+            prev = get(obj);
+            next = prev - 1;
+        } while(!compareAndSet(obj, prev, next));
+        return next;
+    }
+    
+    /*▲ 增/减 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ lambda操作 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Atomically updates (with memory effects as specified by {@link
      * VarHandle#compareAndSet}) the field of the given object managed
@@ -283,20 +341,23 @@ public abstract class AtomicIntegerFieldUpdater<T> {
      * side-effect-free, since it may be re-applied when attempted
      * updates fail due to contention among threads.
      *
-     * @param obj An object whose field to get and set
+     * @param obj            An object whose field to get and set
      * @param updateFunction a side-effect-free function
+     *
      * @return the previous value
+     *
      * @since 1.8
      */
+    // 对对象obj内的目标字段执行给定的操作。如果操作成功，则返回旧值（旧值会动态变化）
     public final int getAndUpdate(T obj, IntUnaryOperator updateFunction) {
         int prev, next;
         do {
             prev = get(obj);
             next = updateFunction.applyAsInt(prev);
-        } while (!compareAndSet(obj, prev, next));
+        } while(!compareAndSet(obj, prev, next));
         return prev;
     }
-
+    
     /**
      * Atomically updates (with memory effects as specified by {@link
      * VarHandle#compareAndSet}) the field of the given object managed
@@ -305,20 +366,23 @@ public abstract class AtomicIntegerFieldUpdater<T> {
      * side-effect-free, since it may be re-applied when attempted
      * updates fail due to contention among threads.
      *
-     * @param obj An object whose field to get and set
+     * @param obj            An object whose field to get and set
      * @param updateFunction a side-effect-free function
+     *
      * @return the updated value
+     *
      * @since 1.8
      */
+    // 对对象obj内的目标字段执行给定的操作。如果操作成功，则返回新值（旧值会动态变化）
     public final int updateAndGet(T obj, IntUnaryOperator updateFunction) {
         int prev, next;
         do {
             prev = get(obj);
             next = updateFunction.applyAsInt(prev);
-        } while (!compareAndSet(obj, prev, next));
+        } while(!compareAndSet(obj, prev, next));
         return next;
     }
-
+    
     /**
      * Atomically updates (with memory effects as specified by {@link
      * VarHandle#compareAndSet}) the field of the given object managed
@@ -329,22 +393,24 @@ public abstract class AtomicIntegerFieldUpdater<T> {
      * threads.  The function is applied with the current value as its
      * first argument, and the given update as the second argument.
      *
-     * @param obj An object whose field to get and set
-     * @param x the update value
+     * @param obj                 An object whose field to get and set
+     * @param x                   the update value
      * @param accumulatorFunction a side-effect-free function of two arguments
+     *
      * @return the previous value
+     *
      * @since 1.8
      */
-    public final int getAndAccumulate(T obj, int x,
-                                      IntBinaryOperator accumulatorFunction) {
+    // 对对象obj内的目标字段执行给定的操作。如果操作成功，则返回旧值（旧值会动态变化）
+    public final int getAndAccumulate(T obj, int x, IntBinaryOperator accumulatorFunction) {
         int prev, next;
         do {
             prev = get(obj);
             next = accumulatorFunction.applyAsInt(prev, x);
-        } while (!compareAndSet(obj, prev, next));
+        } while(!compareAndSet(obj, prev, next));
         return prev;
     }
-
+    
     /**
      * Atomically updates (with memory effects as specified by {@link
      * VarHandle#compareAndSet}) the field of the given object managed
@@ -355,70 +421,95 @@ public abstract class AtomicIntegerFieldUpdater<T> {
      * threads.  The function is applied with the current value as its
      * first argument, and the given update as the second argument.
      *
-     * @param obj An object whose field to get and set
-     * @param x the update value
+     * @param obj                 An object whose field to get and set
+     * @param x                   the update value
      * @param accumulatorFunction a side-effect-free function of two arguments
+     *
      * @return the updated value
+     *
      * @since 1.8
      */
-    public final int accumulateAndGet(T obj, int x,
-                                      IntBinaryOperator accumulatorFunction) {
+    // 对对象obj内的目标字段执行给定的操作。如果操作成功，则返回新值（旧值会动态变化）
+    public final int accumulateAndGet(T obj, int x, IntBinaryOperator accumulatorFunction) {
         int prev, next;
         do {
             prev = get(obj);
             next = accumulatorFunction.applyAsInt(prev, x);
-        } while (!compareAndSet(obj, prev, next));
+        } while(!compareAndSet(obj, prev, next));
         return next;
     }
-
+    
+    /*▲ lambda操作 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    
+    
+    
     /**
      * Standard hotspot implementation using intrinsics.
      */
-    private static final class AtomicIntegerFieldUpdaterImpl<T>
-        extends AtomicIntegerFieldUpdater<T> {
+    private static final class AtomicIntegerFieldUpdaterImpl<T> extends AtomicIntegerFieldUpdater<T> {
         private static final Unsafe U = Unsafe.getUnsafe();
+        
+        // 待访问的非静态字段的JVM偏移地址
         private final long offset;
-        /**
-         * if field is protected, the subclass constructing updater, else
-         * the same as tclass
-         */
-        private final Class<?> cclass;
+        
         /** class holding the field */
+        // 待访问字段所在的类
         private final Class<T> tclass;
-
-        AtomicIntegerFieldUpdaterImpl(final Class<T> tclass,
-                                      final String fieldName,
-                                      final Class<?> caller) {
+        
+        /**
+         * if field is protected, the subclass constructing updater, else the same as tclass
+         */
+        // 如果从不在同一个包中的子类caller中访问tclass，则cclass==caller，否则，cclass==tclass
+        private final Class<?> cclass;
+        
+        
+        
+        /*▼ 构造器 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┓ */
+        
+        AtomicIntegerFieldUpdaterImpl(final Class<T> tclass, final String fieldName, final Class<?> caller) {
             final Field field;
             final int modifiers;
+            
             try {
-                field = AccessController.doPrivileged(
-                    new PrivilegedExceptionAction<Field>() {
-                        public Field run() throws NoSuchFieldException {
-                            return tclass.getDeclaredField(fieldName);
-                        }
-                    });
+                // 返回tclass中指定名称的字段，但不包括父类/父接口中的字段
+                field = AccessController.doPrivileged(new PrivilegedExceptionAction<Field>() {
+                    public Field run() throws NoSuchFieldException {
+                        return tclass.getDeclaredField(fieldName);
+                    }
+                });
+                
+                // 获取字段修饰符
                 modifiers = field.getModifiers();
-                sun.reflect.misc.ReflectUtil.ensureMemberAccess(
-                    caller, tclass, null, modifiers);
-                ClassLoader cl = tclass.getClassLoader();
+                
+                // 确保caller可以访问tclass中具有modifiers修饰符的成员，否则会抛异常
+                ReflectUtil.ensureMemberAccess(caller, tclass, null, modifiers);
+                
                 ClassLoader ccl = caller.getClassLoader();
-                if ((ccl != null) && (ccl != cl) &&
-                    ((cl == null) || !isAncestor(cl, ccl))) {
-                    sun.reflect.misc.ReflectUtil.checkPackageAccess(tclass);
+                ClassLoader cl = tclass.getClassLoader();
+                
+                if((ccl != null) && (ccl != cl) && ((cl == null) || !isAncestor(cl, ccl))) {
+                    // 使用系统安全管理器检查当前类对tclass所在的包的访问权限
+                    ReflectUtil.checkPackageAccess(tclass);
                 }
-            } catch (PrivilegedActionException pae) {
+            } catch(PrivilegedActionException pae) {
                 throw new RuntimeException(pae.getException());
-            } catch (Exception ex) {
+            } catch(Exception ex) {
                 throw new RuntimeException(ex);
             }
-
-            if (field.getType() != int.class)
+            
+            // 字段类型必须为int
+            if(field.getType() != int.class) {
                 throw new IllegalArgumentException("Must be integer type");
-
-            if (!Modifier.isVolatile(modifiers))
+            }
+            
+            // 修饰符必须带有volatile
+            if(!Modifier.isVolatile(modifiers)) {
                 throw new IllegalArgumentException("Must be volatile type");
-
+            }
+            
             // Access to protected field members is restricted to receivers only
             // of the accessing class, or one of its subclasses, and the
             // accessing class must in turn be a subclass (or package sibling)
@@ -426,120 +517,153 @@ public abstract class AtomicIntegerFieldUpdater<T> {
             // If the updater refers to a protected field of a declaring class
             // outside the current package, the receiver argument will be
             // narrowed to the type of the accessing class.
-            this.cclass = (Modifier.isProtected(modifiers) &&
-                           tclass.isAssignableFrom(caller) &&
-                           !isSamePackage(tclass, caller))
-                          ? caller : tclass;
+            this.cclass = (Modifier.isProtected(modifiers) && tclass.isAssignableFrom(caller) && !isSamePackage(tclass, caller)) ? caller : tclass;
             this.tclass = tclass;
             this.offset = U.objectFieldOffset(field);
         }
-
-        /**
-         * Returns true if the second classloader can be found in the first
-         * classloader's delegation chain.
-         * Equivalent to the inaccessible: first.isAncestor(second).
-         */
-        private static boolean isAncestor(ClassLoader first, ClassLoader second) {
-            ClassLoader acl = first;
-            do {
-                acl = acl.getParent();
-                if (second == acl) {
-                    return true;
-                }
-            } while (acl != null);
-            return false;
-        }
-
-        /**
-         * Returns true if the two classes have the same class loader and
-         * package qualifier
-         */
-        private static boolean isSamePackage(Class<?> class1, Class<?> class2) {
-            return class1.getClassLoader() == class2.getClassLoader()
-                   && Objects.equals(class1.getPackageName(), class2.getPackageName());
-        }
-
-        /**
-         * Checks that target argument is instance of cclass.  On
-         * failure, throws cause.
-         */
-        private final void accessCheck(T obj) {
-            if (!cclass.isInstance(obj))
-                throwAccessCheckException(obj);
-        }
-
-        /**
-         * Throws access exception if accessCheck failed due to
-         * protected access, else ClassCastException.
-         */
-        private final void throwAccessCheckException(T obj) {
-            if (cclass == tclass)
-                throw new ClassCastException();
-            else
-                throw new RuntimeException(
-                    new IllegalAccessException(
-                        "Class " +
-                        cclass.getName() +
-                        " can not access a protected member of class " +
-                        tclass.getName() +
-                        " using an instance of " +
-                        obj.getClass().getName()));
-        }
-
-        public final boolean compareAndSet(T obj, int expect, int update) {
-            accessCheck(obj);
-            return U.compareAndSetInt(obj, offset, expect, update);
-        }
-
-        public final boolean weakCompareAndSet(T obj, int expect, int update) {
-            accessCheck(obj);
-            return U.compareAndSetInt(obj, offset, expect, update);
-        }
-
-        public final void set(T obj, int newValue) {
-            accessCheck(obj);
-            U.putIntVolatile(obj, offset, newValue);
-        }
-
-        public final void lazySet(T obj, int newValue) {
-            accessCheck(obj);
-            U.putIntRelease(obj, offset, newValue);
-        }
-
+        
+        /*▲ 构造器 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┛ */
+        
+        
+        
+        /*▼ 获取值 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┓ */
+        
+        // 获取对象obj中的目标字段值
         public final int get(T obj) {
             accessCheck(obj);
             return U.getIntVolatile(obj, offset);
         }
-
+        
+        /*▲ 获取值 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┛ */
+        
+        
+        
+        /*▼ 设置值 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┓ */
+        
+        // 设置对象obj中的目标字段的值为newValue
+        public final void set(T obj, int newValue) {
+            accessCheck(obj);
+            U.putIntVolatile(obj, offset, newValue);
+        }
+        
+        // 设置对象obj中的目标字段的值为newValue
+        public final void lazySet(T obj, int newValue) {
+            accessCheck(obj);
+            U.putIntRelease(obj, offset, newValue);
+        }
+        
+        // 设置对象obj中的目标字段的值为newValue，并返回旧值
         public final int getAndSet(T obj, int newValue) {
             accessCheck(obj);
             return U.getAndSetInt(obj, offset, newValue);
         }
-
+        
+        /*▲ 设置值 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┛ */
+        
+        
+        
+        /*▼ 比较并更新 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┓ */
+        
+        // 如果obj中目标字段的值为expect，则将其更新为update
+        public final boolean compareAndSet(T obj, int expect, int update) {
+            accessCheck(obj);
+            return U.compareAndSetInt(obj, offset, expect, update);
+        }
+        
+        // 如果obj中目标字段的值为expect，则将其更新为update
+        public final boolean weakCompareAndSet(T obj, int expect, int update) {
+            accessCheck(obj);
+            return U.compareAndSetInt(obj, offset, expect, update);
+        }
+        
+        /*▲ 比较并更新 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┛ */
+        
+        
+        
+        /*▼ 增/减 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┓ */
+        
+        // 将对象obj内的目标字段原子地增加delta，并返回旧值
         public final int getAndAdd(T obj, int delta) {
             accessCheck(obj);
             return U.getAndAddInt(obj, offset, delta);
         }
-
-        public final int getAndIncrement(T obj) {
-            return getAndAdd(obj, 1);
-        }
-
-        public final int getAndDecrement(T obj) {
-            return getAndAdd(obj, -1);
-        }
-
-        public final int incrementAndGet(T obj) {
-            return getAndAdd(obj, 1) + 1;
-        }
-
-        public final int decrementAndGet(T obj) {
-            return getAndAdd(obj, -1) - 1;
-        }
-
+        
+        // 将对象obj内的目标字段原子地增加delta，并返回新值
         public final int addAndGet(T obj, int delta) {
             return getAndAdd(obj, delta) + delta;
         }
-
+        
+        // 将对象obj内的目标字段原子地递增，并返回旧值
+        public final int getAndIncrement(T obj) {
+            return getAndAdd(obj, 1);
+        }
+        
+        // 将对象obj内的目标字段原子地递增，并返回新值
+        public final int incrementAndGet(T obj) {
+            return getAndAdd(obj, 1) + 1;
+        }
+        
+        // 将对象obj内的目标字段原子地递减，并返回旧值
+        public final int getAndDecrement(T obj) {
+            return getAndAdd(obj, -1);
+        }
+        
+        // 将对象obj内的目标字段原子地递减，并返回新值
+        public final int decrementAndGet(T obj) {
+            return getAndAdd(obj, -1) - 1;
+        }
+        
+        /*▲ 增/减 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┛ */
+        
+        
+        
+        /**
+         * Returns true if the second classloader can be found in the first classloader's delegation chain.
+         * Equivalent to the inaccessible: first.isAncestor(second).
+         */
+        // 判断类加载器second是否为first的祖先（second在first的委托链上）
+        private static boolean isAncestor(ClassLoader first, ClassLoader second) {
+            ClassLoader acl = first;
+            do {
+                acl = acl.getParent();
+                if(second == acl) {
+                    return true;
+                }
+            } while(acl != null);
+            return false;
+        }
+        
+        /**
+         * Returns true if the two classes have the same class loader and
+         * package qualifier
+         */
+        // 判断class1与class2是否拥有相同的类加载器且位于同一个包
+        private static boolean isSamePackage(Class<?> class1, Class<?> class2) {
+            return class1.getClassLoader() == class2.getClassLoader()
+                && Objects.equals(class1.getPackageName(), class2.getPackageName());
+        }
+        
+        /**
+         * Checks that target argument is instance of cclass.  On failure, throws cause.
+         */
+        // 检查[对象]obj是否为cclass类的实例，不是的话会抛异常
+        private final void accessCheck(T obj) {
+            if(!cclass.isInstance(obj)) {
+                throwAccessCheckException(obj);
+            }
+        }
+        
+        /**
+         * Throws access exception if accessCheck failed due to
+         * protected access, else ClassCastException.
+         */
+        // 负责抛异常
+        private final void throwAccessCheckException(T obj) {
+            if(cclass == tclass) {
+                throw new ClassCastException();
+            } else {
+                throw new RuntimeException(new IllegalAccessException("Class " + cclass.getName() + " can not access a protected member of class " + tclass.getName() + " using an instance of " + obj.getClass().getName()));
+            }
+        }
     }
 }

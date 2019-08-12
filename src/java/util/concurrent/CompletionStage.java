@@ -148,8 +148,9 @@ import java.util.function.Function;
  * @author Doug Lea
  * @since 1.8
  */
+// 各类型枢纽任务需要实现的方法
 public interface CompletionStage<T> {
-
+    
     /**
      * Returns a new CompletionStage that, when this stage completes
      * normally, is executed with this stage's result as the argument
@@ -162,13 +163,15 @@ public interface CompletionStage<T> {
      * <p>See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param fn the function to use to compute the value of the
-     * returned CompletionStage
+     * @param fn  the function to use to compute the value of the
+     *            returned CompletionStage
      * @param <U> the function's return type
+     *
      * @return the new CompletionStage
      */
-    public <U> CompletionStage<U> thenApply(Function<? super T,? extends U> fn);
-
+    // 同步执行UniApply型任务
+    <U> CompletionStage<U> thenApply(Function<? super T, ? extends U> fn);
+    
     /**
      * Returns a new CompletionStage that, when this stage completes
      * normally, is executed using this stage's default asynchronous
@@ -178,14 +181,15 @@ public interface CompletionStage<T> {
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param fn the function to use to compute the value of the
-     * returned CompletionStage
+     * @param fn  the function to use to compute the value of the
+     *            returned CompletionStage
      * @param <U> the function's return type
+     *
      * @return the new CompletionStage
      */
-    public <U> CompletionStage<U> thenApplyAsync
-        (Function<? super T,? extends U> fn);
-
+    // 使用【默认工作池】执行UniApply型任务
+    <U> CompletionStage<U> thenApplyAsync(Function<? super T, ? extends U> fn);
+    
     /**
      * Returns a new CompletionStage that, when this stage completes
      * normally, is executed using the supplied Executor, with this
@@ -194,16 +198,18 @@ public interface CompletionStage<T> {
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param fn the function to use to compute the value of the
-     * returned CompletionStage
+     * @param fn       the function to use to compute the value of the
+     *                 returned CompletionStage
      * @param executor the executor to use for asynchronous execution
-     * @param <U> the function's return type
+     * @param <U>      the function's return type
+     *
      * @return the new CompletionStage
      */
-    public <U> CompletionStage<U> thenApplyAsync
-        (Function<? super T,? extends U> fn,
-         Executor executor);
-
+    // 使用指定的【任务执行器】执行UniApply型任务
+    <U> CompletionStage<U> thenApplyAsync(Function<? super T, ? extends U> fn, Executor executor);
+    
+    
+    
     /**
      * Returns a new CompletionStage that, when this stage completes
      * normally, is executed with this stage's result as the argument
@@ -213,11 +219,13 @@ public interface CompletionStage<T> {
      * covering exceptional completion.
      *
      * @param action the action to perform before completing the
-     * returned CompletionStage
+     *               returned CompletionStage
+     *
      * @return the new CompletionStage
      */
-    public CompletionStage<Void> thenAccept(Consumer<? super T> action);
-
+    // 同步执行UniAccept型任务
+    CompletionStage<Void> thenAccept(Consumer<? super T> action);
+    
     /**
      * Returns a new CompletionStage that, when this stage completes
      * normally, is executed using this stage's default asynchronous
@@ -228,11 +236,13 @@ public interface CompletionStage<T> {
      * covering exceptional completion.
      *
      * @param action the action to perform before completing the
-     * returned CompletionStage
+     *               returned CompletionStage
+     *
      * @return the new CompletionStage
      */
-    public CompletionStage<Void> thenAcceptAsync(Consumer<? super T> action);
-
+    // 使用【默认工作池】执行UniAccept型任务
+    CompletionStage<Void> thenAcceptAsync(Consumer<? super T> action);
+    
     /**
      * Returns a new CompletionStage that, when this stage completes
      * normally, is executed using the supplied Executor, with this
@@ -241,13 +251,17 @@ public interface CompletionStage<T> {
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param action the action to perform before completing the
-     * returned CompletionStage
+     * @param action   the action to perform before completing the
+     *                 returned CompletionStage
      * @param executor the executor to use for asynchronous execution
+     *
      * @return the new CompletionStage
      */
-    public CompletionStage<Void> thenAcceptAsync(Consumer<? super T> action,
-                                                 Executor executor);
+    // 使用指定的【任务执行器】执行UniAccept型任务
+    CompletionStage<Void> thenAcceptAsync(Consumer<? super T> action, Executor executor);
+    
+    
+    
     /**
      * Returns a new CompletionStage that, when this stage completes
      * normally, executes the given action.
@@ -256,11 +270,13 @@ public interface CompletionStage<T> {
      * covering exceptional completion.
      *
      * @param action the action to perform before completing the
-     * returned CompletionStage
+     *               returned CompletionStage
+     *
      * @return the new CompletionStage
      */
-    public CompletionStage<Void> thenRun(Runnable action);
-
+    // 同步执行UniRun型任务
+    CompletionStage<Void> thenRun(Runnable action);
+    
     /**
      * Returns a new CompletionStage that, when this stage completes
      * normally, executes the given action using this stage's default
@@ -270,11 +286,13 @@ public interface CompletionStage<T> {
      * covering exceptional completion.
      *
      * @param action the action to perform before completing the
-     * returned CompletionStage
+     *               returned CompletionStage
+     *
      * @return the new CompletionStage
      */
-    public CompletionStage<Void> thenRunAsync(Runnable action);
-
+    // 使用【默认工作池】执行UniRun型任务
+    CompletionStage<Void> thenRunAsync(Runnable action);
+    
     /**
      * Returns a new CompletionStage that, when this stage completes
      * normally, executes the given action using the supplied Executor.
@@ -282,14 +300,17 @@ public interface CompletionStage<T> {
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param action the action to perform before completing the
-     * returned CompletionStage
+     * @param action   the action to perform before completing the
+     *                 returned CompletionStage
      * @param executor the executor to use for asynchronous execution
+     *
      * @return the new CompletionStage
      */
-    public CompletionStage<Void> thenRunAsync(Runnable action,
-                                              Executor executor);
-
+    // 使用指定的【任务执行器】执行UniRun型任务
+    CompletionStage<Void> thenRunAsync(Runnable action, Executor executor);
+    
+    
+    
     /**
      * Returns a new CompletionStage that, when this and the other
      * given stage both complete normally, is executed with the two
@@ -299,16 +320,16 @@ public interface CompletionStage<T> {
      * covering exceptional completion.
      *
      * @param other the other CompletionStage
-     * @param fn the function to use to compute the value of the
-     * returned CompletionStage
-     * @param <U> the type of the other CompletionStage's result
-     * @param <V> the function's return type
+     * @param fn    the function to use to compute the value of the
+     *              returned CompletionStage
+     * @param <U>   the type of the other CompletionStage's result
+     * @param <V>   the function's return type
+     *
      * @return the new CompletionStage
      */
-    public <U,V> CompletionStage<V> thenCombine
-        (CompletionStage<? extends U> other,
-         BiFunction<? super T,? super U,? extends V> fn);
-
+    // 同步执行BiApply型任务
+    <U, V> CompletionStage<V> thenCombine(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn);
+    
     /**
      * Returns a new CompletionStage that, when this and the other
      * given stage both complete normally, is executed using this
@@ -319,16 +340,16 @@ public interface CompletionStage<T> {
      * covering exceptional completion.
      *
      * @param other the other CompletionStage
-     * @param fn the function to use to compute the value of the
-     * returned CompletionStage
-     * @param <U> the type of the other CompletionStage's result
-     * @param <V> the function's return type
+     * @param fn    the function to use to compute the value of the
+     *              returned CompletionStage
+     * @param <U>   the type of the other CompletionStage's result
+     * @param <V>   the function's return type
+     *
      * @return the new CompletionStage
      */
-    public <U,V> CompletionStage<V> thenCombineAsync
-        (CompletionStage<? extends U> other,
-         BiFunction<? super T,? super U,? extends V> fn);
-
+    // 使用【默认工作池】执行BiApply型任务
+    <U, V> CompletionStage<V> thenCombineAsync(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn);
+    
     /**
      * Returns a new CompletionStage that, when this and the other
      * given stage both complete normally, is executed using the
@@ -338,19 +359,20 @@ public interface CompletionStage<T> {
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param other the other CompletionStage
-     * @param fn the function to use to compute the value of the
-     * returned CompletionStage
+     * @param other    the other CompletionStage
+     * @param fn       the function to use to compute the value of the
+     *                 returned CompletionStage
      * @param executor the executor to use for asynchronous execution
-     * @param <U> the type of the other CompletionStage's result
-     * @param <V> the function's return type
+     * @param <U>      the type of the other CompletionStage's result
+     * @param <V>      the function's return type
+     *
      * @return the new CompletionStage
      */
-    public <U,V> CompletionStage<V> thenCombineAsync
-        (CompletionStage<? extends U> other,
-         BiFunction<? super T,? super U,? extends V> fn,
-         Executor executor);
-
+    // 使用指定的【任务执行器】执行BiApply型任务
+    <U, V> CompletionStage<V> thenCombineAsync(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn, Executor executor);
+    
+    
+    
     /**
      * Returns a new CompletionStage that, when this and the other
      * given stage both complete normally, is executed with the two
@@ -359,16 +381,16 @@ public interface CompletionStage<T> {
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param other the other CompletionStage
+     * @param other  the other CompletionStage
      * @param action the action to perform before completing the
-     * returned CompletionStage
-     * @param <U> the type of the other CompletionStage's result
+     *               returned CompletionStage
+     * @param <U>    the type of the other CompletionStage's result
+     *
      * @return the new CompletionStage
      */
-    public <U> CompletionStage<Void> thenAcceptBoth
-        (CompletionStage<? extends U> other,
-         BiConsumer<? super T, ? super U> action);
-
+    // 同步执行BiAccept型任务
+    <U> CompletionStage<Void> thenAcceptBoth(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action);
+    
     /**
      * Returns a new CompletionStage that, when this and the other
      * given stage both complete normally, is executed using this
@@ -378,16 +400,16 @@ public interface CompletionStage<T> {
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param other the other CompletionStage
+     * @param other  the other CompletionStage
      * @param action the action to perform before completing the
-     * returned CompletionStage
-     * @param <U> the type of the other CompletionStage's result
+     *               returned CompletionStage
+     * @param <U>    the type of the other CompletionStage's result
+     *
      * @return the new CompletionStage
      */
-    public <U> CompletionStage<Void> thenAcceptBothAsync
-        (CompletionStage<? extends U> other,
-         BiConsumer<? super T, ? super U> action);
-
+    // 使用【默认工作池】执行BiAccept型任务
+    <U> CompletionStage<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action);
+    
     /**
      * Returns a new CompletionStage that, when this and the other
      * given stage both complete normally, is executed using the
@@ -397,18 +419,19 @@ public interface CompletionStage<T> {
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param other the other CompletionStage
-     * @param action the action to perform before completing the
-     * returned CompletionStage
+     * @param other    the other CompletionStage
+     * @param action   the action to perform before completing the
+     *                 returned CompletionStage
      * @param executor the executor to use for asynchronous execution
-     * @param <U> the type of the other CompletionStage's result
+     * @param <U>      the type of the other CompletionStage's result
+     *
      * @return the new CompletionStage
      */
-    public <U> CompletionStage<Void> thenAcceptBothAsync
-        (CompletionStage<? extends U> other,
-         BiConsumer<? super T, ? super U> action,
-         Executor executor);
-
+    // 使用指定的【任务执行器】执行BiAccept型任务
+    <U> CompletionStage<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action, Executor executor);
+    
+    
+    
     /**
      * Returns a new CompletionStage that, when this and the other
      * given stage both complete normally, executes the given action.
@@ -416,13 +439,15 @@ public interface CompletionStage<T> {
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param other the other CompletionStage
+     * @param other  the other CompletionStage
      * @param action the action to perform before completing the
-     * returned CompletionStage
+     *               returned CompletionStage
+     *
      * @return the new CompletionStage
      */
-    public CompletionStage<Void> runAfterBoth(CompletionStage<?> other,
-                                              Runnable action);
+    // 同步执行BiRun型任务
+    CompletionStage<Void> runAfterBoth(CompletionStage<?> other, Runnable action);
+    
     /**
      * Returns a new CompletionStage that, when this and the other
      * given stage both complete normally, executes the given action
@@ -431,14 +456,15 @@ public interface CompletionStage<T> {
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param other the other CompletionStage
+     * @param other  the other CompletionStage
      * @param action the action to perform before completing the
-     * returned CompletionStage
+     *               returned CompletionStage
+     *
      * @return the new CompletionStage
      */
-    public CompletionStage<Void> runAfterBothAsync(CompletionStage<?> other,
-                                                   Runnable action);
-
+    // 使用【默认工作池】执行BiRun型任务
+    CompletionStage<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action);
+    
     /**
      * Returns a new CompletionStage that, when this and the other
      * given stage both complete normally, executes the given action
@@ -447,15 +473,18 @@ public interface CompletionStage<T> {
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param other the other CompletionStage
-     * @param action the action to perform before completing the
-     * returned CompletionStage
+     * @param other    the other CompletionStage
+     * @param action   the action to perform before completing the
+     *                 returned CompletionStage
      * @param executor the executor to use for asynchronous execution
+     *
      * @return the new CompletionStage
      */
-    public CompletionStage<Void> runAfterBothAsync(CompletionStage<?> other,
-                                                   Runnable action,
-                                                   Executor executor);
+    // 使用指定的【任务执行器】执行BiRun型任务
+    CompletionStage<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action, Executor executor);
+    
+    
+    
     /**
      * Returns a new CompletionStage that, when either this or the
      * other given stage complete normally, is executed with the
@@ -465,15 +494,15 @@ public interface CompletionStage<T> {
      * covering exceptional completion.
      *
      * @param other the other CompletionStage
-     * @param fn the function to use to compute the value of the
-     * returned CompletionStage
-     * @param <U> the function's return type
+     * @param fn    the function to use to compute the value of the
+     *              returned CompletionStage
+     * @param <U>   the function's return type
+     *
      * @return the new CompletionStage
      */
-    public <U> CompletionStage<U> applyToEither
-        (CompletionStage<? extends T> other,
-         Function<? super T, U> fn);
-
+    // 同步执行OrApply型任务
+    <U> CompletionStage<U> applyToEither(CompletionStage<? extends T> other, Function<? super T, U> fn);
+    
     /**
      * Returns a new CompletionStage that, when either this or the
      * other given stage complete normally, is executed using this
@@ -484,15 +513,15 @@ public interface CompletionStage<T> {
      * covering exceptional completion.
      *
      * @param other the other CompletionStage
-     * @param fn the function to use to compute the value of the
-     * returned CompletionStage
-     * @param <U> the function's return type
+     * @param fn    the function to use to compute the value of the
+     *              returned CompletionStage
+     * @param <U>   the function's return type
+     *
      * @return the new CompletionStage
      */
-    public <U> CompletionStage<U> applyToEitherAsync
-        (CompletionStage<? extends T> other,
-         Function<? super T, U> fn);
-
+    // 使用【默认工作池】执行OrApply型任务
+    <U> CompletionStage<U> applyToEitherAsync(CompletionStage<? extends T> other, Function<? super T, U> fn);
+    
     /**
      * Returns a new CompletionStage that, when either this or the
      * other given stage complete normally, is executed using the
@@ -502,18 +531,19 @@ public interface CompletionStage<T> {
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param other the other CompletionStage
-     * @param fn the function to use to compute the value of the
-     * returned CompletionStage
+     * @param other    the other CompletionStage
+     * @param fn       the function to use to compute the value of the
+     *                 returned CompletionStage
      * @param executor the executor to use for asynchronous execution
-     * @param <U> the function's return type
+     * @param <U>      the function's return type
+     *
      * @return the new CompletionStage
      */
-    public <U> CompletionStage<U> applyToEitherAsync
-        (CompletionStage<? extends T> other,
-         Function<? super T, U> fn,
-         Executor executor);
-
+    // 使用指定的【任务执行器】执行OrApply型任务
+    <U> CompletionStage<U> applyToEitherAsync(CompletionStage<? extends T> other, Function<? super T, U> fn, Executor executor);
+    
+    
+    
     /**
      * Returns a new CompletionStage that, when either this or the
      * other given stage complete normally, is executed with the
@@ -522,15 +552,15 @@ public interface CompletionStage<T> {
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param other the other CompletionStage
+     * @param other  the other CompletionStage
      * @param action the action to perform before completing the
-     * returned CompletionStage
+     *               returned CompletionStage
+     *
      * @return the new CompletionStage
      */
-    public CompletionStage<Void> acceptEither
-        (CompletionStage<? extends T> other,
-         Consumer<? super T> action);
-
+    // 同步执行OrAccept型任务
+    CompletionStage<Void> acceptEither(CompletionStage<? extends T> other, Consumer<? super T> action);
+    
     /**
      * Returns a new CompletionStage that, when either this or the
      * other given stage complete normally, is executed using this
@@ -540,15 +570,15 @@ public interface CompletionStage<T> {
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param other the other CompletionStage
+     * @param other  the other CompletionStage
      * @param action the action to perform before completing the
-     * returned CompletionStage
+     *               returned CompletionStage
+     *
      * @return the new CompletionStage
      */
-    public CompletionStage<Void> acceptEitherAsync
-        (CompletionStage<? extends T> other,
-         Consumer<? super T> action);
-
+    // 使用【默认工作池】执行OrAccept型任务
+    CompletionStage<Void> acceptEitherAsync(CompletionStage<? extends T> other, Consumer<? super T> action);
+    
     /**
      * Returns a new CompletionStage that, when either this or the
      * other given stage complete normally, is executed using the
@@ -558,17 +588,18 @@ public interface CompletionStage<T> {
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param other the other CompletionStage
-     * @param action the action to perform before completing the
-     * returned CompletionStage
+     * @param other    the other CompletionStage
+     * @param action   the action to perform before completing the
+     *                 returned CompletionStage
      * @param executor the executor to use for asynchronous execution
+     *
      * @return the new CompletionStage
      */
-    public CompletionStage<Void> acceptEitherAsync
-        (CompletionStage<? extends T> other,
-         Consumer<? super T> action,
-         Executor executor);
-
+    // 使用指定的【任务执行器】执行OrAccept型任务
+    CompletionStage<Void> acceptEitherAsync(CompletionStage<? extends T> other, Consumer<? super T> action, Executor executor);
+    
+    
+    
     /**
      * Returns a new CompletionStage that, when either this or the
      * other given stage complete normally, executes the given action.
@@ -576,14 +607,15 @@ public interface CompletionStage<T> {
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param other the other CompletionStage
+     * @param other  the other CompletionStage
      * @param action the action to perform before completing the
-     * returned CompletionStage
+     *               returned CompletionStage
+     *
      * @return the new CompletionStage
      */
-    public CompletionStage<Void> runAfterEither(CompletionStage<?> other,
-                                                Runnable action);
-
+    // 同步执行OrRun型任务
+    CompletionStage<Void> runAfterEither(CompletionStage<?> other, Runnable action);
+    
     /**
      * Returns a new CompletionStage that, when either this or the
      * other given stage complete normally, executes the given action
@@ -592,15 +624,15 @@ public interface CompletionStage<T> {
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param other the other CompletionStage
+     * @param other  the other CompletionStage
      * @param action the action to perform before completing the
-     * returned CompletionStage
+     *               returned CompletionStage
+     *
      * @return the new CompletionStage
      */
-    public CompletionStage<Void> runAfterEitherAsync
-        (CompletionStage<?> other,
-         Runnable action);
-
+    // 使用【默认工作池】执行OrRun型任务
+    CompletionStage<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action);
+    
     /**
      * Returns a new CompletionStage that, when either this or the
      * other given stage complete normally, executes the given action
@@ -609,17 +641,18 @@ public interface CompletionStage<T> {
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param other the other CompletionStage
-     * @param action the action to perform before completing the
-     * returned CompletionStage
+     * @param other    the other CompletionStage
+     * @param action   the action to perform before completing the
+     *                 returned CompletionStage
      * @param executor the executor to use for asynchronous execution
+     *
      * @return the new CompletionStage
      */
-    public CompletionStage<Void> runAfterEitherAsync
-        (CompletionStage<?> other,
-         Runnable action,
-         Executor executor);
-
+    // 使用指定的【任务执行器】执行OrRun型任务
+    CompletionStage<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action, Executor executor);
+    
+    
+    
     /**
      * Returns a new CompletionStage that is completed with the same
      * value as the CompletionStage returned by the given function.
@@ -640,13 +673,14 @@ public interface CompletionStage<T> {
      * <p>See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param fn the function to use to compute another CompletionStage
+     * @param fn  the function to use to compute another CompletionStage
      * @param <U> the type of the returned CompletionStage's result
+     *
      * @return the new CompletionStage
      */
-    public <U> CompletionStage<U> thenCompose
-        (Function<? super T, ? extends CompletionStage<U>> fn);
-
+    // 同步执行UniCompose型任务
+    <U> CompletionStage<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn);
+    
     /**
      * Returns a new CompletionStage that is completed with the same
      * value as the CompletionStage returned by the given function,
@@ -665,13 +699,14 @@ public interface CompletionStage<T> {
      * <p>See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param fn the function to use to compute another CompletionStage
+     * @param fn  the function to use to compute another CompletionStage
      * @param <U> the type of the returned CompletionStage's result
+     *
      * @return the new CompletionStage
      */
-    public <U> CompletionStage<U> thenComposeAsync
-        (Function<? super T, ? extends CompletionStage<U>> fn);
-
+    // 使用【默认工作池】执行UniCompose型任务
+    <U> CompletionStage<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn);
+    
     /**
      * Returns a new CompletionStage that is completed with the same
      * value as the CompletionStage returned by the given function,
@@ -689,15 +724,17 @@ public interface CompletionStage<T> {
      * <p>See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
      *
-     * @param fn the function to use to compute another CompletionStage
+     * @param fn       the function to use to compute another CompletionStage
      * @param executor the executor to use for asynchronous execution
-     * @param <U> the type of the returned CompletionStage's result
+     * @param <U>      the type of the returned CompletionStage's result
+     *
      * @return the new CompletionStage
      */
-    public <U> CompletionStage<U> thenComposeAsync
-        (Function<? super T, ? extends CompletionStage<U>> fn,
-         Executor executor);
-
+    // 使用指定的【任务执行器】执行UniCompose型任务
+    <U> CompletionStage<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, Executor executor);
+    
+    
+    
     /**
      * Returns a new CompletionStage that, when this stage completes
      * either normally or exceptionally, is executed with this stage's
@@ -708,14 +745,15 @@ public interface CompletionStage<T> {
      * {@code null} if none) of this stage as arguments, and the
      * function's result is used to complete the returned stage.
      *
-     * @param fn the function to use to compute the value of the
-     * returned CompletionStage
+     * @param fn  the function to use to compute the value of the
+     *            returned CompletionStage
      * @param <U> the function's return type
+     *
      * @return the new CompletionStage
      */
-    public <U> CompletionStage<U> handle
-        (BiFunction<? super T, Throwable, ? extends U> fn);
-
+    // 同步执行UniHandle型任务
+    <U> CompletionStage<U> handle(BiFunction<? super T, Throwable, ? extends U> fn);
+    
     /**
      * Returns a new CompletionStage that, when this stage completes
      * either normally or exceptionally, is executed using this stage's
@@ -727,14 +765,15 @@ public interface CompletionStage<T> {
      * {@code null} if none) of this stage as arguments, and the
      * function's result is used to complete the returned stage.
      *
-     * @param fn the function to use to compute the value of the
-     * returned CompletionStage
+     * @param fn  the function to use to compute the value of the
+     *            returned CompletionStage
      * @param <U> the function's return type
+     *
      * @return the new CompletionStage
      */
-    public <U> CompletionStage<U> handleAsync
-        (BiFunction<? super T, Throwable, ? extends U> fn);
-
+    // 使用【默认工作池】执行UniHandle型任务
+    <U> CompletionStage<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn);
+    
     /**
      * Returns a new CompletionStage that, when this stage completes
      * either normally or exceptionally, is executed using the
@@ -746,16 +785,18 @@ public interface CompletionStage<T> {
      * {@code null} if none) of this stage as arguments, and the
      * function's result is used to complete the returned stage.
      *
-     * @param fn the function to use to compute the value of the
-     * returned CompletionStage
+     * @param fn       the function to use to compute the value of the
+     *                 returned CompletionStage
      * @param executor the executor to use for asynchronous execution
-     * @param <U> the function's return type
+     * @param <U>      the function's return type
+     *
      * @return the new CompletionStage
      */
-    public <U> CompletionStage<U> handleAsync
-        (BiFunction<? super T, Throwable, ? extends U> fn,
-         Executor executor);
-
+    // 使用指定的【任务执行器】执行UniHandle型任务
+    <U> CompletionStage<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor);
+    
+    
+    
     /**
      * Returns a new CompletionStage with the same result or exception as
      * this stage, that executes the given action when this stage completes.
@@ -776,11 +817,12 @@ public interface CompletionStage<T> {
      * stage completes exceptionally with this stage's exception.
      *
      * @param action the action to perform
+     *
      * @return the new CompletionStage
      */
-    public CompletionStage<T> whenComplete
-        (BiConsumer<? super T, ? super Throwable> action);
-
+    // 同步执行UniWhenComplete型任务
+    CompletionStage<T> whenComplete(BiConsumer<? super T, ? super Throwable> action);
+    
     /**
      * Returns a new CompletionStage with the same result or exception as
      * this stage, that executes the given action using this stage's
@@ -802,11 +844,12 @@ public interface CompletionStage<T> {
      * stage completes exceptionally with this stage's exception.
      *
      * @param action the action to perform
+     *
      * @return the new CompletionStage
      */
-    public CompletionStage<T> whenCompleteAsync
-        (BiConsumer<? super T, ? super Throwable> action);
-
+    // 使用【默认工作池】执行UniWhenComplete型任务
+    CompletionStage<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action);
+    
     /**
      * Returns a new CompletionStage with the same result or exception as
      * this stage, that executes the given action using the supplied
@@ -817,7 +860,7 @@ public interface CompletionStage<T> {
      * if none) of this stage as arguments.  The returned stage is completed
      * when the action returns.
      *
-     * <p>Unlike method {@link #handleAsync(BiFunction,Executor) handleAsync},
+     * <p>Unlike method {@link #handleAsync(BiFunction, Executor) handleAsync},
      * this method is not designed to translate completion outcomes,
      * so the supplied action should not throw an exception. However,
      * if it does, the following rules apply: If this stage completed
@@ -827,14 +870,16 @@ public interface CompletionStage<T> {
      * and the supplied action throws an exception, then the returned
      * stage completes exceptionally with this stage's exception.
      *
-     * @param action the action to perform
+     * @param action   the action to perform
      * @param executor the executor to use for asynchronous execution
+     *
      * @return the new CompletionStage
      */
-    public CompletionStage<T> whenCompleteAsync
-        (BiConsumer<? super T, ? super Throwable> action,
-         Executor executor);
-
+    // 使用指定的【任务执行器】执行UniWhenComplete型任务
+    CompletionStage<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, Executor executor);
+    
+    
+    
     /**
      * Returns a new CompletionStage that, when this stage completes
      * exceptionally, is executed with this stage's exception as the
@@ -843,13 +888,13 @@ public interface CompletionStage<T> {
      * normally with the same value.
      *
      * @param fn the function to use to compute the value of the
-     * returned CompletionStage if this CompletionStage completed
-     * exceptionally
+     *           returned CompletionStage if this CompletionStage completed
+     *           exceptionally
+     *
      * @return the new CompletionStage
      */
-    public CompletionStage<T> exceptionally
-        (Function<Throwable, ? extends T> fn);
-
+    CompletionStage<T> exceptionally(Function<Throwable, ? extends T> fn);
+    
     /**
      * Returns a {@link CompletableFuture} maintaining the same
      * completion properties as this stage. If this stage is already a
@@ -860,6 +905,5 @@ public interface CompletionStage<T> {
      *
      * @return the CompletableFuture
      */
-    public CompletableFuture<T> toCompletableFuture();
-
+    CompletableFuture<T> toCompletableFuture();
 }

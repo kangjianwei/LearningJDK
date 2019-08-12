@@ -20,9 +20,10 @@
  * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
  * or visit www.oracle.com if you need additional information or have any
  * questions.
- */
-
-/*
+ *
+ *
+ *
+ *
  * This file is available under and governed by the GNU General Public
  * License version 2 only, as published by the Free Software Foundation.
  * However, the following notice accompanied the original version of this
@@ -32,7 +33,6 @@
  * Expert Group and released to the public domain, as explained at
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
-
 package java.util.concurrent;
 
 import java.lang.invoke.MethodHandles;
@@ -420,30 +420,56 @@ import java.lang.invoke.VarHandle;
  * new HeaderBuilder(p, ...).fork();
  * new BodyBuilder(p, ...).fork();}</pre>
  *
- * @since 1.8
  * @author Doug Lea
+ * @since 1.8
  */
-public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
+/*
+ * 代表一类可被挂起的任务（需要等待其他任务）
+ *
+ *       ①
+ *   ②      ③
+ * ④  ⑤  ⑥  ⑦
+ *
+ * 如图，一个大任务可以拆分很多小任务，然后归并
+ * 对于子节点来说，当它执行完成后，会将父节点的挂起次数减一
+ * 如果父节点的挂起次数减为0，则将父节点标记为完成
+ * （可以认为挂起次数为0时，该结点可直接完成）
+ * 上述过程会递归进行，向上传播
+ */
+public abstract class CountedCompleter<V> extends ForkJoinTask<V> {
     private static final long serialVersionUID = 5232453752276485070L;
-
+    
     /** This task's completer, or null if none */
-    final CountedCompleter<?> completer;
+    final CountedCompleter<?> completer;    // 父任务
+    
     /** The number of pending tasks until completion */
-    volatile int pending;
-
-    /**
-     * Creates a new CountedCompleter with the given completer
-     * and initial pending count.
-     *
-     * @param completer this task's completer, or {@code null} if none
-     * @param initialPendingCount the initial pending count
-     */
-    protected CountedCompleter(CountedCompleter<?> completer,
-                               int initialPendingCount) {
-        this.completer = completer;
-        this.pending = initialPendingCount;
+    volatile int pending;   // 当前任务被挂起的次数
+    
+    
+    
+    // VarHandle mechanics
+    private static final VarHandle PENDING;
+    static {
+        try {
+            MethodHandles.Lookup l = MethodHandles.lookup();
+            PENDING = l.findVarHandle(CountedCompleter.class, "pending", int.class);
+        } catch(ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
     }
-
+    
+    
+    
+    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Creates a new CountedCompleter with no completer
+     * and an initial pending count of zero.
+     */
+    protected CountedCompleter() {
+        this.completer = null;
+    }
+    
     /**
      * Creates a new CountedCompleter with the given completer
      * and an initial pending count of zero.
@@ -453,204 +479,250 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
     protected CountedCompleter(CountedCompleter<?> completer) {
         this.completer = completer;
     }
-
+    
     /**
-     * Creates a new CountedCompleter with no completer
-     * and an initial pending count of zero.
+     * Creates a new CountedCompleter with the given completer
+     * and initial pending count.
+     *
+     * @param completer           this task's completer, or {@code null} if none
+     * @param initialPendingCount the initial pending count
      */
-    protected CountedCompleter() {
-        this.completer = null;
+    protected CountedCompleter(CountedCompleter<?> completer, int initialPendingCount) {
+        this.completer = completer;
+        this.pending = initialPendingCount;
     }
-
+    
+    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 任务结果 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the result of the computation.  By default,
+     * returns {@code null}, which is appropriate for {@code Void}
+     * actions, but in other cases should be overridden, almost
+     * always to return a field or function of a field that
+     * holds the result upon completion.
+     *
+     * @return the result of the computation
+     */
+    // 返回当前任务的执行结果，具体逻辑由子类实现
+    public V getRawResult() {
+        return null;
+    }
+    
+    /**
+     * A method that result-bearing CountedCompleters may optionally
+     * use to help maintain result data.  By default, does nothing.
+     * Overrides are not recommended. However, if this method is
+     * overridden to update existing objects or fields, then it must
+     * in general be defined to be thread-safe.
+     */
+    // 设置指定的值作为当前任务的执行结果，设置期间可以对其进一步操作，具体逻辑由子类实现
+    protected void setRawResult(V t) {
+    }
+    
+    /*▲ 任务结果 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 任务 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * The main computation performed by this task.
      */
+    // 该任务执行的主要计算
     public abstract void compute();
-
+    
     /**
-     * Performs an action when method {@link #tryComplete} is invoked
-     * and the pending count is zero, or when the unconditional
-     * method {@link #complete} is invoked.  By default, this method
-     * does nothing. You can distinguish cases by checking the
-     * identity of the given caller argument. If not equal to {@code
-     * this}, then it is typically a subtask that may contain results
-     * (and/or links to other results) to combine.
-     *
-     * @param caller the task invoking this method (which may
-     * be this task itself)
+     * Implements execution conventions for CountedCompleters.
      */
+    /*
+     * 执行任务
+     * 该方法总是返回false，简单地说是因为：
+     * 在这类任务中，单个子任务完成无意义，而父任务完成需要依赖子任务
+     */
+    protected final boolean exec() {
+        compute();
+        return false;
+    }
+    
+    /**
+     * Performs an action when method {@link #tryComplete} is invoked and the pending count is zero,
+     * or when the unconditional method {@link #complete} is invoked.
+     * By default, this method does nothing.
+     * You can distinguish cases by checking the identity of the given caller argument.
+     * If not equal to {@code this}, then it is typically a subtask that may contain results (and/or links to other results) to combine.
+     *
+     * @param caller the task invoking this method (which may be this task itself)
+     */
+    // 在complete()或tryComplete()中被回调
     public void onCompletion(CountedCompleter<?> caller) {
     }
-
-    /**
-     * Performs an action when method {@link
-     * #completeExceptionally(Throwable)} is invoked or method {@link
-     * #compute} throws an exception, and this task has not already
-     * otherwise completed normally. On entry to this method, this task
-     * {@link ForkJoinTask#isCompletedAbnormally}.  The return value
-     * of this method controls further propagation: If {@code true}
-     * and this task has a completer that has not completed, then that
-     * completer is also completed exceptionally, with the same
-     * exception as this completer.  The default implementation of
-     * this method does nothing except return {@code true}.
-     *
-     * @param ex the exception
-     * @param caller the task invoking this method (which may
-     * be this task itself)
-     * @return {@code true} if this exception should be propagated to this
-     * task's completer, if one exists
-     */
-    public boolean onExceptionalCompletion(Throwable ex, CountedCompleter<?> caller) {
-        return true;
-    }
-
-    /**
-     * Returns the completer established in this task's constructor,
-     * or {@code null} if none.
-     *
-     * @return the completer
-     */
-    public final CountedCompleter<?> getCompleter() {
-        return completer;
-    }
-
-    /**
-     * Returns the current pending count.
-     *
-     * @return the current pending count
-     */
-    public final int getPendingCount() {
-        return pending;
-    }
-
-    /**
-     * Sets the pending count to the given value.
-     *
-     * @param count the count
-     */
-    public final void setPendingCount(int count) {
-        pending = count;
-    }
-
-    /**
-     * Adds (atomically) the given value to the pending count.
-     *
-     * @param delta the value to add
-     */
-    public final void addToPendingCount(int delta) {
-        PENDING.getAndAdd(this, delta);
-    }
-
-    /**
-     * Sets (atomically) the pending count to the given count only if
-     * it currently holds the given expected value.
-     *
-     * @param expected the expected value
-     * @param count the new value
-     * @return {@code true} if successful
-     */
-    public final boolean compareAndSetPendingCount(int expected, int count) {
-        return PENDING.compareAndSet(this, expected, count);
-    }
-
-    /**
-     * If the pending count is nonzero, (atomically) decrements it.
-     *
-     * @return the initial (undecremented) pending count holding on entry
-     * to this method
-     */
-    public final int decrementPendingCountUnlessZero() {
-        int c;
-        do {} while ((c = pending) != 0 &&
-                     !PENDING.weakCompareAndSet(this, c, c - 1));
-        return c;
-    }
-
-    /**
-     * Returns the root of the current computation; i.e., this
-     * task if it has no completer, else its completer's root.
-     *
-     * @return the root of the current computation
-     */
-    public final CountedCompleter<?> getRoot() {
-        CountedCompleter<?> a = this, p;
-        while ((p = a.completer) != null)
-            a = p;
-        return a;
-    }
-
+    
     /**
      * If the pending count is nonzero, decrements the count;
      * otherwise invokes {@link #onCompletion(CountedCompleter)}
      * and then similarly tries to complete this task's completer,
      * if one exists, else marks this task as complete.
      */
+    // 尝试完成当前任务，并将父任务挂起次数减一或将父任务标记为完成，执行过程中可能会触发onCompletion()
     public final void tryComplete() {
-        CountedCompleter<?> a = this, s = a;
-        for (int c;;) {
-            if ((c = a.pending) == 0) {
-                a.onCompletion(s);
-                if ((a = (s = a).completer) == null) {
-                    s.quietlyComplete();
+        CountedCompleter<?> parent, child;
+        
+        parent = child = this;
+        
+        for(; ; ) {
+            int count = parent.pending;
+            
+            if(count == 0) {
+                parent.onCompletion(child);
+                
+                child = parent;
+                parent = parent.completer;
+                
+                if(parent == null) {
+                    // 静默完成，即将当前任务标记为[已完成]状态（不会改变当前任务挂起的次数）
+                    child.quietlyComplete();
+                    return;
+                }
+            } else {
+                // 将父任务挂起次数减一
+                if(PENDING.weakCompareAndSet(parent, count, count - 1)) {
                     return;
                 }
             }
-            else if (PENDING.weakCompareAndSet(a, c, c - 1))
-                return;
         }
     }
-
+    
     /**
-     * Equivalent to {@link #tryComplete} but does not invoke {@link
-     * #onCompletion(CountedCompleter)} along the completion path:
-     * If the pending count is nonzero, decrements the count;
-     * otherwise, similarly tries to complete this task's completer, if
-     * one exists, else marks this task as complete. This method may be
-     * useful in cases where {@code onCompletion} should not, or need
-     * not, be invoked for each completer in a computation.
-     */
-    public final void propagateCompletion() {
-        CountedCompleter<?> a = this, s;
-        for (int c;;) {
-            if ((c = a.pending) == 0) {
-                if ((a = (s = a).completer) == null) {
-                    s.quietlyComplete();
-                    return;
-                }
-            }
-            else if (PENDING.weakCompareAndSet(a, c, c - 1))
-                return;
-        }
-    }
-
-    /**
-     * Regardless of pending count, invokes
-     * {@link #onCompletion(CountedCompleter)}, marks this task as
-     * complete and further triggers {@link #tryComplete} on this
-     * task's completer, if one exists.  The given rawResult is
-     * used as an argument to {@link #setRawResult} before invoking
-     * {@link #onCompletion(CountedCompleter)} or marking this task
-     * as complete; its value is meaningful only for classes
-     * overriding {@code setRawResult}.  This method does not modify
-     * the pending count.
+     * Regardless of pending count, invokes {@link #onCompletion(CountedCompleter)},
+     * marks this task as complete and further triggers {@link #tryComplete} on this task's completer, if one exists.
+     * The given rawResult is used as an argument to {@link #setRawResult} before invoking {@link #onCompletion(CountedCompleter)}
+     * or marking this task as complete; its value is meaningful only for classes overriding {@code setRawResult}.
+     * This method does not modify the pending count.
      *
-     * <p>This method may be useful when forcing completion as soon as
-     * any one (versus all) of several subtask results are obtained.
-     * However, in the common (and recommended) case in which {@code
-     * setRawResult} is not overridden, this effect can be obtained
-     * more simply using {@link #quietlyCompleteRoot()}.
+     * This method may be useful when forcing completion as soon as any one (versus all) of several subtask results are obtained.
+     * However, in the common (and recommended) case in which {@code setRawResult} is not overridden,
+     * this effect can be obtained more simply using {@link #quietlyCompleteRoot()}.
      *
      * @param rawResult the raw result
      */
-    public void complete(T rawResult) {
-        CountedCompleter<?> p;
+    // 将当前任务强制标记为完成，不会影响挂起的次数
+    public void complete(V rawResult) {
         setRawResult(rawResult);
+        
         onCompletion(this);
+        
+        // 静默完成，即将当前任务标记为[已完成]状态（不会改变当前任务挂起的次数）
         quietlyComplete();
-        if ((p = completer) != null)
-            p.tryComplete();
+        
+        if(completer != null) {
+            completer.tryComplete();
+        }
     }
-
+    
+    /**
+     * Equivalent to {@code getRoot().quietlyComplete()}.
+     */
+    // 获取根任务，并使其静默完成，等价于getRoot().quietlyComplete()
+    public final void quietlyCompleteRoot() {
+        for(CountedCompleter<?> a = this, p; ; ) {
+            if((p = a.completer) == null) {
+                // 静默完成，即将当前任务标记为[已完成]状态（不会改变当前任务挂起的次数）
+                a.quietlyComplete();
+                return;
+            }
+            a = p;
+        }
+    }
+    
+    /**
+     * Equivalent to {@link #tryComplete} but does not invoke {@link #onCompletion(CountedCompleter)} along the completion path:
+     * If the pending count is nonzero, decrements the count;
+     * otherwise, similarly tries to complete this task's completer, if one exists, else marks this task as complete.
+     * This method may be useful in cases where {@code onCompletion} should not,
+     * or need not, be invoked for each completer in a computation.
+     */
+    // 尝试完成当前任务，并将父任务挂起次数减一或将父任务标记为完成
+    public final void propagateCompletion() {
+        CountedCompleter<?> parent = this, child;
+        
+        for(; ; ) {
+            int count = parent.pending;
+            
+            if(count == 0) {
+                child = parent;
+                parent = parent.completer;
+                
+                if(parent == null) {
+                    // 静默完成，即将当前任务标记为[已完成]状态（不会改变当前任务挂起的次数）
+                    child.quietlyComplete();
+                    return;
+                }
+            } else if(PENDING.weakCompareAndSet(parent, count, count - 1)) {
+                return;
+            }
+        }
+    }
+    
+    /**
+     * If this task has not completed, attempts to process at most the
+     * given number of other unprocessed tasks for which this task is
+     * on the completion path, if any are known to exist.
+     *
+     * @param maxTasks the maximum number of tasks to process.  If
+     *                 less than or equal to zero, then no tasks are
+     *                 processed.
+     */
+    // 尝试加速task的完成，并在最终返回任务的状态
+    public final void helpComplete(int maxTasks) {
+        Thread t;
+        if(maxTasks>0 && status >= 0) {
+            if((t = Thread.currentThread()) instanceof ForkJoinWorkerThread) {
+                ForkJoinWorkerThread wt = (ForkJoinWorkerThread) t;
+                // 【工人线程】尝试加速task的完成，并在最终返回任务的状态
+                wt.pool.helpComplete(wt.workQueue, this, maxTasks);
+            } else {
+                // 【外部线程】尝试加速task的完成，并在最终返回任务的状态
+                ForkJoinPool.common.externalHelpComplete(this, maxTasks);
+            }
+        }
+    }
+    
+    /*▲ 任务 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 属性 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the completer established in this task's constructor,  or {@code null} if none.
+     *
+     * @return the completer
+     */
+    // 获取父任务
+    public final CountedCompleter<?> getCompleter() {
+        return completer;
+    }
+    
+    /**
+     * Returns the root of the current computation; i.e., this task if it has no completer, else its completer's root.
+     *
+     * @return the root of the current computation
+     */
+    // 获取根任务
+    public final CountedCompleter<?> getRoot() {
+        CountedCompleter<?> a = this, p;
+        
+        while((p = a.completer) != null) {
+            a = p;
+        }
+        
+        return a;
+    }
+    
     /**
      * If this task's pending count is zero, returns this task;
      * otherwise decrements its pending count and returns {@code null}.
@@ -659,15 +731,22 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
      *
      * @return this task, if pending count was zero, else {@code null}
      */
+    /*
+     * 1 如果当前任务未挂起，则返回当前任务
+     * 2 如果当前任务已挂起，则将挂起次数减一后返回null
+     */
     public final CountedCompleter<?> firstComplete() {
-        for (int c;;) {
-            if ((c = pending) == 0)
+        for( ; ; ) {
+            int c = pending;
+            
+            if(c == 0) {
                 return this;
-            else if (PENDING.weakCompareAndSet(this, c, c - 1))
+            } else if(PENDING.weakCompareAndSet(this, c, c - 1)) {
                 return null;
+            }
         }
     }
-
+    
     /**
      * If this task does not have a completer, invokes {@link
      * ForkJoinTask#quietlyComplete} and returns {@code null}.  Or, if
@@ -685,97 +764,128 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
      *
      * @return the completer, or {@code null} if none
      */
+    /*
+     * 1 如果当前任务没有父任务，则使其静默完成并返回null
+     * 2 如果当前任务存在父任务:
+     *   2.1 如果父任务未挂起，则返回父任务
+     *   2.2 如果父任务已挂起，则将父任务挂起次数减一后返回null
+     */
     public final CountedCompleter<?> nextComplete() {
-        CountedCompleter<?> p;
-        if ((p = completer) != null)
-            return p.firstComplete();
-        else {
+        if(completer != null) {
+            return completer.firstComplete();
+        } else {
+            // 静默完成，即将当前任务标记为[已完成]状态（不会改变当前任务挂起的次数）
             quietlyComplete();
             return null;
         }
     }
-
+    
     /**
-     * Equivalent to {@code getRoot().quietlyComplete()}.
-     */
-    public final void quietlyCompleteRoot() {
-        for (CountedCompleter<?> a = this, p;;) {
-            if ((p = a.completer) == null) {
-                a.quietlyComplete();
-                return;
-            }
-            a = p;
-        }
-    }
-
-    /**
-     * If this task has not completed, attempts to process at most the
-     * given number of other unprocessed tasks for which this task is
-     * on the completion path, if any are known to exist.
+     * Returns the current pending count.
      *
-     * @param maxTasks the maximum number of tasks to process.  If
-     *                 less than or equal to zero, then no tasks are
-     *                 processed.
+     * @return the current pending count
      */
-    public final void helpComplete(int maxTasks) {
-        Thread t; ForkJoinWorkerThread wt;
-        if (maxTasks > 0 && status >= 0) {
-            if ((t = Thread.currentThread()) instanceof ForkJoinWorkerThread)
-                (wt = (ForkJoinWorkerThread)t).pool.
-                    helpComplete(wt.workQueue, this, maxTasks);
-            else
-                ForkJoinPool.common.externalHelpComplete(this, maxTasks);
-        }
+    // 获取当前任务的挂起次数
+    public final int getPendingCount() {
+        return pending;
     }
-
+    
+    /**
+     * Sets the pending count to the given value.
+     *
+     * @param count the count
+     */
+    // 设置当前任务的挂起次数
+    public final void setPendingCount(int count) {
+        pending = count;
+    }
+    
+    /**
+     * Adds (atomically) the given value to the pending count.
+     *
+     * @param delta the value to add
+     */
+    // 原子地增加任务的挂起次数（+delta）
+    public final void addToPendingCount(int delta) {
+        PENDING.getAndAdd(this, delta);
+    }
+    
+    /**
+     * Sets (atomically) the pending count to the given count only if
+     * it currently holds the given expected value.
+     *
+     * @param expected the expected value
+     * @param count    the new value
+     *
+     * @return {@code true} if successful
+     */
+    // 原子地更新任务的挂起次数(更新为count)
+    public final boolean compareAndSetPendingCount(int expected, int count) {
+        return PENDING.compareAndSet(this, expected, count);
+    }
+    
+    /**
+     * If the pending count is nonzero, (atomically) decrements it.
+     *
+     * @return the initial (undecremented) pending count holding on entry
+     * to this method
+     */
+    // 原子地减少任务的挂起次数(-1)
+    public final int decrementPendingCountUnlessZero() {
+        int c;
+        
+        while((c = pending) != 0 && !PENDING.weakCompareAndSet(this, c, c - 1))
+            ;
+        
+        return c;
+    }
+    
+    /*▲ 属性 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 异常 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Performs an action when method {@link
+     * #completeExceptionally(Throwable)} is invoked or method {@link
+     * #compute} throws an exception, and this task has not already
+     * otherwise completed normally. On entry to this method, this task
+     * {@link ForkJoinTask#isCompletedAbnormally}.  The return value
+     * of this method controls further propagation: If {@code true}
+     * and this task has a completer that has not completed, then that
+     * completer is also completed exceptionally, with the same
+     * exception as this completer.  The default implementation of
+     * this method does nothing except return {@code true}.
+     *
+     * @param ex     the exception
+     * @param caller the task invoking this method (which may
+     *               be this task itself)
+     *
+     * @return {@code true} if this exception should be propagated to this
+     * task's completer, if one exists
+     */
+    public boolean onExceptionalCompletion(Throwable ex, CountedCompleter<?> caller) {
+        return true;
+    }
+    
     /**
      * Supports ForkJoinTask exception propagation.
      */
     void internalPropagateException(Throwable ex) {
         CountedCompleter<?> a = this, s = a;
-        while (a.onExceptionalCompletion(ex, s) &&
-               (a = (s = a).completer) != null && a.status >= 0 &&
-               isExceptionalStatus(a.recordExceptionalCompletion(ex)))
-            ;
-    }
-
-    /**
-     * Implements execution conventions for CountedCompleters.
-     */
-    protected final boolean exec() {
-        compute();
-        return false;
-    }
-
-    /**
-     * Returns the result of the computation.  By default,
-     * returns {@code null}, which is appropriate for {@code Void}
-     * actions, but in other cases should be overridden, almost
-     * always to return a field or function of a field that
-     * holds the result upon completion.
-     *
-     * @return the result of the computation
-     */
-    public T getRawResult() { return null; }
-
-    /**
-     * A method that result-bearing CountedCompleters may optionally
-     * use to help maintain result data.  By default, does nothing.
-     * Overrides are not recommended. However, if this method is
-     * overridden to update existing objects or fields, then it must
-     * in general be defined to be thread-safe.
-     */
-    protected void setRawResult(T t) { }
-
-    // VarHandle mechanics
-    private static final VarHandle PENDING;
-    static {
-        try {
-            MethodHandles.Lookup l = MethodHandles.lookup();
-            PENDING = l.findVarHandle(CountedCompleter.class, "pending", int.class);
-
-        } catch (ReflectiveOperationException e) {
-            throw new ExceptionInInitializerError(e);
+        while(a.onExceptionalCompletion(ex, s)  && a.status >= 0){
+            s = a;
+            a = s.completer;
+            if(a!=null && a.status>=0){
+                int i = a.recordExceptionalCompletion(ex);
+                if(isExceptionalStatus(i)){
+                    // ...
+                }
+            }
         }
     }
+    
+    /*▲ 异常 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }

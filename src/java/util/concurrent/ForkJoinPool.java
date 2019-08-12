@@ -38,8 +38,8 @@ package java.util.concurrent;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
-import java.security.AccessController;
 import java.security.AccessControlContext;
+import java.security.AccessController;
 import java.security.Permission;
 import java.security.Permissions;
 import java.security.PrivilegedAction;
@@ -48,8 +48,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Predicate;
+import java.util.concurrent.ForkJoinTask.AdaptedRunnable;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.Predicate;
 
 /**
  * An {@link ExecutorService} for running {@link ForkJoinTask}s.
@@ -175,8 +176,16 @@ import java.util.concurrent.locks.LockSupport;
  * @since 1.7
  * @author Doug Lea
  */
+/*
+ * 工作池/任务池，负责并发任务的调度，以高效完成任务
+ *
+ * 【独立工作池】：由用户构造的ForkJoinPool
+ * 【共享工作池】：ForkJoinPool类内置的一个字段：common
+ *
+ * 推荐直接使用【共享工作池】
+ */
 public class ForkJoinPool extends AbstractExecutorService {
-
+    
     /*
      * Implementation Overview
      *
@@ -654,1480 +663,276 @@ public class ForkJoinPool extends AbstractExecutorService {
      * (7) Exported methods
      * (8) Static block initializing statics in minimally dependent order
      */
-
-    // Static utilities
-
-    /**
-     * If there is a security manager, makes sure caller has
-     * permission to modify threads.
-     */
-    private static void checkPermission() {
-        SecurityManager security = System.getSecurityManager();
-        if (security != null)
-            security.checkPermission(modifyThreadPermission);
-    }
-
-    // Nested classes
-
-    /**
-     * Factory for creating new {@link ForkJoinWorkerThread}s.
-     * A {@code ForkJoinWorkerThreadFactory} must be defined and used
-     * for {@code ForkJoinWorkerThread} subclasses that extend base
-     * functionality or initialize threads with different contexts.
-     */
-    public static interface ForkJoinWorkerThreadFactory {
-        /**
-         * Returns a new worker thread operating in the given pool.
-         * Returning null or throwing an exception may result in tasks
-         * never being executed.  If this method throws an exception,
-         * it is relayed to the caller of the method (for example
-         * {@code execute}) causing attempted thread creation. If this
-         * method returns null or throws an exception, it is not
-         * retried until the next attempted creation (for example
-         * another call to {@code execute}).
-         *
-         * @param pool the pool this thread works in
-         * @return the new worker thread, or {@code null} if the request
-         *         to create a thread is rejected
-         * @throws NullPointerException if the pool is null
-         */
-        public ForkJoinWorkerThread newThread(ForkJoinPool pool);
-    }
-
-    static AccessControlContext contextWithPermissions(Permission ... perms) {
-        Permissions permissions = new Permissions();
-        for (Permission perm : perms)
-            permissions.add(perm);
-        return new AccessControlContext(
-            new ProtectionDomain[] { new ProtectionDomain(null, permissions) });
-    }
-
-    /**
-     * Default ForkJoinWorkerThreadFactory implementation; creates a
-     * new ForkJoinWorkerThread using the system class loader as the
-     * thread context class loader.
-     */
-    private static final class DefaultForkJoinWorkerThreadFactory
-        implements ForkJoinWorkerThreadFactory {
-        private static final AccessControlContext ACC = contextWithPermissions(
-            new RuntimePermission("getClassLoader"),
-            new RuntimePermission("setContextClassLoader"));
-
-        public final ForkJoinWorkerThread newThread(ForkJoinPool pool) {
-            return AccessController.doPrivileged(
-                new PrivilegedAction<>() {
-                    public ForkJoinWorkerThread run() {
-                        return new ForkJoinWorkerThread(
-                            pool, ClassLoader.getSystemClassLoader()); }},
-                ACC);
-        }
-    }
-
-    // Constants shared across ForkJoinPool and WorkQueue
-
+    
     // Bounds
     static final int SWIDTH       = 16;            // width of short
     static final int SMASK        = 0xffff;        // short bits == max index
     static final int MAX_CAP      = 0x7fff;        // max #workers - 1
-    static final int SQMASK       = 0x007e;        // max 64 (even) slots
-
+    static final int SQMASK       = 0x007e;        // 最多使用64个偶数插槽（最多64个【共享队列】）
+    
     // Masks and units for WorkQueue.phase and ctl sp subfield
-    static final int UNSIGNALLED  = 1 << 31;       // must be negative
-    static final int SS_SEQ       = 1 << 16;       // version count
     static final int QLOCK        = 1;             // must be 1
-
+    static final int SS_SEQ       = 1 << 16;       // version count
+    static final int QUIET        = 1 << 30;       // not scanning or working
+    static final int UNSIGNALLED  = 1 << 31;       // must be negative
+    static final int DORMANT      = QUIET | UNSIGNALLED;
+    
     // Mode bits and sentinels, some also used in WorkQueue id and.source fields
     static final int OWNED        = 1;             // queue has owner thread
+    
+    // 【提交线程】的【共享队列】没有此标记，【工作线程】的【工作队列】是否有此标记取决于构造器的asyncMode参数
     static final int FIFO         = 1 << 16;       // fifo queue or access mode
+    
     static final int SHUTDOWN     = 1 << 18;
     static final int TERMINATED   = 1 << 19;
     static final int STOP         = 1 << 31;       // must be negative
-    static final int QUIET        = 1 << 30;       // not scanning or working
-    static final int DORMANT      = QUIET | UNSIGNALLED;
-
+    
+    /*
+     * 工作池模式
+     * 前16位记录运行状态，后16位记录并行度
+     */
+    volatile int mode;                   // parallelism, runstate, queue mode
+    
+    
     /**
      * Initial capacity of work-stealing queue array.
      * Must be a power of two, at least 2.
      */
     static final int INITIAL_QUEUE_CAPACITY = 1 << 13;
-
+    
     /**
-     * Maximum capacity for queue arrays. Must be a power of two less
-     * than or equal to 1 << (31 - width of array entry) to ensure
-     * lack of wraparound of index calculations, but defined to a
-     * value a bit less than this to help users trap runaway programs
-     * before saturating systems.
+     * Maximum capacity for queue arrays.
+     * Must be a power of two less than or equal to 1 << (31 - width of array entry) to ensure lack of wraparound of index calculations,
+     * but defined to a value a bit less than this to help users trap runaway programs before saturating systems.
      */
     static final int MAXIMUM_QUEUE_CAPACITY = 1 << 26; // 64M
-
+    
     /**
-     * The maximum number of top-level polls per worker before
-     * checking other queues, expressed as a bit shift to, in effect,
-     * multiply by pool size, and then use as random value mask, so
-     * average bound is about poolSize*(1<<TOP_BOUND_SHIFT).  See
-     * above for rationale.
+     * The maximum number of top-level polls per worker before checking other queues, expressed as a bit shift to, in effect,
+     * multiply by pool size, and then use as random value mask, so average bound is about poolSize*(1<<TOP_BOUND_SHIFT).
+     * See above for rationale.
      */
     static final int TOP_BOUND_SHIFT = 10;
-
+    
     /**
-     * Queues supporting work-stealing as well as external task
-     * submission. See above for descriptions and algorithms.
+     * Default idle timeout value (in milliseconds) for the thread triggering quiescence to park waiting for new work
      */
-    @jdk.internal.vm.annotation.Contended
-    static final class WorkQueue {
-        volatile int source;       // source queue id, or sentinel
-        int id;                    // pool index, mode, tag
-        int base;                  // index of next slot for poll
-        int top;                   // index of next slot for push
-        volatile int phase;        // versioned, negative: queued, 1: locked
-        int stackPred;             // pool stack (ctl) predecessor link
-        int nsteals;               // number of steals
-        ForkJoinTask<?>[] array;   // the queued tasks; power of 2 size
-        final ForkJoinPool pool;   // the containing pool (may be null)
-        final ForkJoinWorkerThread owner; // owning thread or null if shared
-
-        WorkQueue(ForkJoinPool pool, ForkJoinWorkerThread owner) {
-            this.pool = pool;
-            this.owner = owner;
-            // Place indices in the center of array (that is not yet allocated)
-            base = top = INITIAL_QUEUE_CAPACITY >>> 1;
-        }
-
-        /**
-         * Tries to lock shared queue by CASing phase field.
-         */
-        final boolean tryLockPhase() {
-            return PHASE.compareAndSet(this, 0, 1);
-        }
-
-        final void releasePhaseLock() {
-            PHASE.setRelease(this, 0);
-        }
-
-        /**
-         * Returns an exportable index (used by ForkJoinWorkerThread).
-         */
-        final int getPoolIndex() {
-            return (id & 0xffff) >>> 1; // ignore odd/even tag bit
-        }
-
-        /**
-         * Returns the approximate number of tasks in the queue.
-         */
-        final int queueSize() {
-            int n = (int)BASE.getAcquire(this) - top;
-            return (n >= 0) ? 0 : -n; // ignore transient negative
-        }
-
-        /**
-         * Provides a more accurate estimate of whether this queue has
-         * any tasks than does queueSize, by checking whether a
-         * near-empty queue has at least one unclaimed task.
-         */
-        final boolean isEmpty() {
-            ForkJoinTask<?>[] a; int n, cap, b;
-            VarHandle.acquireFence(); // needed by external callers
-            return ((n = (b = base) - top) >= 0 || // possibly one task
-                    (n == -1 && ((a = array) == null ||
-                                 (cap = a.length) == 0 ||
-                                 a[(cap - 1) & b] == null)));
-        }
-
-        /**
-         * Pushes a task. Call only by owner in unshared queues.
-         *
-         * @param task the task. Caller must ensure non-null.
-         * @throws RejectedExecutionException if array cannot be resized
-         */
-        final void push(ForkJoinTask<?> task) {
-            ForkJoinTask<?>[] a;
-            int s = top, d, cap, m;
-            ForkJoinPool p = pool;
-            if ((a = array) != null && (cap = a.length) > 0) {
-                QA.setRelease(a, (m = cap - 1) & s, task);
-                top = s + 1;
-                if (((d = s - (int)BASE.getAcquire(this)) & ~1) == 0 &&
-                    p != null) {                 // size 0 or 1
-                    VarHandle.fullFence();
-                    p.signalWork();
-                }
-                else if (d == m)
-                    growArray(false);
-            }
-        }
-
-        /**
-         * Version of push for shared queues. Call only with phase lock held.
-         * @return true if should signal work
-         */
-        final boolean lockedPush(ForkJoinTask<?> task) {
-            ForkJoinTask<?>[] a;
-            boolean signal = false;
-            int s = top, b = base, cap, d;
-            if ((a = array) != null && (cap = a.length) > 0) {
-                a[(cap - 1) & s] = task;
-                top = s + 1;
-                if (b - s + cap - 1 == 0)
-                    growArray(true);
-                else {
-                    phase = 0; // full volatile unlock
-                    if (((s - base) & ~1) == 0) // size 0 or 1
-                        signal = true;
-                }
-            }
-            return signal;
-        }
-
-        /**
-         * Doubles the capacity of array. Call either by owner or with
-         * lock held -- it is OK for base, but not top, to move while
-         * resizings are in progress.
-         */
-        final void growArray(boolean locked) {
-            ForkJoinTask<?>[] newA = null;
-            try {
-                ForkJoinTask<?>[] oldA; int oldSize, newSize;
-                if ((oldA = array) != null && (oldSize = oldA.length) > 0 &&
-                    (newSize = oldSize << 1) <= MAXIMUM_QUEUE_CAPACITY &&
-                    newSize > 0) {
-                    try {
-                        newA = new ForkJoinTask<?>[newSize];
-                    } catch (OutOfMemoryError ex) {
-                    }
-                    if (newA != null) { // poll from old array, push to new
-                        int oldMask = oldSize - 1, newMask = newSize - 1;
-                        for (int s = top - 1, k = oldMask; k >= 0; --k) {
-                            ForkJoinTask<?> x = (ForkJoinTask<?>)
-                                QA.getAndSet(oldA, s & oldMask, null);
-                            if (x != null)
-                                newA[s-- & newMask] = x;
-                            else
-                                break;
-                        }
-                        array = newA;
-                        VarHandle.releaseFence();
-                    }
-                }
-            } finally {
-                if (locked)
-                    phase = 0;
-            }
-            if (newA == null)
-                throw new RejectedExecutionException("Queue capacity exceeded");
-        }
-
-        /**
-         * Takes next task, if one exists, in FIFO order.
-         */
-        final ForkJoinTask<?> poll() {
-            int b, k, cap; ForkJoinTask<?>[] a;
-            while ((a = array) != null && (cap = a.length) > 0 &&
-                   top - (b = base) > 0) {
-                ForkJoinTask<?> t = (ForkJoinTask<?>)
-                    QA.getAcquire(a, k = (cap - 1) & b);
-                if (base == b++) {
-                    if (t == null)
-                        Thread.yield(); // await index advance
-                    else if (QA.compareAndSet(a, k, t, null)) {
-                        BASE.setOpaque(this, b);
-                        return t;
-                    }
-                }
-            }
-            return null;
-        }
-
-        /**
-         * Takes next task, if one exists, in order specified by mode.
-         */
-        final ForkJoinTask<?> nextLocalTask() {
-            ForkJoinTask<?> t = null;
-            int md = id, b, s, d, cap; ForkJoinTask<?>[] a;
-            if ((a = array) != null && (cap = a.length) > 0 &&
-                (d = (s = top) - (b = base)) > 0) {
-                if ((md & FIFO) == 0 || d == 1) {
-                    if ((t = (ForkJoinTask<?>)
-                         QA.getAndSet(a, (cap - 1) & --s, null)) != null)
-                        TOP.setOpaque(this, s);
-                }
-                else if ((t = (ForkJoinTask<?>)
-                          QA.getAndSet(a, (cap - 1) & b++, null)) != null) {
-                    BASE.setOpaque(this, b);
-                }
-                else // on contention in FIFO mode, use regular poll
-                    t = poll();
-            }
-            return t;
-        }
-
-        /**
-         * Returns next task, if one exists, in order specified by mode.
-         */
-        final ForkJoinTask<?> peek() {
-            int cap; ForkJoinTask<?>[] a;
-            return ((a = array) != null && (cap = a.length) > 0) ?
-                a[(cap - 1) & ((id & FIFO) != 0 ? base : top - 1)] : null;
-        }
-
-        /**
-         * Pops the given task only if it is at the current top.
-         */
-        final boolean tryUnpush(ForkJoinTask<?> task) {
-            boolean popped = false;
-            int s, cap; ForkJoinTask<?>[] a;
-            if ((a = array) != null && (cap = a.length) > 0 &&
-                (s = top) != base &&
-                (popped = QA.compareAndSet(a, (cap - 1) & --s, task, null)))
-                TOP.setOpaque(this, s);
-            return popped;
-        }
-
-        /**
-         * Shared version of tryUnpush.
-         */
-        final boolean tryLockedUnpush(ForkJoinTask<?> task) {
-            boolean popped = false;
-            int s = top - 1, k, cap; ForkJoinTask<?>[] a;
-            if ((a = array) != null && (cap = a.length) > 0 &&
-                a[k = (cap - 1) & s] == task && tryLockPhase()) {
-                if (top == s + 1 && array == a &&
-                    (popped = QA.compareAndSet(a, k, task, null)))
-                    top = s;
-                releasePhaseLock();
-            }
-            return popped;
-        }
-
-        /**
-         * Removes and cancels all known tasks, ignoring any exceptions.
-         */
-        final void cancelAll() {
-            for (ForkJoinTask<?> t; (t = poll()) != null; )
-                ForkJoinTask.cancelIgnoringExceptions(t);
-        }
-
-        // Specialized execution methods
-
-        /**
-         * Runs the given (stolen) task if nonnull, as well as
-         * remaining local tasks and others available from the given
-         * queue, up to bound n (to avoid infinite unfairness).
-         */
-        final void topLevelExec(ForkJoinTask<?> t, WorkQueue q, int n) {
-            if (t != null && q != null) { // hoist checks
-                int nstolen = 1;
-                for (;;) {
-                    t.doExec();
-                    if (n-- < 0)
-                        break;
-                    else if ((t = nextLocalTask()) == null) {
-                        if ((t = q.poll()) == null)
-                            break;
-                        else
-                            ++nstolen;
-                    }
-                }
-                ForkJoinWorkerThread thread = owner;
-                nsteals += nstolen;
-                source = 0;
-                if (thread != null)
-                    thread.afterTopLevelExec();
-            }
-        }
-
-        /**
-         * If present, removes task from queue and executes it.
-         */
-        final void tryRemoveAndExec(ForkJoinTask<?> task) {
-            ForkJoinTask<?>[] a; int s, cap;
-            if ((a = array) != null && (cap = a.length) > 0 &&
-                (s = top) - base > 0) { // traverse from top
-                for (int m = cap - 1, ns = s - 1, i = ns; ; --i) {
-                    int index = i & m;
-                    ForkJoinTask<?> t = (ForkJoinTask<?>)QA.get(a, index);
-                    if (t == null)
-                        break;
-                    else if (t == task) {
-                        if (QA.compareAndSet(a, index, t, null)) {
-                            top = ns;   // safely shift down
-                            for (int j = i; j != ns; ++j) {
-                                ForkJoinTask<?> f;
-                                int pindex = (j + 1) & m;
-                                f = (ForkJoinTask<?>)QA.get(a, pindex);
-                                QA.setVolatile(a, pindex, null);
-                                int jindex = j & m;
-                                QA.setRelease(a, jindex, f);
-                            }
-                            VarHandle.releaseFence();
-                            t.doExec();
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-
-        /**
-         * Tries to pop and run tasks within the target's computation
-         * until done, not found, or limit exceeded.
-         *
-         * @param task root of CountedCompleter computation
-         * @param limit max runs, or zero for no limit
-         * @param shared true if must lock to extract task
-         * @return task status on exit
-         */
-        final int helpCC(CountedCompleter<?> task, int limit, boolean shared) {
-            int status = 0;
-            if (task != null && (status = task.status) >= 0) {
-                int s, k, cap; ForkJoinTask<?>[] a;
-                while ((a = array) != null && (cap = a.length) > 0 &&
-                       (s = top) - base > 0) {
-                    CountedCompleter<?> v = null;
-                    ForkJoinTask<?> o = a[k = (cap - 1) & (s - 1)];
-                    if (o instanceof CountedCompleter) {
-                        CountedCompleter<?> t = (CountedCompleter<?>)o;
-                        for (CountedCompleter<?> f = t;;) {
-                            if (f != task) {
-                                if ((f = f.completer) == null)
-                                    break;
-                            }
-                            else if (shared) {
-                                if (tryLockPhase()) {
-                                    if (top == s && array == a &&
-                                        QA.compareAndSet(a, k, t, null)) {
-                                        top = s - 1;
-                                        v = t;
-                                    }
-                                    releasePhaseLock();
-                                }
-                                break;
-                            }
-                            else {
-                                if (QA.compareAndSet(a, k, t, null)) {
-                                    top = s - 1;
-                                    v = t;
-                                }
-                                break;
-                            }
-                        }
-                    }
-                    if (v != null)
-                        v.doExec();
-                    if ((status = task.status) < 0 || v == null ||
-                        (limit != 0 && --limit == 0))
-                        break;
-                }
-            }
-            return status;
-        }
-
-        /**
-         * Tries to poll and run AsynchronousCompletionTasks until
-         * none found or blocker is released
-         *
-         * @param blocker the blocker
-         */
-        final void helpAsyncBlocker(ManagedBlocker blocker) {
-            if (blocker != null) {
-                int b, k, cap; ForkJoinTask<?>[] a; ForkJoinTask<?> t;
-                while ((a = array) != null && (cap = a.length) > 0 &&
-                       top - (b = base) > 0) {
-                    t = (ForkJoinTask<?>)QA.getAcquire(a, k = (cap - 1) & b);
-                    if (blocker.isReleasable())
-                        break;
-                    else if (base == b++ && t != null) {
-                        if (!(t instanceof CompletableFuture.
-                              AsynchronousCompletionTask))
-                            break;
-                        else if (QA.compareAndSet(a, k, t, null)) {
-                            BASE.setOpaque(this, b);
-                            t.doExec();
-                        }
-                    }
-                }
-            }
-        }
-
-        /**
-         * Returns true if owned and not known to be blocked.
-         */
-        final boolean isApparentlyUnblocked() {
-            Thread wt; Thread.State s;
-            return ((wt = owner) != null &&
-                    (s = wt.getState()) != Thread.State.BLOCKED &&
-                    s != Thread.State.WAITING &&
-                    s != Thread.State.TIMED_WAITING);
-        }
-
-        // VarHandle mechanics.
-        static final VarHandle PHASE;
-        static final VarHandle BASE;
-        static final VarHandle TOP;
-        static {
-            try {
-                MethodHandles.Lookup l = MethodHandles.lookup();
-                PHASE = l.findVarHandle(WorkQueue.class, "phase", int.class);
-                BASE = l.findVarHandle(WorkQueue.class, "base", int.class);
-                TOP = l.findVarHandle(WorkQueue.class, "top", int.class);
-            } catch (ReflectiveOperationException e) {
-                throw new ExceptionInInitializerError(e);
-            }
-        }
-    }
-
-    // static fields (initialized in static initializer below)
-
-    /**
-     * Creates a new ForkJoinWorkerThread. This factory is used unless
-     * overridden in ForkJoinPool constructors.
-     */
-    public static final ForkJoinWorkerThreadFactory
-        defaultForkJoinWorkerThreadFactory;
-
-    /**
-     * Permission required for callers of methods that may start or
-     * kill threads.
-     */
-    static final RuntimePermission modifyThreadPermission;
-
-    /**
-     * Common (static) pool. Non-null for public use unless a static
-     * construction exception, but internal usages null-check on use
-     * to paranoically avoid potential initialization circularities
-     * as well as to simplify generated code.
-     */
-    static final ForkJoinPool common;
-
-    /**
-     * Common pool parallelism. To allow simpler use and management
-     * when common pool threads are disabled, we allow the underlying
-     * common.parallelism field to be zero, but in that case still report
-     * parallelism as 1 to reflect resulting caller-runs mechanics.
-     */
-    static final int COMMON_PARALLELISM;
-
-    /**
-     * Limit on spare thread construction in tryCompensate.
-     */
-    private static final int COMMON_MAX_SPARES;
-
-    /**
-     * Sequence number for creating workerNamePrefix.
-     */
-    private static int poolNumberSequence;
-
-    /**
-     * Returns the next sequence number. We don't expect this to
-     * ever contend, so use simple builtin sync.
-     */
-    private static final synchronized int nextPoolId() {
-        return ++poolNumberSequence;
-    }
-
-    // static configuration constants
-
-    /**
-     * Default idle timeout value (in milliseconds) for the thread
-     * triggering quiescence to park waiting for new work
-     */
+    // 单位：毫秒
     private static final long DEFAULT_KEEPALIVE = 60_000L;
-
+    
     /**
      * Undershoot tolerance for idle timeouts
      */
+    // 容差
     private static final long TIMEOUT_SLOP = 20L;
-
+    
     /**
-     * The default value for COMMON_MAX_SPARES.  Overridable using the
-     * "java.util.concurrent.ForkJoinPool.common.maximumSpares" system
-     * property.  The default value is far in excess of normal
-     * requirements, but also far short of MAX_CAP and typical OS
-     * thread limits, so allows JVMs to catch misuse/abuse before
-     * running out of resources needed to do so.
+     * Increment for seed generators. See class ThreadLocal for explanation.
      */
-    private static final int DEFAULT_COMMON_MAX_SPARES = 256;
-
-    /**
-     * Increment for seed generators. See class ThreadLocal for
-     * explanation.
-     */
+    // 生成均匀哈希值的魔数，与ThreadLocal中的HASH_INCREMENT常量作用一致
     private static final int SEED_INCREMENT = 0x9e3779b9;
-
+    
     /*
-     * Bits and masks for field ctl, packed with 4 16 bit subfields:
+     * Bits and masks for field ctl, packed with 4 16-bit subfields:
      * RC: Number of released (unqueued) workers minus target parallelism
      * TC: Number of total workers minus target parallelism
      * SS: version count and status of top waiting thread
      * ID: poolIndex of top of Treiber stack of waiters
      *
-     * When convenient, we can extract the lower 32 stack top bits
-     * (including version bits) as sp=(int)ctl.  The offsets of counts
-     * by the target parallelism and the positionings of fields makes
-     * it possible to perform the most common checks via sign tests of
-     * fields: When ac is negative, there are not enough unqueued
-     * workers, when tc is negative, there are not enough total
-     * workers.  When sp is non-zero, there are waiting workers.  To
-     * deal with possibly negative fields, we use casts in and out of
-     * "short" and/or signed shifts to maintain signedness.
+     * When convenient, we can extract the lower 32 stack top bits (including version bits) as sp=(int)ctl.
+     * The offsets of counts by the target parallelism and the positionings of fields makes it possible to perform the most common checks via sign tests of fields:
+     * When ac is negative, there are not enough unqueued workers, when tc is negative, there are not enough total workers.
+     * When sp is non-zero, there are waiting workers.
+     * To deal with possibly negative fields, we use casts in and out of "short" and/or signed shifts to maintain signedness.
      *
-     * Because it occupies uppermost bits, we can add one release count
-     * using getAndAddLong of RC_UNIT, rather than CAS, when returning
-     * from a blocked join.  Other updates entail multiple subfields
-     * and masking, requiring CAS.
+     * Because it occupies uppermost bits, we can add one release count using getAndAddLong of RC_UNIT, rather than CAS, when returning from a blocked join.
+     * Other updates entail multiple subfields and masking, requiring CAS.
      *
-     * The limits packed in field "bounds" are also offset by the
-     * parallelism level to make them comparable to the ctl rc and tc
-     * fields.
+     * The limits packed in field "bounds" are also offset by the parallelism level to make them comparable to the ctl rc and tc fields.
      */
-
+    
     // Lower and upper word masks
-    private static final long SP_MASK    = 0xffffffffL;
-    private static final long UC_MASK    = ~SP_MASK;
-
-    // Release counts
+    private static final long SP_MASK    = 0xffffffffL; // 0x 0000 0000 FFFF FFFF
+    private static final long UC_MASK    = ~SP_MASK;    // 0x FFFF FFFF 0000 0000
+    
+    // Release counts（用来计算【工作线程】活跃度）
     private static final int  RC_SHIFT   = 48;
-    private static final long RC_UNIT    = 0x0001L << RC_SHIFT;
-    private static final long RC_MASK    = 0xffffL << RC_SHIFT;
-
-    // Total counts
+    private static final long RC_UNIT    = 0x0001L << RC_SHIFT; // 0x 0001 0000 0000 0000
+    private static final long RC_MASK    = 0xffffL << RC_SHIFT; // 0x FFFF 0000 0000 0000
+    
+    // Total counts（用来计算【工作线程】总数，>=并行度）
     private static final int  TC_SHIFT   = 32;
-    private static final long TC_UNIT    = 0x0001L << TC_SHIFT;
-    private static final long TC_MASK    = 0xffffL << TC_SHIFT;
-    private static final long ADD_WORKER = 0x0001L << (TC_SHIFT + 15); // sign
-
-    // Instance fields
-
-    volatile long stealCount;            // collects worker nsteals
-    final long keepAlive;                // milliseconds before dropping if idle
-    int indexSeed;                       // next worker index
-    final int bounds;                    // min, max threads packed as shorts
-    volatile int mode;                   // parallelism, runstate, queue mode
-    WorkQueue[] workQueues;              // main registry
-    final String workerNamePrefix;       // for worker thread string; sync lock
-    final ForkJoinWorkerThreadFactory factory;
-    final UncaughtExceptionHandler ueh;  // per-worker UEH
-    final Predicate<? super ForkJoinPool> saturate;
-
+    private static final long TC_UNIT    = 0x0001L << TC_SHIFT; // 0x 0000 0001 0000 0000
+    private static final long TC_MASK    = 0xffffL << TC_SHIFT; // 0x 0000 FFFF 0000 0000
+    
+    // sign
+    private static final long ADD_WORKER = 0x0001L << (TC_SHIFT + 15);  // 0x 0000 8000 0000 0000
+    
+    /*
+     *     ①   ②   ③   ④
+     * 0x 0000 0000 0000 0000
+     *
+     * 第1个16位初始化为并行度的负数，
+     * 可用来计算活跃的线程数量
+     * （新建工作线程或工作线程从阻塞中恢复时增一，而工作线程转入阻塞时减一）
+     *
+     * 第2个16位初始化为工作池允许的【工作线程】的最大数量（>=并行度）的负数，
+     * 可用来计算当前创建的【工作线程】数量（不受休眠数量的影响）
+     *
+     * 第3、4个16位记录了最近一个转入阻塞的【工作线程】管辖的【工作队列】的phase信息
+     *
+     * 第3个16位是随机数
+     * 第4个16位记录工人数量
+     */
     @jdk.internal.vm.annotation.Contended("fjpctl") // segregate
     volatile long ctl;                   // main pool control
-
-    // Creating, registering and deregistering workers
-
-    /**
-     * Tries to construct and start one worker. Assumes that total
-     * count has already been incremented as a reservation.  Invokes
-     * deregisterWorker on any failure.
+    
+    // Instance fields
+    
+    // 各线程累计的任务窃取数量
+    volatile long stealCount;            // collects worker nsteals
+    
+    final long keepAlive;                // milliseconds before dropping if idle
+    
+    // 魔数，辅助生成【工作队列】的ID
+    int indexSeed;                       // next worker index
+    
+    final int bounds;                    // min, max threads packed as shorts
+    
+    /*
+     * 【工作组】，容量为2的冪
      *
-     * @return true if successful
+     * 一个【工作池】(ForkJoinPool)上对应一个【工作组】(WorkQueue数组)
+     * 每个【工作组】(WorkQueue数组)中包含多个【工作队列】(WorkQueue)
+     * 每个【工作队列】(WorkQueue)中都包含一个任务组(ForkJoinTask数组)
+     * 任务组(ForkJoinTask数组)中存放了正在排队的任务(ForkJoinTask)
+     *
+     * 这个模型可以简化为：【工作组】的每个插槽中带有一个任务队列（任务组的另一种称呼）
      */
-    private boolean createWorker() {
-        ForkJoinWorkerThreadFactory fac = factory;
-        Throwable ex = null;
-        ForkJoinWorkerThread wt = null;
+    WorkQueue[] workQueues;              // 【工作组】
+    
+    // 【工作线程】名称前缀
+    final String workerNamePrefix;       // for worker thread string; sync lock
+    
+    // 【工作池】上的【工作线程】工厂
+    final ForkJoinWorkerThreadFactory factory;
+    
+    /**
+     * Creates a new ForkJoinWorkerThread.
+     * This factory is used unless overridden in ForkJoinPool constructors.
+     */
+    // 默认的【工作线程】工厂
+    public static final ForkJoinWorkerThreadFactory defaultForkJoinWorkerThreadFactory;
+    
+    // 未捕获异常处理器
+    final UncaughtExceptionHandler ueh;  // per-worker UEH
+    
+    final Predicate<? super ForkJoinPool> saturate;
+    
+    /**
+     * Permission required for callers of methods that may start or kill threads.
+     */
+    // 用于线程池关闭时的权限
+    static final RuntimePermission modifyThreadPermission;
+    
+    /**
+     * Sequence number for creating workerNamePrefix.
+     */
+    // 【工作池】编号（累加）
+    private static int poolNumberSequence;
+    
+    
+    /*▼ 共享工作池 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┓ */
+    
+    /**
+     * Common (static) pool.
+     * Non-null for public use unless a static construction exception,
+     * but internal usages null-check on use to paranoically avoid potential initialization circularities as well as to simplify generated code.
+     */
+    // 共享工作池
+    static final ForkJoinPool common;
+    
+    /**
+     * Common pool parallelism.
+     * To allow simpler use and management when common pool threads are disabled,
+     * we allow the underlying common.parallelism field to be zero,
+     * but in that case still report parallelism as 1 to reflect resulting caller-runs mechanics.
+     */
+    // 共享工作池的并行度
+    static final int COMMON_PARALLELISM;
+    
+    /**
+     * Limit on spare thread construction in tryCompensate.
+     */
+    // 共享工作池中【工作线程】数量最大值
+    private static final int COMMON_MAX_SPARES;
+    
+    /**
+     * The default value for COMMON_MAX_SPARES.
+     * Overridable using the "java.util.concurrent.ForkJoinPool.common.maximumSpares" system property.
+     * The default value is far in excess of normal requirements,
+     * but also far short of MAX_CAP and typical OS thread limits,
+     * so allows JVMs to catch misuse/abuse before running out of resources needed to do so.
+     */
+    // 共享工作池默认的最大【工作线程】数量
+    private static final int DEFAULT_COMMON_MAX_SPARES = 256;
+    
+    /*▲ 共享工作池 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┛ */
+    
+    
+    // VarHandle mechanics
+    private static final VarHandle CTL;
+    private static final VarHandle MODE;
+    static final VarHandle QA;
+    
+    static {
         try {
-            if (fac != null && (wt = fac.newThread(this)) != null) {
-                wt.start();
-                return true;
-            }
-        } catch (Throwable rex) {
-            ex = rex;
+            MethodHandles.Lookup l = MethodHandles.lookup();
+            CTL = l.findVarHandle(ForkJoinPool.class, "ctl", long.class);
+            MODE = l.findVarHandle(ForkJoinPool.class, "mode", int.class);
+            QA = MethodHandles.arrayElementVarHandle(ForkJoinTask[].class);
+        } catch(ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
         }
-        deregisterWorker(wt, ex);
-        return false;
-    }
-
-    /**
-     * Tries to add one worker, incrementing ctl counts before doing
-     * so, relying on createWorker to back out on failure.
-     *
-     * @param c incoming ctl value, with total count negative and no
-     * idle workers.  On CAS failure, c is refreshed and retried if
-     * this holds (otherwise, a new worker is not needed).
-     */
-    private void tryAddWorker(long c) {
-        do {
-            long nc = ((RC_MASK & (c + RC_UNIT)) |
-                       (TC_MASK & (c + TC_UNIT)));
-            if (ctl == c && CTL.compareAndSet(this, c, nc)) {
-                createWorker();
-                break;
+        
+        // 设置默认的F/J【工作线程】工厂
+        defaultForkJoinWorkerThreadFactory = new DefaultForkJoinWorkerThreadFactory();
+        
+        // 设置权限
+        modifyThreadPermission = new RuntimePermission("modifyThread");
+        
+        // Reduce the risk of rare disastrous classloading in first call to
+        // LockSupport.park: https://bugs.openjdk.java.net/browse/JDK-8074773
+        Class<?> ensureLoaded = LockSupport.class;
+        
+        // 设置共享工作池允许的最大【工作线程】数量
+        int commonMaxSpares = DEFAULT_COMMON_MAX_SPARES;
+        try {
+            // 可通过运行参数修改共享工作池允许的最大【工作线程】数量：-Djava.util.concurrent.ForkJoinPool.common.maximumSpares=<size>
+            String p = System.getProperty("java.util.concurrent.ForkJoinPool.common.maximumSpares");
+            if(p != null) {
+                commonMaxSpares = Integer.parseInt(p);
             }
-        } while (((c = ctl) & ADD_WORKER) != 0L && (int)c == 0);
-    }
-
-    /**
-     * Callback from ForkJoinWorkerThread constructor to establish and
-     * record its WorkQueue.
-     *
-     * @param wt the worker thread
-     * @return the worker's queue
-     */
-    final WorkQueue registerWorker(ForkJoinWorkerThread wt) {
-        UncaughtExceptionHandler handler;
-        wt.setDaemon(true);                             // configure thread
-        if ((handler = ueh) != null)
-            wt.setUncaughtExceptionHandler(handler);
-        int tid = 0;                                    // for thread name
-        int idbits = mode & FIFO;
-        String prefix = workerNamePrefix;
-        WorkQueue w = new WorkQueue(this, wt);
-        if (prefix != null) {
-            synchronized (prefix) {
-                WorkQueue[] ws = workQueues; int n;
-                int s = indexSeed += SEED_INCREMENT;
-                idbits |= (s & ~(SMASK | FIFO | DORMANT));
-                if (ws != null && (n = ws.length) > 1) {
-                    int m = n - 1;
-                    tid = m & ((s << 1) | 1);           // odd-numbered indices
-                    for (int probes = n >>> 1;;) {      // find empty slot
-                        WorkQueue q;
-                        if ((q = ws[tid]) == null || q.phase == QUIET)
-                            break;
-                        else if (--probes == 0) {
-                            tid = n | 1;                // resize below
-                            break;
-                        }
-                        else
-                            tid = (tid + 2) & m;
-                    }
-                    w.phase = w.id = tid | idbits;      // now publishable
-
-                    if (tid < n)
-                        ws[tid] = w;
-                    else {                              // expand array
-                        int an = n << 1;
-                        WorkQueue[] as = new WorkQueue[an];
-                        as[tid] = w;
-                        int am = an - 1;
-                        for (int j = 0; j < n; ++j) {
-                            WorkQueue v;                // copy external queue
-                            if ((v = ws[j]) != null)    // position may change
-                                as[v.id & am & SQMASK] = v;
-                            if (++j >= n)
-                                break;
-                            as[j] = ws[j];              // copy worker
-                        }
-                        workQueues = as;
-                    }
-                }
-            }
-            wt.setName(prefix.concat(Integer.toString(tid)));
+        } catch(Exception ignore) {
         }
-        return w;
+        
+        COMMON_MAX_SPARES = commonMaxSpares;
+        
+        // 初始化共享工作池
+        common = AccessController.doPrivileged(new PrivilegedAction<>() {
+            public ForkJoinPool run() {
+                return new ForkJoinPool((byte) 0);
+            }
+        });
+        
+        // 设置共享工作池的并行度
+        COMMON_PARALLELISM = Math.max(common.mode & SMASK, 1);
     }
-
-    /**
-     * Final callback from terminating worker, as well as upon failure
-     * to construct or start a worker.  Removes record of worker from
-     * array, and adjusts counts. If pool is shutting down, tries to
-     * complete termination.
-     *
-     * @param wt the worker thread, or null if construction failed
-     * @param ex the exception causing failure, or null if none
-     */
-    final void deregisterWorker(ForkJoinWorkerThread wt, Throwable ex) {
-        WorkQueue w = null;
-        int phase = 0;
-        if (wt != null && (w = wt.workQueue) != null) {
-            Object lock = workerNamePrefix;
-            int wid = w.id;
-            long ns = (long)w.nsteals & 0xffffffffL;
-            if (lock != null) {
-                synchronized (lock) {
-                    WorkQueue[] ws; int n, i;         // remove index from array
-                    if ((ws = workQueues) != null && (n = ws.length) > 0 &&
-                        ws[i = wid & (n - 1)] == w)
-                        ws[i] = null;
-                    stealCount += ns;
-                }
-            }
-            phase = w.phase;
-        }
-        if (phase != QUIET) {                         // else pre-adjusted
-            long c;                                   // decrement counts
-            do {} while (!CTL.weakCompareAndSet
-                         (this, c = ctl, ((RC_MASK & (c - RC_UNIT)) |
-                                          (TC_MASK & (c - TC_UNIT)) |
-                                          (SP_MASK & c))));
-        }
-        if (w != null)
-            w.cancelAll();                            // cancel remaining tasks
-
-        if (!tryTerminate(false, false) &&            // possibly replace worker
-            w != null && w.array != null)             // avoid repeated failures
-            signalWork();
-
-        if (ex == null)                               // help clean on way out
-            ForkJoinTask.helpExpungeStaleExceptions();
-        else                                          // rethrow
-            ForkJoinTask.rethrow(ex);
-    }
-
-    /**
-     * Tries to create or release a worker if too few are running.
-     */
-    final void signalWork() {
-        for (;;) {
-            long c; int sp; WorkQueue[] ws; int i; WorkQueue v;
-            if ((c = ctl) >= 0L)                      // enough workers
-                break;
-            else if ((sp = (int)c) == 0) {            // no idle workers
-                if ((c & ADD_WORKER) != 0L)           // too few workers
-                    tryAddWorker(c);
-                break;
-            }
-            else if ((ws = workQueues) == null)
-                break;                                // unstarted/terminated
-            else if (ws.length <= (i = sp & SMASK))
-                break;                                // terminated
-            else if ((v = ws[i]) == null)
-                break;                                // terminating
-            else {
-                int np = sp & ~UNSIGNALLED;
-                int vp = v.phase;
-                long nc = (v.stackPred & SP_MASK) | (UC_MASK & (c + RC_UNIT));
-                Thread vt = v.owner;
-                if (sp == vp && CTL.compareAndSet(this, c, nc)) {
-                    v.phase = np;
-                    if (vt != null && v.source < 0)
-                        LockSupport.unpark(vt);
-                    break;
-                }
-            }
-        }
-    }
-
-    /**
-     * Tries to decrement counts (sometimes implicitly) and possibly
-     * arrange for a compensating worker in preparation for blocking:
-     * If not all core workers yet exist, creates one, else if any are
-     * unreleased (possibly including caller) releases one, else if
-     * fewer than the minimum allowed number of workers running,
-     * checks to see that they are all active, and if so creates an
-     * extra worker unless over maximum limit and policy is to
-     * saturate.  Most of these steps can fail due to interference, in
-     * which case 0 is returned so caller will retry. A negative
-     * return value indicates that the caller doesn't need to
-     * re-adjust counts when later unblocked.
-     *
-     * @return 1: block then adjust, -1: block without adjust, 0 : retry
-     */
-    private int tryCompensate(WorkQueue w) {
-        int t, n, sp;
-        long c = ctl;
-        WorkQueue[] ws = workQueues;
-        if ((t = (short)(c >>> TC_SHIFT)) >= 0) {
-            if (ws == null || (n = ws.length) <= 0 || w == null)
-                return 0;                        // disabled
-            else if ((sp = (int)c) != 0) {       // replace or release
-                WorkQueue v = ws[sp & (n - 1)];
-                int wp = w.phase;
-                long uc = UC_MASK & ((wp < 0) ? c + RC_UNIT : c);
-                int np = sp & ~UNSIGNALLED;
-                if (v != null) {
-                    int vp = v.phase;
-                    Thread vt = v.owner;
-                    long nc = ((long)v.stackPred & SP_MASK) | uc;
-                    if (vp == sp && CTL.compareAndSet(this, c, nc)) {
-                        v.phase = np;
-                        if (vt != null && v.source < 0)
-                            LockSupport.unpark(vt);
-                        return (wp < 0) ? -1 : 1;
-                    }
-                }
-                return 0;
-            }
-            else if ((int)(c >> RC_SHIFT) -      // reduce parallelism
-                     (short)(bounds & SMASK) > 0) {
-                long nc = ((RC_MASK & (c - RC_UNIT)) | (~RC_MASK & c));
-                return CTL.compareAndSet(this, c, nc) ? 1 : 0;
-            }
-            else {                               // validate
-                int md = mode, pc = md & SMASK, tc = pc + t, bc = 0;
-                boolean unstable = false;
-                for (int i = 1; i < n; i += 2) {
-                    WorkQueue q; Thread wt; Thread.State ts;
-                    if ((q = ws[i]) != null) {
-                        if (q.source == 0) {
-                            unstable = true;
-                            break;
-                        }
-                        else {
-                            --tc;
-                            if ((wt = q.owner) != null &&
-                                ((ts = wt.getState()) == Thread.State.BLOCKED ||
-                                 ts == Thread.State.WAITING))
-                                ++bc;            // worker is blocking
-                        }
-                    }
-                }
-                if (unstable || tc != 0 || ctl != c)
-                    return 0;                    // inconsistent
-                else if (t + pc >= MAX_CAP || t >= (bounds >>> SWIDTH)) {
-                    Predicate<? super ForkJoinPool> sat;
-                    if ((sat = saturate) != null && sat.test(this))
-                        return -1;
-                    else if (bc < pc) {          // lagging
-                        Thread.yield();          // for retry spins
-                        return 0;
-                    }
-                    else
-                        throw new RejectedExecutionException(
-                            "Thread limit exceeded replacing blocked worker");
-                }
-            }
-        }
-
-        long nc = ((c + TC_UNIT) & TC_MASK) | (c & ~TC_MASK); // expand pool
-        return CTL.compareAndSet(this, c, nc) && createWorker() ? 1 : 0;
-    }
-
-    /**
-     * Top-level runloop for workers, called by ForkJoinWorkerThread.run.
-     * See above for explanation.
-     */
-    final void runWorker(WorkQueue w) {
-        int r = (w.id ^ ThreadLocalRandom.nextSecondarySeed()) | FIFO; // rng
-        w.array = new ForkJoinTask<?>[INITIAL_QUEUE_CAPACITY]; // initialize
-        for (;;) {
-            int phase;
-            if (scan(w, r)) {                     // scan until apparently empty
-                r ^= r << 13; r ^= r >>> 17; r ^= r << 5; // move (xorshift)
-            }
-            else if ((phase = w.phase) >= 0) {    // enqueue, then rescan
-                long np = (w.phase = (phase + SS_SEQ) | UNSIGNALLED) & SP_MASK;
-                long c, nc;
-                do {
-                    w.stackPred = (int)(c = ctl);
-                    nc = ((c - RC_UNIT) & UC_MASK) | np;
-                } while (!CTL.weakCompareAndSet(this, c, nc));
-            }
-            else {                                // already queued
-                int pred = w.stackPred;
-                Thread.interrupted();             // clear before park
-                w.source = DORMANT;               // enable signal
-                long c = ctl;
-                int md = mode, rc = (md & SMASK) + (int)(c >> RC_SHIFT);
-                if (md < 0)                       // terminating
-                    break;
-                else if (rc <= 0 && (md & SHUTDOWN) != 0 &&
-                         tryTerminate(false, false))
-                    break;                        // quiescent shutdown
-                else if (rc <= 0 && pred != 0 && phase == (int)c) {
-                    long nc = (UC_MASK & (c - TC_UNIT)) | (SP_MASK & pred);
-                    long d = keepAlive + System.currentTimeMillis();
-                    LockSupport.parkUntil(this, d);
-                    if (ctl == c &&               // drop on timeout if all idle
-                        d - System.currentTimeMillis() <= TIMEOUT_SLOP &&
-                        CTL.compareAndSet(this, c, nc)) {
-                        w.phase = QUIET;
-                        break;
-                    }
-                }
-                else if (w.phase < 0)
-                    LockSupport.park(this);       // OK if spuriously woken
-                w.source = 0;                     // disable signal
-            }
-        }
-    }
-
-    /**
-     * Scans for and if found executes one or more top-level tasks from a queue.
-     *
-     * @return true if found an apparently non-empty queue, and
-     * possibly ran task(s).
-     */
-    private boolean scan(WorkQueue w, int r) {
-        WorkQueue[] ws; int n;
-        if ((ws = workQueues) != null && (n = ws.length) > 0 && w != null) {
-            for (int m = n - 1, j = r & m;;) {
-                WorkQueue q; int b;
-                if ((q = ws[j]) != null && q.top != (b = q.base)) {
-                    int qid = q.id;
-                    ForkJoinTask<?>[] a; int cap, k; ForkJoinTask<?> t;
-                    if ((a = q.array) != null && (cap = a.length) > 0) {
-                        t = (ForkJoinTask<?>)QA.getAcquire(a, k = (cap - 1) & b);
-                        if (q.base == b++ && t != null &&
-                            QA.compareAndSet(a, k, t, null)) {
-                            q.base = b;
-                            w.source = qid;
-                            if (q.top - b > 0)
-                                signalWork();
-                            w.topLevelExec(t, q,  // random fairness bound
-                                           r & ((n << TOP_BOUND_SHIFT) - 1));
-                        }
-                    }
-                    return true;
-                }
-                else if (--n > 0)
-                    j = (j + 1) & m;
-                else
-                    break;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Helps and/or blocks until the given task is done or timeout.
-     * First tries locally helping, then scans other queues for a task
-     * produced by one of w's stealers; compensating and blocking if
-     * none are found (rescanning if tryCompensate fails).
-     *
-     * @param w caller
-     * @param task the task
-     * @param deadline for timed waits, if nonzero
-     * @return task status on exit
-     */
-    final int awaitJoin(WorkQueue w, ForkJoinTask<?> task, long deadline) {
-        int s = 0;
-        int seed = ThreadLocalRandom.nextSecondarySeed();
-        if (w != null && task != null &&
-            (!(task instanceof CountedCompleter) ||
-             (s = w.helpCC((CountedCompleter<?>)task, 0, false)) >= 0)) {
-            w.tryRemoveAndExec(task);
-            int src = w.source, id = w.id;
-            int r = (seed >>> 16) | 1, step = (seed & ~1) | 2;
-            s = task.status;
-            while (s >= 0) {
-                WorkQueue[] ws;
-                int n = (ws = workQueues) == null ? 0 : ws.length, m = n - 1;
-                while (n > 0) {
-                    WorkQueue q; int b;
-                    if ((q = ws[r & m]) != null && q.source == id &&
-                        q.top != (b = q.base)) {
-                        ForkJoinTask<?>[] a; int cap, k;
-                        int qid = q.id;
-                        if ((a = q.array) != null && (cap = a.length) > 0) {
-                            ForkJoinTask<?> t = (ForkJoinTask<?>)
-                                QA.getAcquire(a, k = (cap - 1) & b);
-                            if (q.source == id && q.base == b++ &&
-                                t != null && QA.compareAndSet(a, k, t, null)) {
-                                q.base = b;
-                                w.source = qid;
-                                t.doExec();
-                                w.source = src;
-                            }
-                        }
-                        break;
-                    }
-                    else {
-                        r += step;
-                        --n;
-                    }
-                }
-                if ((s = task.status) < 0)
-                    break;
-                else if (n == 0) { // empty scan
-                    long ms, ns; int block;
-                    if (deadline == 0L)
-                        ms = 0L;                       // untimed
-                    else if ((ns = deadline - System.nanoTime()) <= 0L)
-                        break;                         // timeout
-                    else if ((ms = TimeUnit.NANOSECONDS.toMillis(ns)) <= 0L)
-                        ms = 1L;                       // avoid 0 for timed wait
-                    if ((block = tryCompensate(w)) != 0) {
-                        task.internalWait(ms);
-                        CTL.getAndAdd(this, (block > 0) ? RC_UNIT : 0L);
-                    }
-                    s = task.status;
-                }
-            }
-        }
-        return s;
-    }
-
-    /**
-     * Runs tasks until {@code isQuiescent()}. Rather than blocking
-     * when tasks cannot be found, rescans until all others cannot
-     * find tasks either.
-     */
-    final void helpQuiescePool(WorkQueue w) {
-        int prevSrc = w.source;
-        int seed = ThreadLocalRandom.nextSecondarySeed();
-        int r = seed >>> 16, step = r | 1;
-        for (int source = prevSrc, released = -1;;) { // -1 until known
-            ForkJoinTask<?> localTask; WorkQueue[] ws;
-            while ((localTask = w.nextLocalTask()) != null)
-                localTask.doExec();
-            if (w.phase >= 0 && released == -1)
-                released = 1;
-            boolean quiet = true, empty = true;
-            int n = (ws = workQueues) == null ? 0 : ws.length;
-            for (int m = n - 1; n > 0; r += step, --n) {
-                WorkQueue q; int b;
-                if ((q = ws[r & m]) != null) {
-                    int qs = q.source;
-                    if (q.top != (b = q.base)) {
-                        quiet = empty = false;
-                        ForkJoinTask<?>[] a; int cap, k;
-                        int qid = q.id;
-                        if ((a = q.array) != null && (cap = a.length) > 0) {
-                            if (released == 0) {    // increment
-                                released = 1;
-                                CTL.getAndAdd(this, RC_UNIT);
-                            }
-                            ForkJoinTask<?> t = (ForkJoinTask<?>)
-                                QA.getAcquire(a, k = (cap - 1) & b);
-                            if (q.base == b++ && t != null &&
-                                QA.compareAndSet(a, k, t, null)) {
-                                q.base = b;
-                                w.source = qid;
-                                t.doExec();
-                                w.source = source = prevSrc;
-                            }
-                        }
-                        break;
-                    }
-                    else if ((qs & QUIET) == 0)
-                        quiet = false;
-                }
-            }
-            if (quiet) {
-                if (released == 0)
-                    CTL.getAndAdd(this, RC_UNIT);
-                w.source = prevSrc;
-                break;
-            }
-            else if (empty) {
-                if (source != QUIET)
-                    w.source = source = QUIET;
-                if (released == 1) {                 // decrement
-                    released = 0;
-                    CTL.getAndAdd(this, RC_MASK & -RC_UNIT);
-                }
-            }
-        }
-    }
-
-    /**
-     * Scans for and returns a polled task, if available.
-     * Used only for untracked polls.
-     *
-     * @param submissionsOnly if true, only scan submission queues
-     */
-    private ForkJoinTask<?> pollScan(boolean submissionsOnly) {
-        WorkQueue[] ws; int n;
-        rescan: while ((mode & STOP) == 0 && (ws = workQueues) != null &&
-                      (n = ws.length) > 0) {
-            int m = n - 1;
-            int r = ThreadLocalRandom.nextSecondarySeed();
-            int h = r >>> 16;
-            int origin, step;
-            if (submissionsOnly) {
-                origin = (r & ~1) & m;         // even indices and steps
-                step = (h & ~1) | 2;
-            }
-            else {
-                origin = r & m;
-                step = h | 1;
-            }
-            boolean nonempty = false;
-            for (int i = origin, oldSum = 0, checkSum = 0;;) {
-                WorkQueue q;
-                if ((q = ws[i]) != null) {
-                    int b; ForkJoinTask<?> t;
-                    if (q.top - (b = q.base) > 0) {
-                        nonempty = true;
-                        if ((t = q.poll()) != null)
-                            return t;
-                    }
-                    else
-                        checkSum += b + q.id;
-                }
-                if ((i = (i + step) & m) == origin) {
-                    if (!nonempty && oldSum == (oldSum = checkSum))
-                        break rescan;
-                    checkSum = 0;
-                    nonempty = false;
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Gets and removes a local or stolen task for the given worker.
-     *
-     * @return a task, if available
-     */
-    final ForkJoinTask<?> nextTaskFor(WorkQueue w) {
-        ForkJoinTask<?> t;
-        if (w == null || (t = w.nextLocalTask()) == null)
-            t = pollScan(false);
-        return t;
-    }
-
-    // External operations
-
-    /**
-     * Adds the given task to a submission queue at submitter's
-     * current queue, creating one if null or contended.
-     *
-     * @param task the task. Caller must ensure non-null.
-     */
-    final void externalPush(ForkJoinTask<?> task) {
-        int r;                                // initialize caller's probe
-        if ((r = ThreadLocalRandom.getProbe()) == 0) {
-            ThreadLocalRandom.localInit();
-            r = ThreadLocalRandom.getProbe();
-        }
-        for (;;) {
-            WorkQueue q;
-            int md = mode, n;
-            WorkQueue[] ws = workQueues;
-            if ((md & SHUTDOWN) != 0 || ws == null || (n = ws.length) <= 0)
-                throw new RejectedExecutionException();
-            else if ((q = ws[(n - 1) & r & SQMASK]) == null) { // add queue
-                int qid = (r | QUIET) & ~(FIFO | OWNED);
-                Object lock = workerNamePrefix;
-                ForkJoinTask<?>[] qa =
-                    new ForkJoinTask<?>[INITIAL_QUEUE_CAPACITY];
-                q = new WorkQueue(this, null);
-                q.array = qa;
-                q.id = qid;
-                q.source = QUIET;
-                if (lock != null) {     // unless disabled, lock pool to install
-                    synchronized (lock) {
-                        WorkQueue[] vs; int i, vn;
-                        if ((vs = workQueues) != null && (vn = vs.length) > 0 &&
-                            vs[i = qid & (vn - 1) & SQMASK] == null)
-                            vs[i] = q;  // else another thread already installed
-                    }
-                }
-            }
-            else if (!q.tryLockPhase()) // move if busy
-                r = ThreadLocalRandom.advanceProbe(r);
-            else {
-                if (q.lockedPush(task))
-                    signalWork();
-                return;
-            }
-        }
-    }
-
-    /**
-     * Pushes a possibly-external submission.
-     */
-    private <T> ForkJoinTask<T> externalSubmit(ForkJoinTask<T> task) {
-        Thread t; ForkJoinWorkerThread w; WorkQueue q;
-        if (task == null)
-            throw new NullPointerException();
-        if (((t = Thread.currentThread()) instanceof ForkJoinWorkerThread) &&
-            (w = (ForkJoinWorkerThread)t).pool == this &&
-            (q = w.workQueue) != null)
-            q.push(task);
-        else
-            externalPush(task);
-        return task;
-    }
-
-    /**
-     * Returns common pool queue for an external thread.
-     */
-    static WorkQueue commonSubmitterQueue() {
-        ForkJoinPool p = common;
-        int r = ThreadLocalRandom.getProbe();
-        WorkQueue[] ws; int n;
-        return (p != null && (ws = p.workQueues) != null &&
-                (n = ws.length) > 0) ?
-            ws[(n - 1) & r & SQMASK] : null;
-    }
-
-    /**
-     * Performs tryUnpush for an external submitter.
-     */
-    final boolean tryExternalUnpush(ForkJoinTask<?> task) {
-        int r = ThreadLocalRandom.getProbe();
-        WorkQueue[] ws; WorkQueue w; int n;
-        return ((ws = workQueues) != null &&
-                (n = ws.length) > 0 &&
-                (w = ws[(n - 1) & r & SQMASK]) != null &&
-                w.tryLockedUnpush(task));
-    }
-
-    /**
-     * Performs helpComplete for an external submitter.
-     */
-    final int externalHelpComplete(CountedCompleter<?> task, int maxTasks) {
-        int r = ThreadLocalRandom.getProbe();
-        WorkQueue[] ws; WorkQueue w; int n;
-        return ((ws = workQueues) != null && (n = ws.length) > 0 &&
-                (w = ws[(n - 1) & r & SQMASK]) != null) ?
-            w.helpCC(task, maxTasks, true) : 0;
-    }
-
-    /**
-     * Tries to steal and run tasks within the target's computation.
-     * The maxTasks argument supports external usages; internal calls
-     * use zero, allowing unbounded steps (external calls trap
-     * non-positive values).
-     *
-     * @param w caller
-     * @param maxTasks if non-zero, the maximum number of other tasks to run
-     * @return task status on exit
-     */
-    final int helpComplete(WorkQueue w, CountedCompleter<?> task,
-                           int maxTasks) {
-        return (w == null) ? 0 : w.helpCC(task, maxTasks, false);
-    }
-
-    /**
-     * Returns a cheap heuristic guide for task partitioning when
-     * programmers, frameworks, tools, or languages have little or no
-     * idea about task granularity.  In essence, by offering this
-     * method, we ask users only about tradeoffs in overhead vs
-     * expected throughput and its variance, rather than how finely to
-     * partition tasks.
-     *
-     * In a steady state strict (tree-structured) computation, each
-     * thread makes available for stealing enough tasks for other
-     * threads to remain active. Inductively, if all threads play by
-     * the same rules, each thread should make available only a
-     * constant number of tasks.
-     *
-     * The minimum useful constant is just 1. But using a value of 1
-     * would require immediate replenishment upon each steal to
-     * maintain enough tasks, which is infeasible.  Further,
-     * partitionings/granularities of offered tasks should minimize
-     * steal rates, which in general means that threads nearer the top
-     * of computation tree should generate more than those nearer the
-     * bottom. In perfect steady state, each thread is at
-     * approximately the same level of computation tree. However,
-     * producing extra tasks amortizes the uncertainty of progress and
-     * diffusion assumptions.
-     *
-     * So, users will want to use values larger (but not much larger)
-     * than 1 to both smooth over transient shortages and hedge
-     * against uneven progress; as traded off against the cost of
-     * extra task overhead. We leave the user to pick a threshold
-     * value to compare with the results of this call to guide
-     * decisions, but recommend values such as 3.
-     *
-     * When all threads are active, it is on average OK to estimate
-     * surplus strictly locally. In steady-state, if one thread is
-     * maintaining say 2 surplus tasks, then so are others. So we can
-     * just use estimated queue length.  However, this strategy alone
-     * leads to serious mis-estimates in some non-steady-state
-     * conditions (ramp-up, ramp-down, other stalls). We can detect
-     * many of these by further considering the number of "idle"
-     * threads, that are known to have zero queued tasks, so
-     * compensate by a factor of (#idle/#active) threads.
-     */
-    static int getSurplusQueuedTaskCount() {
-        Thread t; ForkJoinWorkerThread wt; ForkJoinPool pool; WorkQueue q;
-        if (((t = Thread.currentThread()) instanceof ForkJoinWorkerThread) &&
-            (pool = (wt = (ForkJoinWorkerThread)t).pool) != null &&
-            (q = wt.workQueue) != null) {
-            int p = pool.mode & SMASK;
-            int a = p + (int)(pool.ctl >> RC_SHIFT);
-            int n = q.top - q.base;
-            return n - (a > (p >>>= 1) ? 0 :
-                        a > (p >>>= 1) ? 1 :
-                        a > (p >>>= 1) ? 2 :
-                        a > (p >>>= 1) ? 4 :
-                        8);
-        }
-        return 0;
-    }
-
-    // Termination
-
-    /**
-     * Possibly initiates and/or completes termination.
-     *
-     * @param now if true, unconditionally terminate, else only
-     * if no work and no active workers
-     * @param enable if true, terminate when next possible
-     * @return true if terminating or terminated
-     */
-    private boolean tryTerminate(boolean now, boolean enable) {
-        int md; // 3 phases: try to set SHUTDOWN, then STOP, then TERMINATED
-
-        while (((md = mode) & SHUTDOWN) == 0) {
-            if (!enable || this == common)        // cannot shutdown
-                return false;
-            else
-                MODE.compareAndSet(this, md, md | SHUTDOWN);
-        }
-
-        while (((md = mode) & STOP) == 0) {       // try to initiate termination
-            if (!now) {                           // check if quiescent & empty
-                for (long oldSum = 0L;;) {        // repeat until stable
-                    boolean running = false;
-                    long checkSum = ctl;
-                    WorkQueue[] ws = workQueues;
-                    if ((md & SMASK) + (int)(checkSum >> RC_SHIFT) > 0)
-                        running = true;
-                    else if (ws != null) {
-                        WorkQueue w;
-                        for (int i = 0; i < ws.length; ++i) {
-                            if ((w = ws[i]) != null) {
-                                int s = w.source, p = w.phase;
-                                int d = w.id, b = w.base;
-                                if (b != w.top ||
-                                    ((d & 1) == 1 && (s >= 0 || p >= 0))) {
-                                    running = true;
-                                    break;     // working, scanning, or have work
-                                }
-                                checkSum += (((long)s << 48) + ((long)p << 32) +
-                                             ((long)b << 16) + (long)d);
-                            }
-                        }
-                    }
-                    if (((md = mode) & STOP) != 0)
-                        break;                 // already triggered
-                    else if (running)
-                        return false;
-                    else if (workQueues == ws && oldSum == (oldSum = checkSum))
-                        break;
-                }
-            }
-            if ((md & STOP) == 0)
-                MODE.compareAndSet(this, md, md | STOP);
-        }
-
-        while (((md = mode) & TERMINATED) == 0) { // help terminate others
-            for (long oldSum = 0L;;) {            // repeat until stable
-                WorkQueue[] ws; WorkQueue w;
-                long checkSum = ctl;
-                if ((ws = workQueues) != null) {
-                    for (int i = 0; i < ws.length; ++i) {
-                        if ((w = ws[i]) != null) {
-                            ForkJoinWorkerThread wt = w.owner;
-                            w.cancelAll();        // clear queues
-                            if (wt != null) {
-                                try {             // unblock join or park
-                                    wt.interrupt();
-                                } catch (Throwable ignore) {
-                                }
-                            }
-                            checkSum += ((long)w.phase << 32) + w.base;
-                        }
-                    }
-                }
-                if (((md = mode) & TERMINATED) != 0 ||
-                    (workQueues == ws && oldSum == (oldSum = checkSum)))
-                    break;
-            }
-            if ((md & TERMINATED) != 0)
-                break;
-            else if ((md & SMASK) + (short)(ctl >>> TC_SHIFT) > 0)
-                break;
-            else if (MODE.compareAndSet(this, md, md | TERMINATED)) {
-                synchronized (this) {
-                    notifyAll();                  // for awaitTermination
-                }
-                break;
-            }
-        }
-        return true;
-    }
-
-    // Exported methods
-
-    // Constructors
-
+    
+    
+    
+    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates a {@code ForkJoinPool} with parallelism equal to {@link
      * java.lang.Runtime#availableProcessors}, using defaults for all
@@ -2142,10 +947,10 @@ public class ForkJoinPool extends AbstractExecutorService {
      */
     public ForkJoinPool() {
         this(Math.min(MAX_CAP, Runtime.getRuntime().availableProcessors()),
-             defaultForkJoinWorkerThreadFactory, null, false,
-             0, MAX_CAP, 1, null, DEFAULT_KEEPALIVE, TimeUnit.MILLISECONDS);
+            defaultForkJoinWorkerThreadFactory, null, false, 0, MAX_CAP, 1, null, DEFAULT_KEEPALIVE, TimeUnit.MILLISECONDS
+        );
     }
-
+    
     /**
      * Creates a {@code ForkJoinPool} with the indicated parallelism
      * level, using defaults for all other parameters (see {@link
@@ -2162,10 +967,10 @@ public class ForkJoinPool extends AbstractExecutorService {
      *         java.lang.RuntimePermission}{@code ("modifyThread")}
      */
     public ForkJoinPool(int parallelism) {
-        this(parallelism, defaultForkJoinWorkerThreadFactory, null, false,
-             0, MAX_CAP, 1, null, DEFAULT_KEEPALIVE, TimeUnit.MILLISECONDS);
+        this(parallelism,
+            defaultForkJoinWorkerThreadFactory, null, false, 0, MAX_CAP, 1, null, DEFAULT_KEEPALIVE, TimeUnit.MILLISECONDS);
     }
-
+    
     /**
      * Creates a {@code ForkJoinPool} with the given parameters (using
      * defaults for others -- see {@link #ForkJoinPool(int,
@@ -2193,14 +998,11 @@ public class ForkJoinPool extends AbstractExecutorService {
      *         because it does not hold {@link
      *         java.lang.RuntimePermission}{@code ("modifyThread")}
      */
-    public ForkJoinPool(int parallelism,
-                        ForkJoinWorkerThreadFactory factory,
-                        UncaughtExceptionHandler handler,
-                        boolean asyncMode) {
-        this(parallelism, factory, handler, asyncMode,
-             0, MAX_CAP, 1, null, DEFAULT_KEEPALIVE, TimeUnit.MILLISECONDS);
+    public ForkJoinPool(int parallelism, ForkJoinWorkerThreadFactory factory, UncaughtExceptionHandler handler, boolean asyncMode) {
+        this(parallelism,
+            factory, handler, asyncMode, 0, MAX_CAP, 1, null, DEFAULT_KEEPALIVE, TimeUnit.MILLISECONDS);
     }
-
+    
     /**
      * Creates a {@code ForkJoinPool} with the given parameters.
      *
@@ -2279,106 +1081,167 @@ public class ForkJoinPool extends AbstractExecutorService {
      *         java.lang.RuntimePermission}{@code ("modifyThread")}
      * @since 9
      */
-    public ForkJoinPool(int parallelism,
-                        ForkJoinWorkerThreadFactory factory,
-                        UncaughtExceptionHandler handler,
-                        boolean asyncMode,
-                        int corePoolSize,
-                        int maximumPoolSize,
-                        int minimumRunnable,
-                        Predicate<? super ForkJoinPool> saturate,
-                        long keepAliveTime,
-                        TimeUnit unit) {
+    // 构造通用的工作池
+    public ForkJoinPool(int parallelism, ForkJoinWorkerThreadFactory factory, UncaughtExceptionHandler handler, boolean asyncMode, int corePoolSize,
+                        int maximumPoolSize, int minimumRunnable, Predicate<? super ForkJoinPool> saturate, long keepAliveTime, TimeUnit unit) {
+        
         // check, encode, pack parameters
-        if (parallelism <= 0 || parallelism > MAX_CAP ||
-            maximumPoolSize < parallelism || keepAliveTime <= 0L)
+        if (parallelism <= 0 || parallelism > MAX_CAP   // 并行度默认在(0, MAX_CAP]范围内
+            || maximumPoolSize < parallelism
+            || keepAliveTime <= 0L) {
             throw new IllegalArgumentException();
-        if (factory == null)
+        }
+        
+        if (factory == null) {
             throw new NullPointerException();
-        long ms = Math.max(unit.toMillis(keepAliveTime), TIMEOUT_SLOP);
-
-        int corep = Math.min(Math.max(corePoolSize, parallelism), MAX_CAP);
-        long c = ((((long)(-corep)       << TC_SHIFT) & TC_MASK) |
-                  (((long)(-parallelism) << RC_SHIFT) & RC_MASK));
-        int m = parallelism | (asyncMode ? FIFO : 0);
+        }
+        
+        // 当前工作池允许的最大线程数量
         int maxSpares = Math.min(maximumPoolSize, MAX_CAP) - parallelism;
+        
+        // 当前工作池允许的最小线程数量
         int minAvail = Math.min(Math.max(minimumRunnable, 0), MAX_CAP);
-        int b = ((minAvail - parallelism) & SMASK) | (maxSpares << SWIDTH);
-        int n = (parallelism > 1) ? parallelism - 1 : 1; // at least 2 slots
-        n |= n >>> 1; n |= n >>> 2; n |= n >>> 4; n |= n >>> 8; n |= n >>> 16;
+        
+        // 计算工作池允许的最大-最小【工作线程】数量
+        int bounds = (maxSpares << SWIDTH) | ((minAvail - parallelism) & SMASK) ;
+        
+        // 默认的【工作线程】数量，最小值与并行度相同，最大值与MAX_CAP相同
+        int corep = Math.min(Math.max(corePoolSize, parallelism), MAX_CAP);
+        
+        // 以负数形式保存了并行度（0x FFFF 0000 0000 0000）与维护的【工作线程】数量（0x 0000 FFFF 0000 0000）
+        long ctl = (((long) (-parallelism) << RC_SHIFT) & RC_MASK) | (((long) (-corep) << TC_SHIFT) & TC_MASK);
+        
+        // 确定访问模式（默认是非异步）
+        int accessMode = asyncMode ? FIFO : 0;
+        
+        // 初始化工作池的工作模式
+        int mode = parallelism | accessMode;
+        
+        // 计算【工作线程】数组的容量（与并行度相关）
+        int n = (parallelism>1) ? parallelism - 1 : 1; // at least 2 slots
+        
+        /*
+         * 周期性地将n扩大2~4倍
+         * 实际计算结果是：2^(ceil(log2(n+1))+1)
+         */
+        n |= n >>> 1;
+        n |= n >>> 2;
+        n |= n >>> 4;
+        n |= n >>> 8;
+        n |= n >>> 16;
         n = (n + 1) << 1; // power of two, including space for submission queues
-
+        
         this.workerNamePrefix = "ForkJoinPool-" + nextPoolId() + "-worker-";
-        this.workQueues = new WorkQueue[n];
+        this.workQueues = new WorkQueue[n]; // 【工作组】的容量由并行度间接确定
         this.factory = factory;
         this.ueh = handler;
         this.saturate = saturate;
-        this.keepAlive = ms;
-        this.bounds = b;
-        this.mode = m;
-        this.ctl = c;
+        this.keepAlive = Math.max(unit.toMillis(keepAliveTime), TIMEOUT_SLOP);
+        this.bounds = bounds;
+        this.mode = mode;
+        this.ctl = ctl;
+        
         checkPermission();
     }
-
-    private static Object newInstanceFromSystemProperty(String property)
-        throws ReflectiveOperationException {
-        String className = System.getProperty(property);
-        return (className == null)
-            ? null
-            : ClassLoader.getSystemClassLoader().loadClass(className)
-            .getConstructor().newInstance();
-    }
-
+    
     /**
      * Constructor for common pool using parameters possibly
      * overridden by system properties
      */
+    // 共享工作池的构造方法
     private ForkJoinPool(byte forCommonPoolOnly) {
         int parallelism = -1;
-        ForkJoinWorkerThreadFactory fac = null;
+        
+        ForkJoinWorkerThreadFactory factory = null;
         UncaughtExceptionHandler handler = null;
-        try {  // ignore exceptions in accessing/parsing properties
-            String pp = System.getProperty
-                ("java.util.concurrent.ForkJoinPool.common.parallelism");
-            if (pp != null)
+        
+        try {
+            // 可以通过运行参数设置共享工作池的并行度
+            String pp = System.getProperty("java.util.concurrent.ForkJoinPool.common.parallelism");
+            if(pp != null) {
                 parallelism = Integer.parseInt(pp);
-            fac = (ForkJoinWorkerThreadFactory) newInstanceFromSystemProperty(
-                "java.util.concurrent.ForkJoinPool.common.threadFactory");
-            handler = (UncaughtExceptionHandler) newInstanceFromSystemProperty(
-                "java.util.concurrent.ForkJoinPool.common.exceptionHandler");
-        } catch (Exception ignore) {
+            }
+            // 可以通过运行参数设置共享工作池的并行度
+            factory = (ForkJoinWorkerThreadFactory) newInstanceFromSystemProperty("java.util.concurrent.ForkJoinPool.common.threadFactory");
+            // 可以通过运行参数设置未捕获的异常处理器
+            handler = (UncaughtExceptionHandler) newInstanceFromSystemProperty("java.util.concurrent.ForkJoinPool.common.exceptionHandler");
+        } catch(Exception ignore) {
+            // ignore exceptions in accessing/parsing properties
         }
-
-        if (fac == null) {
-            if (System.getSecurityManager() == null)
-                fac = defaultForkJoinWorkerThreadFactory;
-            else // use security-managed default
-                fac = new InnocuousForkJoinWorkerThreadFactory();
+        
+        if(factory == null) {
+            if(System.getSecurityManager() == null) {
+                // 默认的【工作线程】工厂
+                factory = defaultForkJoinWorkerThreadFactory;
+            } else { // use security-managed default
+                // 无害的【工作线程】工厂
+                factory = new InnocuousForkJoinWorkerThreadFactory();
+            }
         }
-        if (parallelism < 0 && // default 1 less than #cores
-            (parallelism = Runtime.getRuntime().availableProcessors() - 1) <= 0)
+        
+        // default 1 less than #cores
+        if(parallelism<0 && (parallelism = Runtime.getRuntime().availableProcessors() - 1)<=0) {
+            // 并行度最小为1
             parallelism = 1;
-        if (parallelism > MAX_CAP)
+        }
+        
+        if(parallelism>MAX_CAP) {
+            // 并行度最大为MAX_CAP
             parallelism = MAX_CAP;
-
-        long c = ((((long)(-parallelism) << TC_SHIFT) & TC_MASK) |
-                  (((long)(-parallelism) << RC_SHIFT) & RC_MASK));
-        int b = ((1 - parallelism) & SMASK) | (COMMON_MAX_SPARES << SWIDTH);
-        int n = (parallelism > 1) ? parallelism - 1 : 1;
-        n |= n >>> 1; n |= n >>> 2; n |= n >>> 4; n |= n >>> 8; n |= n >>> 16;
+        }
+        
+        long ctl = ((((long) (-parallelism) << TC_SHIFT) & TC_MASK) | (((long) (-parallelism) << RC_SHIFT) & RC_MASK));
+        
+        // 共享工作池的最大/最小【工作线程】数量
+        int bounds = ((1 - parallelism) & SMASK) | (COMMON_MAX_SPARES << SWIDTH);
+        
+        // 计算【工作线程】数组的容量（与并行度相关）
+        int n = (parallelism>1) ? parallelism - 1 : 1;
+        n |= n >>> 1;
+        n |= n >>> 2;
+        n |= n >>> 4;
+        n |= n >>> 8;
+        n |= n >>> 16;
         n = (n + 1) << 1;
-
+        
         this.workerNamePrefix = "ForkJoinPool.commonPool-worker-";
         this.workQueues = new WorkQueue[n];
-        this.factory = fac;
+        this.factory = factory;
         this.ueh = handler;
         this.saturate = null;
         this.keepAlive = DEFAULT_KEEPALIVE;
-        this.bounds = b;
+        this.bounds = bounds;
         this.mode = parallelism;
-        this.ctl = c;
+        this.ctl = ctl;
     }
-
+    
+    // 通过反射从指定属性中创建实例
+    private static Object newInstanceFromSystemProperty(String property) throws ReflectiveOperationException {
+        String className = System.getProperty(property);
+        if(className == null) {
+            return null;
+        }
+        
+        return ClassLoader.getSystemClassLoader().loadClass(className).getConstructor().newInstance();
+    }
+    
+    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 共享工作池 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the targeted parallelism level of the common pool.
+     *
+     * @return the targeted parallelism level of the common pool
+     * @since 1.8
+     */
+    // 返回共享工作池的并行度
+    public static int getCommonPoolParallelism() {
+        return COMMON_PARALLELISM;
+    }
+    
     /**
      * Returns the common pool instance. This pool is statically
      * constructed; its run state is unaffected by attempts to {@link
@@ -2392,13 +1255,83 @@ public class ForkJoinPool extends AbstractExecutorService {
      * @return the common pool instance
      * @since 1.8
      */
+    // 返回共享工作池
     public static ForkJoinPool commonPool() {
         // assert common != null : "static init error";
         return common;
     }
-
-    // Execution methods
-
+    
+    /*▲ 共享工作池 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 分发/提交/执行/移除任务 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Submits a ForkJoinTask for execution.
+     *
+     * @param task the task to submit
+     * @param <T> the type of the task's result
+     * @return the task
+     * @throws NullPointerException if the task is null
+     * @throws RejectedExecutionException if the task cannot be
+     *         scheduled for execution
+     */
+    // 提交/执行F/J任务，返回任务自身
+    public <T> ForkJoinTask<T> submit(ForkJoinTask<T> task) {
+        // 分发任务。将task分发到【队列】的top处排队，并创建/唤醒【工作线程】
+        return externalSubmit(task);
+    }
+    
+    /**
+     * @throws NullPointerException if the task is null
+     * @throws RejectedExecutionException if the task cannot be
+     *         scheduled for execution
+     */
+    // 提交/执行实现了Runnable接口的任务，返回任务自身
+    @SuppressWarnings("unchecked")
+    public ForkJoinTask<?> submit(Runnable task) {
+        if (task == null) {
+            throw new NullPointerException();
+        }
+        
+        ForkJoinTask<Void> fjTask = null;
+        
+        if(task instanceof ForkJoinTask<?>){
+            fjTask = (ForkJoinTask<Void>) task; // 避免重复包装
+        } else {
+            fjTask = new ForkJoinTask.AdaptedRunnableAction(task);
+        }
+        
+        // 分发任务。将task分发到【队列】的top处排队，并创建/唤醒【工作线程】
+        return externalSubmit(fjTask);
+    }
+    
+    /**
+     * @throws NullPointerException if the task is null
+     * @throws RejectedExecutionException if the task cannot be scheduled for execution
+     */
+    // 提交/执行实现了Runnable接口的任务，返回任务自身
+    public <T> ForkJoinTask<T> submit(Runnable task, T result) {
+        ForkJoinTask<T> fjTask = new AdaptedRunnable<>(task, result);
+        
+        // 分发任务。将task分发到【队列】的top处排队，并创建/唤醒【工作线程】
+        return externalSubmit(fjTask);
+    }
+    
+    /**
+     * @throws NullPointerException if the task is null
+     * @throws RejectedExecutionException if the task cannot be
+     *         scheduled for execution
+     */
+    // 提交/执行实现了Callable接口的任务，返回任务自身
+    public <T> ForkJoinTask<T> submit(Callable<T> task) {
+        ForkJoinTask<T> fjTask = new ForkJoinTask.AdaptedCallable<T>(task);
+        
+        // 分发任务。将task分发到【队列】的top处排队，并创建/唤醒【工作线程】
+        return externalSubmit(fjTask);
+    }
+    
     /**
      * Performs the given task, returning its result upon completion.
      * If the computation encounters an unchecked Exception or Error,
@@ -2416,13 +1349,19 @@ public class ForkJoinPool extends AbstractExecutorService {
      * @throws RejectedExecutionException if the task cannot be
      *         scheduled for execution
      */
+    // 安排执行任务，并等待返回执行结果
     public <T> T invoke(ForkJoinTask<T> task) {
-        if (task == null)
+        if (task == null) {
             throw new NullPointerException();
+        }
+        
+        // 分发任务。将task分发到【队列】的top处排队，并创建/唤醒【工作线程】
         externalSubmit(task);
+        
+        // 从【工作队列】的top处取出当前任务并执行，最后返回任务的执行结果
         return task.join();
     }
-
+    
     /**
      * Arranges for (asynchronous) execution of the given task.
      *
@@ -2431,412 +1370,1317 @@ public class ForkJoinPool extends AbstractExecutorService {
      * @throws RejectedExecutionException if the task cannot be
      *         scheduled for execution
      */
+    // 分发任务，安排异步执行任务
     public void execute(ForkJoinTask<?> task) {
+        // 分发任务。将task分发到【队列】的top处排队，并创建/唤醒【工作线程】
         externalSubmit(task);
     }
-
-    // AbstractExecutorService methods
-
+    
     /**
      * @throws NullPointerException if the task is null
      * @throws RejectedExecutionException if the task cannot be
      *         scheduled for execution
      */
+    // 分发、执行Runnable类型的任务
     public void execute(Runnable task) {
-        if (task == null)
+        if (task == null) {
             throw new NullPointerException();
-        ForkJoinTask<?> job;
-        if (task instanceof ForkJoinTask<?>) // avoid re-wrap
-            job = (ForkJoinTask<?>) task;
-        else
-            job = new ForkJoinTask.RunnableExecuteAction(task);
-        externalSubmit(job);
+        }
+        
+        ForkJoinTask<?> fjTask;
+        if (task instanceof ForkJoinTask<?>) { // avoid re-wrap
+            fjTask = (ForkJoinTask<?>) task;
+        } else {
+            fjTask = new ForkJoinTask.RunnableExecuteAction(task);
+        }
+        
+        // 分发任务。将task分发到【队列】的top处排队，并创建/唤醒【工作线程】
+        externalSubmit(fjTask);
     }
-
-    /**
-     * Submits a ForkJoinTask for execution.
-     *
-     * @param task the task to submit
-     * @param <T> the type of the task's result
-     * @return the task
-     * @throws NullPointerException if the task is null
-     * @throws RejectedExecutionException if the task cannot be
-     *         scheduled for execution
-     */
-    public <T> ForkJoinTask<T> submit(ForkJoinTask<T> task) {
-        return externalSubmit(task);
-    }
-
-    /**
-     * @throws NullPointerException if the task is null
-     * @throws RejectedExecutionException if the task cannot be
-     *         scheduled for execution
-     */
-    public <T> ForkJoinTask<T> submit(Callable<T> task) {
-        return externalSubmit(new ForkJoinTask.AdaptedCallable<T>(task));
-    }
-
-    /**
-     * @throws NullPointerException if the task is null
-     * @throws RejectedExecutionException if the task cannot be
-     *         scheduled for execution
-     */
-    public <T> ForkJoinTask<T> submit(Runnable task, T result) {
-        return externalSubmit(new ForkJoinTask.AdaptedRunnable<T>(task, result));
-    }
-
-    /**
-     * @throws NullPointerException if the task is null
-     * @throws RejectedExecutionException if the task cannot be
-     *         scheduled for execution
-     */
-    @SuppressWarnings("unchecked")
-    public ForkJoinTask<?> submit(Runnable task) {
-        if (task == null)
-            throw new NullPointerException();
-        return externalSubmit((task instanceof ForkJoinTask<?>)
-            ? (ForkJoinTask<Void>) task // avoid re-wrap
-            : new ForkJoinTask.AdaptedRunnableAction(task));
-    }
-
-    /**
-     * @throws NullPointerException       {@inheritDoc}
-     * @throws RejectedExecutionException {@inheritDoc}
-     */
+    
+    // 分发、执行容器中所有Callable类型的任务
     public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) {
-        // In previous versions of this class, this method constructed
-        // a task to run ForkJoinTask.invokeAll, but now external
-        // invocation of multiple tasks is at least as efficient.
+        // In previous versions of this class, this method constructed a task to run ForkJoinTask.invokeAll,
+        // but now external invocation of multiple tasks is at least as efficient.
         ArrayList<Future<T>> futures = new ArrayList<>(tasks.size());
-
+        
         try {
-            for (Callable<T> t : tasks) {
-                ForkJoinTask<T> f = new ForkJoinTask.AdaptedCallable<T>(t);
-                futures.add(f);
-                externalSubmit(f);
+            // 遍历容器，通过适配器包装任务
+            for (Callable<T> task : tasks) {
+                ForkJoinTask<T> fjTask = new ForkJoinTask.AdaptedCallable<T>(task);
+                futures.add(fjTask);
+                
+                // 分发任务。将task分发到【队列】的top处排队，并创建/唤醒【工作线程】
+                externalSubmit(fjTask);
             }
-            for (int i = 0, size = futures.size(); i < size; i++)
-                ((ForkJoinTask<?>)futures.get(i)).quietlyJoin();
+            
+            for(Future<T> future : futures) {
+                // 从【工作队列】的top处取出当前任务并执行，不返回任务状态。必要时，需要等待其他任务的完成
+                ((ForkJoinTask<?>) future).quietlyJoin();
+            }
+            
             return futures;
         } catch (Throwable t) {
-            for (int i = 0, size = futures.size(); i < size; i++)
-                futures.get(i).cancel(false);
+            for(Future<T> future : futures) {
+                future.cancel(false);
+            }
+            
             throw t;
         }
     }
-
+    
     /**
-     * Returns the factory used for constructing new workers.
-     *
-     * @return the factory used for constructing new workers
+     * Pushes a possibly-external submission.
      */
-    public ForkJoinWorkerThreadFactory getFactory() {
-        return factory;
-    }
-
-    /**
-     * Returns the handler for internal worker threads that terminate
-     * due to unrecoverable errors encountered while executing tasks.
-     *
-     * @return the handler, or {@code null} if none
+    /*
+     * 分发任务。将task分发到【队列】的top处排队，并创建/唤醒【工作线程】
+     * 该分发动作可能由【提交线程】发起，也可能由【工作线程】发起
      */
-    public UncaughtExceptionHandler getUncaughtExceptionHandler() {
-        return ueh;
-    }
-
-    /**
-     * Returns the targeted parallelism level of this pool.
-     *
-     * @return the targeted parallelism level of this pool
-     */
-    public int getParallelism() {
-        int par = mode & SMASK;
-        return (par > 0) ? par : 1;
-    }
-
-    /**
-     * Returns the targeted parallelism level of the common pool.
-     *
-     * @return the targeted parallelism level of the common pool
-     * @since 1.8
-     */
-    public static int getCommonPoolParallelism() {
-        return COMMON_PARALLELISM;
-    }
-
-    /**
-     * Returns the number of worker threads that have started but not
-     * yet terminated.  The result returned by this method may differ
-     * from {@link #getParallelism} when threads are created to
-     * maintain parallelism when others are cooperatively blocked.
-     *
-     * @return the number of worker threads
-     */
-    public int getPoolSize() {
-        return ((mode & SMASK) + (short)(ctl >>> TC_SHIFT));
-    }
-
-    /**
-     * Returns {@code true} if this pool uses local first-in-first-out
-     * scheduling mode for forked tasks that are never joined.
-     *
-     * @return {@code true} if this pool uses async mode
-     */
-    public boolean getAsyncMode() {
-        return (mode & FIFO) != 0;
-    }
-
-    /**
-     * Returns an estimate of the number of worker threads that are
-     * not blocked waiting to join tasks or for other managed
-     * synchronization. This method may overestimate the
-     * number of running threads.
-     *
-     * @return the number of worker threads
-     */
-    public int getRunningThreadCount() {
-        WorkQueue[] ws; WorkQueue w;
-        VarHandle.acquireFence();
-        int rc = 0;
-        if ((ws = workQueues) != null) {
-            for (int i = 1; i < ws.length; i += 2) {
-                if ((w = ws[i]) != null && w.isApparentlyUnblocked())
-                    ++rc;
-            }
+    private <T> ForkJoinTask<T> externalSubmit(ForkJoinTask<T> task) {
+        if(task == null) {
+            throw new NullPointerException();
         }
-        return rc;
+        
+        // 获取提交任务的线程
+        Thread t = Thread.currentThread();
+        
+        // 如果提交动作发生在【工作线程】
+        if(t instanceof ForkJoinWorkerThread) {
+            ForkJoinWorkerThread wt = (ForkJoinWorkerThread) t;
+            
+            // 如果【工作线程】的工作池就是当前的工作池
+            if(wt.pool == this) {
+                // 如果该【工作线程】中存在【工作队列】
+                if(wt.workQueue != null) {
+                    // 分发任务。【工作线程】将指定的task放入【工作队列】top处排队，并创建/唤醒【工作线程】
+                    wt.workQueue.push(task);
+                }
+            }
+            
+            // 如果提交动作发生在【提交线程】
+        } else {
+            // 分发任务。【提交线程】将task放入【共享队列】top处排队，并创建/唤醒【工作线程】。如果【共享队列】不存在的话需要新建
+            externalPush(task);
+        }
+        
+        return task;
     }
-
+    
     /**
-     * Returns an estimate of the number of threads that are currently
-     * stealing or executing tasks. This method may overestimate the
-     * number of active threads.
+     * Adds the given task to a submission queue at submitter's current queue, creating one if null or contended.
      *
-     * @return the number of active threads
+     * @param task the task. Caller must ensure non-null.
      */
-    public int getActiveThreadCount() {
-        int r = (mode & SMASK) + (int)(ctl >> RC_SHIFT);
-        return (r <= 0) ? 0 : r; // suppress momentarily negative values
-    }
-
-    /**
-     * Returns {@code true} if all worker threads are currently idle.
-     * An idle worker is one that cannot obtain a task to execute
-     * because none are available to steal from other threads, and
-     * there are no pending submissions to the pool. This method is
-     * conservative; it might not return {@code true} immediately upon
-     * idleness of all threads, but will eventually become true if
-     * threads remain inactive.
-     *
-     * @return {@code true} if all threads are currently idle
-     */
-    public boolean isQuiescent() {
-        for (;;) {
-            long c = ctl;
-            int md = mode, pc = md & SMASK;
-            int tc = pc + (short)(c >>> TC_SHIFT);
-            int rc = pc + (int)(c >> RC_SHIFT);
-            if ((md & (STOP | TERMINATED)) != 0)
-                return true;
-            else if (rc > 0)
-                return false;
-            else {
-                WorkQueue[] ws; WorkQueue v;
-                if ((ws = workQueues) != null) {
-                    for (int i = 1; i < ws.length; i += 2) {
-                        if ((v = ws[i]) != null) {
-                            if (v.source > 0)
-                                return false;
-                            --tc;
+    // 分发任务。【提交线程】将task放入【共享队列】top处排队，并创建/唤醒【工作线程】。如果【共享队列】不存在的话需要新建
+    final void externalPush(ForkJoinTask<?> task) {
+        // 获取当前【提交线程】的探测值（可用来计算【共享队列】所在的插槽）
+        int r= ThreadLocalRandom.getProbe();                                // initialize caller's probe
+        
+        // 确保ThreadLocalRandom已初始化，并设置了原始的种子
+        if(r == 0) {
+            ThreadLocalRandom.localInit();
+            // 获取当前【提交线程】的探测值
+            r = ThreadLocalRandom.getProbe();
+        }
+        
+        while(true) {
+            if((mode & SHUTDOWN) != 0 || workQueues == null || workQueues.length<=0) {
+                throw new RejectedExecutionException();
+            }
+            
+            // 相当于随机获取一个偶数索引[0,126]
+            int index = r & (workQueues.length - 1) & SQMASK;
+            
+            // 指向【工作组】的偶数插槽（相当于为当前的【提交线程】在【工作组】上锁定一个插槽）
+            WorkQueue wq = workQueues[index];
+            
+            // 如果该偶数插槽处还没有【共享队列】，就为该插槽新建一个【共享队列】
+            if(wq==null) { // add queue
+                // 为【提交线程】创建一个【共享队列】
+                wq = new WorkQueue(this, null);
+                
+                // 初始化【工作组】
+                wq.array = new ForkJoinTask<?>[INITIAL_QUEUE_CAPACITY];
+                
+                // 初始化id，添加QUIET标记，去除FIFO和OWNED标记
+                wq.id = (r | QUIET) & ~(FIFO | OWNED);
+                
+                wq.source = QUIET;
+                
+                if(workerNamePrefix != null) {
+                    // unless disabled, lock pool to install
+                    synchronized(workerNamePrefix) {
+                        // 确保【工作组】有效
+                        if(workQueues!= null && workQueues.length>0) {
+                            // 注：此处的i与上面的index等值，原因是初始化id时改变的那些位不影响索引值的计算
+                            int i = wq.id & (workQueues.length - 1) & SQMASK;
+                            if(workQueues[i] == null){
+                                // 向【工作组】中放置【共享队列】
+                                workQueues[i] = wq;  // else another thread already installed
+                            }
                         }
                     }
                 }
-                if (tc == 0 && ctl == c)
-                    return true;
+                
+                // 如果该偶数插槽处存在【共享队列】
+            } else {
+                // 尝试锁定【共享队列】
+                if(!wq.tryLockPhase()) {
+                    // 如果锁定失败，说明该【共享队列】已被其它【提交线程】锁定，此时需要更新探测值，并进入新的循环，重新寻找一个偶数插槽
+                    r = ThreadLocalRandom.advanceProbe(r);
+                    
+                    // 如果成功锁定【共享队列】
+                } else {
+                    // 【提交线程】将task放入【共享队列】top处
+                    if(wq.lockedPush(task)) {
+                        // 创建/唤醒【工作线程】
+                        signalWork();
+                    }
+                    return;
+                }
             }
-        }
+            
+        } // while(true)
     }
-
+    
     /**
-     * Returns an estimate of the total number of tasks stolen from
-     * one thread's work queue by another. The reported value
-     * underestimates the actual total number of steals when the pool
-     * is not quiescent. This value may be useful for monitoring and
-     * tuning fork/join programs: in general, steal counts should be
-     * high enough to keep threads busy, but low enough to avoid
-     * overhead and contention across threads.
-     *
-     * @return the number of steals
+     * Performs tryUnpush for an external submitter.
      */
-    public long getStealCount() {
-        long count = stealCount;
-        WorkQueue[] ws; WorkQueue w;
-        if ((ws = workQueues) != null) {
-            for (int i = 1; i < ws.length; i += 2) {
-                if ((w = ws[i]) != null)
-                    count += (long)w.nsteals & 0xffffffffL;
+    // 移除任务。【提交线程】尝试将指定的task从【共享队列】top处移除，返回值代表是否成功移除
+    final boolean tryExternalUnpush(ForkJoinTask<?> task) {
+        // 获取当前【提交线程】的探测值（可用来计算【共享队列】所在的插槽）
+        int r = ThreadLocalRandom.getProbe();
+        
+        // 【工作组】存在，且不为空
+        if(workQueues != null && workQueues.length>0) {
+            // 由探测值定位到当前【提交线程】管辖的【共享队列】
+            WorkQueue wq = workQueues[(workQueues.length - 1) & r & SQMASK];
+            if(wq != null) {
+                // 移除任务。【提交线程】尝试将指定的task从【共享队列】top处移除，返回值代表是否成功移除
+                return wq.tryLockedUnpush(task);
             }
         }
-        return count;
-    }
-
-    /**
-     * Returns an estimate of the total number of tasks currently held
-     * in queues by worker threads (but not including tasks submitted
-     * to the pool that have not begun executing). This value is only
-     * an approximation, obtained by iterating across all threads in
-     * the pool. This method may be useful for tuning task
-     * granularities.
-     *
-     * @return the number of queued tasks
-     */
-    public long getQueuedTaskCount() {
-        WorkQueue[] ws; WorkQueue w;
-        VarHandle.acquireFence();
-        int count = 0;
-        if ((ws = workQueues) != null) {
-            for (int i = 1; i < ws.length; i += 2) {
-                if ((w = ws[i]) != null)
-                    count += w.queueSize();
-            }
-        }
-        return count;
-    }
-
-    /**
-     * Returns an estimate of the number of tasks submitted to this
-     * pool that have not yet begun executing.  This method may take
-     * time proportional to the number of submissions.
-     *
-     * @return the number of queued submissions
-     */
-    public int getQueuedSubmissionCount() {
-        WorkQueue[] ws; WorkQueue w;
-        VarHandle.acquireFence();
-        int count = 0;
-        if ((ws = workQueues) != null) {
-            for (int i = 0; i < ws.length; i += 2) {
-                if ((w = ws[i]) != null)
-                    count += w.queueSize();
-            }
-        }
-        return count;
-    }
-
-    /**
-     * Returns {@code true} if there are any tasks submitted to this
-     * pool that have not yet begun executing.
-     *
-     * @return {@code true} if there are any queued submissions
-     */
-    public boolean hasQueuedSubmissions() {
-        WorkQueue[] ws; WorkQueue w;
-        VarHandle.acquireFence();
-        if ((ws = workQueues) != null) {
-            for (int i = 0; i < ws.length; i += 2) {
-                if ((w = ws[i]) != null && !w.isEmpty())
-                    return true;
-            }
-        }
+        
         return false;
     }
-
+    
+    /*▲ 分发/提交/执行/移除任务 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 加速完成任务 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Removes and returns the next unexecuted submission if one is
-     * available.  This method may be useful in extensions to this
-     * class that re-assign work in systems with multiple pools.
-     *
-     * @return the next submission, or {@code null} if none
+     * Performs helpComplete for an external submitter.
      */
-    protected ForkJoinTask<?> pollSubmission() {
-        return pollScan(true);
+    // 【提交线程】尝试加速task的完成，并在最终返回任务的状态
+    final int externalHelpComplete(CountedCompleter<?> task, int maxTasks) {
+        // 获取当前【提交线程】的探测值（可用来计算【共享队列】所在的插槽）
+        int r = ThreadLocalRandom.getProbe();
+        
+        if(workQueues != null && workQueues.length>0){
+            WorkQueue w = workQueues[(workQueues.length - 1) & r & SQMASK];
+            if(w!=null){
+                // 在【共享队列】的top处查找task及task的父任务，如果找到，则执行它，以加速任务的完成
+                return w.helpCC(task, maxTasks, true);
+            }
+        }
+        
+        return 0;
     }
-
+    
     /**
-     * Removes all available unexecuted submitted and forked tasks
-     * from scheduling queues and adds them to the given collection,
-     * without altering their execution status. These may include
-     * artificially generated or wrapped tasks. This method is
-     * designed to be invoked only when the pool is known to be
-     * quiescent. Invocations at other times may not remove all
-     * tasks. A failure encountered while attempting to add elements
-     * to collection {@code c} may result in elements being in
-     * neither, either or both collections when the associated
-     * exception is thrown.  The behavior of this operation is
-     * undefined if the specified collection is modified while the
-     * operation is in progress.
+     * Tries to steal and run tasks within the target's computation.
+     * The maxTasks argument supports external usages; internal calls
+     * use zero, allowing unbounded steps (external calls trap
+     * non-positive values).
      *
-     * @param c the collection to transfer elements into
-     * @return the number of elements transferred
+     * @param w        caller
+     * @param maxTasks if non-zero, the maximum number of other tasks to run
+     *
+     * @return task status on exit
      */
-    protected int drainTasksTo(Collection<? super ForkJoinTask<?>> c) {
-        WorkQueue[] ws; WorkQueue w; ForkJoinTask<?> t;
-        VarHandle.acquireFence();
-        int count = 0;
-        if ((ws = workQueues) != null) {
-            for (int i = 0; i < ws.length; ++i) {
-                if ((w = ws[i]) != null) {
-                    while ((t = w.poll()) != null) {
-                        c.add(t);
-                        ++count;
+    // 【工作线程】尝试加速task的完成，并在最终返回任务的状态
+    final int helpComplete(WorkQueue w, CountedCompleter<?> task, int maxTasks) {
+        if(w!=null){
+            // 在【共享队列】的top处查找task及task的父任务，如果找到，则执行它，以加速任务的完成
+            return w.helpCC(task, maxTasks, false);
+        }
+        
+        return 0;
+    }
+    
+    /**
+     * Helps and/or blocks until the given task is done or timeout.
+     * First tries locally helping, then scans other queues for a task produced by one of w's stealers;
+     * compensating and blocking if none are found (rescanning if tryCompensate fails).
+     *
+     * @param w        caller
+     * @param task     the task
+     * @param deadline for timed waits, if nonzero
+     *
+     * @return task status on exit
+     */
+    // 【工作线程】尝试加速task的完成，如果无法加速，则当前的【工作线程】考虑进入wait状态，直到task完成后被唤醒
+    final int awaitJoin(WorkQueue w, ForkJoinTask<?> task, long deadline) {
+        int s = 0;
+        
+        // 获取当前线程内的辅助种子
+        int seed = ThreadLocalRandom.nextSecondarySeed();
+        
+        if(w != null && task != null) {
+            /*
+             * 如果task是CC型任务（总是返回未完成提示），
+             * 则尝试加速task的完成，并在最终返回任务的状态
+             * 如果任务已完成，返回任务的状态码
+             */
+            if(task instanceof CountedCompleter) {
+                // 尝试将task从【队列】的top处移除，并执行它
+                s = w.helpCC((CountedCompleter<?>) task, 0, false);
+                if(s<0){
+                    return s;
+                }
+            }
+            
+            // 如果task存在于【队列】当中，尝试将其从【队列】中移除，并执行它（应对乱序）
+            w.tryRemoveAndExec(task);
+            
+            // 记下当前【队列】的source
+            int src = w.source;
+            
+            // 当前【队列】的ID
+            int id = w.id;
+            
+            // 奇数
+            int r = (seed >>> 16) | 1;
+            
+            // 偶数
+            int step = (seed & ~1) | 2;
+            
+            s = task.status;
+            
+            // 如果任务还未完成
+            while(s >= 0) {
+                // 初始化为工作组插槽数量
+                int n = workQueues == null ? 0 : workQueues.length;
+                
+                int m = n - 1;
+                
+                // 互相窃取（扫描一遍）
+                while(n>0) {
+                    // 选择一个【工作队列】
+                    WorkQueue q = workQueues[r & m];
+                    
+                    int b;
+                    
+                    // 如果选择的【队列】刚刚窃取了当前【队列】中任务
+                    if(q != null && q.source==id && q.top != (b=q.base)) {
+                        if(q.array != null && q.array.length>0) {
+                            // 从base处窃取任务（属于原task的子任务，即加速完成）
+                            int i = (q.array.length - 1) & b;
+                            
+                            ForkJoinTask<?> t = (ForkJoinTask<?>) QA.getAcquire(q.array, i);
+                            
+                            // 当前【列队】也尝试从选择的【队列】中的base处窃取任务
+                            if(q.source == id && q.base == b++ && t != null && QA.compareAndSet(q.array, i, t, null)) {
+                                q.base = b;
+                                
+                                // 记下被窃【队列】的ID
+                                w.source = q.id;
+                                
+                                // 如果任务窃取成功，则执行任务
+                                t.doExec();
+                                
+                                // 还原回当前【队列】的ID
+                                w.source = src;
+                            }
+                        }
+                        
+                        break;
+                    } else {
+                        r += step;
+                        --n;
+                    }
+                } // while(n>0)
+                
+                // 如果任务已完成，退出循环
+                if((s = task.status)<0) {
+                    break;
+                }
+                
+                /*
+                 * 至此，如果n==0，status>=0
+                 * 说明上面执行了空的扫描，即没有发现是谁盗取了当前【队列】的任务，
+                 * 这意味着待完成任务已被分解/执行了，且分解后的任务又被别的线程窃取了
+                 * 而且窃取当前【队列】的任务的线程又窃取了别任务
+                 */
+                if(n == 0) { // empty scan
+                    long ms, ns;
+                    int block;
+                    
+                    if(deadline == 0L) {
+                        ms = 0L;                       // untimed
+                    } else if((ns = deadline - System.nanoTime())<=0L) {
+                        break;                         // timeout
+                    } else if((ms = TimeUnit.NANOSECONDS.toMillis(ns))<=0L) {
+                        ms = 1L;                       // avoid 0 for timed wait
+                    }
+                    
+                    /*
+                     * 当前线程没有合适任务时，这里决定是否让其转入wait状态
+                     * （不能为当前线程安排执行task子任务之外的任务，不然当task[已完成]时无法得到及时的响应）
+                     */
+                    block = tryCompensate(w);
+                    
+                    if(block != 0) {
+                        // 如果任务还未完成，将任务状态标记为[等待]，并进入wait状态
+                        task.internalWait(ms);
+                        CTL.getAndAdd(this, (block>0) ? RC_UNIT : 0L);
+                    }
+                    
+                    s = task.status;
+                }
+            } // while(s>=0)
+        }
+        
+        return s;
+    }
+    
+    /**
+     * If called by a ForkJoinTask operating in this pool, equivalent
+     * in effect to {@link ForkJoinTask#helpQuiesce}. Otherwise,
+     * waits and/or attempts to assist performing tasks until this
+     * pool {@link #isQuiescent} or the indicated timeout elapses.
+     *
+     * @param timeout the maximum time to wait
+     * @param unit the time unit of the timeout argument
+     * @return {@code true} if quiescent; {@code false} if the
+     * timeout elapsed.
+     */
+    // 等待（促进）所有【工作队列】变为空闲
+    public boolean awaitQuiescence(long timeout, TimeUnit unit) {
+        // 将当前时间单位下的timeout换算为纳秒
+        long nanos = unit.toNanos(timeout);
+        
+        Thread thread = Thread.currentThread();
+        
+        if (thread instanceof ForkJoinWorkerThread) {
+            ForkJoinWorkerThread wt = (ForkJoinWorkerThread)thread;
+            if(wt.pool == this){
+                // 【工作线程】促进【工作队列】中任务的完成（使【工作线程】走向空闲）
+                helpQuiescePool(wt.workQueue);
+                return true;
+            }
+        }
+        
+        // 在未超时的情形下，随机轮询任务，如果任务存在，则执行它
+        for (long startTime = System.nanoTime(); ; ) {
+            // 通过轮询，随机从某个【队列】中获取一个任务
+            ForkJoinTask<?> task = pollScan(false);
+            
+            if(task != null) {
+                // 执行任务
+                task.doExec();
+            } else {
+                // 判断是否所有【工作线程】当前都处于空闲状态
+                if(isQuiescent()) {
+                    return true;
+                }
+                
+                // 判断是否超时
+                if((System.nanoTime() - startTime)>nanos) {
+                    return false;
+                }
+                
+                // 当前线程让出CPU时间片，大家重新抢占执行权
+                Thread.yield(); // cannot block
+            }
+        }
+        
+    }
+    
+    /**
+     * Waits and/or attempts to assist performing tasks indefinitely
+     * until the {@link #commonPool()} {@link #isQuiescent}.
+     */
+    // 等待（促进）【共享工作池】上的所有【工作队列】变为空闲
+    static void quiesceCommonPool() {
+        // 等待（促进）所有【工作队列】变为空闲
+        common.awaitQuiescence(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+    }
+    
+    /**
+     * Runs tasks until {@code isQuiescent()}. Rather than blocking
+     * when tasks cannot be found, rescans until all others cannot
+     * find tasks either.
+     */
+    // 【工作线程】促进【工作队列】中任务的完成（使【工作线程】走向空闲）
+    final void helpQuiescePool(WorkQueue w) {
+        int seed = ThreadLocalRandom.nextSecondarySeed();
+        int r = seed >>> 16;
+        int step = r | 1;   // 奇数步长
+        
+        int prevSrc = w.source;
+        
+        for(int source = prevSrc, released = -1; ; ) { // -1 until known
+            ForkJoinTask<?> localTask;
+            
+            // 让【工作线程】尝试从自身的【工作队列】中取出[本地任务]
+            while((localTask = w.nextLocalTask()) != null) {
+                // 执行任务
+                localTask.doExec();
+            }
+            
+            if(w.phase >= 0 && released == -1) {
+                released = 1;
+            }
+            
+            boolean quiet = true;
+            boolean empty = true;
+            
+            int n = workQueues == null ? 0 : workQueues.length;
+            
+            // 从后往前遍历【工作组】
+            for(int m = n - 1; n>0; r += step, --n) {
+                // 取出遇到的【工作队列】
+                WorkQueue q = workQueues[r & m];
+                if(q != null) {
+                    int qs = q.source;
+                    int b = q.base;
+                    
+                    // 如果该【工作队列】中有任务
+                    if(q.top != b) {
+                        quiet = empty = false;
+                        ForkJoinTask<?>[] a = q.array;
+                        int cap, k;
+                        int qid = q.id;
+                        if(a != null && (cap = a.length)>0) {
+                            if(released == 0) {    // increment
+                                released = 1;
+                                CTL.getAndAdd(this, RC_UNIT);
+                            }
+                            
+                            ForkJoinTask<?> t = (ForkJoinTask<?>) QA.getAcquire(a, k = (cap - 1) & b);
+                            if(q.base == b++ && t != null && QA.compareAndSet(a, k, t, null)) {
+                                q.base = b;
+                                w.source = qid;
+                                // 执行任务
+                                t.doExec();
+                                w.source = source = prevSrc;
+                            }
+                        }
+                        break;
+                    }
+                    
+                    // 如果该【工作队列】处于运行状态
+                    if((qs & QUIET) == 0) {
+                        quiet = false;
+                    }
+                }
+            }// for
+            
+            // 如果所有【工作队列】都是空的，且所有工作队列处于park状态
+            if(quiet) {
+                if(released == 0) {
+                    CTL.getAndAdd(this, RC_UNIT);
+                }
+                w.source = prevSrc;
+                break;
+            }
+            
+            // 如果所有【工作队列】都是空的
+            if(empty) {
+                if(source != QUIET) {
+                    w.source = source = QUIET;
+                }
+                
+                if(released == 1) {                 // decrement
+                    released = 0;
+                    CTL.getAndAdd(this, RC_MASK & -RC_UNIT);
+                }
+            }
+        }// for
+    }
+    
+    /*▲ 加速完成任务 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 工作线程 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Tries to add one worker, incrementing ctl counts before doing so, relying on createWorker to back out on failure.
+     *
+     * @param c incoming ctl value, with total count negative and no idle workers.
+     *          On CAS failure, c is refreshed and retried if this holds (otherwise, a new worker is not needed).
+     */
+    // 添加一个【工作线程】
+    private void tryAddWorker(long c) {
+        do {
+            // 【工作线程】总数+1，活跃数量+1
+            long nc = ((RC_MASK & (c + RC_UNIT)) | (TC_MASK & (c + TC_UNIT)));
+            
+            // 更新ctl
+            if(ctl == c && CTL.compareAndSet(this, c, nc)) {
+                // 创建【工作线程】和【工作线程】，并与当前【工作池】完成三方绑定
+                createWorker();
+                break;
+            }
+            
+            c = ctl;
+            
+        } while((c & ADD_WORKER) != 0L && (int) c == 0);
+    }
+    
+    /**
+     * Tries to construct and start one worker. Assumes that total
+     * count has already been incremented as a reservation.  Invokes
+     * deregisterWorker on any failure.
+     *
+     * @return true if successful
+     */
+    /*
+     * 创建【工作线程】和【工作线程】，并与当前【工作池】完成三方绑定
+     * 随后启动【工作线程】，窃取/执行任务
+     * 如果上述过程发生异常，则注销任务
+     */
+    private boolean createWorker() {
+        Throwable ex = null;
+        ForkJoinWorkerThread wt = null;
+        
+        try {
+            if(factory != null) {
+                // 创建【工作线程】和【工作线程】，并与当前【工作池】完成三方绑定
+                wt = factory.newThread(this);
+                
+                // 如果成功创建了【工作线程】
+                if(wt != null){
+                    // 启动【工作线程】（与此同时，当前线程也没闲着，要继续执行下去）
+                    wt.start();
+                    
+                    return true;
+                }
+            }
+        } catch(Throwable e) {
+            ex = e;
+        }
+        
+        deregisterWorker(wt, ex);
+        
+        return false;
+    }
+    
+    /**
+     * Callback from ForkJoinWorkerThread constructor to establish and record its WorkQueue.
+     *
+     * @param wt the worker thread
+     *
+     * @return the worker's queue
+     */
+    // 为指定的【工作线程】创建【工作队列】，并返回该【工作队列】
+    final WorkQueue registerWorker(ForkJoinWorkerThread wt) {
+        /*
+         * 将【工作线程】设置为▉守护线程▉
+         * 这意味着所有非守护线程结束后，【工作线程】也将结束，无论其处于什么状态
+         */
+        wt.setDaemon(true);  // configure thread
+        
+        if(ueh != null) {
+            // 设置未捕获异常处理器
+            wt.setUncaughtExceptionHandler(ueh);
+        }
+        
+        // 为【工作线程】创建一个【工作队列】
+        WorkQueue wq = new WorkQueue(this, wt);
+        
+        if(workerNamePrefix != null) {
+            int tid = 0;
+            
+            synchronized(workerNamePrefix) {
+                // 魔数递增
+                indexSeed += SEED_INCREMENT;
+                
+                if(workQueues != null && workQueues.length>1) {
+                    // 【工作组】容量是2的冪
+                    int len = workQueues.length;
+                    
+                    // 生成[0, len)之间的奇数，作为【工作线程】在【工作组】中的索引
+                    tid = ((indexSeed << 1) | 1) & (len-1);
+                    
+                    // 初始化遍历次数（容量的一半，因为只需要遍历奇数插槽）
+                    int probes = len >>> 1;
+                    
+                    // 在【工作组】上查找空的插槽
+                    while(true) {
+                        // 插槽为空，或者这个插槽处的【工作队列】已报废，则直接在这里放置新的【工作队列】
+                        if(workQueues[tid]==null || workQueues[tid].phase == QUIET) {
+                            break;
+                        }
+                        
+                        // 遍历结束
+                        if(--probes == 0) {
+                            tid = len | 1;                // resize below
+                            break;
+                        }
+                        
+                        // 前进到下一个奇数（越界后会轮转）
+                        tid = (tid + 2) & (len-1);
+                    }
+                    
+                    // 计算【工作队列】ID前16位
+                    int idbits = (mode & FIFO) | (indexSeed & ~(SMASK | FIFO | DORMANT));
+                    
+                    // 生成【工作队列】的ID（后16位保存【工作队列】在【工作组】上的索引）
+                    wq.id = idbits | tid;      // now publishable
+                    
+                    // 此处使得：phase>0
+                    wq.phase = wq.id;
+                    
+                    // 如果无需扩容
+                    if(tid<len) {
+                        workQueues[tid] = wq;
+                        
+                        // 放不下了，需要给【工作组】扩容
+                    } else {
+                        // 容量加倍
+                        int an = len << 1;
+                        
+                        WorkQueue[] wqs = new WorkQueue[an];
+                        wqs[tid] = wq;
+                        
+                        // 遍历奇数位置，移动【工作队列】
+                        for(int i=1; i<len; i+=2){
+                            wqs[i] = workQueues[i];         // copy worker
+                        }
+                        
+                        // 遍历偶数位置，移动【共享队列】
+                        for(int i=0; i<len; i+=2){
+                            WorkQueue w = workQueues[i];    // copy external queue
+                            
+                            //
+                            if(w != null) {                 // position may change
+                                wqs[w.id & (an-1) & SQMASK] = w;
+                            }
+                        }
+                        
+                        workQueues = wqs;
                     }
                 }
             }
+            
+            // 为【工作线程】设置名称
+            wt.setName(workerNamePrefix.concat(Integer.toString(tid)));
         }
-        return count;
+        
+        return wq;
     }
-
+    
     /**
-     * Returns a string identifying this pool, as well as its state,
-     * including indications of run state, parallelism level, and
-     * worker and task counts.
+     * Final callback from terminating worker, as well as upon failure to construct or start a worker.
+     * Removes record of worker from array, and adjusts counts.
+     * If pool is shutting down, tries to complete termination.
      *
-     * @return a string identifying this pool, as well as its state
+     * @param wt the worker thread, or null if construction failed
+     * @param ex the exception causing failure, or null if none
      */
-    public String toString() {
-        // Use a single pass through workQueues to collect counts
-        int md = mode; // read volatile fields first
+    // 移除【工作队列】，并标记【工作队列】中的任务为DONE|ABNORMAL状态，最后还要处理异常
+    final void deregisterWorker(ForkJoinWorkerThread wt, Throwable ex) {
+        WorkQueue wq = null;
+        
+        int phase = 0;
+        
+        // 如果给的的【工作线程】有效且包含【工作队列】
+        if(wt != null && (wq = wt.workQueue) != null) {
+            
+            long ns = (long) wq.nsteals & 0xffffffffL;
+            
+            // 将该【工作线程】管理的【工作队列】从【工作组】中移除
+            if(workerNamePrefix != null) {
+                synchronized(workerNamePrefix) {
+                    if(workQueues != null && workQueues.length>0) {
+                        int i = wq.id & (workQueues.length-1);    // remove index from array
+                        if(workQueues[i] == wq){
+                            workQueues[i] = null;
+                        }
+                    }
+                    
+                    // 移除该【工作队列】时，需要统计其中包含的窃取来的任务数量
+                    stealCount += ns;
+                }
+            }
+            
+            // 记录被移除的【工作队列】的版本号
+            phase = wq.phase;
+        }
+        
+        // else pre-adjusted
+        if(phase != QUIET) {
+            boolean boo;
+            
+            // decrement counts
+            do {
+                long c = ctl;
+                boo = CTL.weakCompareAndSet(this, c, ((RC_MASK & (c - RC_UNIT)) | (TC_MASK & (c - TC_UNIT)) | (SP_MASK & c)));
+            } while(!boo);
+        }
+        
+        // 取消当前【工作队列】中的所有任务，即标记所有任务为DONE|ABNORMAL状态
+        if(wq != null) {
+            wq.cancelAll();                             // cancel remaining tasks
+        }
+        
+        // 尝试关闭普通工作池
+        if(!tryTerminate(false, false) && wq != null && wq.array != null) {
+            // 创建/唤醒【工作线程】
+            signalWork();
+        }
+        
+        // help clean on way out
+        if(ex == null) {
+            // 清理失效的"异常记录"。即如果"任务"被GC回收，则将其所在的异常记录从异常记录哈希表中移除
+            ForkJoinTask.helpExpungeStaleExceptions();
+        } else {
+            // 抛出异常
+            ForkJoinTask.rethrow(ex);
+        }
+    }
+    
+    /**
+     * Tries to create or release a worker if too few are running.
+     */
+    // 创建/唤醒【工作线程】
+    final void signalWork() {
+        // 进入死循环
+        while(true) {
+            /*
+             * 如果【工作线程】已饱和，就退出循环。
+             * 饱和的标志是：【工作线程】数量==并行度
+             */
+            if(ctl >= 0L) {
+                break;
+            }
+            
+            int sp = (int) ctl;
+            
+            /*
+             * 如果没有空闲的【工作线程】，就需要尝试开启新的【工作线程】
+             * 空闲的标志是：ctl的低32位为0，如果不为0，则会存储最近一个空闲的【工作线程】的信息
+             */
+            if(sp == 0) {
+                // 如果【工作线程】数量没超过阙值，这个阙值与构造方法的corePoolSize参数有关
+                if((ctl & ADD_WORKER) != 0L) {
+                    // 添加一个【工作线程】
+                    tryAddWorker(ctl);
+                }
+                
+                break;
+            }
+            
+            /* 至此，说明存在空闲的【工作线程】（之前进入了park状态） */
+            
+            // unstarted/terminated
+            if(workQueues == null) {
+                break;
+            }
+            
+            // terminated
+            if(workQueues.length <= (sp & SMASK)) {
+                break;
+            }
+            
+            // 获取最近转入park状态的【工作线程】
+            WorkQueue wq = workQueues[sp & SMASK];
+            
+            if(wq == null) {
+                break;
+            }                               // terminating
+            
+            // 取消待唤醒标记
+            int np = sp & ~UNSIGNALLED;
+            
+            /*
+             * (ctl + RC_UNIT) & UC_MASK 代表恢复了一个阻塞线程，活跃的线程数增一
+             * wq.stackPred & SP_MASK 代表上上个转入park状态（空闲）的【工作线程】的版本号
+             */
+            long nc = ((ctl + RC_UNIT) & UC_MASK) | (wq.stackPred & SP_MASK);
+            
+            if(sp == wq.phase && CTL.compareAndSet(this, ctl, nc)) {
+                // 恢复版本号
+                wq.phase = np;
+                if(wq.owner != null && wq.source<0) {
+                    // 唤醒刚刚转入park状态（空闲）的【工作线程】
+                    LockSupport.unpark(wq.owner);
+                }
+                break;
+            }
+        } // while(true)
+    }
+    
+    /**
+     * Top-level runloop for workers, called by ForkJoinWorkerThread.run.
+     * See above for explanation.
+     */
+    /*
+     * 【工作线程】开始工作：窃取并执行任务
+     * 如果无法窃取到任务，也无法从自身的【工作队列】中获取任务，
+     * 则【工作线程】会转入park状态
+     *
+     * wq：当前【工作线程】管理的【工作队列】
+     */
+    final void runWorker(WorkQueue wq) {
+        // 获取随机数（用来计算【工作组】的插槽位置）
+        int r = (wq.id ^ ThreadLocalRandom.nextSecondarySeed()) | FIFO; // rng
+        
+        // 为【工作线程】的【工作队列】初始化【工作组】
+        wq.array = new ForkJoinTask<?>[INITIAL_QUEUE_CAPACITY]; // initialize
+        
+        for(; ; ) {
+            // 【工作线程】随机从某个插槽开始扫描【工作组】，执行窃取操作，直到无法再获取到排队任务才结束操作
+            boolean meetTask = scan(wq, r);
+            
+            // 如果窃取过程中遇到过排队任务（有没有执行过不确定）
+            if(meetTask) {
+                // 更新随机数
+                r ^= r << 13;
+                r ^= r >>> 17;
+                r ^= r << 5; // move (xorshift)
+                
+                // 如果窃取过程中没有发现排队任务
+            } else {
+                // enqueue, then rescan
+                int pase = wq.phase;
+                
+                if(pase >= 0) {
+                    // 添加了阻塞标记UNSIGNALLED，使得：phase<0
+                    wq.phase = (pase + SS_SEQ) | UNSIGNALLED;
+                    
+                    long c, nc;
+                    do {
+                        // 记录此时的ctl（ctl随即可能被别的线程修改）
+                        c = ctl;
+                        
+                        // 记录前一个陷入阻塞的【工作线程】的版本号
+                        wq.stackPred = (int)c;
+                        
+                        // nc的前32位取自ctl（活跃线程数减一），后32位取自phase
+                        nc = ((c - RC_UNIT) & UC_MASK) | (wq.phase & SP_MASK);
+                        
+                        // 更新ctl为nc
+                    } while(!CTL.weakCompareAndSet(this, c, nc));
+                    
+                    // already queued
+                } else {
+                    // 清除线程的中断标记
+                    Thread.interrupted();             // clear before park
+                    
+                    // 进入park前，会使得source<0
+                    wq.source = DORMANT;               // enable signal
+                    
+                    long c = ctl;
+                    
+                    // 计算活跃的线程数量
+                    int rc = (mode & SMASK) + (int) (c >> RC_SHIFT);
+                    
+                    // 如果工作池已停止
+                    if(mode<0) {
+                        break;
+                    }
+                    
+                    // 如果没有活跃的【工作线程】，且该普通工作池已经经历了一次tryTerminate()
+                    if(rc<=0 && (mode & SHUTDOWN) != 0 && tryTerminate(false, false)) {
+                        break;                        // quiescent shutdown
+                    }
+                    
+                    /*
+                     * 如果没有活跃的【工作线程】，(经过上面的if流程后减没了)
+                     * 且当前【工作线程】之前还有陷入park的【工作线程】，（当前【工作线程】不是第一个要陷入阻塞的）
+                     * 且最近一个陷入park状态的线程是当前的【工作线程】
+                     */
+                    if(rc<=0 && wq.stackPred != 0 && pase == (int)c) {
+                        // 尝试【工作线程】总量减一
+                        long nc = ((c - TC_UNIT) & UC_MASK ) | (SP_MASK & wq.stackPred);
+                        
+                        long d = keepAlive + System.currentTimeMillis();
+                        
+                        // 休眠一段时间后自动醒来
+                        LockSupport.parkUntil(this, d);
+                        
+                        /* drop on timeout if all idle */
+                        // 如果这段时间内ctl没变化，说明没有新增的park线程，此时更新ctl，尝试缩减【工作线程总量】
+                        if(ctl == c && d - System.currentTimeMillis()<=TIMEOUT_SLOP && CTL.compareAndSet(this, c, nc)) {
+                            // 闲太久了，这个线程稍后就退出了，而【工作队列】也被标记为QUIET状态，即该队列已经报废
+                            wq.phase = QUIET;
+                            break;
+                        }
+                    } else if(wq.phase<0) {
+                        LockSupport.park(this);       // OK if spuriously woken
+                    }
+                    
+                    wq.source = 0;                    // disable signal
+                }// if(pase < 0)
+            } // if(meetTask)
+        } // for(; ; )
+    }
+    
+    /**
+     * Scans for and if found executes one or more top-level tasks from a queue.
+     *
+     * @return true if found an apparently non-empty queue, and possibly ran task(s).
+     */
+    /*
+     * 【工作线程】扫描【工作组】，执行窃取操作（也会从本地获取任务）
+     *
+     * 开始时，【工作线程】会带着一个空的【工作队列】wq来接收窃取到的task
+     *
+     * 在整个扫描过程中，【工作线程】可能会遇到[本地任务]和[外部任务]，
+     * 直到无法再获取到排队任务才结束操作
+     *
+     * 返回true 代表本轮操作中发现了排队任务（但不一定抢到执行权）
+     * 返回false代表本轮操作中未发现排队任务
+     */
+    private boolean scan(WorkQueue wq, int r) {
+        int len;
+        
+        // 存在有效的【工作组】
+        if(workQueues != null && (len = workQueues.length)>0 && wq != null) {
+            // 由随机数r生成【工作组】的一个随机插槽
+            int i = r & (len - 1);
+            
+            /*
+             * 遍历整个【工作组】，直到找到一个非空的【队列】，并从中窃取任务
+             * 如果当前不存在非空的【队列】，则退出循环
+             */
+            while(true) {
+                // 随机定位到【工作组】的某个插槽（这个插槽可能是【工作队列】/【共享队列】），并准备窃取它的task
+                WorkQueue w = workQueues[i];
+                
+                // 遇到非空的【队列】
+                if(w != null && w.top != w.base) {
+                    ForkJoinTask<?> task;
+                    
+                    // 确保【队列】的任务组有效
+                    if(w.array != null && w.array.length>0) {
+                        // 获取base处的索引
+                        int index = w.base & (w.array.length - 1);
+                        
+                        // 获取base处的任务（窃取到了[外部任务]）
+                        task = (ForkJoinTask<?>) QA.getAcquire(w.array, index);
+                        
+                        // 如果该任务有效，则将其从原来的任务组中移除
+                        if(task != null && QA.compareAndSet(w.array, index, task, null)) {
+                            // base游标递增，这个窃取过程类似出队，先来的先被窃取
+                            w.base++;
+                            
+                            // 记录窃取的任务所在【队列】的id
+                            wq.source = w.id;
+                            
+                            // 如果被窃取【队列】中还存在其他排队任务
+                            if(w.top - w.base>0) {
+                                // 创建/唤醒【工作线程】，继续窃取（但下次不一定窃取到这个【队列】）
+                                signalWork();
+                            }
+                            
+                            // 【工作线程】执行窃取操作
+                            wq.topLevelExec(task, w, r & ((len << TOP_BOUND_SHIFT) - 1));
+                        }
+                    }
+                    
+                    return true;
+                    
+                    // 如果没有找到非空的【队列】，则前进到【工作组】的下一个插槽处
+                } else if(--len>0) {
+                    i = (i + 1) & (len-1);
+                } else {
+                    // 找遍了【工作组】也没有符合要求的【工作队列】
+                    break;
+                }
+            }// while(true)
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Tries to decrement counts (sometimes implicitly) and possibly arrange for a compensating worker in preparation for blocking:
+     * If not all core workers yet exist, creates one, else if any are unreleased (possibly including caller) releases one,
+     * else if fewer than the minimum allowed number of workers running,
+     * checks to see that they are all active, and if so creates an extra worker unless over maximum limit and policy is to saturate.
+     * Most of these steps can fail due to interference, in which case 0 is returned so caller will retry.
+     * A negative return value indicates that the caller doesn't need to re-adjust counts when later unblocked.
+     *
+     * @return 1: block then adjust, -1: block without adjust, 0 : retry
+     */
+    /*
+     * 补偿
+     *
+     * w是当前【工作线程】中的【工作队列】
+     *
+     * 返回值：
+     * -1 阻塞，不调整
+     *  1 阻塞，调整
+     *  0 重试
+     */
+    private int tryCompensate(WorkQueue w) {
+        WorkQueue[] ws = workQueues;
+        
         long c = ctl;
-        long st = stealCount;
-        long qt = 0L, qs = 0L; int rc = 0;
-        WorkQueue[] ws; WorkQueue w;
-        if ((ws = workQueues) != null) {
-            for (int i = 0; i < ws.length; ++i) {
-                if ((w = ws[i]) != null) {
-                    int size = w.queueSize();
-                    if ((i & 1) == 0)
-                        qs += size;
-                    else {
-                        qt += size;
-                        st += (long)w.nsteals & 0xffffffffL;
-                        if (w.isApparentlyUnblocked())
-                            ++rc;
+        
+        int total = (short) (c >>> TC_SHIFT);
+        
+        // 【工作线程】总量已到阙值
+        if(total >= 0) {
+            int n, sp;
+            
+            // disabled
+            if(ws == null || (n = ws.length)<=0 || w == null) {
+                return 0;
+            }
+            
+            /* replace or release */
+            // 获取上一个转为park的【工作线程】的版本号
+            if((sp = (int) c) != 0) {
+                // 选择上一个转为park的【工作队列】
+                WorkQueue v = ws[sp & (n - 1)];
+                
+                // 获取当前【工作队列】的版本号
+                int wp = w.phase;
+                
+                long uc;
+                
+                // 当前的【工作线程】之前从park状态中自己醒来
+                if(wp<0){
+                    // 需要还原/补偿活跃度
+                    uc = (c + RC_UNIT) & UC_MASK;
+                } else {
+                    uc = c & UC_MASK;
+                }
+                
+                // 取消版本号上的park标记
+                int np = sp & ~UNSIGNALLED;
+                
+                if(v != null) {
+                    // 上一个转为park的【工作线程/队列】的版本号
+                    int vp = v.phase;
+                    
+                    Thread vt = v.owner;
+                    
+                    // 上上个转为park的【工作线程】的戳记
+                    long nc = ((long) v.stackPred & SP_MASK) | uc;
+                    
+                    // 使用nc更新ctl，这个过程就像链表删除一样
+                    if(vp == sp && CTL.compareAndSet(this, c, nc)) {
+                        // 还原park前的版本号
+                        v.phase = np;
+                        
+                        // 唤醒上一个转为park的【工作线程】
+                        if(vt != null && v.source<0) {
+                            LockSupport.unpark(vt);
+                        }
+                        
+                        /*
+                         * wp<0时，说明上一个转为park的【工作线程】就是当前线程，
+                         * 此时返回-1，代表后续不需要调整活跃度了，因为上面已经补偿过了
+                         *
+                         * wp>=0时，说明唤醒了一个正处于park状态的【工作线程】，
+                         * 此时返回1，代表后续需要调整活跃度（增一）
+                         */
+                        return (wp<0) ? -1 : 1;
+                    }
+                }
+                
+                return 0;
+            }
+            
+            /* reduce parallelism */
+            // 如果目前没有【工作线程】陷入park，在还没到最小活跃度的情形下尝试减少活跃度
+            if((int) (c >> RC_SHIFT) - (short) (bounds & SMASK)>0) {
+                // 尝试减少一个活跃度
+                long nc = (((c - RC_UNIT) & RC_MASK) | (~RC_MASK & c));
+                
+                // 返回1表示成功减少了一个活跃度，后续需要加回来
+                return CTL.compareAndSet(this, c, nc) ? 1 : 0;
+            }
+            
+            /* validate */
+            int pc = mode & SMASK;  // 并行度
+            int tc = pc + total;    // 总线程数
+            int bc = 0;
+            
+            boolean unstable = false;
+            
+            // 遍历所有【工作线程】
+            for(int i = 1; i<n; i += 2) {
+                if(ws[i] != null) {
+                    // 当前【工作线程】正在窃取任务
+                    if(ws[i].source == 0) {
+                        unstable = true;
+                        break;
+                    }
+                    
+                    --tc;
+                    
+                    if(ws[i].owner != null) {
+                        Thread.State s = ws[i].owner.getState();
+                        
+                        if(s == Thread.State.BLOCKED || s == Thread.State.WAITING){
+                            ++bc;            // worker is blocking
+                        }
                     }
                 }
             }
+            
+            // inconsistent
+            if(unstable || tc != 0 || ctl != c) {
+                return 0;
+            }
+            
+            if(total + pc >= MAX_CAP || total >= (bounds >>> SWIDTH)) {
+                if(saturate != null && saturate.test(this)) {
+                    return -1;
+                }
+                
+                if(bc<pc) {          // lagging
+                    Thread.yield();  // for retry spins
+                    return 0;
+                }
+                
+                throw new RejectedExecutionException("Thread limit exceeded replacing blocked worker");
+            }
         }
-
-        int pc = (md & SMASK);
-        int tc = pc + (short)(c >>> TC_SHIFT);
-        int ac = pc + (int)(c >> RC_SHIFT);
-        if (ac < 0) // ignore transient negative
-            ac = 0;
-        String level = ((md & TERMINATED) != 0 ? "Terminated" :
-                        (md & STOP)       != 0 ? "Terminating" :
-                        (md & SHUTDOWN)   != 0 ? "Shutting down" :
-                        "Running");
-        return super.toString() +
-            "[" + level +
-            ", parallelism = " + pc +
-            ", size = " + tc +
-            ", active = " + ac +
-            ", running = " + rc +
-            ", steals = " + st +
-            ", tasks = " + qt +
-            ", submissions = " + qs +
-            "]";
+        
+        // 增加【工作线程】总量上限
+        long nc = ((c + TC_UNIT) & TC_MASK) | (c & ~TC_MASK); // expand pool
+        
+        return CTL.compareAndSet(this, c, nc) && createWorker() ? 1 : 0;
     }
-
+    
+    /*▲ 工作线程 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 关闭工作池 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Possibly initiates and/or completes termination.
+     *
+     * @param now if true, unconditionally terminate, else only if no work and no active workers
+     * @param enable if true, terminate when next possible
+     *
+     * @return true if terminating or terminated
+     */
+    /*
+     * 尝试关闭【普通工作池】，会经历三个阶段SHUTDOWN、STOP、Terminate
+     *
+     * now   ：是否立即将普通工作池标记为STOP，即使仍有正在进行的任务
+     * enable：是否将普通工作池标记为SHUTDOWN
+     *
+     * 返回true表示【普通工作池】正在Terminate或已经完成Terminate
+     */
+    private boolean tryTerminate(boolean now, boolean enable) {
+        // 3 phases: try to set SHUTDOWN, then STOP, then TERMINATED
+        int md;
+        
+        /* 阶段一：关闭 */
+        while(((md = mode) & SHUTDOWN) == 0) {
+            // 共享工作池无法关闭
+            if(!enable || this == common) {       // cannot shutdown
+                return false;
+            } else {
+                MODE.compareAndSet(this, md, md | SHUTDOWN);
+            }
+        }
+        
+        /* 阶段二：停止 */
+        while(((md = mode) & STOP) == 0) {       // try to initiate termination
+            /*
+             * 如果不需要立即停止，
+             * 那么检查线程是否处于空闲状态，或者任务已被执行完，
+             * 两者至少满足其一时才能停止工作池
+             */
+            if(!now) {                           // check if quiescent & empty
+                for(long oldSum = 0L; ; ) {      // repeat until stable
+                    boolean running = false;
+                    long checkSum = ctl;
+                    
+                    WorkQueue[] ws = workQueues;
+                    
+                    // 如果存在活跃线程
+                    if((md & SMASK) + (int) (checkSum >> RC_SHIFT)>0) {
+                        running = true;
+                    } else if(ws != null) {
+                        // 遍历【工作组】
+                        for(WorkQueue w : ws) {
+                            if(w != null) {
+                                int s = w.source, p = w.phase;
+                                int d = w.id, b = w.base;
+                                if(b != w.top || ((d & 1) == 1 && (s >= 0 || p >= 0))) {
+                                    running = true;
+                                    break;     // working, scanning, or have work
+                                }
+                                checkSum += (((long) s << 48) + ((long) p << 32) + ((long) b << 16) + (long) d);
+                            }
+                        }// for
+                    }
+                    
+                    if(((md = mode) & STOP) != 0) {
+                        break;                 // already triggered
+                    } else if(running) {
+                        return false;
+                    } else if(workQueues == ws && oldSum == (oldSum = checkSum)) {
+                        break;
+                    }
+                } // for
+            }
+            
+            if((md & STOP) == 0) {
+                MODE.compareAndSet(this, md, md | STOP);
+            }
+        }
+        
+        /* 阶段三：终止 */
+        while(((md = mode) & TERMINATED) == 0) { // help terminate others
+            for(long oldSum = 0L; ; ) {          // repeat until stable
+                WorkQueue[] ws;
+                
+                long checkSum = ctl;
+                if((ws = workQueues) != null) {
+                    for(WorkQueue w : ws) {
+                        if(w != null) {
+                            ForkJoinWorkerThread wt = w.owner;
+                            // 取消当前【队列】中的所有任务，即标记所有任务为DONE|ABNORMAL状态
+                            w.cancelAll();        // clear queues
+                            if(wt != null) {
+                                try {             // unblock join or park
+                                    wt.interrupt();
+                                } catch(Throwable ignore) {
+                                }
+                            }
+                            
+                            checkSum += ((long) w.phase << 32) + w.base;
+                        }
+                    }
+                }
+                
+                if(((md = mode) & TERMINATED) != 0 || (workQueues == ws && oldSum == (oldSum = checkSum))) {
+                    break;
+                }
+            }// for
+            
+            if((md & TERMINATED) != 0) {
+                break;
+            } else if((md & SMASK) + (short) (ctl >>> TC_SHIFT)>0) {
+                break;
+            } else if(MODE.compareAndSet(this, md, md | TERMINATED)) {
+                synchronized(this) {
+                    notifyAll();                  // for awaitTermination
+                }
+                break;
+            }
+        }
+        
+        return true;
+    }
+    
     /**
      * Possibly initiates an orderly shutdown in which previously
      * submitted tasks are executed, but no new tasks will be
@@ -2851,11 +2695,12 @@ public class ForkJoinPool extends AbstractExecutorService {
      *         because it does not hold {@link
      *         java.lang.RuntimePermission}{@code ("modifyThread")}
      */
+    // 尝试关闭【工作池】（其mode必定会带有SHUTDOWN标记）
     public void shutdown() {
         checkPermission();
         tryTerminate(false, true);
     }
-
+    
     /**
      * Possibly attempts to cancel and/or stop all tasks, and reject
      * all subsequently submitted tasks.  Invocation has no effect on
@@ -2874,21 +2719,23 @@ public class ForkJoinPool extends AbstractExecutorService {
      *         because it does not hold {@link
      *         java.lang.RuntimePermission}{@code ("modifyThread")}
      */
+    // 尝试关闭【工作池】（其mode必定会带有SHUTDOWN、STOP标记），返回一个空列表
     public List<Runnable> shutdownNow() {
         checkPermission();
         tryTerminate(true, true);
         return Collections.emptyList();
     }
-
+    
     /**
-     * Returns {@code true} if all tasks have completed following shut down.
+     * Returns {@code true} if this pool has been shut down.
      *
-     * @return {@code true} if all tasks have completed following shut down
+     * @return {@code true} if this pool has been shut down
      */
-    public boolean isTerminated() {
-        return (mode & TERMINATED) != 0;
+    // 【工作池】是否经历完了关闭的第一阶段
+    public boolean isShutdown() {
+        return (mode & SHUTDOWN) != 0;
     }
-
+    
     /**
      * Returns {@code true} if the process of termination has
      * commenced but not yet completed.  This method may be useful for
@@ -2902,20 +2749,22 @@ public class ForkJoinPool extends AbstractExecutorService {
      *
      * @return {@code true} if terminating but not yet terminated
      */
+    // 【工作池】是否经历完了关闭的第二阶段
     public boolean isTerminating() {
         int md = mode;
         return (md & STOP) != 0 && (md & TERMINATED) == 0;
     }
-
+    
     /**
-     * Returns {@code true} if this pool has been shut down.
+     * Returns {@code true} if all tasks have completed following shut down.
      *
-     * @return {@code true} if this pool has been shut down
+     * @return {@code true} if all tasks have completed following shut down
      */
-    public boolean isShutdown() {
-        return (mode & SHUTDOWN) != 0;
+    // 【工作池】是否经历完了关闭的第三阶段
+    public boolean isTerminated() {
+        return (mode & TERMINATED) != 0;
     }
-
+    
     /**
      * Blocks until all tasks have completed execution after a
      * shutdown request, or the timeout occurs, or the current thread
@@ -2930,79 +2779,1566 @@ public class ForkJoinPool extends AbstractExecutorService {
      *         {@code false} if the timeout elapsed before termination
      * @throws InterruptedException if interrupted while waiting
      */
-    public boolean awaitTermination(long timeout, TimeUnit unit)
-        throws InterruptedException {
-        if (Thread.interrupted())
+    // 等待（促进）【工作池】关闭
+    public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+        if(Thread.interrupted()) {
             throw new InterruptedException();
-        if (this == common) {
+        }
+        
+        // 【共享工作池】无法关闭，所以这里总是返回false
+        if(this == common) {
+            // 等待（促进）所有【工作队列】变为空闲
             awaitQuiescence(timeout, unit);
             return false;
         }
+        
         long nanos = unit.toNanos(timeout);
-        if (isTerminated())
+        // 工作池是否经历完了关闭的第三阶段
+        if(isTerminated()) {
             return true;
-        if (nanos <= 0L)
+        }
+        
+        // 已超时
+        if(nanos<=0L) {
             return false;
+        }
+        
         long deadline = System.nanoTime() + nanos;
-        synchronized (this) {
-            for (;;) {
-                if (isTerminated())
+        synchronized(this) {
+            for(; ; ) {
+                if(isTerminated()) {
                     return true;
-                if (nanos <= 0L)
+                }
+                
+                if(nanos<=0L) {
                     return false;
+                }
+                
                 long millis = TimeUnit.NANOSECONDS.toMillis(nanos);
-                wait(millis > 0L ? millis : 1L);
+                
+                wait(millis>0L ? millis : 1L);
+                
                 nanos = deadline - System.nanoTime();
             }
         }
     }
-
+    
+    /*▲ 关闭工作池 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 获取任务 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * If called by a ForkJoinTask operating in this pool, equivalent
-     * in effect to {@link ForkJoinTask#helpQuiesce}. Otherwise,
-     * waits and/or attempts to assist performing tasks until this
-     * pool {@link #isQuiescent} or the indicated timeout elapses.
+     * Scans for and returns a polled task, if available.
+     * Used only for untracked polls.
      *
-     * @param timeout the maximum time to wait
-     * @param unit the time unit of the timeout argument
-     * @return {@code true} if quiescent; {@code false} if the
-     * timeout elapsed.
+     * @param submissionsOnly if true, only scan submission queues
      */
-    public boolean awaitQuiescence(long timeout, TimeUnit unit) {
-        long nanos = unit.toNanos(timeout);
-        ForkJoinWorkerThread wt;
-        Thread thread = Thread.currentThread();
-        if ((thread instanceof ForkJoinWorkerThread) &&
-            (wt = (ForkJoinWorkerThread)thread).pool == this) {
-            helpQuiescePool(wt.workQueue);
-            return true;
+    // 通过轮询，随机从某个【队列】中获取一个任务
+    private ForkJoinTask<?> pollScan(boolean submissionsOnly) {
+rescan:
+        while((mode & STOP) == 0 && workQueues != null && workQueues.length>0) {
+            int r = ThreadLocalRandom.nextSecondarySeed();
+            int h = r >>> 16;
+            
+            int origin, step;
+            
+            if(submissionsOnly) {
+                // 遍历偶数插槽
+                origin = (r & ~1) & (workQueues.length - 1);         // even indices and steps
+                step = (h & ~1) | 2;
+            } else {
+                // 遍历所有插槽
+                origin = r & (workQueues.length - 1);
+                step = h | 1;
+            }
+            
+            boolean nonempty = false;
+            for(int i = origin, oldSum = 0, checkSum = 0; ; ) {
+                WorkQueue wq = workQueues[i];
+                
+                if(wq != null) {
+                    int b;
+                    
+                    if(wq.top - (b = wq.base)>0) {
+                        nonempty = true;
+                        
+                        // 窃取【队列】base处的task，如果取不到，就释放CPU时间片，各线程重新抢占执行权
+                        ForkJoinTask<?> task = wq.poll();
+                        if(task != null) {
+                            return task;
+                        }
+                    } else {
+                        checkSum += b + wq.id;
+                    }
+                }
+                
+                if((i = (i + step) & (workQueues.length - 1)) == origin) {
+                    if(!nonempty && oldSum == (oldSum = checkSum)) {
+                        break rescan;
+                    }
+                    
+                    checkSum = 0;
+                    nonempty = false;
+                }
+            }
         }
-        else {
-            for (long startTime = System.nanoTime();;) {
-                ForkJoinTask<?> t;
-                if ((t = pollScan(false)) != null)
-                    t.doExec();
-                else if (isQuiescent())
+        
+        return null;
+    }
+    
+    /**
+     * Gets and removes a local or stolen task for the given worker.
+     *
+     * @return a task, if available
+     */
+    // 获取一个[本地任务]或窃取的[外部任务]
+    final ForkJoinTask<?> nextTaskFor(WorkQueue w) {
+        if(w!=null){
+            // 让【工作线程】尝试从自身的【工作队列】中取出[本地任务]
+            ForkJoinTask task = w.nextLocalTask();
+            if(task!=null){
+                return task;
+            }
+        }
+        
+        // 通过轮询，随机从某个【队列】中获取一个任务
+        return pollScan(false);
+    }
+    
+    /**
+     * Removes and returns the next unexecuted submission if one is
+     * available.  This method may be useful in extensions to this
+     * class that re-assign work in systems with multiple pools.
+     *
+     * @return the next submission, or {@code null} if none
+     */
+    // 随机从某个【共享队列】中获取一个任务
+    protected ForkJoinTask<?> pollSubmission() {
+        // 通过轮询，随机从某个【共享队列】中获取一个任务
+        return pollScan(true);
+    }
+    
+    // 包装Runnable为AdaptedRunnable型任务
+    protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value) {
+        return new ForkJoinTask.AdaptedRunnable<T>(runnable, value);
+    }
+    
+    // 包装Callable为AdaptedCallable型任务
+    protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable) {
+        return new ForkJoinTask.AdaptedCallable<T>(callable);
+    }
+    
+    /*▲ 获取任务 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 获取队列 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns common pool queue for an external thread.
+     */
+    // 获取当前【提交线程】管辖的【共享队列】（从【共享工作池】中获取）
+    static WorkQueue commonSubmitterQueue() {
+        // 获取当前【提交线程】的探测值（可用来计算【共享队列】所在的插槽）
+        int r = ThreadLocalRandom.getProbe();
+        
+        if(common != null && common.workQueues != null){
+            int n = common.workQueues.length;
+            if(n>0){
+                return common.workQueues[(n - 1) & r & SQMASK];
+            }
+        }
+        
+        return null;
+    }
+    
+    /*▲ 获取队列 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 统计 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the number of worker threads that have started but not
+     * yet terminated.  The result returned by this method may differ
+     * from {@link #getParallelism} when threads are created to
+     * maintain parallelism when others are cooperatively blocked.
+     *
+     * @return the number of worker threads
+     */
+    // 返回当前【工作线程】的总数
+    public int getPoolSize() {
+        return ((mode & SMASK) + (short)(ctl >>> TC_SHIFT));
+    }
+    
+    /**
+     * Returns an estimate of the number of worker threads that are
+     * not blocked waiting to join tasks or for other managed
+     * synchronization. This method may overestimate the
+     * number of running threads.
+     *
+     * @return the number of worker threads
+     */
+    // 获取当前运行着的【工作线程】的数量（即不包括陷入阻塞的线程）
+    public int getRunningThreadCount() {
+        WorkQueue w;
+        
+        VarHandle.acquireFence();
+        
+        int rc = 0;
+        
+        if (workQueues != null) {
+            // 遍历奇数插槽
+            for (int i = 1; i < workQueues.length; i += 2) {
+                w = workQueues[i];
+                
+                // 判断【工作线程】是否在阻塞状态（包括park和wait以及争用态）
+                if (w!=null && w.isApparentlyUnblocked()) {
+                    ++rc;
+                }
+            }
+        }
+        
+        return rc;
+    }
+    
+    /**
+     * Returns an estimate of the number of threads that are currently
+     * stealing or executing tasks. This method may overestimate the
+     * number of active threads.
+     *
+     * @return the number of active threads
+     */
+    // 获取当前活跃的线程数量（抑制了负数）
+    public int getActiveThreadCount() {
+        int r = (mode & SMASK) + (int)(ctl >> RC_SHIFT);
+        return (r <= 0) ? 0 : r; // suppress momentarily negative values
+    }
+    
+    /**
+     * Returns an estimate of the total number of tasks stolen from one thread's work queue by another.
+     * The reported value underestimates the actual total number of steals when the pool is not quiescent.
+     * This value may be useful for monitoring and tuning fork/join programs:
+     * in general, steal counts should be high enough to keep threads busy, but low enough to avoid overhead and contention across threads.
+     *
+     * @return the number of steals
+     */
+    /*
+     * 统计所有【工作线程】累计窃取的任务数量，返回的是静态值，稍后可能会发生变化
+     *
+     * 这个值用来评估算法性能：
+     * 窃取的任务数量高说明线程被充分利用
+     * 窃取的任务数量低说明线程争用不明显
+     */
+    public long getStealCount() {
+        long count = stealCount;
+        
+        if (workQueues != null) {
+            // 遍历奇数插槽
+            for (int i = 1; i < workQueues.length; i += 2) {
+                
+                if (workQueues[i] != null) {
+                    count += (long)workQueues[i].nsteals & 0xffffffffL;
+                }
+            }
+        }
+        
+        return count;
+    }
+    
+    /**
+     * Returns an estimate of the total number of tasks currently held
+     * in queues by worker threads (but not including tasks submitted
+     * to the pool that have not begun executing). This value is only
+     * an approximation, obtained by iterating across all threads in
+     * the pool. This method may be useful for tuning task
+     * granularities.
+     *
+     * @return the number of queued tasks
+     */
+    // 统计所有【工作队列】中存放的任务数
+    public long getQueuedTaskCount() {
+        VarHandle.acquireFence();
+        
+        int count = 0;
+        if (workQueues != null) {
+            // 遍历奇数插槽
+            for (int i = 1; i < workQueues.length; i += 2) {
+                if (workQueues[i] != null) {
+                    // 累加【队列】中的任务数（近似）
+                    count += workQueues[i].queueSize();
+                }
+            }
+        }
+        
+        return count;
+    }
+    
+    /**
+     * Returns an estimate of the number of tasks submitted to this
+     * pool that have not yet begun executing.  This method may take
+     * time proportional to the number of submissions.
+     *
+     * @return the number of queued submissions
+     */
+    // 统计所有【共享队列】中存放的任务数
+    public int getQueuedSubmissionCount() {
+        VarHandle.acquireFence();
+        
+        int count = 0;
+        if (workQueues != null) {
+            // 遍历偶数插槽
+            for (int i = 0; i < workQueues.length; i += 2) {
+                if (workQueues[i] != null) {
+                    // 累加【队列】中的任务数（近似）
+                    count += workQueues[i].queueSize();
+                }
+            }
+        }
+        return count;
+    }
+    
+    /**
+     * Returns a cheap heuristic guide for task partitioning when
+     * programmers, frameworks, tools, or languages have little or no
+     * idea about task granularity.  In essence, by offering this
+     * method, we ask users only about tradeoffs in overhead vs
+     * expected throughput and its variance, rather than how finely to
+     * partition tasks.
+     *
+     * In a steady state strict (tree-structured) computation, each
+     * thread makes available for stealing enough tasks for other
+     * threads to remain active. Inductively, if all threads play by
+     * the same rules, each thread should make available only a
+     * constant number of tasks.
+     *
+     * The minimum useful constant is just 1. But using a value of 1
+     * would require immediate replenishment upon each steal to
+     * maintain enough tasks, which is infeasible.  Further,
+     * partitionings/granularities of offered tasks should minimize
+     * steal rates, which in general means that threads nearer the top
+     * of computation tree should generate more than those nearer the
+     * bottom. In perfect steady state, each thread is at
+     * approximately the same level of computation tree. However,
+     * producing extra tasks amortizes the uncertainty of progress and
+     * diffusion assumptions.
+     *
+     * So, users will want to use values larger (but not much larger)
+     * than 1 to both smooth over transient shortages and hedge
+     * against uneven progress; as traded off against the cost of
+     * extra task overhead. We leave the user to pick a threshold
+     * value to compare with the results of this call to guide
+     * decisions, but recommend values such as 3.
+     *
+     * When all threads are active, it is on average OK to estimate
+     * surplus strictly locally. In steady-state, if one thread is
+     * maintaining say 2 surplus tasks, then so are others. So we can
+     * just use estimated queue length.  However, this strategy alone
+     * leads to serious mis-estimates in some non-steady-state
+     * conditions (ramp-up, ramp-down, other stalls). We can detect
+     * many of these by further considering the number of "idle"
+     * threads, that are known to have zero queued tasks, so
+     * compensate by a factor of (#idle/#active) threads.
+     */
+    // 估算当前【工作线程】保留的本地排队任务数量
+    static int getSurplusQueuedTaskCount() {
+        Thread t = Thread.currentThread();
+        
+        if(t instanceof ForkJoinWorkerThread){
+            ForkJoinWorkerThread wt = (ForkJoinWorkerThread) t;
+            
+            if(wt.pool!=null && wt.workQueue!= null){
+                int p = wt.pool.mode & SMASK;
+                
+                // 计算当前活跃的线程数
+                int a = p + (int) (wt.pool.ctl >> RC_SHIFT);
+                
+                // 计算当前【工作线程】所辖的【工作队列】中排队的任务数
+                int n = wt.workQueue.top - wt.workQueue.base;
+                
+                return n - (a>(p >>>= 1) ? 0 : a>(p >>>= 1) ? 1 : a>(p >>>= 1) ? 2 : a>(p >>>= 1) ? 4 : 8);
+            }
+        }
+        
+        return 0;
+    }
+    
+    /*▲ 统计 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 信息 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the targeted parallelism level of this pool.
+     *
+     * @return the targeted parallelism level of this pool
+     */
+    // 返回【工作池】的并行度
+    public int getParallelism() {
+        int par = mode & SMASK;
+        return (par > 0) ? par : 1;
+    }
+    
+    /**
+     * Returns {@code true} if all worker threads are currently idle.
+     * An idle worker is one that cannot obtain a task to execute
+     * because none are available to steal from other threads, and
+     * there are no pending submissions to the pool. This method is
+     * conservative; it might not return {@code true} immediately upon
+     * idleness of all threads, but will eventually become true if
+     * threads remain inactive.
+     *
+     * @return {@code true} if all threads are currently idle
+     */
+    // 判断是否所有【工作线程】当前都处于空闲状态
+    public boolean isQuiescent() {
+        for (;;) {
+            long c = ctl;
+            int pc = mode & SMASK;
+            int tc = pc + (short)(c >>> TC_SHIFT);  // 线程总数
+            int rc = pc + (int)(c >> RC_SHIFT);     // 活跃线程数
+            
+            if ((mode & (STOP | TERMINATED)) != 0) {
+                return true;
+            } else if (rc > 0) {
+                return false;
+            } else {
+                if (workQueues != null) {
+                    // 遍历奇数插槽上的【工作队列】
+                    for (int i = 1; i < workQueues.length; i += 2) {
+                        if (workQueues[i] != null) {
+                            // 如果该【工作队列】正在执行窃取的任务
+                            if (workQueues[i].source > 0) {
+                                return false;
+                            }
+                            
+                            --tc;
+                        }
+                    }
+                }
+                
+                if (tc == 0 && ctl == c) {
                     return true;
-                else if ((System.nanoTime() - startTime) > nanos)
-                    return false;
-                else
-                    Thread.yield(); // cannot block
+                }
             }
         }
     }
-
+    
     /**
-     * Waits and/or attempts to assist performing tasks indefinitely
-     * until the {@link #commonPool()} {@link #isQuiescent}.
+     * Returns {@code true} if there are any tasks submitted to this pool that have not yet begun executing.
+     *
+     * @return {@code true} if there are any queued submissions
      */
-    static void quiesceCommonPool() {
-        common.awaitQuiescence(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+    // 如果所有【共享队列】中没有正在排队的任务，则返回true
+    public boolean hasQueuedSubmissions() {
+        WorkQueue[] ws;
+        WorkQueue w;
+        VarHandle.acquireFence();
+        if ((ws = workQueues) != null) {
+            // 遍历【共享队列】
+            for (int i = 0; i < ws.length; i += 2) {
+                if ((w = ws[i]) != null && !w.isEmpty()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
-
+    
     /**
-     * Interface for extending managed parallelism for tasks running
-     * in {@link ForkJoinPool}s.
+     * Returns the factory used for constructing new workers.
+     *
+     * @return the factory used for constructing new workers
+     */
+    // 返回【工作线程】工厂
+    public ForkJoinWorkerThreadFactory getFactory() {
+        return factory;
+    }
+    
+    /**
+     * Returns the handler for internal worker threads that terminate
+     * due to unrecoverable errors encountered while executing tasks.
+     *
+     * @return the handler, or {@code null} if none
+     */
+    // 返回未捕获异常处理器
+    public UncaughtExceptionHandler getUncaughtExceptionHandler() {
+        return ueh;
+    }
+    
+    /**
+     * Returns {@code true} if this pool uses local first-in-first-out scheduling mode for forked tasks that are never joined.
+     *
+     * @return {@code true} if this pool uses async mode
+     */
+    // 返回【队列】的访问模式
+    public boolean getAsyncMode() {
+        return (mode & FIFO) != 0;
+    }
+    
+    /**
+     * Returns the next sequence number. We don't expect this to ever contend, so use simple builtin sync.
+     */
+    // 获取下一个【工作池】的编号
+    private static final synchronized int nextPoolId() {
+        return ++poolNumberSequence;
+    }
+    
+    /*▲ 信息 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ ManagedBlocker ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Runs the given possibly blocking task.  When {@linkplain
+     * ForkJoinTask#inForkJoinPool() running in a ForkJoinPool}, this
+     * method possibly arranges for a spare thread to be activated if
+     * necessary to ensure sufficient parallelism while the current
+     * thread is blocked in {@link ManagedBlocker#block blocker.block()}.
+     *
+     * <p>This method repeatedly calls {@code blocker.isReleasable()} and
+     * {@code blocker.block()} until either method returns {@code true}.
+     * Every call to {@code blocker.block()} is preceded by a call to
+     * {@code blocker.isReleasable()} that returned {@code false}.
+     *
+     * <p>If not running in a ForkJoinPool, this method is
+     * behaviorally equivalent to
+     * <pre> {@code
+     * while (!blocker.isReleasable())
+     *   if (blocker.block())
+     *     break;}</pre>
+     *
+     * If running in a ForkJoinPool, the pool may first be expanded to
+     * ensure sufficient parallelism available during the call to
+     * {@code blocker.block()}.
+     *
+     * @param blocker the blocker task
+     * @throws InterruptedException if {@code blocker.block()} did so
+     */
+    // 管理阻塞块（决定blocker所在线程是否需要阻塞）
+    public static void managedBlock(ManagedBlocker blocker) throws InterruptedException {
+        if(blocker == null) {
+            throw new NullPointerException();
+        }
+        
+        Thread t = Thread.currentThread();
+        ForkJoinWorkerThread wt;
+        ForkJoinPool p;
+        WorkQueue w;
+        
+        if((t instanceof ForkJoinWorkerThread)  // 当前线程是【工作线程】
+            && (p = (wt = (ForkJoinWorkerThread) t).pool) != null   // 当前【工作线程】的线程池存在
+            && (w = wt.workQueue) != null) {                        // 上述线程池中存在工作队列
+            
+            int block;
+            
+            // 如果当前线程仍然需要阻塞
+            while(!blocker.isReleasable()) {
+                block = p.tryCompensate(w);
+                
+                if(block != 0) {
+                    try {
+                        while(!blocker.isReleasable() && !blocker.block())
+                            ;
+                    } finally {
+                        CTL.getAndAdd(p, (block>0) ? RC_UNIT : 0L);
+                    }
+                    break;
+                }
+            }
+        } else {
+            while(!blocker.isReleasable() && !blocker.block())
+                ;
+        }
+    }
+    
+    /**
+     * If the given executor is a ForkJoinPool, poll and execute
+     * AsynchronousCompletionTasks from worker's queue until none are
+     * available or blocker is released.
+     */
+    // 尝试使用blocker当前所在线程加速指定的【工作池】中的任务完成
+    static void helpAsyncBlocker(Executor e, ManagedBlocker blocker) {
+        if(!(e instanceof ForkJoinPool)){
+            return;
+        }
+        
+        // 要求参数中指定的【任务执行器】是【工作池】类型
+        ForkJoinPool p = (ForkJoinPool) e;
+        
+        Thread thread = Thread.currentThread();
+        
+        ForkJoinWorkerThread wt;
+        WorkQueue w;
+        WorkQueue[] ws;
+        int r, n;
+        
+        if(thread instanceof ForkJoinWorkerThread                   // 当前线程是【工作线程】
+            && (wt = (ForkJoinWorkerThread) thread).pool == p) {    // 当前【工作线程】的工作池与指定的工作池匹配
+            // 获取当前【工作线程】管辖的【工作队列】
+            w = wt.workQueue;
+            
+            // 【探测值】不为0，说明当前线程是【提交线程】
+        } else if((r = ThreadLocalRandom.getProbe()) != 0           // 当前线程是【提交线程】
+            && (ws = p.workQueues) != null                          // 指定的工作池中包含【工作组】
+            && (n = ws.length)>0) {                                 // 上述【工作组】中包含【队列】
+            // 获取当前【提交线程】管辖的【共享队列】
+            w = ws[(n - 1) & r & SQMASK];
+        } else {
+            // 既不是【工作线程】也不是【提交线程】
+            w = null;
+        }
+        
+        // 拿到了【工作队列】或【共享队列】
+        if(w != null) {
+            // 利用blocker当前所在线程加速【队列】中的任务完成
+            w.helpAsyncBlocker(blocker);
+        }
+        
+    }
+    
+    /*▲ ManagedBlocker ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 权限管理 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * If there is a security manager, makes sure caller has permission to modify threads.
+     */
+    // 安全管理器引发的权限检查
+    private static void checkPermission() {
+        SecurityManager security = System.getSecurityManager();
+        if (security != null) {
+            security.checkPermission(modifyThreadPermission);
+        }
+    }
+    
+    static AccessControlContext contextWithPermissions(Permission... perms) {
+        Permissions permissions = new Permissions();
+        for(Permission perm : perms) {
+            permissions.add(perm);
+        }
+        
+        return new AccessControlContext(new ProtectionDomain[]{new ProtectionDomain(null, permissions)});
+    }
+    
+    /*▲ 权限管理 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /**
+     * Removes all available unexecuted submitted and forked tasks
+     * from scheduling queues and adds them to the given collection,
+     * without altering their execution status. These may include
+     * artificially generated or wrapped tasks. This method is
+     * designed to be invoked only when the pool is known to be
+     * quiescent. Invocations at other times may not remove all
+     * tasks. A failure encountered while attempting to add elements
+     * to collection {@code c} may result in elements being in
+     * neither, either or both collections when the associated
+     * exception is thrown.  The behavior of this operation is
+     * undefined if the specified collection is modified while the
+     * operation is in progress.
+     *
+     * @param c the collection to transfer elements into
+     * @return the number of elements transferred
+     */
+    // 将【工作池】上现存的所有任务存入指定的容器中
+    protected int drainTasksTo(Collection<? super ForkJoinTask<?>> c) {
+        ForkJoinTask<?> t;
+        VarHandle.acquireFence();
+        int count = 0;
+        if (workQueues != null) {
+            // 遍历【工作组】
+            for(WorkQueue w : workQueues) {
+                if(w != null) {
+                    // 取出【工作组】中的任务
+                    while((t = w.poll()) != null) {
+                        // 加到容器中
+                        c.add(t);
+                        ++count;
+                    }
+                }
+            }
+        }
+        return count;
+    }
+    
+    
+    /**
+     * Returns a string identifying this pool, as well as its state, including indications of run state, parallelism level, and worker and task counts.
+     *
+     * @return a string identifying this pool, as well as its state
+     */
+    // 字符串化
+    public String toString() {
+        // Use a single pass through workQueues to collect counts
+        int md = mode; // read volatile fields first
+        long c = ctl;
+        long st = stealCount;
+        long qt = 0L, qs = 0L; int rc = 0;
+        WorkQueue[] ws; WorkQueue w;
+        if ((ws = workQueues) != null) {
+            for (int i = 0; i < ws.length; ++i) {
+                if ((w = ws[i]) != null) {
+                    int size = w.queueSize();
+                    if ((i & 1) == 0) {
+                        qs += size;
+                    } else {
+                        qt += size;
+                        st += (long)w.nsteals & 0xffffffffL;
+                        if (w.isApparentlyUnblocked()) {
+                            ++rc;
+                        }
+                    }
+                }
+            }
+        }
+        
+        int pc = (md & SMASK);
+        int tc = pc + (short)(c >>> TC_SHIFT);
+        int ac = pc + (int)(c >> RC_SHIFT);
+        // ignore transient negative
+        if (ac < 0) {
+            ac = 0;
+        }
+        String level = ((md & TERMINATED) != 0
+            ? "Terminated"
+            : (md & STOP) != 0
+            ? "Terminating"
+            : (md & SHUTDOWN) != 0
+            ? "Shutting down"
+            : "Running");
+        
+        return super.toString() +
+            "[" + level +
+            ", parallelism = " + pc +
+            ", size = " + tc +
+            ", active = " + ac +
+            ", running = " + rc +
+            ", steals = " + st +
+            ", tasks = " + qt +
+            ", submissions = " + qs +
+            "]";
+    }
+    
+    
+    
+    
+    
+    
+    /**
+     * Queues supporting work-stealing as well as external task
+     * submission. See above for descriptions and algorithms.
+     */
+    /*
+     * 【队列】
+     *
+     * 【工作队列】：由【工作线程】创建的WorkQueue，位于【工作组】的奇数位置
+     * 【共享队列】：由【提交线程】创建的WorkQueue，位于【工作组】的偶数位置
+     *
+     * 【工作队列】中的任务：
+     * local  task：【本地任务】，取自[当前线程]的【工作组】中
+     * stolen task：【窃取任务】，取自[其他线程]的【工作组】中
+     */
+    @jdk.internal.vm.annotation.Contended
+    static final class WorkQueue {
+        // 该WorkQueue所处的工作池
+        final ForkJoinPool pool;   // the containing pool (may be null)
+        
+        // WorkQueue所在的【工作线程】，如果WorkQueue在【提交线程】中创建，则owner为null
+        final ForkJoinWorkerThread owner; // owning thread or null if shared
+        
+        // 任务组，实际存放task的地方。在不至混淆的情形下，会混用【队列】与<任务组>的概念
+        ForkJoinTask<?>[] array;   // the queued tasks; power of 2 size
+        
+        int nsteals;               // 记录【工作队列】从其它【队列】中窃取了多少任务
+        
+        /*
+         * 【工作队列】的ID(>0)
+         * 前16位是模式标记，后16位是【工作队列】在【工作组】上的索引
+         */
+        int id;                    // pool index, mode, tag
+        
+        /*
+         * 对于【共享队列】来说：
+         * phase==0，处于非锁定状态
+         * phase==1，处于锁定状态
+         *
+         * 对于【工作队列】来说：phase用作版本号，具有特殊含义：
+         * 1.phase==id(>0)，初始值
+         * 2.phase==QUIET(>0)，则该【工作队列】已报废
+         * 3.pase==UNSIGNALLED(<0)，该【工作队列】即将/已经进入park状态
+         *
+         * 每当【工作队列】所在的【工作线程】转入park时，phase的前16位会改变
+         */
+        volatile int phase;        // versioned, negative: queued, 1: locked
+        
+        /*
+         * 对于【共享队列】来说，总是带有QUIET标记
+         *
+         * 对于【工作队列】来说：
+         * 1.source==id(>0)，记录了被窃【队列】的ID
+         * 2.source==QUIET|UNSIGNALLED(<0)，该【工作队列】即将/已经进入park状态
+         * 3.source==QUIET(>0)，该【工作队列】处于空闲状态
+         * 4.source==0，该【工作队列】处于工作状态
+         */
+        volatile int source;       // source queue id, or sentinel
+        
+        int base;                  // index of next slot for poll   // 先来的
+        int top;                   // index of next slot for push   // 后到的
+        
+        int stackPred;             // pool stack (ctl) predecessor link
+        
+        
+        // VarHandle mechanics.
+        static final VarHandle PHASE;
+        static final VarHandle BASE;
+        static final VarHandle TOP;
+        
+        static {
+            try {
+                MethodHandles.Lookup l = MethodHandles.lookup();
+                PHASE = l.findVarHandle(WorkQueue.class, "phase", int.class);
+                BASE = l.findVarHandle(WorkQueue.class, "base", int.class);
+                TOP = l.findVarHandle(WorkQueue.class, "top", int.class);
+            } catch(ReflectiveOperationException e) {
+                throw new ExceptionInInitializerError(e);
+            }
+        }
+        
+        WorkQueue(ForkJoinPool pool, ForkJoinWorkerThread owner) {
+            this.pool = pool;   // 关联工作池
+            this.owner = owner; // 分配【工作线程】（如果在非【工作线程】中，这里为null）
+            // Place indices in the center of array (that is not yet allocated)
+            base = top = INITIAL_QUEUE_CAPACITY >>> 1;  // 设置首尾游标到中间位置
+        }
+        
+        
+        
+        /*▼ 统计 ████████████████████████████████████████████████████████████████████████████████┓ */
+        
+        /**
+         * Returns true if owned and not known to be blocked.
+         */
+        // 判断【工作线程】是否在阻塞状态（包括park和wait以及争用态）
+        final boolean isApparentlyUnblocked() {
+            if(owner != null){
+                // 获取【工作线程】的状态
+                Thread.State s = owner.getState();
+                
+                // 判断【工作线程】是否在阻塞状态
+                return s!=Thread.State.BLOCKED && s!=Thread.State.WAITING && s!=Thread.State.TIMED_WAITING;
+            }
+            
+            // 如果调用者是【提交线程】，或者【工作线程】处于阻塞状态，返回false
+            return false;
+        }
+        
+        /**
+         * Returns the approximate number of tasks in the queue.
+         */
+        // 返回【队列】中的任务数（近似）
+        final int queueSize() {
+            int n = (int) BASE.getAcquire(this) - top;
+            return (n >= 0) ? 0 : -n;   // ignore transient negative
+        }
+        
+        /*▲ 统计 ████████████████████████████████████████████████████████████████████████████████┛ */
+        
+        
+        /*▼ 分发 ████████████████████████████████████████████████████████████████████████████████┓ */
+        
+        /**
+         * Pushes a task. Call only by owner in unshared queues.
+         *
+         * @param task the task. Caller must ensure non-null.
+         *
+         * @throws RejectedExecutionException if array cannot be resized
+         */
+        // 分发任务。【工作线程】将指定的task放入【工作队列】top处排队，并创建/唤醒【工作线程】
+        final void push(ForkJoinTask<?> task) {
+            // 确保当前【工作队列】中存在有效的任务组
+            if(array != null && array.length>0) {
+                // 将task任务放入top处
+                QA.setRelease(array, top & (array.length-1), task);
+                
+                // top游标+1
+                top = top + 1;
+                
+                int count = top - (int) BASE.getAcquire(this);
+                
+                // 如果【工作队列】内只有1或2个任务，则唤醒【工作线程】
+                if((count == 1 || count == 2) && pool != null) {
+                    VarHandle.fullFence();
+                    // 创建/唤醒【工作线程】
+                    pool.signalWork();
+                } else {
+                    // 如果任务数组满了，需要扩容
+                    if(count == array.length) {
+                        // 对【工作队列】扩容
+                        growArray(false);
+                    }
+                }
+            }
+        }
+        
+        /**
+         * Version of push for shared queues. Call only with phase lock held.
+         *
+         * @return true if should signal work
+         */
+        /*
+         * 分发任务
+         *
+         * 在【共享队列】被【提交线程】锁定的情形下，
+         * 【提交线程】将task放入【共享队列】top处排队，
+         * 最后解除对【共享队列】的锁定，
+         *
+         * 返回值含义：是否唤醒【工作线程】
+         */
+        final boolean lockedPush(ForkJoinTask<?> task) {
+            boolean signal = false;
+            
+            if(array != null && array.length>0) {
+                // 存入任务
+                array[(array.length - 1) & top] = task;
+                
+                // top游标+1
+                top = top + 1;
+                
+                /*
+                 * 如果【共享队列】满了，则对【共享队列】扩容，
+                 * 随后解除对【共享队列】的锁定
+                 */
+                if((top-base) == array.length) {
+                    growArray(true);
+                } else {
+                    // 解除对【共享队列】的锁定
+                    phase = 0; // full volatile unlock
+                    
+                    // 如果【共享队列】内只有1或2个任务，则唤醒
+                    if(((top-base)==1)||((top-base)==2)) {
+                        signal = true;
+                    }
+                }
+            }
+            
+            return signal;
+        }
+        
+        /*▲ 分发 ████████████████████████████████████████████████████████████████████████████████┛ */
+        
+        
+        /*▼ 移除 ████████████████████████████████████████████████████████████████████████████████┓ */
+        
+        /**
+         * Pops the given task only if it is at the current top.
+         */
+        // 移除任务。【工作线程】尝试将指定的task从【工作队列】top处移除，返回值代表是否成功移除
+        final boolean tryUnpush(ForkJoinTask<?> task) {
+            boolean popped = false;
+            int s;
+            
+            // 如果任务组存在
+            if(array != null && array.length>0) {
+                s = top;
+                
+                // 如果任务组不为空
+                if(s != base){
+                    // 递减top，取出任务
+                    popped = QA.compareAndSet(array, --s & (array.length-1), task, null);
+                    
+                    // 如果该任务确实在top处，则可以拿到任务
+                    if(popped){
+                        // 更新top
+                        TOP.setOpaque(this, s);
+                    }
+                }
+            }
+            
+            // 返回值表示是否成功取出了任务
+            return popped;
+        }
+        
+        /**
+         * Shared version of tryUnpush.
+         */
+        // 移除任务。【提交线程】尝试将指定的task从【共享队列】top处移除，返回值代表是否成功移除
+        final boolean tryLockedUnpush(ForkJoinTask<?> task) {
+            boolean popped = false;
+            
+            int s = top - 1, k, cap;
+            
+            ForkJoinTask<?>[] a= array;
+            
+            /*
+             * 如果task位于当前【共享队列】的top处，则：
+             * 锁定【共享队列】；
+             * 置空task在【共享队列】中的引用；
+             * 修改top游标；
+             * 解锁【共享队列】；
+             */
+            if(a != null && (cap = a.length)>0 && a[k = (cap - 1) & s] == task && tryLockPhase()) {
+                if(top == s + 1 && array == a && (popped = QA.compareAndSet(a, k, task, null))) {
+                    top = s;
+                }
+                
+                // 解除了对【共享队列】的锁定
+                releasePhaseLock();
+            }
+            
+            return popped;
+        }
+        
+        /*▲ 移除 ████████████████████████████████████████████████████████████████████████████████┛ */
+        
+        
+        /*▼ 获取 ████████████████████████████████████████████████████████████████████████████████┓ */
+        
+        /**
+         * Returns next task, if one exists, in order specified by mode.
+         */
+        // 如果【队列】带有FIFO标记，则从base处获取task，否则从top处获取任务
+        final ForkJoinTask<?> peek() {
+            if(array != null && array.length>0) {
+                int n = (id & FIFO) != 0 ? base : top - 1;
+                int index = n & (array.length - 1);
+                return array[index];
+            }
+            
+            return null;
+        }
+        
+        /**
+         * Takes next task, if one exists, in FIFO order.
+         */
+        // 窃取【队列】base处的task，如果取不到，就释放CPU时间片，各线程重新抢占执行权
+        final ForkJoinTask<?> poll() {
+            while(array != null && array.length>0) {
+                int base = this.base;
+                
+                if(top - base>0){
+                    int index = base & (array.length-1);
+                    
+                    // 获取base处的task
+                    ForkJoinTask<?> task = (ForkJoinTask<?>) QA.getAcquire(array, index);
+                    
+                    if(this.base == base++) {
+                        // 如果此处的task已被别的【工作线程】窃取了
+                        if(task == null) {
+                            // 则当前【工作线程】让出CPU时间片，大家重新抢占执行权
+                            Thread.yield(); // await index advance
+                        } else {
+                            // 原子地清理task引用
+                            if(QA.compareAndSet(array, index, task, null)) {
+                                // 更新base
+                                BASE.setOpaque(this, base);
+                                return task;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return null;
+        }
+        
+        /**
+         * Takes next task, if one exists, in order specified by mode.
+         */
+        /*
+         * 让【工作线程】尝试从自身的【工作队列】中取出[本地任务]
+         * 因为【工作线程】在执行上面的任务时，很大概率会向自身的【工作队列】中提交新任务
+         * （取出任务的位置取决于访问模式是LIFO还是FIFO）
+         */
+        final ForkJoinTask<?> nextLocalTask() {
+            ForkJoinTask<?> task = null;
+            int b, s;
+            
+            if(array != null && array.length>0 ) {
+                b = base;
+                s = top;
+                
+                // 【工作队列】中有任务
+                if(top-base>0){
+                    // 如果【工作队列】的访问模式为FIFO，且存在不止一个任务排队
+                    if((id & FIFO) != 0 && (top-base)>1){
+                        // 取出当前任务队列的任务组中base处的task
+                        task = (ForkJoinTask<?>) QA.getAndSet(array, (array.length - 1) & b++, null);
+                        
+                        // 存在多个【工作线程】竞争时，这里可能取不到任务
+                        if(task != null) {
+                            BASE.setOpaque(this, b);
+                        } else { // on contention in FIFO mode, use regular poll
+                            // 再尝试一次，取出任务组base处的task，如果还取不到，就释放CPU时间片，各线程重新抢占执行权
+                            task = poll();
+                        }
+                        
+                        // 如果【工作队列】的访问模式是LIFO，或者只有一个任务在排队
+                    } else {
+                        // 取出当前任务队列的任务组中top处的task
+                        task = (ForkJoinTask<?>) QA.getAndSet(array, (array.length - 1) & --s, null);
+                        
+                        if(task != null) {
+                            TOP.setOpaque(this, s);
+                        }
+                    }
+                }
+                
+            }
+            
+            return task;
+        }
+        
+        /*▲ 获取 ████████████████████████████████████████████████████████████████████████████████┛ */
+        
+        
+        
+        
+        /**
+         * Tries to lock shared queue by CASing phase field.
+         */
+        // 尝试锁定【共享队列】
+        final boolean tryLockPhase() {
+            return PHASE.compareAndSet(this, 0, 1);
+        }
+        
+        // 解除对【共享队列】的锁定
+        final void releasePhaseLock() {
+            PHASE.setRelease(this, 0);
+        }
+        
+        /**
+         * Returns an exportable index (used by ForkJoinWorkerThread).
+         */
+        // 返回【工作队列】的唯一编号
+        final int getPoolIndex() {
+            return (id & 0xffff) >>> 1; // ignore odd/even tag bit
+        }
+        
+        /**
+         * Provides a more accurate estimate of whether this queue has
+         * any tasks than does queueSize, by checking whether a
+         * near-empty queue has at least one unclaimed task.
+         */
+        // 判断当前【队列】的【任务组】是否为空
+        final boolean isEmpty() {
+            ForkJoinTask<?>[] a;
+            int n, cap, b;
+            VarHandle.acquireFence(); // needed by external callers
+            return ((n = (b = base) - top) >= 0 // possibly one task
+                || (n == -1 && ((a = array) == null || (cap = a.length) == 0 || a[(cap - 1) & b] == null)));
+        }
+        
+        /**
+         * Doubles the capacity of array.
+         * Call either by owner or with lock held -- it is OK for base, but not top, to move while resizings are in progress.
+         */
+        // 对任务组（【队列】）扩容，如果【队列】被锁定(locked==true)，扩容后解除锁定
+        final void growArray(boolean locked) {
+            ForkJoinTask<?>[] newArray = null;
+            
+            try {
+                if(array != null && array.length>0) {
+                    // 容量翻倍
+                    int newSize = array.length << 1;
+                    
+                    // 如果新数组容量不超标
+                    if(newSize<=MAXIMUM_QUEUE_CAPACITY && newSize>0) {
+                        try {
+                            // 创建新数组
+                            newArray = new ForkJoinTask<?>[newSize];
+                        } catch(OutOfMemoryError ignored) {
+                        }
+                        
+                        // 将位于旧任务组中的任务挪到新任务组中
+                        for(int s =top-1, k = array.length-1; k >= 0; --k) {
+                            ForkJoinTask<?> fjTask = (ForkJoinTask<?>) QA.getAndSet(array, s & (array.length-1), null);
+                            
+                            if(fjTask != null) {
+                                newArray[s-- & (newSize - 1)] = fjTask;
+                            } else {
+                                break;
+                            }
+                        }
+                        
+                        array = newArray;
+                        
+                        VarHandle.releaseFence();
+                    }
+                    
+                }
+            } finally {
+                if(locked) {
+                    phase = 0;
+                }
+            }
+            
+            if(newArray == null) {
+                throw new RejectedExecutionException("Queue capacity exceeded");
+            }
+        }
+        
+        // Specialized execution methods
+        
+        /**
+         * Removes and cancels all known tasks, ignoring any exceptions.
+         */
+        // 取消当前【队列】中的所有任务，即标记所有任务为DONE|ABNORMAL状态
+        final void cancelAll() {
+            ForkJoinTask<?> t;
+            
+            // 不断取出任务组base处的task，并更新base，直到任务组中不再有task
+            while((t = poll()) != null) {
+                // 取消任务，即将当前任务标记为DONE|ABNORMAL状态
+                ForkJoinTask.cancelIgnoringExceptions(t);
+            }
+        }
+        
+        /**
+         * Runs the given (stolen) task if nonnull,
+         * as well as remaining local tasks and others available from the given queue,
+         * up to bound n (to avoid infinite unfairness).
+         */
+        /*
+         * 【工作线程】执行窃取操作
+         *
+         * 1.先让当前【工作线程】执行从【队列】w中窃取的task
+         * 2.随后循环从当前【工作线程】自身的【工作队列】中取出[本地任务]并执行
+         * 3.如果找不到[本地任务]，就再次去w中窃取任务
+         * 4.上述过程是重复进行的
+         *   如果[本地任务]和[外部任务]均找不到了，则结束操作
+         */
+        final void topLevelExec(ForkJoinTask<?> task, WorkQueue w, int n) {
+            if(task != null && w != null) { // hoist checks
+                int nstolen = 1;
+                
+                // 执行窃取操作，循环往复
+                for(; ; ) {
+                    /*
+                     * 首次到这时，执行的是【外部任务】
+                     *
+                     * 再次到这时，执行的可能是【外部任务】，也可能是【本地任务】
+                     */
+                    task.doExec();
+                    
+                    // 循环次数（随机），避免没有任务时陷入死循环
+                    if(n--<0) {
+                        break;
+                    }
+                    
+                    /*
+                     * 让【工作线程】尝试从自身的【工作队列】中取出[本地任务]，
+                     * 因为【工作线程】在执行上面的任务时，会向自身的【工作队列】中提交新任务
+                     */
+                    task = nextLocalTask();
+                    
+                    // 如果没有取到[本地任务]（可能是本地没有多余任务了，也可能是被其他【工作线程】窃取了），则需要窃取别的队列中的任务
+                    if(task == null) {
+                        // 再次从w的base处窃取task，如果取不到，当前【工作线程】就释放CPU时间片，各线程重新抢占执行权
+                        task = w.poll();
+                        
+                        // 如果w中已经没有task，则跳出循环
+                        if(task == null) {
+                            break;
+                        }
+                        
+                        // 如果成功窃取了任务，窃取计数增一
+                        ++nstolen;
+                    }
+                }
+                
+                // 累计窃取次数
+                nsteals += nstolen;
+                
+                source = 0;
+                
+                // 【工作线程】完成窃取操作后，执行的回调
+                if(owner != null) {
+                    owner.afterTopLevelExec();
+                }
+            }
+        }
+        
+        /**
+         * If present, removes task from queue and executes it.
+         */
+        // 如果task存在于【队列】当中，尝试将其从【队列】中移除，并执行它
+        final void tryRemoveAndExec(ForkJoinTask<?> task) {
+            if(array != null && array.length>0 && top - base>0) { // traverse from top
+                int m = array.length - 1;
+                int ns = top - 1;   // 记下当前栈顶元素的位置
+                int i = ns;
+                
+                while(true) {
+                    // 计算索引
+                    int index = i & m;
+                    
+                    // 查看当前【队列】top处的任务
+                    ForkJoinTask<?> t = (ForkJoinTask<?>) QA.get(array, index);
+                    if(t == null) {
+                        break;
+                    } else {
+                        // 如果找到了参数中指定的任务
+                        if(t == task) {
+                            // 将该任务从【队列】中移除
+                            if(QA.compareAndSet(array, index, t, null)) {
+                                // 更新top
+                                top = ns;   // safely shift down
+                                
+                                // 检查task后面是否还有其它任务
+                                for(int j = i; j != ns; ++j) {
+                                    /* 将task后面的任务依次前移 */
+                                    
+                                    int pindex = (j + 1) & m;
+                                    ForkJoinTask<?> f = (ForkJoinTask<?>) QA.get(array, pindex);
+                                    QA.setVolatile(array, pindex, null);
+                                    int jindex = j & m;
+                                    QA.setRelease(array, jindex, f);
+                                }
+                                
+                                VarHandle.releaseFence();
+                                
+                                // 执行任务
+                                t.doExec();
+                            }
+                            
+                            break;
+                        }
+                    }
+                    // 游标递减
+                    --i;
+                } // while(true)
+            }
+            
+        }
+        
+        /**
+         * Tries to pop and run tasks within the target's computation until done, not found, or limit exceeded.
+         *
+         * @param task   root of CountedCompleter computation
+         * @param limit  max runs, or zero for no limit
+         * @param shared true if must lock to extract task
+         *
+         * @return task status on exit
+         */
+        /*
+         * 在【队列】的top处查找task及task的父任务，如果找到，则执行它，以加速任务的完成
+         *
+         * task是待完成的任务
+         * limit是一个正数，代表最大重试次数，limit==0时代表可以一直查找任务，直到不再有匹配的任务
+         * shared指示task位于【共享队列】(true)还是【工作队列】(false)
+         *
+         * 最后返回任务的状态
+         */
+        final int helpCC(CountedCompleter<?> task, int limit, boolean shared) {
+            int status = 0;
+            
+            if(task != null && (status = task.status) >= 0) {
+                int s, k, cap;
+                
+                ForkJoinTask<?>[] a;
+                
+                while((a = array) != null && (cap = a.length)>0 && (s = top) - base>0) {
+                    /*
+                     * v==null的话，说明当前【队列】的top处不存在给定的task
+                     * v!=null的话，v的值就是给定的task，此时说明成功在【队列】的top处找到了指定的任务
+                     */
+                    CountedCompleter<?> v = null;
+                    
+                    // 获取top处的task
+                    ForkJoinTask<?> o = a[k = (cap - 1) & (s - 1)];
+                    
+                    if(o instanceof CountedCompleter) {
+                        CountedCompleter<?> t, f;
+                        
+                        f = t = (CountedCompleter<?>) o;
+                        
+                        for(; ; ) {
+                            // 如果【队列】的top处的task与给定的task不一致
+                            if(f != task) {
+                                // 切换到父任务
+                                if((f = f.completer) == null) {
+                                    break;
+                                }
+                            } else {
+                                // 如果是来自【共享队列】的任务
+                                if(shared) {
+                                    // 尝试锁定【共享队列】
+                                    if(tryLockPhase()) {
+                                        // 如果top处的task就是给定的task，则将其从top处移除
+                                        if(top == s && array == a && QA.compareAndSet(a, k, t, null)) {
+                                            top = s - 1;
+                                            v = t;
+                                        }
+                                        
+                                        // 解除对【共享队列】的锁定
+                                        releasePhaseLock();
+                                    }
+                                    
+                                    break;
+                                }
+                                
+                                // 如果top处的task就是给定的task，则将其从top处移除
+                                if(QA.compareAndSet(a, k, t, null)) {
+                                    top = s - 1;
+                                    v = t;
+                                }
+                                
+                                break;
+                            }
+                        } // for(; ;)
+                    } // if
+                    
+                    // 如果在【队列】的top处找到了匹配的task，则执行它
+                    if(v != null) {
+                        // 执行任务
+                        v.doExec();
+                    }
+                    
+                    // 如果任务[已完成]，或者在top处找不到匹配的任务，或者已经没有重试次数，则退出循环
+                    if((status = task.status)<0 || v == null || (limit != 0 && --limit == 0)) {
+                        break;
+                    }
+                } // while
+            }
+            
+            return status;
+        }
+        
+        /**
+         * Tries to poll and run AsynchronousCompletionTasks until
+         * none found or blocker is released
+         *
+         * @param blocker the blocker
+         */
+        /*
+         * 理论上讲，如果blocker当前所在线程追踪的任务还没完成，
+         * 则应当阻塞该线程，直到任务完成。
+         * 这里为了最大化地利用资源，采用了同步非阻塞模式，
+         * 通过轮询，不断判断任务是否已经完成（是否可以解除阻塞），
+         * 如果任务还没完成，则blocker当前所在线程被用来加速【工作池】中的任务完成，
+         * 如果任务已经完成，则退出循环，结束加速。
+         */
+        final void helpAsyncBlocker(ManagedBlocker blocker) {
+            if(blocker != null) {
+                int b, k, cap;
+                ForkJoinTask<?>[] a;
+                ForkJoinTask<?> t;
+                
+                while((a = array) != null && (cap = a.length)>0 && top - (b = base)>0) {
+                    // 取出任务组/队列base处的任务
+                    t = (ForkJoinTask<?>) QA.getAcquire(a, k = (cap - 1) & b);
+                    
+                    // 如果blocker当前所在线程需要解除阻塞（即blocker所在线程追踪的任务已经有结果了），直接退出
+                    if(blocker.isReleasable()) {
+                        break;
+                    }
+                    
+                    // 成功取到了待加速任务
+                    if(base == b++ && t != null) {
+                        // 不加速AsynchronousCompletionTask类型的任务
+                        if(!(t instanceof CompletableFuture.AsynchronousCompletionTask)) {
+                            break;
+                        }
+                        
+                        if(QA.compareAndSet(a, k, t, null)) {
+                            BASE.setOpaque(this, b);
+                            
+                            // 执行任务
+                            t.doExec();
+                        }
+                    }
+                }
+            }
+        }
+        
+    }
+    
+    
+    /**
+     * Factory for creating new {@link ForkJoinWorkerThread}s.
+     * A {@code ForkJoinWorkerThreadFactory} must be defined and used
+     * for {@code ForkJoinWorkerThread} subclasses that extend base
+     * functionality or initialize threads with different contexts.
+     */
+    // 【工作线程】工厂
+    public static interface ForkJoinWorkerThreadFactory {
+        /**
+         * Returns a new worker thread operating in the given pool.
+         * Returning null or throwing an exception may result in tasks
+         * never being executed.  If this method throws an exception,
+         * it is relayed to the caller of the method (for example
+         * {@code execute}) causing attempted thread creation. If this
+         * method returns null or throws an exception, it is not
+         * retried until the next attempted creation (for example
+         * another call to {@code execute}).
+         *
+         * @param pool the pool this thread works in
+         * @return the new worker thread, or {@code null} if the request
+         *         to create a thread is rejected
+         * @throws NullPointerException if the pool is null
+         */
+        // 创建【工作线程】，并为其注册一个【工作队列】
+        public ForkJoinWorkerThread newThread(ForkJoinPool pool);
+    }
+    
+    /**
+     * Default ForkJoinWorkerThreadFactory implementation; creates a
+     * new ForkJoinWorkerThread using the system class loader as the
+     * thread context class loader.
+     */
+    // 默认的【工作线程】工厂
+    private static final class DefaultForkJoinWorkerThreadFactory implements ForkJoinWorkerThreadFactory {
+        private static final AccessControlContext ACC
+            = contextWithPermissions(new RuntimePermission("getClassLoader"), new RuntimePermission("setContextClassLoader"));
+        
+        // 创建【工作线程】和【工作线程】，并与指定的【工作池】完成三方绑定
+        public final ForkJoinWorkerThread newThread(ForkJoinPool pool) {
+            return AccessController.doPrivileged(new PrivilegedAction<>() {
+                public ForkJoinWorkerThread run() {
+                    return new ForkJoinWorkerThread(pool, ClassLoader.getSystemClassLoader());
+                }
+            }, ACC);
+        }
+    }
+    
+    /**
+     * Factory for innocuous worker threads.
+     */
+    // 无害的【工作线程】工厂，在存在SecurityManager时使用
+    private static final class InnocuousForkJoinWorkerThreadFactory implements ForkJoinWorkerThreadFactory {
+        
+        /**
+         * An ACC to restrict permissions for the factory itself.
+         * The constructed workers have no permissions set.
+         */
+        private static final AccessControlContext ACC = contextWithPermissions(modifyThreadPermission,
+            new RuntimePermission("enableContextClassLoaderOverride"),
+            new RuntimePermission("modifyThreadGroup"),
+            new RuntimePermission("getClassLoader"),
+            new RuntimePermission("setContextClassLoader")
+        );
+        
+        // 创建【工作队列】和【工作线程】，并与指定的【工作池】完成三方绑定
+        public final ForkJoinWorkerThread newThread(ForkJoinPool pool) {
+            return AccessController.doPrivileged(new PrivilegedAction<>() {
+                public ForkJoinWorkerThread run() {
+                    return new ForkJoinWorkerThread.InnocuousForkJoinWorkerThread(pool);
+                }
+            }, ACC);
+        }
+    }
+    
+    
+    /**
+     * Interface for extending managed parallelism for tasks running in {@link ForkJoinPool}s.
      *
      * <p>A {@code ManagedBlocker} provides two methods.  Method
      * {@link #isReleasable} must return {@code true} if blocking is
@@ -3055,178 +4391,27 @@ public class ForkJoinPool extends AbstractExecutorService {
      *   }
      * }}</pre>
      */
-    public static interface ManagedBlocker {
+    // 阻塞块
+    public interface ManagedBlocker {
         /**
-         * Possibly blocks the current thread, for example waiting for
-         * a lock or condition.
+         * Possibly blocks the current thread, for example waiting for a lock or condition.
          *
          * @return {@code true} if no additional blocking is necessary
-         * (i.e., if isReleasable would return true)
+         *         (i.e., if isReleasable would return true)
+         *
          * @throws InterruptedException if interrupted while waiting
-         * (the method is not required to do so, but is allowed to)
+         *                              (the method is not required to do so, but is allowed to)
          */
+        // 阻塞当前线程，返回true代表阻塞结束
         boolean block() throws InterruptedException;
-
+        
         /**
          * Returns {@code true} if blocking is unnecessary.
+         *
          * @return {@code true} if blocking is unnecessary
          */
+        // 当前线程是否需要解除阻塞
         boolean isReleasable();
     }
-
-    /**
-     * Runs the given possibly blocking task.  When {@linkplain
-     * ForkJoinTask#inForkJoinPool() running in a ForkJoinPool}, this
-     * method possibly arranges for a spare thread to be activated if
-     * necessary to ensure sufficient parallelism while the current
-     * thread is blocked in {@link ManagedBlocker#block blocker.block()}.
-     *
-     * <p>This method repeatedly calls {@code blocker.isReleasable()} and
-     * {@code blocker.block()} until either method returns {@code true}.
-     * Every call to {@code blocker.block()} is preceded by a call to
-     * {@code blocker.isReleasable()} that returned {@code false}.
-     *
-     * <p>If not running in a ForkJoinPool, this method is
-     * behaviorally equivalent to
-     * <pre> {@code
-     * while (!blocker.isReleasable())
-     *   if (blocker.block())
-     *     break;}</pre>
-     *
-     * If running in a ForkJoinPool, the pool may first be expanded to
-     * ensure sufficient parallelism available during the call to
-     * {@code blocker.block()}.
-     *
-     * @param blocker the blocker task
-     * @throws InterruptedException if {@code blocker.block()} did so
-     */
-    public static void managedBlock(ManagedBlocker blocker)
-        throws InterruptedException {
-        if (blocker == null) throw new NullPointerException();
-        ForkJoinPool p;
-        ForkJoinWorkerThread wt;
-        WorkQueue w;
-        Thread t = Thread.currentThread();
-        if ((t instanceof ForkJoinWorkerThread) &&
-            (p = (wt = (ForkJoinWorkerThread)t).pool) != null &&
-            (w = wt.workQueue) != null) {
-            int block;
-            while (!blocker.isReleasable()) {
-                if ((block = p.tryCompensate(w)) != 0) {
-                    try {
-                        do {} while (!blocker.isReleasable() &&
-                                     !blocker.block());
-                    } finally {
-                        CTL.getAndAdd(p, (block > 0) ? RC_UNIT : 0L);
-                    }
-                    break;
-                }
-            }
-        }
-        else {
-            do {} while (!blocker.isReleasable() &&
-                         !blocker.block());
-        }
-    }
-
-    /**
-     * If the given executor is a ForkJoinPool, poll and execute
-     * AsynchronousCompletionTasks from worker's queue until none are
-     * available or blocker is released.
-     */
-    static void helpAsyncBlocker(Executor e, ManagedBlocker blocker) {
-        if (e instanceof ForkJoinPool) {
-            WorkQueue w; ForkJoinWorkerThread wt; WorkQueue[] ws; int r, n;
-            ForkJoinPool p = (ForkJoinPool)e;
-            Thread thread = Thread.currentThread();
-            if (thread instanceof ForkJoinWorkerThread &&
-                (wt = (ForkJoinWorkerThread)thread).pool == p)
-                w = wt.workQueue;
-            else if ((r = ThreadLocalRandom.getProbe()) != 0 &&
-                     (ws = p.workQueues) != null && (n = ws.length) > 0)
-                w = ws[(n - 1) & r & SQMASK];
-            else
-                w = null;
-            if (w != null)
-                w.helpAsyncBlocker(blocker);
-        }
-    }
-
-    // AbstractExecutorService overrides.  These rely on undocumented
-    // fact that ForkJoinTask.adapt returns ForkJoinTasks that also
-    // implement RunnableFuture.
-
-    protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value) {
-        return new ForkJoinTask.AdaptedRunnable<T>(runnable, value);
-    }
-
-    protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable) {
-        return new ForkJoinTask.AdaptedCallable<T>(callable);
-    }
-
-    // VarHandle mechanics
-    private static final VarHandle CTL;
-    private static final VarHandle MODE;
-    static final VarHandle QA;
-
-    static {
-        try {
-            MethodHandles.Lookup l = MethodHandles.lookup();
-            CTL = l.findVarHandle(ForkJoinPool.class, "ctl", long.class);
-            MODE = l.findVarHandle(ForkJoinPool.class, "mode", int.class);
-            QA = MethodHandles.arrayElementVarHandle(ForkJoinTask[].class);
-        } catch (ReflectiveOperationException e) {
-            throw new ExceptionInInitializerError(e);
-        }
-
-        // Reduce the risk of rare disastrous classloading in first call to
-        // LockSupport.park: https://bugs.openjdk.java.net/browse/JDK-8074773
-        Class<?> ensureLoaded = LockSupport.class;
-
-        int commonMaxSpares = DEFAULT_COMMON_MAX_SPARES;
-        try {
-            String p = System.getProperty
-                ("java.util.concurrent.ForkJoinPool.common.maximumSpares");
-            if (p != null)
-                commonMaxSpares = Integer.parseInt(p);
-        } catch (Exception ignore) {}
-        COMMON_MAX_SPARES = commonMaxSpares;
-
-        defaultForkJoinWorkerThreadFactory =
-            new DefaultForkJoinWorkerThreadFactory();
-        modifyThreadPermission = new RuntimePermission("modifyThread");
-
-        common = AccessController.doPrivileged(new PrivilegedAction<>() {
-            public ForkJoinPool run() {
-                return new ForkJoinPool((byte)0); }});
-
-        COMMON_PARALLELISM = Math.max(common.mode & SMASK, 1);
-    }
-
-    /**
-     * Factory for innocuous worker threads.
-     */
-    private static final class InnocuousForkJoinWorkerThreadFactory
-        implements ForkJoinWorkerThreadFactory {
-
-        /**
-         * An ACC to restrict permissions for the factory itself.
-         * The constructed workers have no permissions set.
-         */
-        private static final AccessControlContext ACC = contextWithPermissions(
-            modifyThreadPermission,
-            new RuntimePermission("enableContextClassLoaderOverride"),
-            new RuntimePermission("modifyThreadGroup"),
-            new RuntimePermission("getClassLoader"),
-            new RuntimePermission("setContextClassLoader"));
-
-        public final ForkJoinWorkerThread newThread(ForkJoinPool pool) {
-            return AccessController.doPrivileged(
-                new PrivilegedAction<>() {
-                    public ForkJoinWorkerThread run() {
-                        return new ForkJoinWorkerThread.
-                            InnocuousForkJoinWorkerThread(pool); }},
-                ACC);
-        }
-    }
+    
 }

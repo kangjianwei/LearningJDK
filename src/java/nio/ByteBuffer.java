@@ -443,16 +443,24 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
      * @see #slice()
      * @since 9
      */
-    // 切片，首先得根据unitSize对position和limit进行字节对齐校准
+    /*
+     * 切片
+     *
+     * 创建一个新的共享缓存区，该缓存区是当前缓冲区的一个子序列
+     * 切片之前，需要为新缓冲区先计算一个新的游标和新的上界（进行字节对齐校准）
+     * 一般为保证切片后，新缓冲区仍然满足容量要求，所以往往会先给原缓冲区多分配unitSize-1个字节的空间
+     */
     public final ByteBuffer alignedSlice(int unitSize) {
-        int pos = position();
-        int lim = limit();
+        int pos = position();   // 游标
+        int lim = limit();      // 上界
         
+        // 计算出未对齐的部分
         int pos_mod = alignmentOffset(pos, unitSize);
         int lim_mod = alignmentOffset(lim, unitSize);
         
         // 将pos向上对齐
         int aligned_pos = (pos_mod > 0) ? pos + (unitSize - pos_mod) : pos;
+        
         // 将lim向下对齐
         int aligned_lim = lim - lim_mod;
         
@@ -1752,14 +1760,20 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
      * @see #alignedSlice(int)
      * @since 9
      */
-    // 返回index位置的地址未对齐的部分
+    // 返回index位置的地址相对于unitSize未对齐的部分
     public final int alignmentOffset(int index, int unitSize) {
-        if(index < 0)
+        if(index < 0) {
             throw new IllegalArgumentException("Index less than zero: " + index);
-        if(unitSize < 1 || (unitSize & (unitSize - 1)) != 0)
+        }
+        
+        // unitSize>=1，且为2的冪
+        if(unitSize < 1 || (unitSize & (unitSize - 1)) != 0) {
             throw new IllegalArgumentException("Unit size not a power of two: " + unitSize);
-        if(unitSize > 8 && !isDirect())
+        }
+        
+        if(unitSize > 8 && !isDirect()) {
             throw new UnsupportedOperationException("Unit size unsupported for non-direct buffers: " + unitSize);
+        }
         
         return (int) ((address + index) % unitSize);
     }

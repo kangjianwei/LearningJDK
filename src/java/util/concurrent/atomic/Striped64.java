@@ -37,6 +37,8 @@ package java.util.concurrent.atomic;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.DoubleBinaryOperator;
@@ -47,6 +49,7 @@ import java.util.function.LongBinaryOperator;
  * for classes supporting dynamic striping on 64bit values. The class
  * extends Number so that concrete subclasses must publicly do so.
  */
+// 对普通原子类型的升级，采用分段锁缓解了线程争用的开销
 @SuppressWarnings("serial")
 abstract class Striped64 extends Number {
     /*
@@ -114,97 +117,77 @@ abstract class Striped64 extends Number {
      * contention levels will recur, so the cells will eventually be
      * needed again; and for short-lived ones, it does not matter.
      */
-
-    /**
-     * Padded variant of AtomicLong supporting only raw accesses plus CAS.
-     *
-     * JVM intrinsics note: It would be possible to use a release-only
-     * form of CAS here, if it were provided.
-     */
-    @jdk.internal.vm.annotation.Contended static final class Cell {
-        volatile long value;
-        Cell(long x) { value = x; }
-        final boolean cas(long cmp, long val) {
-            return VALUE.compareAndSet(this, cmp, val);
-        }
-        final void reset() {
-            VALUE.setVolatile(this, 0L);
-        }
-        final void reset(long identity) {
-            VALUE.setVolatile(this, identity);
-        }
-        final long getAndSet(long val) {
-            return (long)VALUE.getAndSet(this, val);
-        }
-
-        // VarHandle mechanics
-        private static final VarHandle VALUE;
-        static {
-            try {
-                MethodHandles.Lookup l = MethodHandles.lookup();
-                VALUE = l.findVarHandle(Cell.class, "value", long.class);
-            } catch (ReflectiveOperationException e) {
-                throw new ExceptionInInitializerError(e);
-            }
-        }
-    }
-
+    
     /** Number of CPUS, to place bound on table size */
+    // 虚拟机可用的处理器数量
     static final int NCPU = Runtime.getRuntime().availableProcessors();
-
+    
     /**
      * Table of cells. When non-null, size is a power of 2.
      */
+    /*
+     * 分段记录当前对象的【操作系数】(包括放大/缩小/增减等操作)
+     * 最后获取总值时，要考虑此处的系数
+     */
     transient volatile Cell[] cells;
-
+    
     /**
      * Base value, used mainly when there is no contention, but also as
      * a fallback during table initialization races. Updated via CAS.
      */
+    // 当前对象的基值（获取总值时，还要考虑cells中的【操作系数】）
     transient volatile long base;
-
+    
     /**
      * Spinlock (locked via CAS) used when resizing and/or creating Cells.
      */
+    // 自旋锁，标记cells是否处于繁忙（被操作）状态，繁忙是1，不忙是0
     transient volatile int cellsBusy;
-
+    
+    // VarHandle mechanics
+    private static final VarHandle BASE;
+    private static final VarHandle CELLSBUSY;
+    private static final VarHandle THREAD_PROBE;
+    static {
+        try {
+            MethodHandles.Lookup l = MethodHandles.lookup();
+            BASE = l.findVarHandle(Striped64.class, "base", long.class);
+            CELLSBUSY = l.findVarHandle(Striped64.class, "cellsBusy", int.class);
+            l = AccessController.doPrivileged(new PrivilegedAction<>() {
+                public MethodHandles.Lookup run() {
+                    try {
+                        return MethodHandles.privateLookupIn(Thread.class, MethodHandles.lookup());
+                    } catch(ReflectiveOperationException e) {
+                        throw new ExceptionInInitializerError(e);
+                    }
+                }
+            });
+            THREAD_PROBE = l.findVarHandle(Thread.class, "threadLocalRandomProbe", int.class);
+        } catch(ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+    
     /**
      * Package-private default constructor.
      */
     Striped64() {
     }
-
-    /**
-     * CASes the base field.
-     */
-    final boolean casBase(long cmp, long val) {
-        return BASE.compareAndSet(this, cmp, val);
-    }
-
-    final long getAndSetBase(long val) {
-        return (long)BASE.getAndSet(this, val);
-    }
-
-    /**
-     * CASes the cellsBusy field from 0 to 1 to acquire lock.
-     */
-    final boolean casCellsBusy() {
-        return CELLSBUSY.compareAndSet(this, 0, 1);
-    }
-
+    
     /**
      * Returns the probe value for the current thread.
      * Duplicated from ThreadLocalRandom because of packaging restrictions.
      */
+    // 获取当前线程内的探测值
     static final int getProbe() {
         return (int) THREAD_PROBE.get(Thread.currentThread());
     }
-
+    
     /**
-     * Pseudo-randomly advances and records the given probe value for the
-     * given thread.
+     * Pseudo-randomly advances and records the given probe value for the given thread.
      * Duplicated from ThreadLocalRandom because of packaging restrictions.
      */
+    // 更新当前线程内的探测值，并返回更新后的值
     static final int advanceProbe(int probe) {
         probe ^= probe << 13;   // xorshift
         probe ^= probe >>> 17;
@@ -212,7 +195,28 @@ abstract class Striped64 extends Number {
         THREAD_PROBE.set(Thread.currentThread(), probe);
         return probe;
     }
-
+    
+    /**
+     * CASes the base field.
+     */
+    // 原子地更新基值，返回值指示是否更新成功
+    final boolean casBase(long cmp, long val) {
+        return BASE.compareAndSet(this, cmp, val);
+    }
+    
+    // 原子地设置基值，并返回旧值
+    final long getAndSetBase(long val) {
+        return (long)BASE.getAndSet(this, val);
+    }
+    
+    /**
+     * CASes the cellsBusy field from 0 to 1 to acquire lock.
+     */
+    // 获取cells的操作权（从不忙状态0更新到繁忙状态1）
+    final boolean casCellsBusy() {
+        return CELLSBUSY.compareAndSet(this, 0, 1);
+    }
+    
     /**
      * Handles cases of updates involving initialization, resizing,
      * creating new Cells, and/or contention. See above for
@@ -225,29 +229,44 @@ abstract class Striped64 extends Number {
      * avoids the need for an extra field or function in LongAdder).
      * @param wasUncontended false if CAS failed before call
      */
-    final void longAccumulate(long x, LongBinaryOperator fn,
-                              boolean wasUncontended) {
+    // 对long值进行一些目标操作，包括扩大/缩小/增减等
+    final void longAccumulate(long x, LongBinaryOperator fn, boolean wasUncontended) {
         int h;
-        if ((h = getProbe()) == 0) {
+        
+        // 获取当前线程的探测值（必须先确保当前线程的探测值有效）
+        if((h = getProbe()) == 0) {
             ThreadLocalRandom.current(); // force initialization
             h = getProbe();
             wasUncontended = true;
         }
+        
         boolean collide = false;                // True if last slot nonempty
-        done: for (;;) {
-            Cell[] cs; Cell c; int n; long v;
-            if ((cs = cells) != null && (n = cs.length) > 0) {
-                if ((c = cs[(n - 1) & h]) == null) {
-                    if (cellsBusy == 0) {       // Try to attach new Cell
-                        Cell r = new Cell(x);   // Optimistically create
-                        if (cellsBusy == 0 && casCellsBusy()) {
+        
+        for(; ; ) {
+            Cell[] cs;
+            Cell c;
+            int n;
+            long v;
+            
+            // 如果cells已经存在
+            if((cs = cells) != null && (n = cs.length)>0) {
+                // 如果当前线程关联的cell为null，尝试为其创造一个新的cell
+                if((c = cs[(n - 1) & h]) == null) {
+                    // Try to attach new Cell
+                    if(cellsBusy == 0) {
+                        // Optimistically create
+                        Cell r = new Cell(x);
+                        // 获取cells的控制权
+                        if(cellsBusy == 0 && casCellsBusy()) {
                             try {               // Recheck under lock
-                                Cell[] rs; int m, j;
-                                if ((rs = cells) != null &&
-                                    (m = rs.length) > 0 &&
-                                    rs[j = (m - 1) & h] == null) {
+                                Cell[] rs;
+                                int m, j;
+                                // 存在有效的cells，且当前线程关联的cell为null，则为该cell赋值
+                                if((rs = cells) != null
+                                    && (m = rs.length)>0
+                                    && rs[j = (m - 1) & h] == null) {
                                     rs[j] = r;
-                                    break done;
+                                    break;
                                 }
                             } finally {
                                 cellsBusy = 0;
@@ -256,154 +275,253 @@ abstract class Striped64 extends Number {
                         }
                     }
                     collide = false;
-                }
-                else if (!wasUncontended)       // CAS already known to fail
+                    
+                    // 如果当前线程关联的cell不为null，但是上次更新【操作系数】时失败了，说明此该cell被争用，需要更新一下探测值重新找一个cell
+                } else if(!wasUncontended) {    // CAS already known to fail
                     wasUncontended = true;      // Continue after rehash
-                else if (c.cas(v = c.value,
-                               (fn == null) ? v + x : fn.applyAsLong(v, x)))
+                    
+                    // 如果当前线程关联的cell不为null，尝试更新其【操作系数】（wasUncontended已经为true）
+                } else if(c.cas(v = c.value, (fn == null) ? v + x : fn.applyAsLong(v, x))) {
                     break;
-                else if (n >= NCPU || cells != cs)
+                    
+                    // 如果cell的数量已经超过了虚拟机可用的处理器数量，或者，cells被别的线程扩容了，则不需要纠结碰撞的问题
+                } else if(n >= NCPU || cells != cs) {
+                    // 重置collide为false，表示当前没有发生碰撞
                     collide = false;            // At max size or stale
-                else if (!collide)
+                    
+                    // 此时发生了碰撞，需要更新collide为true，下一轮进来可能要扩容
+                } else if(!collide) {
                     collide = true;
-                else if (cellsBusy == 0 && casCellsBusy()) {
+                    
+                    // 获取cells的控制权，并着手扩容
+                } else if(cellsBusy == 0 && casCellsBusy()) {
                     try {
-                        if (cells == cs)        // Expand table unless stale
+                        // Expand table unless stale
+                        if(cells == cs) {
+                            // 发生碰撞后，又进行了一次赋值尝试，但是失败了，说明cells争用严重，需要扩容
                             cells = Arrays.copyOf(cs, n << 1);
+                        }
                     } finally {
+                        // 释放cells的控制权
                         cellsBusy = 0;
                     }
+                    
+                    // 重置collide状态
                     collide = false;
+                    
+                    // 扩容后不更新探测值，而是在当前的cell位置重试
                     continue;                   // Retry with expanded table
                 }
+                
+                // 更新当前线程内的探测值，并返回更新后的值
                 h = advanceProbe(h);
-            }
-            else if (cellsBusy == 0 && cells == cs && casCellsBusy()) {
-                try {                           // Initialize table
-                    if (cells == cs) {
+                
+                // 如果cells不存在，且获取到cells的操作权
+            } else if(cellsBusy == 0 && cells == cs && casCellsBusy()) {
+                // Initialize table
+                try {
+                    // 初始化cells，并向某个cell中存入【操作系数】
+                    if(cells == cs) {
                         Cell[] rs = new Cell[2];
                         rs[h & 1] = new Cell(x);
                         cells = rs;
-                        break done;
+                        break;
                     }
                 } finally {
+                    // 释放cells的控制权
                     cellsBusy = 0;
                 }
+                
+                /*
+                 * 如果cells不存在，且无法获取到cells的操作权（被别的线程抢走了控制权）
+                 * 则尝试在base上做更新，如果尝试成功，则结束目标操作，否则，重新执行上面的for循环
+                 */
+            } else if(casBase(v = base, (fn == null) ? v + x : fn.applyAsLong(v, x))) { // Fall back on using base
+                break;
             }
-            // Fall back on using base
-            else if (casBase(v = base,
-                             (fn == null) ? v + x : fn.applyAsLong(v, x)))
-                break done;
         }
     }
-
-    private static long apply(DoubleBinaryOperator fn, long v, double x) {
-        double d = Double.longBitsToDouble(v);
-        d = (fn == null) ? d + x : fn.applyAsDouble(d, x);
-        return Double.doubleToRawLongBits(d);
-    }
-
+    
     /**
      * Same as longAccumulate, but injecting long/double conversions
      * in too many places to sensibly merge with long version, given
      * the low-overhead requirements of this class. So must instead be
      * maintained by copy/paste/adapt.
      */
-    final void doubleAccumulate(double x, DoubleBinaryOperator fn,
-                                boolean wasUncontended) {
+    // 对double值进行一些目标操作，包括扩大/缩小/增减等
+    final void doubleAccumulate(double x, DoubleBinaryOperator fn, boolean wasUncontended) {
         int h;
-        if ((h = getProbe()) == 0) {
+        
+        // 获取当前线程的探测值（必须先确保当前线程的探测值有效）
+        if((h = getProbe()) == 0) {
             ThreadLocalRandom.current(); // force initialization
             h = getProbe();
             wasUncontended = true;
         }
+        
         boolean collide = false;                // True if last slot nonempty
-        done: for (;;) {
-            Cell[] cs; Cell c; int n; long v;
-            if ((cs = cells) != null && (n = cs.length) > 0) {
-                if ((c = cs[(n - 1) & h]) == null) {
-                    if (cellsBusy == 0) {       // Try to attach new Cell
-                        Cell r = new Cell(Double.doubleToRawLongBits(x));
-                        if (cellsBusy == 0 && casCellsBusy()) {
+        
+        for(; ; ) {
+            Cell[] cs;
+            Cell c;
+            int n;
+            long v;
+            
+            // 如果cells已经存在
+            if((cs = cells) != null && (n = cs.length)>0) {
+                // 如果当前线程关联的cell为null，尝试为其创造一个新的cell
+                if((c = cs[(n - 1) & h]) == null) {
+                    // Try to attach new Cell
+                    if(cellsBusy == 0) {
+                        // 先计算x的二进制格式，然后返回该二进制格式表示的long
+                        long bits = Double.doubleToRawLongBits(x);
+                        Cell r = new Cell(bits);
+                        
+                        // 获取cells的控制权
+                        if(cellsBusy == 0 && casCellsBusy()) {
                             try {               // Recheck under lock
-                                Cell[] rs; int m, j;
-                                if ((rs = cells) != null &&
-                                    (m = rs.length) > 0 &&
-                                    rs[j = (m - 1) & h] == null) {
+                                Cell[] rs;
+                                int m, j;
+                                // 存在有效的cells，且当前线程关联的cell为null，则为该cell赋值
+                                if((rs = cells) != null
+                                    && (m = rs.length)>0
+                                    && rs[j = (m - 1) & h] == null) {
                                     rs[j] = r;
-                                    break done;
+                                    break;
                                 }
                             } finally {
                                 cellsBusy = 0;
                             }
+                            
                             continue;           // Slot is now non-empty
                         }
                     }
+                    
                     collide = false;
-                }
-                else if (!wasUncontended)       // CAS already known to fail
+                    
+                    // 如果当前线程关联的cell不为null，但是上次更新【操作系数】时失败了，说明此该cell被争用，需要更新一下探测值重新找一个cell
+                } else if(!wasUncontended) {    // CAS already known to fail
                     wasUncontended = true;      // Continue after rehash
-                else if (c.cas(v = c.value, apply(fn, v, x)))
+                    
+                    // 如果当前线程关联的cell不为null，尝试更新其【操作系数】（wasUncontended已经为true）
+                } else if(c.cas(v = c.value, apply(fn, v, x))) {
                     break;
-                else if (n >= NCPU || cells != cs)
+                    
+                    // 如果cell的数量已经超过了虚拟机可用的处理器数量，或者，cells被别的线程扩容了，则不需要纠结碰撞的问题
+                } else if(n >= NCPU || cells != cs) {
+                    // 重置collide为false，表示当前没有发生碰撞
                     collide = false;            // At max size or stale
-                else if (!collide)
+                    
+                    // 此时发生了碰撞，需要更新collide为true，下一轮进来可能要扩容
+                } else if(!collide) {
                     collide = true;
-                else if (cellsBusy == 0 && casCellsBusy()) {
+                    
+                    // 获取cells的控制权，并着手扩容
+                } else if(cellsBusy == 0 && casCellsBusy()) {
                     try {
-                        if (cells == cs)        // Expand table unless stale
+                        // Expand table unless stale
+                        if(cells == cs) {
+                            // 发生碰撞后，又进行了一次赋值尝试，但是失败了，说明cells争用严重，需要扩容
                             cells = Arrays.copyOf(cs, n << 1);
+                        }
                     } finally {
+                        // 释放cells的控制权
                         cellsBusy = 0;
                     }
+                    
+                    // 重置collide状态
                     collide = false;
+                    
+                    // 扩容后不更新探测值，而是在当前的cell位置重试
                     continue;                   // Retry with expanded table
                 }
+                
+                // 更新当前线程内的探测值，并返回更新后的值
                 h = advanceProbe(h);
-            }
-            else if (cellsBusy == 0 && cells == cs && casCellsBusy()) {
-                try {                           // Initialize table
-                    if (cells == cs) {
+                
+                // 如果cells不存在，且获取到cells的操作权
+            } else if(cellsBusy == 0 && cells == cs && casCellsBusy()) {
+                // Initialize table
+                try {
+                    // 初始化cells，并向某个cell中存入【操作系数】
+                    if(cells == cs) {
                         Cell[] rs = new Cell[2];
-                        rs[h & 1] = new Cell(Double.doubleToRawLongBits(x));
+                        long bits = Double.doubleToRawLongBits(x);
+                        rs[h & 1] = new Cell(bits);
                         cells = rs;
-                        break done;
+                        break;
                     }
                 } finally {
+                    // 释放cells的控制权
                     cellsBusy = 0;
                 }
+                
+                /*
+                 * 如果cells不存在，且无法获取到cells的操作权（被别的线程抢走了控制权）
+                 * 则尝试在base上做更新，如果尝试成功，则结束目标操作，否则，重新执行上面的for循环
+                 */
+            } else if(casBase(v = base, apply(fn, v, x))) { // Fall back on using base
+                break;
             }
-            // Fall back on using base
-            else if (casBase(v = base, apply(fn, v, x)))
-                break done;
         }
     }
-
-    // VarHandle mechanics
-    private static final VarHandle BASE;
-    private static final VarHandle CELLSBUSY;
-    private static final VarHandle THREAD_PROBE;
-    static {
-        try {
-            MethodHandles.Lookup l = MethodHandles.lookup();
-            BASE = l.findVarHandle(Striped64.class,
-                    "base", long.class);
-            CELLSBUSY = l.findVarHandle(Striped64.class,
-                    "cellsBusy", int.class);
-            l = java.security.AccessController.doPrivileged(
-                    new java.security.PrivilegedAction<>() {
-                        public MethodHandles.Lookup run() {
-                            try {
-                                return MethodHandles.privateLookupIn(Thread.class, MethodHandles.lookup());
-                            } catch (ReflectiveOperationException e) {
-                                throw new ExceptionInInitializerError(e);
-                            }
-                        }});
-            THREAD_PROBE = l.findVarHandle(Thread.class,
-                    "threadLocalRandomProbe", int.class);
-        } catch (ReflectiveOperationException e) {
-            throw new ExceptionInInitializerError(e);
+    
+    // 使用fn处理v和x（v要先转换为double，返回值也代表double）
+    private static long apply(DoubleBinaryOperator fn, long v, double x) {
+        // 先计算v的二进制格式，然后返回该二进制格式表示的double
+        double d = Double.longBitsToDouble(v);
+        // 处理v跟x（默认是相加）
+        d = (fn == null) ? d + x : fn.applyAsDouble(d, x);
+        // 以long形式返回处理结果
+        return Double.doubleToRawLongBits(d);
+    }
+    
+    /**
+     * Padded variant of AtomicLong supporting only raw accesses plus CAS.
+     *
+     * JVM intrinsics note: It would be possible to use a release-only
+     * form of CAS here, if it were provided.
+     */
+    // 分段存储当前对象的【操作系数】，缓解线程争用
+    @jdk.internal.vm.annotation.Contended
+    static final class Cell {
+        // 【操作系数】，参见cells参数
+        volatile long value;
+        
+        // VarHandle mechanics
+        private static final VarHandle VALUE;
+        static {
+            try {
+                MethodHandles.Lookup l = MethodHandles.lookup();
+                VALUE = l.findVarHandle(Cell.class, "value", long.class);
+            } catch(ReflectiveOperationException e) {
+                throw new ExceptionInInitializerError(e);
+            }
+        }
+        
+        Cell(long x) {
+            value = x;
+        }
+        
+        // 原子地更新cell
+        final boolean cas(long cmp, long val) {
+            return VALUE.compareAndSet(this, cmp, val);
+        }
+        
+        // 原子地设置cell为val，并返回旧值
+        final long getAndSet(long val) {
+            return (long) VALUE.getAndSet(this, val);
+        }
+        
+        // 重置cell为0
+        final void reset() {
+            VALUE.setVolatile(this, 0L);
+        }
+        
+        // 重置cell为identity
+        final void reset(long identity) {
+            VALUE.setVolatile(this, identity);
         }
     }
-
+    
 }
