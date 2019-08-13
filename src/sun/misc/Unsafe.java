@@ -25,14 +25,15 @@
 
 package sun.misc;
 
-import java.lang.reflect.Field;
-import java.nio.ByteBuffer;
 import jdk.internal.misc.VM;
 import jdk.internal.ref.Cleaner;
 import jdk.internal.reflect.CallerSensitive;
 import jdk.internal.reflect.Reflection;
 import jdk.internal.vm.annotation.ForceInline;
 import sun.nio.ch.DirectBuffer;
+
+import java.lang.reflect.Field;
+import java.nio.ByteBuffer;
 
 /**
  * A collection of methods for performing low-level, unsafe operations.
@@ -54,7 +55,7 @@ import sun.nio.ch.DirectBuffer;
 /*
  * 用于执行低级别，不安全操作的方法集合。
  *
- * 该类包装了jdk.internal.misc类中的部分操作
+ * 该类包装了jdk.internal.misc.Unsafe类中的部分操作
  * 虽然类和所有方法都是公共的，但是使用这个类是有限的，因为只有可信代码才能获得它的实例。
  *
  * 该类支持在任意内存地址位置处读写数据，对于普通用户来说，使用起来还是比较危险的。
@@ -167,7 +168,7 @@ public final class Unsafe {
      *
      * (It may assist compilers to make the local variable {@code final}.)
      *
-     * @throws SecurityException if the class loader of the caller
+     * @throws  SecurityException if the class loader of the caller
      *          class is not in the system domain in which all permissions
      *          are granted.
      */

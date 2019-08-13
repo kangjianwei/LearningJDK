@@ -62,7 +62,7 @@ import java.util.Objects;
  * @see java.lang.Class#getDeclaredField(String)
  * @since 1.1
  */
-// 字段
+// 反射元素-字段
 public final class Field extends AccessibleObject implements Member {
     private transient volatile Map<Class<? extends Annotation>, Annotation> declaredAnnotations;
     
@@ -92,7 +92,7 @@ public final class Field extends AccessibleObject implements Member {
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Package-private constructor used by ReflectAccess to enable
@@ -109,7 +109,7 @@ public final class Field extends AccessibleObject implements Member {
         this.annotations = annotations;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -1037,7 +1037,24 @@ public final class Field extends AccessibleObject implements Member {
      *
      * @since 1.5
      */
-    // 是否由编译器引入（非人为定义）
+    /*
+     * 是否由编译器引入（非人为定义）
+     *
+     * 示例：
+     *
+     * package com.kang;
+     *
+     * public class Outer {
+     *     class Inner{
+     *     }
+     * }
+     *
+     * 打印内部类Inner的字段时，会发现一个特殊的字段：
+     *
+     * final com.kang.Outer com.kang.Outer$Inner.this$0
+     *
+     * 这个名为this$0的字段持有对外部类对象的一个引用，其isSynthetic()==true
+     */
     public boolean isSynthetic() {
         return Modifier.isSynthetic(getModifiers());
     }

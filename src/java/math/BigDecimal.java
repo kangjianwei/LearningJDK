@@ -225,7 +225,11 @@ import static java.math.BigInteger.LONG_MASK;
  * @author  Sergey V. Kuksenko
  * @since 1.1
  */
-// 高精度数值运算
+/*
+ * 高精度数值运算
+ *
+ * 注：该对象本身是不可变的，类似String，在运算之后会产生一个新对象
+ */
 public class BigDecimal extends Number implements Comparable<BigDecimal> {
     /**
      * The unscaled value of this BigDecimal, as returned by {@link
@@ -584,7 +588,7 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Translates a character array representation of a
@@ -1386,7 +1390,7 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
         this.intVal = intVal;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     

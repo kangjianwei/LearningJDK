@@ -1079,7 +1079,7 @@ public class ScheduledThreadPoolExecutor extends ThreadPoolExecutor implements S
      * this class must be declared as a BlockingQueue<Runnable> even though it can only hold RunnableScheduledFutures.
      */
     /*
-     * 顺序无界延时阻塞队列，线程安全（锁）
+     * 顺序无界（队列容量支持扩容到Integer.MAX_VALUE）延时阻塞队列，线程安全（锁）
      *
      * 该容器的内部实现为【小顶堆】，存储着RunnableScheduledFuture类的定时任务
      */
@@ -1110,7 +1110,7 @@ public class ScheduledThreadPoolExecutor extends ThreadPoolExecutor implements S
         
         private static final int INITIAL_CAPACITY = 16;
         
-        
+        // 存储队列元素
         private RunnableScheduledFuture<?>[] queue = new RunnableScheduledFuture<?>[INITIAL_CAPACITY];
         
         // 队列长度

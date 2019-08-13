@@ -25,10 +25,11 @@
 
 package jdk.internal.misc;
 
-import java.lang.reflect.Field;
-import java.security.ProtectionDomain;
 import jdk.internal.HotSpotIntrinsicCandidate;
 import jdk.internal.vm.annotation.ForceInline;
+
+import java.lang.reflect.Field;
+import java.security.ProtectionDomain;
 
 /**
  * A collection of methods for performing low-level, unsafe operations.
@@ -50,7 +51,7 @@ import jdk.internal.vm.annotation.ForceInline;
 /*
  * 除了实现sun.misc.Unsafe中列出的方法，还提供了其他更精细的低级别操作，与底层交互紧密
  *
- * 针对多线程中单变量的可视性，以及多变量的顺序依赖和值依赖，JDK 9 引入4种低级别的资源同步语义，由弱到强分别是：
+ * 针对多线程中单变量的可视性，以及多变量的顺序依赖和值依赖，JDK 9 引入四种资源同步的语义，由弱到强分别是：
  * Plain, Opaque, Release[write]/Acquire[read], Volatile。【参见VarHandle】
  */
 public final class Unsafe {
@@ -1647,7 +1648,7 @@ public final class Unsafe {
      */
     
     /*▼ (1.1) getAndSetXXXRelease 设置值，Release版本 ████████████████████████████████████████████████████████████████████████████████┓ */
-
+    
     // 返回对象o的offset地址处的值，并将该值原子性地设置为新值newValue
     @ForceInline
     public final byte getAndSetByteRelease(Object o, long offset, byte newValue) {

@@ -111,7 +111,7 @@ public class Object {
      * @see java.lang.Object#equals(java.lang.Object)
      * @see java.lang.System#identityHashCode
      */
-    // 返回当前对象的哈希码，参见System.identityHashCode(Object)和Arrays.hashCode()方法
+    // 返回当前对象的哈希码，往往作为当前对象的唯一标识，参见System.identityHashCode(Object)和Arrays.hashCode()方法
     @HotSpotIntrinsicCandidate
     public native int hashCode();
     
@@ -163,7 +163,7 @@ public class Object {
      * @see #hashCode()
      * @see java.util.HashMap
      */
-    // 判等，默认的实现只是简单地比较两个对象的下标。更多判等操作可参考Arrays.equals方法
+    // 判等，默认的实现只是简单地比较两个对象的引用。更多判等操作可参考Arrays.equals方法
     public boolean equals(Object obj) {
         return (this == obj);
     }
@@ -384,7 +384,7 @@ public class Object {
      * }
      *
      * wait让当前线程陷入等待的同时，释放其持有的锁，以便让其他线程争夺锁的控制权
-     * 作为对比，Thread.sleep方法即使陷入等待，也不会释放锁
+     * 作为对比，Thread.sleep方法即使陷入等待，也不会释放其持有的锁
      *
      * wait线程醒来的条件：
      * 1. 超时
@@ -414,7 +414,7 @@ public class Object {
      * @see #wait(long)
      * @see #wait(long, int)
      */
-    // 永不超时，需要靠上述条件2或条件3唤醒
+    // 永不超时，需要靠上述条件2或条件3唤醒（释放锁）
     public final void wait() throws InterruptedException {
         wait(0L);
     }
@@ -441,7 +441,7 @@ public class Object {
      * @see #wait()
      * @see #wait(long, int)
      */
-    // 等待timeoutMillis毫秒之后自动醒来，或者靠上述条件2或条件3唤醒
+    // 等待timeoutMillis毫秒之后自动醒来，或者靠上述条件2或条件3唤醒（释放锁）
     public final native void wait(long timeoutMillis) throws InterruptedException;
     
     /**
@@ -538,7 +538,7 @@ public class Object {
      * @see #wait(long)
      */
     /*
-     * 至少等待timeoutMillis毫秒，nanos是一个纳秒级的附加时间，用来微调timeoutMillis参数
+     * 至少等待timeoutMillis毫秒，nanos是一个纳秒级的附加时间，用来微调timeoutMillis参数（释放锁）
      * 内部实现可参考Thread中的void sleep(long millis, int nanos)方法
      */
     public final void wait(long timeoutMillis, int nanos) throws InterruptedException {

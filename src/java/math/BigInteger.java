@@ -130,6 +130,8 @@ import java.util.concurrent.ThreadLocalRandom;
  * 大整数运算
  *
  * BigInteger将符号位和数值分开存储，其存储数据的基本原理是将数据切割成不同的分段后存入数组
+ *
+ * 注：该对象本身是不可变的，类似String，在运算之后会产生一个新对象
  */
 public class BigInteger extends Number implements Comparable<BigInteger> {
     /**
@@ -501,7 +503,7 @@ public class BigInteger extends Number implements Comparable<BigInteger> {
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Translates the String representation of a BigInteger in the
@@ -1005,7 +1007,7 @@ public class BigInteger extends Number implements Comparable<BigInteger> {
         }
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     

@@ -153,7 +153,7 @@ import sun.security.util.SecurityConstants;
  * @see java.lang.ClassLoader#defineClass(byte[], int, int)
  * @since 1.0
  */
-// 类/接口
+// 反射元素-类/接口
 public final class Class<T> implements Serializable, GenericDeclaration, Type, AnnotatedElement {
     /** use serialVersionUID from JDK 1.1 for interoperability */
     private static final long serialVersionUID = 3206093459760846163L;
@@ -243,7 +243,7 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Private constructor. Only the Java Virtual Machine creates Class objects.
@@ -256,7 +256,7 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
         componentType = arrayComponentType;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -626,12 +626,54 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
      * @return the name of the class or interface
      * represented by this object.
      */
-    // 虚拟机中呈现的名称
+    /*
+     * 虚拟机中呈现的名称
+     *
+     * char                                 基本类型
+     * [C                                   基本类型数组
+     * com.kang.Outer                       引用类型
+     * [Lcom.kang.Outer;                    引用类型数组
+     * com.kang.Outer$Inner                 内部类
+     * com.kang.Outer$1                     匿名类
+     * com.kang.Outer$$Lambda$1/1989780873  Lambda表达式
+     */
     public String getName() {
         String name = this.name;
         if(name == null)
             this.name = name = getName0();
         return name;
+    }
+    
+    /**
+     * Returns the canonical name of the underlying class as
+     * defined by the Java Language Specification.  Returns null if
+     * the underlying class does not have a canonical name (i.e., if
+     * it is a local or anonymous class or an array whose component
+     * type does not have a canonical name).
+     *
+     * @return the canonical name of the underlying class if it exists, and
+     * {@code null} otherwise.
+     *
+     * @since 1.5
+     */
+    /*
+     * 规范名称，尽量遵从书写习惯（匿名类为null）
+     *
+     * char                                 基本类型
+     * char[]                               基本类型数组
+     * com.kang.Outer                       引用类型
+     * com.kang.Outer[]                     引用类型数组
+     * com.kang.Outer.Inner                 内部类
+     * null                                 匿名类
+     * com.kang.Outer$$Lambda$1/1989780873  Lambda表达式
+     */
+    public String getCanonicalName() {
+        ReflectionData<T> rd = reflectionData();
+        String canonicalName = rd.canonicalName;
+        if(canonicalName == null) {
+            rd.canonicalName = canonicalName = getCanonicalName0();
+        }
+        return canonicalName == ReflectionData.NULL_SENTINEL ? null : canonicalName;
     }
     
     /**
@@ -647,7 +689,17 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
      *
      * @since 1.5
      */
-    // 不带包名的名称（匿名类没有）
+    /*
+     * 简单名称，可以看做是不带包名和外部类名的规范名（匿名类没有）
+     *
+     * char                        基本类型
+     * char[]                      基本类型数组
+     * Outer                       引用类型
+     * Outer[]                     引用类型数组
+     * Inner                       内部类
+     *                             匿名类
+     * Outer$$Lambda$1/1989780873  Lambda表达式
+     */
     public String getSimpleName() {
         ReflectionData<T> rd = reflectionData();
         String simpleName = rd.simpleName;
@@ -658,35 +710,23 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
     }
     
     /**
-     * Returns the canonical name of the underlying class as
-     * defined by the Java Language Specification.  Returns null if
-     * the underlying class does not have a canonical name (i.e., if
-     * it is a local or anonymous class or an array whose component
-     * type does not have a canonical name).
-     *
-     * @return the canonical name of the underlying class if it exists, and
-     * {@code null} otherwise.
-     *
-     * @since 1.5
-     */
-    // 规范名，与源码中的书写方式一致（匿名类为null）
-    public String getCanonicalName() {
-        ReflectionData<T> rd = reflectionData();
-        String canonicalName = rd.canonicalName;
-        if(canonicalName == null) {
-            rd.canonicalName = canonicalName = getCanonicalName0();
-        }
-        return canonicalName == ReflectionData.NULL_SENTINEL ? null : canonicalName;
-    }
-    
-    /**
      * Return an informative string for the name of this type.
      *
      * @return an informative string for the name of this type
      *
      * @since 1.8
      */
-    // 类型名称，对于数组类型，与getCanonicalName一样，对于其他类型，与getName一致
+    /*
+     * 类型名称
+     *
+     * char                                 基本类型
+     * char[]                               基本类型数组
+     * com.kang.Outer                       引用类型
+     * com.kang.Outer[]                     引用类型数组
+     * com.kang.Outer$Inner                 内部类
+     * com.kang.Outer$1                     匿名类
+     * com.kang.Outer$$Lambda$1/1989780873  Lambda表达式
+     */
     public String getTypeName() {
         if(isArray()) {
             try {
@@ -778,7 +818,10 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
      *                              null.
      * @since 1.1
      */
-    // X.class.isAssignableFrom(cls) ==> 判断X与cls所属的类/接口是否相同，或者X是cls的父类/父接口
+    /*
+     * X.class.isAssignableFrom(cls) ==> 判断X与cls所属的类/接口是否相同，或者X是cls的父类/父接口
+     * 即判断cls的实例是否可以赋值给当前类型（分别位于赋值运算符的两侧）
+     */
     @HotSpotIntrinsicCandidate
     public native boolean isAssignableFrom(Class<?> cls);
     
@@ -917,7 +960,7 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
      * @jls 13.1 The Form of a Binary
      * @since 1.5
      */
-    // 合成类，如((Runnable) () -> {}).getClass().isSynthetic()为true
+    // 合成类，一般是代理形式。如((Runnable) () -> {}).getClass().isSynthetic()为true
     public boolean isSynthetic() {
         return (getModifiers() & SYNTHETIC) != 0;
     }
@@ -928,7 +971,7 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
      * @throws NullPointerException {@inheritDoc}
      * @since 1.5
      */
-    // 判断当前类上是否存在注解annotationClass，要求注解annotationClass运行时可见（@Retention(RetentionPolicy.RUNTIME)）
+    // 判断当前类上是否存在注解类型annotationClass，要求注解类型annotationClass运行时可见（@Retention(RetentionPolicy.RUNTIME)）
     @Override
     public boolean isAnnotationPresent(Class<? extends Annotation> annotationClass) {
         return GenericDeclaration.super.isAnnotationPresent(annotationClass);
@@ -1020,7 +1063,7 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
      *
      * @return an array of interfaces directly implemented by this class
      */
-    // 获取当前类的父接口（只识别非泛型类型）
+    // 获取当前类的父接口，不包括父类/父接口实现的接口（只识别非泛型类型）
     public Class<?>[] getInterfaces() {
         // defensively copy before handing over to user code
         return getInterfaces(true);
@@ -1451,10 +1494,11 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
     @SuppressWarnings("unchecked")
     public TypeVariable<Class<T>>[] getTypeParameters() {
         ClassRepository info = getGenericInfo();
-        if(info != null)
+        if(info != null) {
             return (TypeVariable<Class<T>>[]) info.getTypeParameters();
-        else
+        } else {
             return (TypeVariable<Class<T>>[]) new TypeVariable<?>[0];
+        }
     }
     
     /*▲ 泛型 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -1463,7 +1507,7 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
     
     /*▼ Constructor ████████████████████████████████████████████████████████████████████████████████┓ */
     
-    /* 构造方法不属于成员，不能被子类继承 */
+    /* 构造器不属于成员，不能被子类继承 */
     
     /**
      * Returns an array containing {@code Constructor} objects reflecting
@@ -1493,7 +1537,7 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
      *                           of this class.
      * @since 1.1
      */
-    // 返回当前类中所有public构造方法，但不包括父类中的构造方法
+    // 返回当前类中所有public构造器，但不包括父类中的构造器
     @CallerSensitive
     public Constructor<?>[] getConstructors() throws SecurityException {
         SecurityManager sm = System.getSecurityManager();
@@ -1532,7 +1576,7 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
      *                               of this class.
      * @since 1.1
      */
-    // 返回当前类中指定形参的public构造方法，但不包括父类中的构造方法
+    // 返回当前类中指定形参的public构造器，但不包括父类中的构造器
     @CallerSensitive
     public Constructor<T> getConstructor(Class<?>... parameterTypes) throws NoSuchMethodException, SecurityException {
         SecurityManager sm = System.getSecurityManager();
@@ -1579,7 +1623,7 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
      *                           </ul>
      * @since 1.1
      */
-    // 返回当前类中所有构造方法，但不包括父类中的构造方法
+    // 返回当前类中所有构造器，但不包括父类中的构造器
     @CallerSensitive
     public Constructor<?>[] getDeclaredConstructors() throws SecurityException {
         SecurityManager sm = System.getSecurityManager();
@@ -1627,7 +1671,7 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
      *                               </ul>
      * @since 1.1
      */
-    // 返回当前类中指定形参的构造方法，但不包括父类中的构造方法
+    // 返回当前类中指定形参的构造器，但不包括父类中的构造器
     @CallerSensitive
     public Constructor<T> getDeclaredConstructor(Class<?>... parameterTypes) throws NoSuchMethodException, SecurityException {
         SecurityManager sm = System.getSecurityManager();
@@ -1672,7 +1716,7 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
      *                           </ul>
      * @since 1.5
      */
-    // 返回构造方法内部类或定义在构造方法内部的匿名类所处的构造方法。如果该类定义在构造方法外部，则调用此方法时返回null
+    // 返回构造器内部类或定义在构造器内部的匿名类所处的构造器。如果该类定义在构造器外部，则调用此方法时返回null
     @CallerSensitive
     public Constructor<?> getEnclosingConstructor() throws SecurityException {
         EnclosingMethodInfo enclosingInfo = getEnclosingMethodInfo();
@@ -2572,6 +2616,7 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
     @CallerSensitive
     @ForceInline
     public ClassLoader getClassLoader() {
+        // 2-1 返回该元素上所有类型的注解（对于类来说，不包括继承来的注解）
         ClassLoader cl = getClassLoader0();
         if(cl == null) {
             return null;
@@ -2596,8 +2641,9 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
     
     /*
      * 加载资源使用绝对路径或相对路径
+     *
      * 绝对路径是相对于类路径的根目录开始搜索
-     * 相对路径是相对于类文件自身所在的文件夹开始搜索
+     * 相对路径是相对于资源文件自身所在的文件夹开始搜索（在相应的包下搜索）
      */
     
     /**
@@ -2657,10 +2703,11 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
      * @spec JPMS
      * @since 1.1
      */
-    // 查找首个匹配的资源，并返回其URL。或者在当前类所在的模块中查找，或者在当前类的类路径上查找
+    // 查找首个匹配的资源，并返回其URL。先尝试在当前类所在的模块中查找，再尝试在当前类的类路径上查找
     @CallerSensitive
     public URL getResource(String resName) {
-        // 如果资源名为绝对路径，将其变为相对路径。如果资源名为相对路径，将其变为绝对路径
+        
+        // ★如果资源名为绝对路径，将其变为相对路径（相对于类路径）；如果资源名为相对路径，将其变为绝对路径（前面加上包名）
         resName = resolveName(resName);
         
         // 获取当前类所在的module
@@ -2754,10 +2801,11 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
      * @see Module#getResourceAsStream(String)
      * @since 1.1
      */
-    // 查找首个匹配的资源，并返回其输入流。或者在当前类所在的模块中查找，或者在当前类的类路径上查找
+    // 查找首个匹配的资源，并返回其输入流。先尝试在当前类所在的模块中查找，再尝试在当前类的类路径上查找
     @CallerSensitive
     public InputStream getResourceAsStream(String resName) {
-        // 如果资源名为绝对路径，将其变为相对路径。如果资源名为相对路径，将其变为绝对路径
+        
+        // ★如果资源名为绝对路径，将其变为相对路径（相对于类路径）；如果资源名为相对路径，将其变为绝对路径（前面加上包名）
         resName = resolveName(resName);
         
         // 获取当前类所在的module
@@ -3228,27 +3276,33 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
      */
     T[] getEnumConstantsShared() {
         T[] constants = enumConstants;
+        
         if(constants == null) {
-            if(!isEnum())
+            if(!isEnum()) {
                 return null;
+            }
+            
             try {
                 final Method values = getMethod("values");
-                java.security.AccessController.doPrivileged(new java.security.PrivilegedAction<>() {
+                
+                AccessController.doPrivileged(new PrivilegedAction<>() {
                     public Void run() {
                         values.setAccessible(true);
                         return null;
                     }
                 });
+                
                 @SuppressWarnings("unchecked")
                 T[] temporaryConstants = (T[]) values.invoke(null);
+                
                 enumConstants = constants = temporaryConstants;
-            }
-            // These can happen when users concoct enum-like classes
-            // that don't comply with the enum spec.
-            catch(InvocationTargetException | NoSuchMethodException | IllegalAccessException ex) {
+                
+                // These can happen when users concoct enum-like classes that don't comply with the enum spec.
+            } catch(InvocationTargetException | NoSuchMethodException | IllegalAccessException ex) {
                 return null;
             }
         }
+        
         return constants;
     }
     
@@ -3300,12 +3354,17 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
         Map<String, T> directory = enumConstantDirectory;
         if(directory == null) {
             T[] universe = getEnumConstantsShared();
-            if(universe == null)
+            
+            if(universe == null) {
                 throw new IllegalArgumentException(getName() + " is not an enum type");
+            }
+            
             directory = new HashMap<>((int) (universe.length / 0.75f) + 1);
+            
             for(T constant : universe) {
                 directory.put(((Enum<?>) constant).name(), constant);
             }
+            
             enumConstantDirectory = directory;
         }
         return directory;
@@ -3613,11 +3672,15 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
     /**
      * Add a package name prefix if the resName is not absolute Remove leading "/" if name is absolute
      */
-    // 如果资源名为绝对路径，将其变为相对路径。如果资源名为相对路径，将其变为绝对路径
+    // 如果资源名为绝对路径，将其变为相对路径（相对于类路径）；如果资源名为相对路径，将其变为绝对路径（前面加上包名）
     private String resolveName(String resName) {
-        if(!resName.startsWith("/")) {
+        if(resName.startsWith("/")) {
+            // 去掉绝对路径前面的"/"
+            resName = resName.substring(1);
+        } else {
             Class<?> c = this;
             while(c.isArray()) {
+                // 获取数组的组件类型
                 c = c.getComponentType();
             }
             
@@ -3627,10 +3690,8 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
                 // 将包名替换为路径名，并在其后添加资源名
                 resName = baseName.replace('.', '/') + "/" + resName;
             }
-        } else {
-            // 去掉绝对路径前面的"/"
-            resName = resName.substring(1);
         }
+        
         return resName;
     }
     

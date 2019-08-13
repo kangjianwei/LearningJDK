@@ -415,7 +415,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * below).
      */
     
-    // 线程池状态标记，运行状态初始为RUNNING，任务数量初始为0
+    // 线程池状态标记，运行状态初始为RUNNING，工作线程数量初始为0
     private final AtomicInteger ctl = new AtomicInteger(ctlOf(RUNNING, 0));
     
     /* runState is stored in the high-order bits */
@@ -532,7 +532,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * Since the worker count is actually stored in COUNT_BITS bits,
      * the effective limit is {@code corePoolSize & COUNT_MASK}.
      */
-    // 线程池【核心阙值】，>=0，一般用来限制【核心线程】数量
+    // 线程池【核心阙值】，>=0，一般用来限制【R】的数量
     private volatile int corePoolSize;
     
     /**
@@ -541,7 +541,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * Since the worker count is actually stored in COUNT_BITS bits,
      * the effective limit is {@code maximumPoolSize & COUNT_MASK}.
      */
-    // 线程池【最大阙值】，>0，一般用来限制线程池所有【线程】数量
+    // 线程池【最大阙值】，>0，一般用来限制【N】的数量（线程池满，阻塞队列也满时，限制【R】的数量）
     private volatile int maximumPoolSize;
     
     /**
@@ -587,7 +587,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Creates a new {@code ThreadPoolExecutor} with the given initial
@@ -722,7 +722,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      */
     /*
      * corePoolSize   ：线程池【核心阙值】，>=0，一般用来限制【R】的数量
-     * maximumPoolSize：线程池【最大阙值】，>0，一般用来限制线程池所有【线程】数量
+     * maximumPoolSize：线程池【最大阙值】，>0， 一般用来限制【N】的数量（线程池满，阻塞队列也满时，限制【R】的数量）
      * keepAliveTime  ：【N】的最大空闲时间（启用了超时设置后生效）
      * unit           ：时间单位
      * workQueue      ：阻塞队列
@@ -755,7 +755,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
         this.handler = handler;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -838,7 +838,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
              * 目的是借助【N】间接执行阻塞队列中的任务
              *
              * 当然，这里如果没能成功添加【N】，也不要紧，
-             * 因为稍后【R1】执行完后，就会转变为【N】...
+             * 因为稍后【R】执行完后，就会转变为【N】
              */
             
             // 再次检查线程池标记
@@ -854,9 +854,9 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
             } else {
                 /* {-1} 至此，说明线程池仍在【运行】状态 */
                 
-                // 如果线程池为空
+                // 如果线程池为空（通常出现在【核心阙值】为0的场景）
                 if(workerCountOf(recheck) == 0) {
-                    // 向线程池添加一个【N】
+                    // 向线程池添加一个【N】，以便处理阻塞队列中的任务
                     addWorker(null, false);
                 }
                 
@@ -866,16 +866,16 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
             /*
              * 至此，有两种情形：
              * 1. {0123} 线程池已结束【运行】状态，这意味程池不再接收新的Worker了
-             * 2. {-1}   线程池正处于【运行】状态，但任务没能成功进入阻塞队列
+             * 2. {-1}   线程池正处于【运行】状态，但任务没能成功进入阻塞队列（阻塞队列满了）
              *
              * 情形1：
              * 这种情形下，addWorker(command, false)往往返回false，
              * 即任务准备进入阻塞队列时，而且恰好线程池也已关闭，那么需要执行拒绝策略
              *
              * 情形2：
-             * 这种情形下，addWorker(command, false)将返回true，
-             * 即任务没能进入阻塞队列（原因是线程池中没有可以处理阻塞任务的Worker），
-             * 此时，在【最大阙值】的限制下，将任务包装为Worker放入了线程池
+             * 这种情形下，可能是阻塞队列满了，此时改用【最大阙值】最为线程池的容量限制，
+             * 重新尝试将任务包装为Worker放入了线程池，如果还是失败，则返回false
+             * 比如【核心阙值】与【最大阙值】一样大时，这里往往是失败的
              */
             if(!addWorker(command, false)) {
                 // 任务进入线程池失败，执行【拒绝策略】
@@ -923,7 +923,7 @@ retry:
         for (int c = ctl.get(); ; ) {
             /* Check if queue empty only if necessary */
             
-            // {0123} 如果线程池不再接收新线程了
+            // {0123} 如果线程池不再接收新线程
             if (runStateAtLeast(c, SHUTDOWN)) {
                 
                 // {123} 如果线程池不再处理阻塞任务，直接返回
@@ -931,14 +931,14 @@ retry:
                     return false;
                 }
                 
-                /* {0} 至此，线程池处于【关闭】状态，即不接收新线程，但可以处理阻塞任务 */
+                /* {0} 至此，线程池处于【关闭】状态，即线程池不再接收新线程，但可以处理阻塞任务 */
                 
-                // 任务不为空，直接返回（因为不再接收新线程了）
+                // 如果任务不为空，直接返回（因为不再接收新线程[任务]了）
                 if(firstTask != null){
                     return false;
                 }
                 
-                // 阻塞队列为空，直接返回（因为虽然可以处理阻塞任务，但已经没有阻塞任务了）
+                // 如果阻塞队列为空，直接返回（因为虽然可以处理阻塞任务，但已经没有阻塞任务了）
                 if(workQueue.isEmpty()){
                     return false;
                 }
@@ -953,20 +953,20 @@ retry:
             
             // 原子地增加线程池中的Worker数量
             for (;;) {
-                // 获取当前使用的阙值限制
+                // 获取当前情境下需要使用的阙值限制
                 int count = (core ? corePoolSize : maximumPoolSize) & COUNT_MASK;
                 
                 /*
                  * 至此，由于形参的不同组合，出现了4种情形：
                  *
                  * 1.(command, true)  ==> firstTask!=null，count==corePoolSize
-                 *   添加【R】到线程池
+                 *   添加【R】到线程池（线程池的Worker数量在【核心阙值】以内）
                  *
-                 * 2.(null, false)    ==> firstTask==null，count==maximumPoolSize
+                 * 2.(command, false) ==> firstTask!=null，count==maximumPoolSize
+                 *   添加【R】到线程池（线程池正处于【运行】状态，但线程池满了。阻塞队列也满了）
+                 *
+                 * 3.(null, false)    ==> firstTask==null，count==maximumPoolSize
                  *   添加【N】到线程池
-                 *
-                 * 3.(command, false) ==> firstTask!=null，count==maximumPoolSize
-                 *   添加【R】到线程池，但使用了maximumPoolSize阙值（参见execute()方法中最后的else）
                  *
                  * 4.(null, true)     ==> firstTask==null，count==corePoolSize
                  *   一般发生在线程池的【核心阙值】被更新后，在新阙值的限制下，增加【N】
@@ -1240,6 +1240,7 @@ retry:
              * 无法在阻塞队列中取到任务时，对应的【N】型Worker结束运行
              * 当前Worker退出时，除了需要将该Worker从线程池移除，
              * 还要保证阻塞队列中的阻塞任务后续有别的Worker处理
+             * 注：超时被启用时，才会走这里，否则就一直阻塞在getTask()
              */
             processWorkerExit(w, completedAbruptly);
         }
@@ -1303,7 +1304,7 @@ retry:
              */
             boolean timed = allowCoreThreadTimeOut || wc>corePoolSize;
             
-            // 如果线程池中的Worker数量超过【最大阙值】
+            // 如果线程池中的Worker数量超过【最大阙值】（线程争用严重时会有此种情形）
             if(wc>maximumPoolSize
                 // 或者启用了超时设置，且已经超时
                 || (timed && timedOut)) {
@@ -1343,7 +1344,7 @@ retry:
                     // 出队，从阻塞队列取出任务，不满足出队条件时阻塞一段时间，如果在指定的时间内没有成功拿到元素，则返回null
                     r = workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS);
                 } else {
-                    // 出队，从阻塞队列取出任务，线程安全，不满足出队条件时阻塞
+                    // 出队，从阻塞队列取出任务，线程安全，不满足出队条件时【阻塞】
                     r = workQueue.take();
                 }
                 
