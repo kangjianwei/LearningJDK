@@ -192,197 +192,34 @@ import java.util.stream.StreamSupport;
  * <a href="{@docRoot}/java.base/java/util/package-summary.html#CollectionsFramework">
  * Java Collections Framework</a>.
  *
- * @implSpec
- * The default method implementations (inherited or otherwise) do not apply any
+ * @param <E> the type of elements in this collection
+ *
+ * @author Josh Bloch
+ * @author Neal Gafter
+ * @implSpec The default method implementations (inherited or otherwise) do not apply any
  * synchronization protocol.  If a {@code Collection} implementation has a
  * specific synchronization protocol, then it must override default
  * implementations to apply that protocol.
- *
- * @param <E> the type of elements in this collection
- *
- * @author  Josh Bloch
- * @author  Neal Gafter
- * @see     Set
- * @see     List
- * @see     Map
- * @see     SortedSet
- * @see     SortedMap
- * @see     HashSet
- * @see     TreeSet
- * @see     ArrayList
- * @see     LinkedList
- * @see     Vector
- * @see     Collections
- * @see     Arrays
- * @see     AbstractCollection
+ * @see Set
+ * @see List
+ * @see Map
+ * @see SortedSet
+ * @see SortedMap
+ * @see HashSet
+ * @see TreeSet
+ * @see ArrayList
+ * @see LinkedList
+ * @see Vector
+ * @see Collections
+ * @see Arrays
+ * @see AbstractCollection
  * @since 1.2
  */
-
+// 一元容器的顶级接口，其实现类包括线性表（比如List、Queue、Stack）和集合（Set）
 public interface Collection<E> extends Iterable<E> {
-    // Query Operations
-
-    /**
-     * Returns the number of elements in this collection.  If this collection
-     * contains more than {@code Integer.MAX_VALUE} elements, returns
-     * {@code Integer.MAX_VALUE}.
-     *
-     * @return the number of elements in this collection
-     */
-    int size();
-
-    /**
-     * Returns {@code true} if this collection contains no elements.
-     *
-     * @return {@code true} if this collection contains no elements
-     */
-    boolean isEmpty();
-
-    /**
-     * Returns {@code true} if this collection contains the specified element.
-     * More formally, returns {@code true} if and only if this collection
-     * contains at least one element {@code e} such that
-     * {@code Objects.equals(o, e)}.
-     *
-     * @param o element whose presence in this collection is to be tested
-     * @return {@code true} if this collection contains the specified
-     *         element
-     * @throws ClassCastException if the type of the specified element
-     *         is incompatible with this collection
-     *         (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
-     * @throws NullPointerException if the specified element is null and this
-     *         collection does not permit null elements
-     *         (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
-     */
-    boolean contains(Object o);
-
-    /**
-     * Returns an iterator over the elements in this collection.  There are no
-     * guarantees concerning the order in which the elements are returned
-     * (unless this collection is an instance of some class that provides a
-     * guarantee).
-     *
-     * @return an {@code Iterator} over the elements in this collection
-     */
-    Iterator<E> iterator();
-
-    /**
-     * Returns an array containing all of the elements in this collection.
-     * If this collection makes any guarantees as to what order its elements
-     * are returned by its iterator, this method must return the elements in
-     * the same order. The returned array's {@linkplain Class#getComponentType
-     * runtime component type} is {@code Object}.
-     *
-     * <p>The returned array will be "safe" in that no references to it are
-     * maintained by this collection.  (In other words, this method must
-     * allocate a new array even if this collection is backed by an array).
-     * The caller is thus free to modify the returned array.
-     *
-     * @apiNote
-     * This method acts as a bridge between array-based and collection-based APIs.
-     * It returns an array whose runtime type is {@code Object[]}.
-     * Use {@link #toArray(Object[]) toArray(T[])} to reuse an existing
-     * array, or use {@link #toArray(IntFunction)} to control the runtime type
-     * of the array.
-     *
-     * @return an array, whose {@linkplain Class#getComponentType runtime component
-     * type} is {@code Object}, containing all of the elements in this collection
-     */
-    Object[] toArray();
-
-    /**
-     * Returns an array containing all of the elements in this collection;
-     * the runtime type of the returned array is that of the specified array.
-     * If the collection fits in the specified array, it is returned therein.
-     * Otherwise, a new array is allocated with the runtime type of the
-     * specified array and the size of this collection.
-     *
-     * <p>If this collection fits in the specified array with room to spare
-     * (i.e., the array has more elements than this collection), the element
-     * in the array immediately following the end of the collection is set to
-     * {@code null}.  (This is useful in determining the length of this
-     * collection <i>only</i> if the caller knows that this collection does
-     * not contain any {@code null} elements.)
-     *
-     * <p>If this collection makes any guarantees as to what order its elements
-     * are returned by its iterator, this method must return the elements in
-     * the same order.
-     *
-     * @apiNote
-     * This method acts as a bridge between array-based and collection-based APIs.
-     * It allows an existing array to be reused under certain circumstances.
-     * Use {@link #toArray()} to create an array whose runtime type is {@code Object[]},
-     * or use {@link #toArray(IntFunction)} to control the runtime type of
-     * the array.
-     *
-     * <p>Suppose {@code x} is a collection known to contain only strings.
-     * The following code can be used to dump the collection into a previously
-     * allocated {@code String} array:
-     *
-     * <pre>
-     *     String[] y = new String[SIZE];
-     *     ...
-     *     y = x.toArray(y);</pre>
-     *
-     * <p>The return value is reassigned to the variable {@code y}, because a
-     * new array will be allocated and returned if the collection {@code x} has
-     * too many elements to fit into the existing array {@code y}.
-     *
-     * <p>Note that {@code toArray(new Object[0])} is identical in function to
-     * {@code toArray()}.
-     *
-     * @param <T> the component type of the array to contain the collection
-     * @param a the array into which the elements of this collection are to be
-     *        stored, if it is big enough; otherwise, a new array of the same
-     *        runtime type is allocated for this purpose.
-     * @return an array containing all of the elements in this collection
-     * @throws ArrayStoreException if the runtime type of any element in this
-     *         collection is not assignable to the {@linkplain Class#getComponentType
-     *         runtime component type} of the specified array
-     * @throws NullPointerException if the specified array is null
-     */
-    <T> T[] toArray(T[] a);
-
-    /**
-     * Returns an array containing all of the elements in this collection,
-     * using the provided {@code generator} function to allocate the returned array.
-     *
-     * <p>If this collection makes any guarantees as to what order its elements
-     * are returned by its iterator, this method must return the elements in
-     * the same order.
-     *
-     * @apiNote
-     * This method acts as a bridge between array-based and collection-based APIs.
-     * It allows creation of an array of a particular runtime type. Use
-     * {@link #toArray()} to create an array whose runtime type is {@code Object[]},
-     * or use {@link #toArray(Object[]) toArray(T[])} to reuse an existing array.
-     *
-     * <p>Suppose {@code x} is a collection known to contain only strings.
-     * The following code can be used to dump the collection into a newly
-     * allocated array of {@code String}:
-     *
-     * <pre>
-     *     String[] y = x.toArray(String[]::new);</pre>
-     *
-     * @implSpec
-     * The default implementation calls the generator function with zero
-     * and then passes the resulting array to {@link #toArray(Object[]) toArray(T[])}.
-     *
-     * @param <T> the component type of the array to contain the collection
-     * @param generator a function which produces a new array of the desired
-     *                  type and the provided length
-     * @return an array containing all of the elements in this collection
-     * @throws ArrayStoreException if the runtime type of any element in this
-     *         collection is not assignable to the {@linkplain Class#getComponentType
-     *         runtime component type} of the generated array
-     * @throws NullPointerException if the generator function is null
-     * @since 11
-     */
-    default <T> T[] toArray(IntFunction<T[]> generator) {
-        return toArray(generator.apply(0));
-    }
-
-    // Modification Operations
-
+    
+    /*▼ 存值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Ensures that this collection contains the specified element (optional
      * operation).  Returns {@code true} if this collection changed as a
@@ -403,21 +240,59 @@ public interface Collection<E> extends Iterable<E> {
      * after this call returns.
      *
      * @param e element whose presence in this collection is to be ensured
+     *
      * @return {@code true} if this collection changed as a result of the
-     *         call
+     * call
+     *
      * @throws UnsupportedOperationException if the {@code add} operation
-     *         is not supported by this collection
-     * @throws ClassCastException if the class of the specified element
-     *         prevents it from being added to this collection
-     * @throws NullPointerException if the specified element is null and this
-     *         collection does not permit null elements
-     * @throws IllegalArgumentException if some property of the element
-     *         prevents it from being added to this collection
-     * @throws IllegalStateException if the element cannot be added at this
-     *         time due to insertion restrictions
+     *                                       is not supported by this collection
+     * @throws ClassCastException            if the class of the specified element
+     *                                       prevents it from being added to this collection
+     * @throws NullPointerException          if the specified element is null and this
+     *                                       collection does not permit null elements
+     * @throws IllegalArgumentException      if some property of the element
+     *                                       prevents it from being added to this collection
+     * @throws IllegalStateException         if the element cannot be added at this
+     *                                       time due to insertion restrictions
      */
+    // 向当前容器中添加元素
     boolean add(E e);
-
+    
+    /**
+     * Adds all of the elements in the specified collection to this collection
+     * (optional operation).  The behavior of this operation is undefined if
+     * the specified collection is modified while the operation is in progress.
+     * (This implies that the behavior of this call is undefined if the
+     * specified collection is this collection, and this collection is
+     * nonempty.)
+     *
+     * @param c collection containing elements to be added to this collection
+     *
+     * @return {@code true} if this collection changed as a result of the call
+     *
+     * @throws UnsupportedOperationException if the {@code addAll} operation
+     *                                       is not supported by this collection
+     * @throws ClassCastException            if the class of an element of the specified
+     *                                       collection prevents it from being added to this collection
+     * @throws NullPointerException          if the specified collection contains a
+     *                                       null element and this collection does not permit null elements,
+     *                                       or if the specified collection is null
+     * @throws IllegalArgumentException      if some property of an element of the
+     *                                       specified collection prevents it from being added to this
+     *                                       collection
+     * @throws IllegalStateException         if not all the elements can be added at
+     *                                       this time due to insertion restrictions
+     * @see #add(Object)
+     */
+    // 将指定容器中的元素添加到当前容器中
+    boolean addAll(Collection<? extends E> c);
+    
+    /*▲ 存值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 移除 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Removes a single instance of the specified element from this
      * collection, if it is present (optional operation).  More formally,
@@ -428,67 +303,57 @@ public interface Collection<E> extends Iterable<E> {
      * equivalently, if this collection changed as a result of the call).
      *
      * @param o element to be removed from this collection, if present
+     *
      * @return {@code true} if an element was removed as a result of this call
-     * @throws ClassCastException if the type of the specified element
-     *         is incompatible with this collection
-     *         (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
-     * @throws NullPointerException if the specified element is null and this
-     *         collection does not permit null elements
-     *         (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
+     *
+     * @throws ClassCastException            if the type of the specified element
+     *                                       is incompatible with this collection
+     *                                       (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
+     * @throws NullPointerException          if the specified element is null and this
+     *                                       collection does not permit null elements
+     *                                       (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
      * @throws UnsupportedOperationException if the {@code remove} operation
-     *         is not supported by this collection
+     *                                       is not supported by this collection
      */
+    // 移除指定的元素，返回值指示是否移除成功
     boolean remove(Object o);
-
-
-    // Bulk Operations
-
+    
     /**
-     * Returns {@code true} if this collection contains all of the elements
-     * in the specified collection.
+     * Removes all of the elements of this collection that satisfy the given
+     * predicate.  Errors or runtime exceptions thrown during iteration or by
+     * the predicate are relayed to the caller.
      *
-     * @param  c collection to be checked for containment in this collection
-     * @return {@code true} if this collection contains all of the elements
-     *         in the specified collection
-     * @throws ClassCastException if the types of one or more elements
-     *         in the specified collection are incompatible with this
-     *         collection
-     *         (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
-     * @throws NullPointerException if the specified collection contains one
-     *         or more null elements and this collection does not permit null
-     *         elements
-     *         (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>),
-     *         or if the specified collection is null.
-     * @see    #contains(Object)
-     */
-    boolean containsAll(Collection<?> c);
-
-    /**
-     * Adds all of the elements in the specified collection to this collection
-     * (optional operation).  The behavior of this operation is undefined if
-     * the specified collection is modified while the operation is in progress.
-     * (This implies that the behavior of this call is undefined if the
-     * specified collection is this collection, and this collection is
-     * nonempty.)
+     * @param filter a predicate which returns {@code true} for elements to be
+     *               removed
      *
-     * @param c collection containing elements to be added to this collection
-     * @return {@code true} if this collection changed as a result of the call
-     * @throws UnsupportedOperationException if the {@code addAll} operation
-     *         is not supported by this collection
-     * @throws ClassCastException if the class of an element of the specified
-     *         collection prevents it from being added to this collection
-     * @throws NullPointerException if the specified collection contains a
-     *         null element and this collection does not permit null elements,
-     *         or if the specified collection is null
-     * @throws IllegalArgumentException if some property of an element of the
-     *         specified collection prevents it from being added to this
-     *         collection
-     * @throws IllegalStateException if not all the elements can be added at
-     *         this time due to insertion restrictions
-     * @see #add(Object)
+     * @return {@code true} if any elements were removed
+     *
+     * @throws NullPointerException          if the specified filter is null
+     * @throws UnsupportedOperationException if elements cannot be removed
+     *                                       from this collection.  Implementations may throw this exception if a
+     *                                       matching element cannot be removed or if, in general, removal is not
+     *                                       supported.
+     * @implSpec The default implementation traverses all elements of the collection using
+     * its {@link #iterator}.  Each matching element is removed using
+     * {@link Iterator#remove()}.  If the collection's iterator does not
+     * support removal then an {@code UnsupportedOperationException} will be
+     * thrown on the first matching element.
+     * @since 1.8
      */
-    boolean addAll(Collection<? extends E> c);
-
+    // 移除满足条件的元素，移除条件由filter决定，返回值指示是否移除成功
+    default boolean removeIf(Predicate<? super E> filter) {
+        Objects.requireNonNull(filter);
+        boolean removed = false;
+        final Iterator<E> each = iterator();
+        while(each.hasNext()) {
+            if(filter.test(each.next())) {
+                each.remove();
+                removed = true;
+            }
+        }
+        return removed;
+    }
+    
     /**
      * Removes all of this collection's elements that are also contained in the
      * specified collection (optional operation).  After this call returns,
@@ -496,59 +361,27 @@ public interface Collection<E> extends Iterable<E> {
      * collection.
      *
      * @param c collection containing elements to be removed from this collection
+     *
      * @return {@code true} if this collection changed as a result of the
-     *         call
+     * call
+     *
      * @throws UnsupportedOperationException if the {@code removeAll} method
-     *         is not supported by this collection
-     * @throws ClassCastException if the types of one or more elements
-     *         in this collection are incompatible with the specified
-     *         collection
-     *         (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
-     * @throws NullPointerException if this collection contains one or more
-     *         null elements and the specified collection does not support
-     *         null elements
-     *         (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>),
-     *         or if the specified collection is null
+     *                                       is not supported by this collection
+     * @throws ClassCastException            if the types of one or more elements
+     *                                       in this collection are incompatible with the specified
+     *                                       collection
+     *                                       (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
+     * @throws NullPointerException          if this collection contains one or more
+     *                                       null elements and the specified collection does not support
+     *                                       null elements
+     *                                       (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>),
+     *                                       or if the specified collection is null
      * @see #remove(Object)
      * @see #contains(Object)
      */
+    // (匹配则移除)移除当前容器中所有与给定容器中的元素匹配的元素
     boolean removeAll(Collection<?> c);
-
-    /**
-     * Removes all of the elements of this collection that satisfy the given
-     * predicate.  Errors or runtime exceptions thrown during iteration or by
-     * the predicate are relayed to the caller.
-     *
-     * @implSpec
-     * The default implementation traverses all elements of the collection using
-     * its {@link #iterator}.  Each matching element is removed using
-     * {@link Iterator#remove()}.  If the collection's iterator does not
-     * support removal then an {@code UnsupportedOperationException} will be
-     * thrown on the first matching element.
-     *
-     * @param filter a predicate which returns {@code true} for elements to be
-     *        removed
-     * @return {@code true} if any elements were removed
-     * @throws NullPointerException if the specified filter is null
-     * @throws UnsupportedOperationException if elements cannot be removed
-     *         from this collection.  Implementations may throw this exception if a
-     *         matching element cannot be removed or if, in general, removal is not
-     *         supported.
-     * @since 1.8
-     */
-    default boolean removeIf(Predicate<? super E> filter) {
-        Objects.requireNonNull(filter);
-        boolean removed = false;
-        final Iterator<E> each = iterator();
-        while (each.hasNext()) {
-            if (filter.test(each.next())) {
-                each.remove();
-                removed = true;
-            }
-        }
-        return removed;
-    }
-
+    
     /**
      * Retains only the elements in this collection that are contained in the
      * specified collection (optional operation).  In other words, removes from
@@ -556,87 +389,222 @@ public interface Collection<E> extends Iterable<E> {
      * specified collection.
      *
      * @param c collection containing elements to be retained in this collection
+     *
      * @return {@code true} if this collection changed as a result of the call
+     *
      * @throws UnsupportedOperationException if the {@code retainAll} operation
-     *         is not supported by this collection
-     * @throws ClassCastException if the types of one or more elements
-     *         in this collection are incompatible with the specified
-     *         collection
-     *         (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
-     * @throws NullPointerException if this collection contains one or more
-     *         null elements and the specified collection does not permit null
-     *         elements
-     *         (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>),
-     *         or if the specified collection is null
+     *                                       is not supported by this collection
+     * @throws ClassCastException            if the types of one or more elements
+     *                                       in this collection are incompatible with the specified
+     *                                       collection
+     *                                       (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
+     * @throws NullPointerException          if this collection contains one or more
+     *                                       null elements and the specified collection does not permit null
+     *                                       elements
+     *                                       (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>),
+     *                                       or if the specified collection is null
      * @see #remove(Object)
      * @see #contains(Object)
      */
+    // (不匹配则移除)移除当前容器中所有与给定容器中的元素不匹配的元素
     boolean retainAll(Collection<?> c);
-
+    
     /**
      * Removes all of the elements from this collection (optional operation).
      * The collection will be empty after this method returns.
      *
      * @throws UnsupportedOperationException if the {@code clear} operation
-     *         is not supported by this collection
+     *                                       is not supported by this collection
      */
+    // 清空当前容器中所有元素
     void clear();
-
-
-    // Comparison and hashing
-
+    
+    /*▲ 移除 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 包含查询 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Compares the specified object with this collection for equality. <p>
+     * Returns {@code true} if this collection contains the specified element.
+     * More formally, returns {@code true} if and only if this collection
+     * contains at least one element {@code e} such that
+     * {@code Objects.equals(o, e)}.
      *
-     * While the {@code Collection} interface adds no stipulations to the
-     * general contract for the {@code Object.equals}, programmers who
-     * implement the {@code Collection} interface "directly" (in other words,
-     * create a class that is a {@code Collection} but is not a {@code Set}
-     * or a {@code List}) must exercise care if they choose to override the
-     * {@code Object.equals}.  It is not necessary to do so, and the simplest
-     * course of action is to rely on {@code Object}'s implementation, but
-     * the implementor may wish to implement a "value comparison" in place of
-     * the default "reference comparison."  (The {@code List} and
-     * {@code Set} interfaces mandate such value comparisons.)<p>
+     * @param o element whose presence in this collection is to be tested
      *
-     * The general contract for the {@code Object.equals} method states that
-     * equals must be symmetric (in other words, {@code a.equals(b)} if and
-     * only if {@code b.equals(a)}).  The contracts for {@code List.equals}
-     * and {@code Set.equals} state that lists are only equal to other lists,
-     * and sets to other sets.  Thus, a custom {@code equals} method for a
-     * collection class that implements neither the {@code List} nor
-     * {@code Set} interface must return {@code false} when this collection
-     * is compared to any list or set.  (By the same logic, it is not possible
-     * to write a class that correctly implements both the {@code Set} and
-     * {@code List} interfaces.)
+     * @return {@code true} if this collection contains the specified
+     * element
      *
-     * @param o object to be compared for equality with this collection
-     * @return {@code true} if the specified object is equal to this
-     * collection
-     *
-     * @see Object#equals(Object)
-     * @see Set#equals(Object)
-     * @see List#equals(Object)
+     * @throws ClassCastException   if the type of the specified element
+     *                              is incompatible with this collection
+     *                              (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
+     * @throws NullPointerException if the specified element is null and this
+     *                              collection does not permit null elements
+     *                              (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
      */
-    boolean equals(Object o);
-
+    // 判断当前容器中是否包含元素o
+    boolean contains(Object o);
+    
     /**
-     * Returns the hash code value for this collection.  While the
-     * {@code Collection} interface adds no stipulations to the general
-     * contract for the {@code Object.hashCode} method, programmers should
-     * take note that any class that overrides the {@code Object.equals}
-     * method must also override the {@code Object.hashCode} method in order
-     * to satisfy the general contract for the {@code Object.hashCode} method.
-     * In particular, {@code c1.equals(c2)} implies that
-     * {@code c1.hashCode()==c2.hashCode()}.
+     * Returns {@code true} if this collection contains all of the elements
+     * in the specified collection.
      *
-     * @return the hash code value for this collection
+     * @param c collection to be checked for containment in this collection
      *
-     * @see Object#hashCode()
-     * @see Object#equals(Object)
+     * @return {@code true} if this collection contains all of the elements
+     * in the specified collection
+     *
+     * @throws ClassCastException   if the types of one or more elements
+     *                              in the specified collection are incompatible with this
+     *                              collection
+     *                              (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
+     * @throws NullPointerException if the specified collection contains one
+     *                              or more null elements and this collection does not permit null
+     *                              elements
+     *                              (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>),
+     *                              or if the specified collection is null.
+     * @see #contains(Object)
      */
-    int hashCode();
-
+    // 判读指定容器中的元素是否都包含在当前容器中
+    boolean containsAll(Collection<?> c);
+    
+    /*▲ 包含查询 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 视图 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns an array containing all of the elements in this collection.
+     * If this collection makes any guarantees as to what order its elements
+     * are returned by its iterator, this method must return the elements in
+     * the same order. The returned array's {@linkplain Class#getComponentType
+     * runtime component type} is {@code Object}.
+     *
+     * <p>The returned array will be "safe" in that no references to it are
+     * maintained by this collection.  (In other words, this method must
+     * allocate a new array even if this collection is backed by an array).
+     * The caller is thus free to modify the returned array.
+     *
+     * @return an array, whose {@linkplain Class#getComponentType runtime component
+     * type} is {@code Object}, containing all of the elements in this collection
+     *
+     * @apiNote This method acts as a bridge between array-based and collection-based APIs.
+     * It returns an array whose runtime type is {@code Object[]}.
+     * Use {@link #toArray(Object[]) toArray(T[])} to reuse an existing
+     * array, or use {@link #toArray(IntFunction)} to control the runtime type
+     * of the array.
+     */
+    Object[] toArray();
+    
+    /**
+     * Returns an array containing all of the elements in this collection;
+     * the runtime type of the returned array is that of the specified array.
+     * If the collection fits in the specified array, it is returned therein.
+     * Otherwise, a new array is allocated with the runtime type of the
+     * specified array and the size of this collection.
+     *
+     * <p>If this collection fits in the specified array with room to spare
+     * (i.e., the array has more elements than this collection), the element
+     * in the array immediately following the end of the collection is set to
+     * {@code null}.  (This is useful in determining the length of this
+     * collection <i>only</i> if the caller knows that this collection does
+     * not contain any {@code null} elements.)
+     *
+     * <p>If this collection makes any guarantees as to what order its elements
+     * are returned by its iterator, this method must return the elements in
+     * the same order.
+     *
+     * @param <T> the component type of the array to contain the collection
+     * @param a   the array into which the elements of this collection are to be
+     *            stored, if it is big enough; otherwise, a new array of the same
+     *            runtime type is allocated for this purpose.
+     *
+     * @return an array containing all of the elements in this collection
+     *
+     * @throws ArrayStoreException  if the runtime type of any element in this
+     *                              collection is not assignable to the {@linkplain Class#getComponentType
+     *                              runtime component type} of the specified array
+     * @throws NullPointerException if the specified array is null
+     * @apiNote This method acts as a bridge between array-based and collection-based APIs.
+     * It allows an existing array to be reused under certain circumstances.
+     * Use {@link #toArray()} to create an array whose runtime type is {@code Object[]},
+     * or use {@link #toArray(IntFunction)} to control the runtime type of
+     * the array.
+     *
+     * <p>Suppose {@code x} is a collection known to contain only strings.
+     * The following code can be used to dump the collection into a previously
+     * allocated {@code String} array:
+     *
+     * <pre>
+     *     String[] y = new String[SIZE];
+     *     ...
+     *     y = x.toArray(y);</pre>
+     *
+     * <p>The return value is reassigned to the variable {@code y}, because a
+     * new array will be allocated and returned if the collection {@code x} has
+     * too many elements to fit into the existing array {@code y}.
+     *
+     * <p>Note that {@code toArray(new Object[0])} is identical in function to
+     * {@code toArray()}.
+     */
+    <T> T[] toArray(T[] a);
+    
+    /**
+     * Returns an array containing all of the elements in this collection,
+     * using the provided {@code generator} function to allocate the returned array.
+     *
+     * <p>If this collection makes any guarantees as to what order its elements
+     * are returned by its iterator, this method must return the elements in
+     * the same order.
+     *
+     * @param <T>       the component type of the array to contain the collection
+     * @param generator a function which produces a new array of the desired
+     *                  type and the provided length
+     *
+     * @return an array containing all of the elements in this collection
+     *
+     * @throws ArrayStoreException  if the runtime type of any element in this
+     *                              collection is not assignable to the {@linkplain Class#getComponentType
+     *                              runtime component type} of the generated array
+     * @throws NullPointerException if the generator function is null
+     * @apiNote This method acts as a bridge between array-based and collection-based APIs.
+     * It allows creation of an array of a particular runtime type. Use
+     * {@link #toArray()} to create an array whose runtime type is {@code Object[]},
+     * or use {@link #toArray(Object[]) toArray(T[])} to reuse an existing array.
+     *
+     * <p>Suppose {@code x} is a collection known to contain only strings.
+     * The following code can be used to dump the collection into a newly
+     * allocated array of {@code String}:
+     *
+     * <pre>
+     *     String[] y = x.toArray(String[]::new);</pre>
+     * @implSpec The default implementation calls the generator function with zero
+     * and then passes the resulting array to {@link #toArray(Object[]) toArray(T[])}.
+     * @since 11
+     */
+    default <T> T[] toArray(IntFunction<T[]> generator) {
+        return toArray(generator.apply(0));
+    }
+    
+    /*▲ 视图 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 迭代 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns an iterator over the elements in this collection.  There are no
+     * guarantees concerning the order in which the elements are returned
+     * (unless this collection is an instance of some class that provides a
+     * guarantee).
+     *
+     * @return an {@code Iterator} over the elements in this collection
+     */
+    // 返回当前容器的迭代器
+    Iterator<E> iterator();
+    
     /**
      * Creates a {@link Spliterator} over the elements in this collection.
      *
@@ -664,16 +632,15 @@ public interface Collection<E> extends Iterable<E> {
      * contents of the collection as of initiation of the terminal stream
      * operation.
      *
-     * @implSpec
-     * The default implementation creates a
+     * @return a {@code Spliterator} over the elements in this collection
+     *
+     * @implSpec The default implementation creates a
      * <em><a href="Spliterator.html#binding">late-binding</a></em> spliterator
      * from the collection's {@code Iterator}.  The spliterator inherits the
      * <em>fail-fast</em> properties of the collection's iterator.
      * <p>
      * The created {@code Spliterator} reports {@link Spliterator#SIZED}.
-     *
-     * @implNote
-     * The created {@code Spliterator} additionally reports
+     * @implNote The created {@code Spliterator} additionally reports
      * {@link Spliterator#SUBSIZED}.
      *
      * <p>If a spliterator covers no elements then the reporting of additional
@@ -683,15 +650,14 @@ public interface Collection<E> extends Iterable<E> {
      * spliterator instance (see {@link Spliterators#emptySpliterator()}) for
      * empty collections, and enables clients to determine if such a spliterator
      * covers no elements.
-     *
-     * @return a {@code Spliterator} over the elements in this collection
      * @since 1.8
      */
+    // 返回描述此容器中元素的Spliterator
     @Override
     default Spliterator<E> spliterator() {
         return Spliterators.spliterator(this, 0);
     }
-
+    
     /**
      * Returns a sequential {@code Stream} with this collection as its source.
      *
@@ -700,35 +666,117 @@ public interface Collection<E> extends Iterable<E> {
      * {@code CONCURRENT}, or <em>late-binding</em>. (See {@link #spliterator()}
      * for details.)
      *
-     * @implSpec
-     * The default implementation creates a sequential {@code Stream} from the
-     * collection's {@code Spliterator}.
-     *
      * @return a sequential {@code Stream} over the elements in this collection
+     *
+     * @implSpec The default implementation creates a sequential {@code Stream} from the
+     * collection's {@code Spliterator}.
      * @since 1.8
      */
+    // 获取当前容器的顺序数据流
     default Stream<E> stream() {
         return StreamSupport.stream(spliterator(), false);
     }
-
+    
     /**
-     * Returns a possibly parallel {@code Stream} with this collection as its
-     * source.  It is allowable for this method to return a sequential stream.
+     * Returns a possibly parallel {@code Stream} with this collection as its source.
+     * It is allowable for this method to return a sequential stream.
      *
      * <p>This method should be overridden when the {@link #spliterator()}
      * method cannot return a spliterator that is {@code IMMUTABLE},
      * {@code CONCURRENT}, or <em>late-binding</em>. (See {@link #spliterator()}
      * for details.)
      *
-     * @implSpec
-     * The default implementation creates a parallel {@code Stream} from the
-     * collection's {@code Spliterator}.
-     *
      * @return a possibly parallel {@code Stream} over the elements in this
      * collection
+     *
+     * @implSpec The default implementation creates a parallel {@code Stream} from the
+     * collection's {@code Spliterator}.
      * @since 1.8
      */
+    // 获取当前容器的并行数据流
     default Stream<E> parallelStream() {
         return StreamSupport.stream(spliterator(), true);
     }
+    
+    /*▲ 迭代 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the number of elements in this collection.  If this collection
+     * contains more than {@code Integer.MAX_VALUE} elements, returns
+     * {@code Integer.MAX_VALUE}.
+     *
+     * @return the number of elements in this collection
+     */
+    // 返回当前容器的元素数量
+    int size();
+    
+    /**
+     * Returns {@code true} if this collection contains no elements.
+     *
+     * @return {@code true} if this collection contains no elements
+     */
+    // 判断当前容器是否为空
+    boolean isEmpty();
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /**
+     * Compares the specified object with this collection for equality. <p>
+     *
+     * While the {@code Collection} interface adds no stipulations to the
+     * general contract for the {@code Object.equals}, programmers who
+     * implement the {@code Collection} interface "directly" (in other words,
+     * create a class that is a {@code Collection} but is not a {@code Set}
+     * or a {@code List}) must exercise care if they choose to override the
+     * {@code Object.equals}.  It is not necessary to do so, and the simplest
+     * course of action is to rely on {@code Object}'s implementation, but
+     * the implementor may wish to implement a "value comparison" in place of
+     * the default "reference comparison."  (The {@code List} and
+     * {@code Set} interfaces mandate such value comparisons.)<p>
+     *
+     * The general contract for the {@code Object.equals} method states that
+     * equals must be symmetric (in other words, {@code a.equals(b)} if and
+     * only if {@code b.equals(a)}).  The contracts for {@code List.equals}
+     * and {@code Set.equals} state that lists are only equal to other lists,
+     * and sets to other sets.  Thus, a custom {@code equals} method for a
+     * collection class that implements neither the {@code List} nor
+     * {@code Set} interface must return {@code false} when this collection
+     * is compared to any list or set.  (By the same logic, it is not possible
+     * to write a class that correctly implements both the {@code Set} and
+     * {@code List} interfaces.)
+     *
+     * @param o object to be compared for equality with this collection
+     *
+     * @return {@code true} if the specified object is equal to this
+     * collection
+     *
+     * @see Object#equals(Object)
+     * @see Set#equals(Object)
+     * @see List#equals(Object)
+     */
+    boolean equals(Object o);
+    
+    /**
+     * Returns the hash code value for this collection.  While the
+     * {@code Collection} interface adds no stipulations to the general
+     * contract for the {@code Object.hashCode} method, programmers should
+     * take note that any class that overrides the {@code Object.equals}
+     * method must also override the {@code Object.hashCode} method in order
+     * to satisfy the general contract for the {@code Object.hashCode} method.
+     * In particular, {@code c1.equals(c2)} implies that
+     * {@code c1.hashCode()==c2.hashCode()}.
+     *
+     * @return the hash code value for this collection
+     *
+     * @see Object#hashCode()
+     * @see Object#equals(Object)
+     */
+    int hashCode();
+    
 }
