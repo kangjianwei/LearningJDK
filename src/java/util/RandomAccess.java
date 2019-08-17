@@ -64,5 +64,6 @@ package java.util;
  *
  * @since 1.4
  */
+// 标记接口，代表实现类支持随机访问。比如顺序表
 public interface RandomAccess {
 }
