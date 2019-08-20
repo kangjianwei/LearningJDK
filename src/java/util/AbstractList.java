@@ -65,540 +65,13 @@ import java.util.function.Consumer;
  * <a href="{@docRoot}/java.base/java/util/package-summary.html#CollectionsFramework">
  * Java Collections Framework</a>.
  *
- * @author  Josh Bloch
- * @author  Neal Gafter
+ * @author Josh Bloch
+ * @author Neal Gafter
  * @since 1.2
  */
-
+// 线性表的抽象实现
 public abstract class AbstractList<E> extends AbstractCollection<E> implements List<E> {
-    /**
-     * Sole constructor.  (For invocation by subclass constructors, typically
-     * implicit.)
-     */
-    protected AbstractList() {
-    }
-
-    /**
-     * Appends the specified element to the end of this list (optional
-     * operation).
-     *
-     * <p>Lists that support this operation may place limitations on what
-     * elements may be added to this list.  In particular, some
-     * lists will refuse to add null elements, and others will impose
-     * restrictions on the type of elements that may be added.  List
-     * classes should clearly specify in their documentation any restrictions
-     * on what elements may be added.
-     *
-     * @implSpec
-     * This implementation calls {@code add(size(), e)}.
-     *
-     * <p>Note that this implementation throws an
-     * {@code UnsupportedOperationException} unless
-     * {@link #add(int, Object) add(int, E)} is overridden.
-     *
-     * @param e element to be appended to this list
-     * @return {@code true} (as specified by {@link Collection#add})
-     * @throws UnsupportedOperationException if the {@code add} operation
-     *         is not supported by this list
-     * @throws ClassCastException if the class of the specified element
-     *         prevents it from being added to this list
-     * @throws NullPointerException if the specified element is null and this
-     *         list does not permit null elements
-     * @throws IllegalArgumentException if some property of this element
-     *         prevents it from being added to this list
-     */
-    public boolean add(E e) {
-        add(size(), e);
-        return true;
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * @throws IndexOutOfBoundsException {@inheritDoc}
-     */
-    public abstract E get(int index);
-
-    /**
-     * {@inheritDoc}
-     *
-     * @implSpec
-     * This implementation always throws an
-     * {@code UnsupportedOperationException}.
-     *
-     * @throws UnsupportedOperationException {@inheritDoc}
-     * @throws ClassCastException            {@inheritDoc}
-     * @throws NullPointerException          {@inheritDoc}
-     * @throws IllegalArgumentException      {@inheritDoc}
-     * @throws IndexOutOfBoundsException     {@inheritDoc}
-     */
-    public E set(int index, E element) {
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * @implSpec
-     * This implementation always throws an
-     * {@code UnsupportedOperationException}.
-     *
-     * @throws UnsupportedOperationException {@inheritDoc}
-     * @throws ClassCastException            {@inheritDoc}
-     * @throws NullPointerException          {@inheritDoc}
-     * @throws IllegalArgumentException      {@inheritDoc}
-     * @throws IndexOutOfBoundsException     {@inheritDoc}
-     */
-    public void add(int index, E element) {
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * @implSpec
-     * This implementation always throws an
-     * {@code UnsupportedOperationException}.
-     *
-     * @throws UnsupportedOperationException {@inheritDoc}
-     * @throws IndexOutOfBoundsException     {@inheritDoc}
-     */
-    public E remove(int index) {
-        throw new UnsupportedOperationException();
-    }
-
-
-    // Search Operations
-
-    /**
-     * {@inheritDoc}
-     *
-     * @implSpec
-     * This implementation first gets a list iterator (with
-     * {@code listIterator()}).  Then, it iterates over the list until the
-     * specified element is found or the end of the list is reached.
-     *
-     * @throws ClassCastException   {@inheritDoc}
-     * @throws NullPointerException {@inheritDoc}
-     */
-    public int indexOf(Object o) {
-        ListIterator<E> it = listIterator();
-        if (o==null) {
-            while (it.hasNext())
-                if (it.next()==null)
-                    return it.previousIndex();
-        } else {
-            while (it.hasNext())
-                if (o.equals(it.next()))
-                    return it.previousIndex();
-        }
-        return -1;
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * @implSpec
-     * This implementation first gets a list iterator that points to the end
-     * of the list (with {@code listIterator(size())}).  Then, it iterates
-     * backwards over the list until the specified element is found, or the
-     * beginning of the list is reached.
-     *
-     * @throws ClassCastException   {@inheritDoc}
-     * @throws NullPointerException {@inheritDoc}
-     */
-    public int lastIndexOf(Object o) {
-        ListIterator<E> it = listIterator(size());
-        if (o==null) {
-            while (it.hasPrevious())
-                if (it.previous()==null)
-                    return it.nextIndex();
-        } else {
-            while (it.hasPrevious())
-                if (o.equals(it.previous()))
-                    return it.nextIndex();
-        }
-        return -1;
-    }
-
-
-    // Bulk Operations
-
-    /**
-     * Removes all of the elements from this list (optional operation).
-     * The list will be empty after this call returns.
-     *
-     * @implSpec
-     * This implementation calls {@code removeRange(0, size())}.
-     *
-     * <p>Note that this implementation throws an
-     * {@code UnsupportedOperationException} unless {@code remove(int
-     * index)} or {@code removeRange(int fromIndex, int toIndex)} is
-     * overridden.
-     *
-     * @throws UnsupportedOperationException if the {@code clear} operation
-     *         is not supported by this list
-     */
-    public void clear() {
-        removeRange(0, size());
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * @implSpec
-     * This implementation gets an iterator over the specified collection
-     * and iterates over it, inserting the elements obtained from the
-     * iterator into this list at the appropriate position, one at a time,
-     * using {@code add(int, E)}.
-     * Many implementations will override this method for efficiency.
-     *
-     * <p>Note that this implementation throws an
-     * {@code UnsupportedOperationException} unless
-     * {@link #add(int, Object) add(int, E)} is overridden.
-     *
-     * @throws UnsupportedOperationException {@inheritDoc}
-     * @throws ClassCastException            {@inheritDoc}
-     * @throws NullPointerException          {@inheritDoc}
-     * @throws IllegalArgumentException      {@inheritDoc}
-     * @throws IndexOutOfBoundsException     {@inheritDoc}
-     */
-    public boolean addAll(int index, Collection<? extends E> c) {
-        rangeCheckForAdd(index);
-        boolean modified = false;
-        for (E e : c) {
-            add(index++, e);
-            modified = true;
-        }
-        return modified;
-    }
-
-
-    // Iterators
-
-    /**
-     * Returns an iterator over the elements in this list in proper sequence.
-     *
-     * @implSpec
-     * This implementation returns a straightforward implementation of the
-     * iterator interface, relying on the backing list's {@code size()},
-     * {@code get(int)}, and {@code remove(int)} methods.
-     *
-     * <p>Note that the iterator returned by this method will throw an
-     * {@link UnsupportedOperationException} in response to its
-     * {@code remove} method unless the list's {@code remove(int)} method is
-     * overridden.
-     *
-     * <p>This implementation can be made to throw runtime exceptions in the
-     * face of concurrent modification, as described in the specification
-     * for the (protected) {@link #modCount} field.
-     *
-     * @return an iterator over the elements in this list in proper sequence
-     */
-    public Iterator<E> iterator() {
-        return new Itr();
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * @implSpec
-     * This implementation returns {@code listIterator(0)}.
-     *
-     * @see #listIterator(int)
-     */
-    public ListIterator<E> listIterator() {
-        return listIterator(0);
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * @implSpec
-     * This implementation returns a straightforward implementation of the
-     * {@code ListIterator} interface that extends the implementation of the
-     * {@code Iterator} interface returned by the {@code iterator()} method.
-     * The {@code ListIterator} implementation relies on the backing list's
-     * {@code get(int)}, {@code set(int, E)}, {@code add(int, E)}
-     * and {@code remove(int)} methods.
-     *
-     * <p>Note that the list iterator returned by this implementation will
-     * throw an {@link UnsupportedOperationException} in response to its
-     * {@code remove}, {@code set} and {@code add} methods unless the
-     * list's {@code remove(int)}, {@code set(int, E)}, and
-     * {@code add(int, E)} methods are overridden.
-     *
-     * <p>This implementation can be made to throw runtime exceptions in the
-     * face of concurrent modification, as described in the specification for
-     * the (protected) {@link #modCount} field.
-     *
-     * @throws IndexOutOfBoundsException {@inheritDoc}
-     */
-    public ListIterator<E> listIterator(final int index) {
-        rangeCheckForAdd(index);
-
-        return new ListItr(index);
-    }
-
-    private class Itr implements Iterator<E> {
-        /**
-         * Index of element to be returned by subsequent call to next.
-         */
-        int cursor = 0;
-
-        /**
-         * Index of element returned by most recent call to next or
-         * previous.  Reset to -1 if this element is deleted by a call
-         * to remove.
-         */
-        int lastRet = -1;
-
-        /**
-         * The modCount value that the iterator believes that the backing
-         * List should have.  If this expectation is violated, the iterator
-         * has detected concurrent modification.
-         */
-        int expectedModCount = modCount;
-
-        public boolean hasNext() {
-            return cursor != size();
-        }
-
-        public E next() {
-            checkForComodification();
-            try {
-                int i = cursor;
-                E next = get(i);
-                lastRet = i;
-                cursor = i + 1;
-                return next;
-            } catch (IndexOutOfBoundsException e) {
-                checkForComodification();
-                throw new NoSuchElementException();
-            }
-        }
-
-        public void remove() {
-            if (lastRet < 0)
-                throw new IllegalStateException();
-            checkForComodification();
-
-            try {
-                AbstractList.this.remove(lastRet);
-                if (lastRet < cursor)
-                    cursor--;
-                lastRet = -1;
-                expectedModCount = modCount;
-            } catch (IndexOutOfBoundsException e) {
-                throw new ConcurrentModificationException();
-            }
-        }
-
-        final void checkForComodification() {
-            if (modCount != expectedModCount)
-                throw new ConcurrentModificationException();
-        }
-    }
-
-    private class ListItr extends Itr implements ListIterator<E> {
-        ListItr(int index) {
-            cursor = index;
-        }
-
-        public boolean hasPrevious() {
-            return cursor != 0;
-        }
-
-        public E previous() {
-            checkForComodification();
-            try {
-                int i = cursor - 1;
-                E previous = get(i);
-                lastRet = cursor = i;
-                return previous;
-            } catch (IndexOutOfBoundsException e) {
-                checkForComodification();
-                throw new NoSuchElementException();
-            }
-        }
-
-        public int nextIndex() {
-            return cursor;
-        }
-
-        public int previousIndex() {
-            return cursor-1;
-        }
-
-        public void set(E e) {
-            if (lastRet < 0)
-                throw new IllegalStateException();
-            checkForComodification();
-
-            try {
-                AbstractList.this.set(lastRet, e);
-                expectedModCount = modCount;
-            } catch (IndexOutOfBoundsException ex) {
-                throw new ConcurrentModificationException();
-            }
-        }
-
-        public void add(E e) {
-            checkForComodification();
-
-            try {
-                int i = cursor;
-                AbstractList.this.add(i, e);
-                lastRet = -1;
-                cursor = i + 1;
-                expectedModCount = modCount;
-            } catch (IndexOutOfBoundsException ex) {
-                throw new ConcurrentModificationException();
-            }
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * @implSpec
-     * This implementation returns a list that subclasses
-     * {@code AbstractList}.  The subclass stores, in private fields, the
-     * size of the subList (which can change over its lifetime), and the
-     * expected {@code modCount} value of the backing list.  There are two
-     * variants of the subclass, one of which implements {@code RandomAccess}.
-     * If this list implements {@code RandomAccess} the returned list will
-     * be an instance of the subclass that implements {@code RandomAccess}.
-     *
-     * <p>The subclass's {@code set(int, E)}, {@code get(int)},
-     * {@code add(int, E)}, {@code remove(int)}, {@code addAll(int,
-     * Collection)} and {@code removeRange(int, int)} methods all
-     * delegate to the corresponding methods on the backing abstract list,
-     * after bounds-checking the index and adjusting for the offset.  The
-     * {@code addAll(Collection c)} method merely returns {@code addAll(size,
-     * c)}.
-     *
-     * <p>The {@code listIterator(int)} method returns a "wrapper object"
-     * over a list iterator on the backing list, which is created with the
-     * corresponding method on the backing list.  The {@code iterator} method
-     * merely returns {@code listIterator()}, and the {@code size} method
-     * merely returns the subclass's {@code size} field.
-     *
-     * <p>All methods first check to see if the actual {@code modCount} of
-     * the backing list is equal to its expected value, and throw a
-     * {@code ConcurrentModificationException} if it is not.
-     *
-     * @throws IndexOutOfBoundsException if an endpoint index value is out of range
-     *         {@code (fromIndex < 0 || toIndex > size)}
-     * @throws IllegalArgumentException if the endpoint indices are out of order
-     *         {@code (fromIndex > toIndex)}
-     */
-    public List<E> subList(int fromIndex, int toIndex) {
-        subListRangeCheck(fromIndex, toIndex, size());
-        return (this instanceof RandomAccess ?
-                new RandomAccessSubList<>(this, fromIndex, toIndex) :
-                new SubList<>(this, fromIndex, toIndex));
-    }
-
-    static void subListRangeCheck(int fromIndex, int toIndex, int size) {
-        if (fromIndex < 0)
-            throw new IndexOutOfBoundsException("fromIndex = " + fromIndex);
-        if (toIndex > size)
-            throw new IndexOutOfBoundsException("toIndex = " + toIndex);
-        if (fromIndex > toIndex)
-            throw new IllegalArgumentException("fromIndex(" + fromIndex +
-                                               ") > toIndex(" + toIndex + ")");
-    }
-
-    // Comparison and hashing
-
-    /**
-     * Compares the specified object with this list for equality.  Returns
-     * {@code true} if and only if the specified object is also a list, both
-     * lists have the same size, and all corresponding pairs of elements in
-     * the two lists are <i>equal</i>.  (Two elements {@code e1} and
-     * {@code e2} are <i>equal</i> if {@code (e1==null ? e2==null :
-     * e1.equals(e2))}.)  In other words, two lists are defined to be
-     * equal if they contain the same elements in the same order.
-     *
-     * @implSpec
-     * This implementation first checks if the specified object is this
-     * list. If so, it returns {@code true}; if not, it checks if the
-     * specified object is a list. If not, it returns {@code false}; if so,
-     * it iterates over both lists, comparing corresponding pairs of elements.
-     * If any comparison returns {@code false}, this method returns
-     * {@code false}.  If either iterator runs out of elements before the
-     * other it returns {@code false} (as the lists are of unequal length);
-     * otherwise it returns {@code true} when the iterations complete.
-     *
-     * @param o the object to be compared for equality with this list
-     * @return {@code true} if the specified object is equal to this list
-     */
-    public boolean equals(Object o) {
-        if (o == this)
-            return true;
-        if (!(o instanceof List))
-            return false;
-
-        ListIterator<E> e1 = listIterator();
-        ListIterator<?> e2 = ((List<?>) o).listIterator();
-        while (e1.hasNext() && e2.hasNext()) {
-            E o1 = e1.next();
-            Object o2 = e2.next();
-            if (!(o1==null ? o2==null : o1.equals(o2)))
-                return false;
-        }
-        return !(e1.hasNext() || e2.hasNext());
-    }
-
-    /**
-     * Returns the hash code value for this list.
-     *
-     * @implSpec
-     * This implementation uses exactly the code that is used to define the
-     * list hash function in the documentation for the {@link List#hashCode}
-     * method.
-     *
-     * @return the hash code value for this list
-     */
-    public int hashCode() {
-        int hashCode = 1;
-        for (E e : this)
-            hashCode = 31*hashCode + (e==null ? 0 : e.hashCode());
-        return hashCode;
-    }
-
-    /**
-     * Removes from this list all of the elements whose index is between
-     * {@code fromIndex}, inclusive, and {@code toIndex}, exclusive.
-     * Shifts any succeeding elements to the left (reduces their index).
-     * This call shortens the list by {@code (toIndex - fromIndex)} elements.
-     * (If {@code toIndex==fromIndex}, this operation has no effect.)
-     *
-     * <p>This method is called by the {@code clear} operation on this list
-     * and its subLists.  Overriding this method to take advantage of
-     * the internals of the list implementation can <i>substantially</i>
-     * improve the performance of the {@code clear} operation on this list
-     * and its subLists.
-     *
-     * @implSpec
-     * This implementation gets a list iterator positioned before
-     * {@code fromIndex}, and repeatedly calls {@code ListIterator.next}
-     * followed by {@code ListIterator.remove} until the entire range has
-     * been removed.  <b>Note: if {@code ListIterator.remove} requires linear
-     * time, this implementation requires quadratic time.</b>
-     *
-     * @param fromIndex index of first element to be removed
-     * @param toIndex index after last element to be removed
-     */
-    protected void removeRange(int fromIndex, int toIndex) {
-        ListIterator<E> it = listIterator(fromIndex);
-        for (int i=0, n=toIndex-fromIndex; i<n; i++) {
-            it.next();
-            it.remove();
-        }
-    }
-
+    
     /**
      * The number of times this list has been <i>structurally modified</i>.
      * Structural modifications are those that change the size of the
@@ -626,16 +99,623 @@ public abstract class AbstractList<E> extends AbstractCollection<E> implements L
      * ignored.
      */
     protected transient int modCount = 0;
-
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Sole constructor.  (For invocation by subclass constructors, typically
+     * implicit.)
+     */
+    protected AbstractList() {
+    }
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 存值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Appends the specified element to the end of this list (optional
+     * operation).
+     *
+     * <p>Lists that support this operation may place limitations on what
+     * elements may be added to this list.  In particular, some
+     * lists will refuse to add null elements, and others will impose
+     * restrictions on the type of elements that may be added.  List
+     * classes should clearly specify in their documentation any restrictions
+     * on what elements may be added.
+     *
+     * @param e element to be appended to this list
+     *
+     * @return {@code true} (as specified by {@link Collection#add})
+     *
+     * @throws UnsupportedOperationException if the {@code add} operation
+     *                                       is not supported by this list
+     * @throws ClassCastException            if the class of the specified element
+     *                                       prevents it from being added to this list
+     * @throws NullPointerException          if the specified element is null and this
+     *                                       list does not permit null elements
+     * @throws IllegalArgumentException      if some property of this element
+     *                                       prevents it from being added to this list
+     * @implSpec This implementation calls {@code add(size(), e)}.
+     *
+     * <p>Note that this implementation throws an
+     * {@code UnsupportedOperationException} unless
+     * {@link #add(int, Object) add(int, E)} is overridden.
+     */
+    // 将元素e追加到当前线性表中
+    public boolean add(E e) {
+        add(size(), e);
+        return true;
+    }
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @throws UnsupportedOperationException {@inheritDoc}
+     * @throws ClassCastException            {@inheritDoc}
+     * @throws NullPointerException          {@inheritDoc}
+     * @throws IllegalArgumentException      {@inheritDoc}
+     * @throws IndexOutOfBoundsException     {@inheritDoc}
+     * @implSpec This implementation always throws an
+     * {@code UnsupportedOperationException}.
+     */
+    // 将元素element添加到线性表index处
+    public void add(int index, E element) {
+        throw new UnsupportedOperationException();
+    }
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @throws UnsupportedOperationException {@inheritDoc}
+     * @throws ClassCastException            {@inheritDoc}
+     * @throws NullPointerException          {@inheritDoc}
+     * @throws IllegalArgumentException      {@inheritDoc}
+     * @throws IndexOutOfBoundsException     {@inheritDoc}
+     * @implSpec This implementation gets an iterator over the specified collection
+     * and iterates over it, inserting the elements obtained from the
+     * iterator into this list at the appropriate position, one at a time,
+     * using {@code add(int, E)}.
+     * Many implementations will override this method for efficiency.
+     *
+     * <p>Note that this implementation throws an
+     * {@code UnsupportedOperationException} unless
+     * {@link #add(int, Object) add(int, E)} is overridden.
+     */
+    // 将指定容器中的元素添加到当前线性表的index处
+    public boolean addAll(int index, Collection<? extends E> c) {
+        rangeCheckForAdd(index);
+        boolean modified = false;
+        for(E e : c) {
+            add(index++, e);
+            modified = true;
+        }
+        return modified;
+    }
+    
+    /*▲ 存值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 取值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @throws IndexOutOfBoundsException {@inheritDoc}
+     */
+    // 获取指定索引处的元素
+    public abstract E get(int index);
+    
+    /*▲ 取值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 移除 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @throws UnsupportedOperationException {@inheritDoc}
+     * @throws IndexOutOfBoundsException     {@inheritDoc}
+     * @implSpec This implementation always throws an
+     * {@code UnsupportedOperationException}.
+     */
+    // 移除索引index处的元素，返回被移除的元素
+    public E remove(int index) {
+        throw new UnsupportedOperationException();
+    }
+    
+    
+    /**
+     * Removes from this list all of the elements whose index is between
+     * {@code fromIndex}, inclusive, and {@code toIndex}, exclusive.
+     * Shifts any succeeding elements to the left (reduces their index).
+     * This call shortens the list by {@code (toIndex - fromIndex)} elements.
+     * (If {@code toIndex==fromIndex}, this operation has no effect.)
+     *
+     * <p>This method is called by the {@code clear} operation on this list
+     * and its subLists.  Overriding this method to take advantage of
+     * the internals of the list implementation can <i>substantially</i>
+     * improve the performance of the {@code clear} operation on this list
+     * and its subLists.
+     *
+     * @param fromIndex index of first element to be removed
+     * @param toIndex   index after last element to be removed
+     *
+     * @implSpec This implementation gets a list iterator positioned before
+     * {@code fromIndex}, and repeatedly calls {@code ListIterator.next}
+     * followed by {@code ListIterator.remove} until the entire range has
+     * been removed.  <b>Note: if {@code ListIterator.remove} requires linear
+     * time, this implementation requires quadratic time.</b>
+     */
+    // 移除当前线性表[fromIndex,toIndex]之间的元素
+    protected void removeRange(int fromIndex, int toIndex) {
+        ListIterator<E> it = listIterator(fromIndex);
+        for(int i = 0, n = toIndex - fromIndex; i<n; i++) {
+            it.next();
+            it.remove();
+        }
+    }
+    
+    
+    /**
+     * Removes all of the elements from this list (optional operation).
+     * The list will be empty after this call returns.
+     *
+     * @throws UnsupportedOperationException if the {@code clear} operation
+     *                                       is not supported by this list
+     * @implSpec This implementation calls {@code removeRange(0, size())}.
+     *
+     * <p>Note that this implementation throws an
+     * {@code UnsupportedOperationException} unless {@code remove(int
+     * index)} or {@code removeRange(int fromIndex, int toIndex)} is
+     * overridden.
+     */
+    // 清空当前线性表中的元素
+    public void clear() {
+        removeRange(0, size());
+    }
+    
+    /*▲ 移除 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 替换 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @throws UnsupportedOperationException {@inheritDoc}
+     * @throws ClassCastException            {@inheritDoc}
+     * @throws NullPointerException          {@inheritDoc}
+     * @throws IllegalArgumentException      {@inheritDoc}
+     * @throws IndexOutOfBoundsException     {@inheritDoc}
+     * @implSpec This implementation always throws an
+     * {@code UnsupportedOperationException}.
+     */
+    // 将index处的元素更新为element，并返回旧元素
+    public E set(int index, E element) {
+        throw new UnsupportedOperationException();
+    }
+    
+    /*▲ 替换 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 定位 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @throws ClassCastException   {@inheritDoc}
+     * @throws NullPointerException {@inheritDoc}
+     * @implSpec This implementation first gets a list iterator (with
+     * {@code listIterator()}).  Then, it iterates over the list until the
+     * specified element is found or the end of the list is reached.
+     */
+    // 返回指定元素的正序索引(正序查找首个匹配的元素)
+    public int indexOf(Object o) {
+        ListIterator<E> it = listIterator();
+        if(o == null) {
+            while(it.hasNext())
+                if(it.next() == null)
+                    return it.previousIndex();
+        } else {
+            while(it.hasNext())
+                if(o.equals(it.next()))
+                    return it.previousIndex();
+        }
+        return -1;
+    }
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @throws ClassCastException   {@inheritDoc}
+     * @throws NullPointerException {@inheritDoc}
+     * @implSpec This implementation first gets a list iterator that points to the end
+     * of the list (with {@code listIterator(size())}).  Then, it iterates
+     * backwards over the list until the specified element is found, or the
+     * beginning of the list is reached.
+     */
+    // 返回指定元素的逆序索引(逆序查找首个匹配的元素)
+    public int lastIndexOf(Object o) {
+        ListIterator<E> it = listIterator(size());
+        if(o == null) {
+            while(it.hasPrevious()) {
+                if(it.previous() == null) {
+                    return it.nextIndex();
+                }
+            }
+        } else {
+            while(it.hasPrevious()) {
+                if(o.equals(it.previous())) {
+                    return it.nextIndex();
+                }
+            }
+        }
+        return -1;
+    }
+    
+    /*▲ 定位 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 视图 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @throws IndexOutOfBoundsException if an endpoint index value is out of range
+     *                                   {@code (fromIndex < 0 || toIndex > size)}
+     * @throws IllegalArgumentException  if the endpoint indices are out of order
+     *                                   {@code (fromIndex > toIndex)}
+     * @implSpec This implementation returns a list that subclasses
+     * {@code AbstractList}.  The subclass stores, in private fields, the
+     * size of the subList (which can change over its lifetime), and the
+     * expected {@code modCount} value of the backing list.  There are two
+     * variants of the subclass, one of which implements {@code RandomAccess}.
+     * If this list implements {@code RandomAccess} the returned list will
+     * be an instance of the subclass that implements {@code RandomAccess}.
+     *
+     * <p>The subclass's {@code set(int, E)}, {@code get(int)},
+     * {@code add(int, E)}, {@code remove(int)}, {@code addAll(int,
+     * Collection)} and {@code removeRange(int, int)} methods all
+     * delegate to the corresponding methods on the backing abstract list,
+     * after bounds-checking the index and adjusting for the offset.  The
+     * {@code addAll(Collection c)} method merely returns {@code addAll(size,
+     * c)}.
+     *
+     * <p>The {@code listIterator(int)} method returns a "wrapper object"
+     * over a list iterator on the backing list, which is created with the
+     * corresponding method on the backing list.  The {@code iterator} method
+     * merely returns {@code listIterator()}, and the {@code size} method
+     * merely returns the subclass's {@code size} field.
+     *
+     * <p>All methods first check to see if the actual {@code modCount} of
+     * the backing list is equal to its expected value, and throw a
+     * {@code ConcurrentModificationException} if it is not.
+     */
+    // 返回[fromIndex, toIndex)之间的元素的视图
+    public List<E> subList(int fromIndex, int toIndex) {
+        subListRangeCheck(fromIndex, toIndex, size());
+        return this instanceof RandomAccess
+            ? new RandomAccessSubList<>(this, fromIndex, toIndex)
+            : new SubList<>(this, fromIndex, toIndex);
+    }
+    
+    /*▲ 视图 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 迭代 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns an iterator over the elements in this list in proper sequence.
+     *
+     * @return an iterator over the elements in this list in proper sequence
+     *
+     * @implSpec This implementation returns a straightforward implementation of the
+     * iterator interface, relying on the backing list's {@code size()},
+     * {@code get(int)}, and {@code remove(int)} methods.
+     *
+     * <p>Note that the iterator returned by this method will throw an
+     * {@link UnsupportedOperationException} in response to its
+     * {@code remove} method unless the list's {@code remove(int)} method is
+     * overridden.
+     *
+     * <p>This implementation can be made to throw runtime exceptions in the
+     * face of concurrent modification, as described in the specification
+     * for the (protected) {@link #modCount} field.
+     */
+    // 返回当前线性表的一个迭代器
+    public Iterator<E> iterator() {
+        return new Itr();
+    }
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @implSpec This implementation returns {@code listIterator(0)}.
+     * @see #listIterator(int)
+     */
+    // 返回当前线性表的一个增强的迭代器，且设定下一个待遍历元素为索引0处的元素
+    public ListIterator<E> listIterator() {
+        return listIterator(0);
+    }
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @throws IndexOutOfBoundsException {@inheritDoc}
+     * @implSpec This implementation returns a straightforward implementation of the
+     * {@code ListIterator} interface that extends the implementation of the
+     * {@code Iterator} interface returned by the {@code iterator()} method.
+     * The {@code ListIterator} implementation relies on the backing list's
+     * {@code get(int)}, {@code set(int, E)}, {@code add(int, E)}
+     * and {@code remove(int)} methods.
+     *
+     * <p>Note that the list iterator returned by this implementation will
+     * throw an {@link UnsupportedOperationException} in response to its
+     * {@code remove}, {@code set} and {@code add} methods unless the
+     * list's {@code remove(int)}, {@code set(int, E)}, and
+     * {@code add(int, E)} methods are overridden.
+     *
+     * <p>This implementation can be made to throw runtime exceptions in the
+     * face of concurrent modification, as described in the specification for
+     * the (protected) {@link #modCount} field.
+     */
+    // 返回当前线性表的一个增强的迭代器，且设定下一个待遍历元素为索引index处的元素
+    public ListIterator<E> listIterator(final int index) {
+        rangeCheckForAdd(index);
+        
+        return new ListItr(index);
+    }
+    
+    /*▲ 迭代 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /**
+     * Compares the specified object with this list for equality.  Returns
+     * {@code true} if and only if the specified object is also a list, both
+     * lists have the same size, and all corresponding pairs of elements in
+     * the two lists are <i>equal</i>.  (Two elements {@code e1} and
+     * {@code e2} are <i>equal</i> if {@code (e1==null ? e2==null :
+     * e1.equals(e2))}.)  In other words, two lists are defined to be
+     * equal if they contain the same elements in the same order.
+     *
+     * @param o the object to be compared for equality with this list
+     *
+     * @return {@code true} if the specified object is equal to this list
+     *
+     * @implSpec This implementation first checks if the specified object is this
+     * list. If so, it returns {@code true}; if not, it checks if the
+     * specified object is a list. If not, it returns {@code false}; if so,
+     * it iterates over both lists, comparing corresponding pairs of elements.
+     * If any comparison returns {@code false}, this method returns
+     * {@code false}.  If either iterator runs out of elements before the
+     * other it returns {@code false} (as the lists are of unequal length);
+     * otherwise it returns {@code true} when the iterations complete.
+     */
+    public boolean equals(Object o) {
+        if(o == this)
+            return true;
+        if(!(o instanceof List))
+            return false;
+        
+        ListIterator<E> e1 = listIterator();
+        ListIterator<?> e2 = ((List<?>) o).listIterator();
+        while(e1.hasNext() && e2.hasNext()) {
+            E o1 = e1.next();
+            Object o2 = e2.next();
+            if(!(o1 == null ? o2 == null : o1.equals(o2)))
+                return false;
+        }
+        return !(e1.hasNext() || e2.hasNext());
+    }
+    
+    /**
+     * Returns the hash code value for this list.
+     *
+     * @return the hash code value for this list
+     *
+     * @implSpec This implementation uses exactly the code that is used to define the
+     * list hash function in the documentation for the {@link List#hashCode}
+     * method.
+     */
+    public int hashCode() {
+        int hashCode = 1;
+        for(E e : this)
+            hashCode = 31 * hashCode + (e == null ? 0 : e.hashCode());
+        return hashCode;
+    }
+    
+    
+    
+    static void subListRangeCheck(int fromIndex, int toIndex, int size) {
+        if(fromIndex<0) {
+            throw new IndexOutOfBoundsException("fromIndex = " + fromIndex);
+        }
+        
+        if(toIndex>size) {
+            throw new IndexOutOfBoundsException("toIndex = " + toIndex);
+        }
+        
+        if(fromIndex>toIndex) {
+            throw new IllegalArgumentException("fromIndex(" + fromIndex + ") > toIndex(" + toIndex + ")");
+        }
+    }
+    
     private void rangeCheckForAdd(int index) {
-        if (index < 0 || index > size())
+        if(index<0 || index>size())
             throw new IndexOutOfBoundsException(outOfBoundsMsg(index));
     }
-
+    
     private String outOfBoundsMsg(int index) {
-        return "Index: "+index+", Size: "+size();
+        return "Index: " + index + ", Size: " + size();
     }
-
+    
+    
+    
+    
+    
+    
+    // 迭代器，用来遍历当前线性表
+    private class Itr implements Iterator<E> {
+        /**
+         * Index of element to be returned by subsequent call to next.
+         */
+        int cursor = 0;
+        
+        /**
+         * Index of element returned by most recent call to next or
+         * previous.  Reset to -1 if this element is deleted by a call
+         * to remove.
+         */
+        int lastRet = -1;
+        
+        /**
+         * The modCount value that the iterator believes that the backing
+         * List should have.  If this expectation is violated, the iterator
+         * has detected concurrent modification.
+         */
+        int expectedModCount = modCount;
+        
+        public boolean hasNext() {
+            return cursor != size();
+        }
+        
+        public E next() {
+            checkForComodification();
+            try {
+                int i = cursor;
+                E next = get(i);
+                lastRet = i;
+                cursor = i + 1;
+                return next;
+            } catch(IndexOutOfBoundsException e) {
+                checkForComodification();
+                throw new NoSuchElementException();
+            }
+        }
+        
+        public void remove() {
+            if(lastRet<0) {
+                throw new IllegalStateException();
+            }
+            
+            checkForComodification();
+            
+            try {
+                AbstractList.this.remove(lastRet);
+                if(lastRet<cursor) {
+                    cursor--;
+                }
+                lastRet = -1;
+                expectedModCount = modCount;
+            } catch(IndexOutOfBoundsException e) {
+                throw new ConcurrentModificationException();
+            }
+        }
+        
+        final void checkForComodification() {
+            if(modCount != expectedModCount) {
+                throw new ConcurrentModificationException();
+            }
+        }
+    }
+    
+    private class ListItr extends Itr implements ListIterator<E> {
+        ListItr(int index) {
+            cursor = index;
+        }
+        
+        public boolean hasPrevious() {
+            return cursor != 0;
+        }
+        
+        public E previous() {
+            checkForComodification();
+            try {
+                int i = cursor - 1;
+                E previous = get(i);
+                lastRet = cursor = i;
+                return previous;
+            } catch(IndexOutOfBoundsException e) {
+                checkForComodification();
+                throw new NoSuchElementException();
+            }
+        }
+        
+        public int nextIndex() {
+            return cursor;
+        }
+        
+        public int previousIndex() {
+            return cursor - 1;
+        }
+        
+        public void set(E e) {
+            if(lastRet<0) {
+                throw new IllegalStateException();
+            }
+            
+            checkForComodification();
+            
+            try {
+                AbstractList.this.set(lastRet, e);
+                expectedModCount = modCount;
+            } catch(IndexOutOfBoundsException ex) {
+                throw new ConcurrentModificationException();
+            }
+        }
+        
+        public void add(E e) {
+            checkForComodification();
+            
+            try {
+                int i = cursor;
+                AbstractList.this.add(i, e);
+                lastRet = -1;
+                cursor = i + 1;
+                expectedModCount = modCount;
+            } catch(IndexOutOfBoundsException ex) {
+                throw new ConcurrentModificationException();
+            }
+        }
+    }
+    
+    
+    
+    private static class RandomAccessSubList<E> extends SubList<E> implements RandomAccess {
+        
+        /**
+         * Constructs a sublist of an arbitrary AbstractList, which is
+         * not a RandomAccessSubList itself.
+         */
+        RandomAccessSubList(AbstractList<E> root, int fromIndex, int toIndex) {
+            super(root, fromIndex, toIndex);
+        }
+        
+        /**
+         * Constructs a sublist of another RandomAccessSubList.
+         */
+        RandomAccessSubList(RandomAccessSubList<E> parent, int fromIndex, int toIndex) {
+            super(parent, fromIndex, toIndex);
+        }
+        
+        public List<E> subList(int fromIndex, int toIndex) {
+            subListRangeCheck(fromIndex, toIndex, size);
+            return new RandomAccessSubList<>(this, fromIndex, toIndex);
+        }
+    }
+    
     /**
      * An index-based split-by-two, lazily initialized Spliterator covering
      * a List that access elements via {@link List#get}.
@@ -648,60 +728,50 @@ public abstract class AbstractList<E> extends AbstractCollection<E> implements L
      * checking is performed using the AbstractList's modCount field.
      */
     static final class RandomAccessSpliterator<E> implements Spliterator<E> {
-
+        
         private final List<E> list;
-        private int index; // current index, modified on advance/split
-        private int fence; // -1 until used; then one past last index
-
+        
         // The following fields are valid if covering an AbstractList
         private final AbstractList<E> alist;
+        
+        private int index; // current index, modified on advance/split
+        private int fence; // -1 until used; then one past last index
         private int expectedModCount; // initialized when fence set
-
+        
         RandomAccessSpliterator(List<E> list) {
             assert list instanceof RandomAccess;
-
+            
             this.list = list;
             this.index = 0;
             this.fence = -1;
-
+            
             this.alist = list instanceof AbstractList ? (AbstractList<E>) list : null;
             this.expectedModCount = alist != null ? alist.modCount : 0;
         }
-
+        
         /** Create new spliterator covering the given  range */
-        private RandomAccessSpliterator(RandomAccessSpliterator<E> parent,
-                                int origin, int fence) {
+        private RandomAccessSpliterator(RandomAccessSpliterator<E> parent, int origin, int fence) {
             this.list = parent.list;
             this.index = origin;
             this.fence = fence;
-
+            
             this.alist = parent.alist;
             this.expectedModCount = parent.expectedModCount;
         }
-
-        private int getFence() { // initialize fence to size on first use
-            int hi;
-            List<E> lst = list;
-            if ((hi = fence) < 0) {
-                if (alist != null) {
-                    expectedModCount = alist.modCount;
-                }
-                hi = fence = lst.size();
-            }
-            return hi;
-        }
-
+        
         public Spliterator<E> trySplit() {
             int hi = getFence(), lo = index, mid = (lo + hi) >>> 1;
             return (lo >= mid) ? null : // divide range in half unless too small
-                    new RandomAccessSpliterator<>(this, lo, index = mid);
+                new RandomAccessSpliterator<>(this, lo, index = mid);
         }
-
+        
         public boolean tryAdvance(Consumer<? super E> action) {
-            if (action == null)
+            if(action == null) {
                 throw new NullPointerException();
+            }
+            
             int hi = getFence(), i = index;
-            if (i < hi) {
+            if(i<hi) {
                 index = i + 1;
                 action.accept(get(list, i));
                 checkAbstractListModCount(alist, expectedModCount);
@@ -709,48 +779,62 @@ public abstract class AbstractList<E> extends AbstractCollection<E> implements L
             }
             return false;
         }
-
+        
         public void forEachRemaining(Consumer<? super E> action) {
             Objects.requireNonNull(action);
             List<E> lst = list;
             int hi = getFence();
             int i = index;
             index = hi;
-            for (; i < hi; i++) {
+            for(; i<hi; i++) {
                 action.accept(get(lst, i));
             }
             checkAbstractListModCount(alist, expectedModCount);
         }
-
+        
         public long estimateSize() {
-            return (long) (getFence() - index);
+            return getFence() - index;
         }
-
+        
         public int characteristics() {
             return Spliterator.ORDERED | Spliterator.SIZED | Spliterator.SUBSIZED;
         }
-
+        
+        static void checkAbstractListModCount(AbstractList<?> alist, int expectedModCount) {
+            if(alist != null && alist.modCount != expectedModCount) {
+                throw new ConcurrentModificationException();
+            }
+        }
+        
         private static <E> E get(List<E> list, int i) {
             try {
                 return list.get(i);
-            } catch (IndexOutOfBoundsException ex) {
+            } catch(IndexOutOfBoundsException ex) {
                 throw new ConcurrentModificationException();
             }
         }
-
-        static void checkAbstractListModCount(AbstractList<?> alist, int expectedModCount) {
-            if (alist != null && alist.modCount != expectedModCount) {
-                throw new ConcurrentModificationException();
+        
+        private int getFence() { // initialize fence to size on first use
+            int hi;
+            List<E> lst = list;
+            if((hi = fence)<0) {
+                if(alist != null) {
+                    expectedModCount = alist.modCount;
+                }
+                hi = fence = lst.size();
             }
+            return hi;
         }
     }
-
+    
+    
+    
     private static class SubList<E> extends AbstractList<E> {
+        protected int size;
         private final AbstractList<E> root;
         private final SubList<E> parent;
         private final int offset;
-        protected int size;
-
+        
         /**
          * Constructs a sublist of an arbitrary AbstractList, which is
          * not a SubList itself.
@@ -762,7 +846,7 @@ public abstract class AbstractList<E> extends AbstractCollection<E> implements L
             this.size = toIndex - fromIndex;
             this.modCount = root.modCount;
         }
-
+        
         /**
          * Constructs a sublist of another SubList.
          */
@@ -773,31 +857,31 @@ public abstract class AbstractList<E> extends AbstractCollection<E> implements L
             this.size = toIndex - fromIndex;
             this.modCount = root.modCount;
         }
-
+        
         public E set(int index, E element) {
             Objects.checkIndex(index, size);
             checkForComodification();
             return root.set(offset + index, element);
         }
-
+        
         public E get(int index) {
             Objects.checkIndex(index, size);
             checkForComodification();
             return root.get(offset + index);
         }
-
+        
         public int size() {
             checkForComodification();
             return size;
         }
-
+        
         public void add(int index, E element) {
             rangeCheckForAdd(index);
             checkForComodification();
             root.add(offset + index, element);
             updateSizeAndModCount(1);
         }
-
+        
         public E remove(int index) {
             Objects.checkIndex(index, size);
             checkForComodification();
@@ -805,138 +889,115 @@ public abstract class AbstractList<E> extends AbstractCollection<E> implements L
             updateSizeAndModCount(-1);
             return result;
         }
-
-        protected void removeRange(int fromIndex, int toIndex) {
-            checkForComodification();
-            root.removeRange(offset + fromIndex, offset + toIndex);
-            updateSizeAndModCount(fromIndex - toIndex);
-        }
-
+        
         public boolean addAll(Collection<? extends E> c) {
             return addAll(size, c);
         }
-
+        
         public boolean addAll(int index, Collection<? extends E> c) {
             rangeCheckForAdd(index);
             int cSize = c.size();
-            if (cSize==0)
+            if(cSize == 0) {
                 return false;
+            }
             checkForComodification();
             root.addAll(offset + index, c);
             updateSizeAndModCount(cSize);
             return true;
         }
-
+        
         public Iterator<E> iterator() {
             return listIterator();
         }
-
+        
         public ListIterator<E> listIterator(int index) {
             checkForComodification();
             rangeCheckForAdd(index);
-
+            
             return new ListIterator<E>() {
-                private final ListIterator<E> i =
-                        root.listIterator(offset + index);
-
+                private final ListIterator<E> i = root.listIterator(offset + index);
+                
                 public boolean hasNext() {
-                    return nextIndex() < size;
+                    return nextIndex()<size;
                 }
-
+                
                 public E next() {
-                    if (hasNext())
+                    if(hasNext())
                         return i.next();
                     else
                         throw new NoSuchElementException();
                 }
-
+                
                 public boolean hasPrevious() {
                     return previousIndex() >= 0;
                 }
-
+                
                 public E previous() {
-                    if (hasPrevious())
+                    if(hasPrevious())
                         return i.previous();
                     else
                         throw new NoSuchElementException();
                 }
-
+                
                 public int nextIndex() {
                     return i.nextIndex() - offset;
                 }
-
+                
                 public int previousIndex() {
                     return i.previousIndex() - offset;
                 }
-
+                
                 public void remove() {
                     i.remove();
                     updateSizeAndModCount(-1);
                 }
-
+                
                 public void set(E e) {
                     i.set(e);
                 }
-
+                
                 public void add(E e) {
                     i.add(e);
                     updateSizeAndModCount(1);
                 }
             };
         }
-
+        
         public List<E> subList(int fromIndex, int toIndex) {
             subListRangeCheck(fromIndex, toIndex, size);
             return new SubList<>(this, fromIndex, toIndex);
         }
-
+        
+        protected void removeRange(int fromIndex, int toIndex) {
+            checkForComodification();
+            root.removeRange(offset + fromIndex, offset + toIndex);
+            updateSizeAndModCount(fromIndex - toIndex);
+        }
+        
         private void rangeCheckForAdd(int index) {
-            if (index < 0 || index > size)
+            if(index<0 || index>size) {
                 throw new IndexOutOfBoundsException(outOfBoundsMsg(index));
+            }
         }
-
+        
         private String outOfBoundsMsg(int index) {
-            return "Index: "+index+", Size: "+size;
+            return "Index: " + index + ", Size: " + size;
         }
-
+        
         private void checkForComodification() {
-            if (root.modCount != this.modCount)
+            if(root.modCount != this.modCount) {
                 throw new ConcurrentModificationException();
+            }
         }
-
+        
         private void updateSizeAndModCount(int sizeChange) {
             SubList<E> slist = this;
             do {
                 slist.size += sizeChange;
                 slist.modCount = root.modCount;
                 slist = slist.parent;
-            } while (slist != null);
+            } while(slist != null);
         }
     }
-
-    private static class RandomAccessSubList<E>
-            extends SubList<E> implements RandomAccess {
-
-        /**
-         * Constructs a sublist of an arbitrary AbstractList, which is
-         * not a RandomAccessSubList itself.
-         */
-        RandomAccessSubList(AbstractList<E> root,
-                int fromIndex, int toIndex) {
-            super(root, fromIndex, toIndex);
-        }
-
-        /**
-         * Constructs a sublist of another RandomAccessSubList.
-         */
-        RandomAccessSubList(RandomAccessSubList<E> parent,
-                int fromIndex, int toIndex) {
-            super(parent, fromIndex, toIndex);
-        }
-
-        public List<E> subList(int fromIndex, int toIndex) {
-            subListRangeCheck(fromIndex, toIndex, size);
-            return new RandomAccessSubList<>(this, fromIndex, toIndex);
-        }
-    }
+    
 }
