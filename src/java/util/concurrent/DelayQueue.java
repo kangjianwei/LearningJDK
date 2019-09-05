@@ -35,8 +35,6 @@
 
 package java.util.concurrent;
 
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
-
 import java.util.AbstractQueue;
 import java.util.Collection;
 import java.util.Iterator;
@@ -45,6 +43,8 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 /**
  * An unbounded {@linkplain BlockingQueue blocking queue} of
@@ -70,16 +70,25 @@ import java.util.concurrent.locks.ReentrantLock;
  * <a href="{@docRoot}/java.base/java/util/package-summary.html#CollectionsFramework">
  * Java Collections Framework</a>.
  *
- * @since 1.5
- * @author Doug Lea
  * @param <E> the type of elements held in this queue
+ *
+ * @author Doug Lea
+ * @since 1.5
  */
-public class DelayQueue<E extends Delayed> extends AbstractQueue<E>
-    implements BlockingQueue<E> {
-
-    private final transient ReentrantLock lock = new ReentrantLock();
-    private final PriorityQueue<E> q = new PriorityQueue<E>();
-
+/*
+ * 顺序无界（队列容量支持扩容到Integer.MAX_VALUE）延时阻塞队列，线程安全（锁）
+ *
+ * DelayQueue内的元素必须实现Delayed接口，即带有延时特性。
+ *
+ * 该容器的内部实现借助了一个不支持外部比较器的优先队列PriorityQueue，
+ * 但由于优先队列必须通过比较器来确定元素的"优先级"，
+ * 因而DelayQueue中的元素必须自己实现内部比较器接口。
+ */
+public class DelayQueue<E extends Delayed> extends AbstractQueue<E> implements BlockingQueue<E> {
+    
+    // 不支持外部比较器的优先队列
+    private final PriorityQueue<E> queue = new PriorityQueue<E>();
+    
     /**
      * Thread designated to wait for the element at the head of
      * the queue.  This variant of the Leader-Follower pattern
@@ -96,57 +105,68 @@ public class DelayQueue<E extends Delayed> extends AbstractQueue<E>
      * signalled.  So waiting threads must be prepared to acquire
      * and lose leadership while waiting.
      */
+    // 记录首个被阻塞的线程
     private Thread leader;
-
+    
+    private final transient ReentrantLock lock = new ReentrantLock();
+    
     /**
      * Condition signalled when a newer element becomes available
      * at the head of the queue or a new thread may need to
      * become leader.
      */
     private final Condition available = lock.newCondition();
-
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates a new {@code DelayQueue} that is initially empty.
      */
-    public DelayQueue() {}
-
+    public DelayQueue() {
+    }
+    
     /**
      * Creates a {@code DelayQueue} initially containing the elements of the
      * given collection of {@link Delayed} instances.
      *
      * @param c the collection of elements to initially contain
+     *
      * @throws NullPointerException if the specified collection or any
-     *         of its elements are null
+     *                              of its elements are null
      */
     public DelayQueue(Collection<? extends E> c) {
         this.addAll(c);
     }
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 入队 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Inserts the specified element into this delay queue.
      *
      * @param e the element to add
-     * @return {@code true} (as specified by {@link Collection#add})
-     * @throws NullPointerException if the specified element is null
-     */
-    public boolean add(E e) {
-        return offer(e);
-    }
-
-    /**
-     * Inserts the specified element into this delay queue.
      *
-     * @param e the element to add
      * @return {@code true}
+     *
      * @throws NullPointerException if the specified element is null
      */
+    // 入队，线程安全。无法入队时扩容，不阻塞
     public boolean offer(E e) {
         final ReentrantLock lock = this.lock;
         lock.lock();
         try {
-            q.offer(e);
-            if (q.peek() == e) {
+            // 入队，无法入队时扩容
+            queue.offer(e);
+            
+            // 如果入队任务排在了队首
+            if(queue.peek() == e) {
                 leader = null;
+                // 队头有新任务达到，唤醒阻塞线程
                 available.signal();
             }
             return true;
@@ -154,144 +174,312 @@ public class DelayQueue<E extends Delayed> extends AbstractQueue<E>
             lock.unlock();
         }
     }
-
+    
     /**
      * Inserts the specified element into this delay queue. As the queue is
      * unbounded this method will never block.
      *
-     * @param e the element to add
-     * @throws NullPointerException {@inheritDoc}
-     */
-    public void put(E e) {
-        offer(e);
-    }
-
-    /**
-     * Inserts the specified element into this delay queue. As the queue is
-     * unbounded this method will never block.
-     *
-     * @param e the element to add
+     * @param e       the element to add
      * @param timeout This parameter is ignored as the method never blocks
-     * @param unit This parameter is ignored as the method never blocks
+     * @param unit    This parameter is ignored as the method never blocks
+     *
      * @return {@code true}
+     *
      * @throws NullPointerException {@inheritDoc}
      */
+    // 入队，线程安全。无法入队时扩容，不阻塞
     public boolean offer(E e, long timeout, TimeUnit unit) {
         return offer(e);
     }
-
+    
+    
+    /**
+     * Inserts the specified element into this delay queue. As the queue is
+     * unbounded this method will never block.
+     *
+     * @param e the element to add
+     *
+     * @throws NullPointerException {@inheritDoc}
+     */
+    // 入队，线程安全。无法入队时扩容，不阻塞
+    public void put(E e) {
+        offer(e);
+    }
+    
+    
+    /**
+     * Inserts the specified element into this delay queue.
+     *
+     * @param e the element to add
+     *
+     * @return {@code true} (as specified by {@link Collection#add})
+     *
+     * @throws NullPointerException if the specified element is null
+     */
+    // 入队/添加，线程安全。无法入队时扩容，不阻塞
+    public boolean add(E e) {
+        return offer(e);
+    }
+    
+    /*▲ 入队 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 出队 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Retrieves and removes the head of this queue, or returns {@code null}
      * if this queue has no elements with an expired delay.
      *
      * @return the head of this queue, or {@code null} if this
-     *         queue has no elements with an expired delay
+     * queue has no elements with an expired delay
      */
+    // 出队，线程安全。队空时返回null
     public E poll() {
         final ReentrantLock lock = this.lock;
         lock.lock();
         try {
-            E first = q.peek();
-            return (first == null || first.getDelay(NANOSECONDS) > 0)
-                ? null
-                : q.poll();
-        } finally {
-            lock.unlock();
-        }
-    }
-
-    /**
-     * Retrieves and removes the head of this queue, waiting if necessary
-     * until an element with an expired delay is available on this queue.
-     *
-     * @return the head of this queue
-     * @throws InterruptedException {@inheritDoc}
-     */
-    public E take() throws InterruptedException {
-        final ReentrantLock lock = this.lock;
-        lock.lockInterruptibly();
-        try {
-            for (;;) {
-                E first = q.peek();
-                if (first == null)
-                    available.await();
-                else {
-                    long delay = first.getDelay(NANOSECONDS);
-                    if (delay <= 0L)
-                        return q.poll();
-                    first = null; // don't retain ref while waiting
-                    if (leader != null)
-                        available.await();
-                    else {
-                        Thread thisThread = Thread.currentThread();
-                        leader = thisThread;
-                        try {
-                            available.awaitNanos(delay);
-                        } finally {
-                            if (leader == thisThread)
-                                leader = null;
-                        }
-                    }
-                }
+            // 获取队头任务first
+            E first = queue.peek();
+            
+            // 如果队列为空，则返回null
+            if(first==null){
+                return null;
             }
+            
+            return first.getDelay(NANOSECONDS)>0
+                ? null          // 队头任务还未到触发时间
+                : queue.poll(); // 队头任务已经可以开始了，移除并返回队头任务first
         } finally {
-            if (leader == null && q.peek() != null)
-                available.signal();
             lock.unlock();
         }
     }
-
+    
     /**
      * Retrieves and removes the head of this queue, waiting if necessary
      * until an element with an expired delay is available on this queue,
      * or the specified wait time expires.
      *
      * @return the head of this queue, or {@code null} if the
-     *         specified waiting time elapses before an element with
-     *         an expired delay becomes available
+     * specified waiting time elapses before an element with
+     * an expired delay becomes available
+     *
      * @throws InterruptedException {@inheritDoc}
      */
+    // 出队，线程安全。队空时阻塞一段时间，超时后无法出队返回null
     public E poll(long timeout, TimeUnit unit) throws InterruptedException {
         long nanos = unit.toNanos(timeout);
         final ReentrantLock lock = this.lock;
         lock.lockInterruptibly();
         try {
-            for (;;) {
-                E first = q.peek();
-                if (first == null) {
-                    if (nanos <= 0L)
+            for(; ; ) {
+                // 获取队头任务
+                E first = queue.peek();
+                
+                // 如果队列为空
+                if(first == null) {
+                    // 如果已经超时，则返回null
+                    if(nanos<=0L) {
                         return null;
-                    else
+                    } else {
+                        // 如果还未超时，阻塞一段时间
                         nanos = available.awaitNanos(nanos);
+                    }
                 } else {
+                    // 队头任务获取距被触发还剩余的时间
                     long delay = first.getDelay(NANOSECONDS);
-                    if (delay <= 0L)
-                        return q.poll();
-                    if (nanos <= 0L)
+                    // 如果已经可以执行了
+                    if(delay<=0L) {
+                        // 队头任务已经可以开始了，移除并返回队头任务first
+                        return queue.poll();
+                    }
+                    
+                    // 如果已经超时，则返回null
+                    if(nanos<=0L) {
                         return null;
+                    }
+                    
+                    // 如果队头任务还未到触发时间，则不需要保持其引用
                     first = null; // don't retain ref while waiting
-                    if (nanos < delay || leader != null)
+                    
+                    // 如果已有阻塞线程，且未超时，当前线程需要阻塞一段时间，或者中途被唤醒
+                    if(nanos<delay || leader != null) {
                         nanos = available.awaitNanos(nanos);
-                    else {
+                    } else {
                         Thread thisThread = Thread.currentThread();
+                        // 记录首个被阻塞的线程
                         leader = thisThread;
                         try {
+                            // 在任务触发之前阻塞
                             long timeLeft = available.awaitNanos(delay);
                             nanos -= delay - timeLeft;
                         } finally {
-                            if (leader == thisThread)
+                            // 醒来后，置空leader，重新获取队头任务
+                            if(leader == thisThread) {
                                 leader = null;
+                            }
                         }
                     }
                 }
             }
         } finally {
-            if (leader == null && q.peek() != null)
+            // 执行完之后，需要唤醒后续排队的阻塞线程
+            if(leader == null && queue.peek() != null) {
                 available.signal();
+            }
             lock.unlock();
         }
     }
-
+    
+    
+    /**
+     * Retrieves and removes the head of this queue, waiting if necessary
+     * until an element with an expired delay is available on this queue.
+     *
+     * @return the head of this queue
+     *
+     * @throws InterruptedException {@inheritDoc}
+     */
+    // 出队，线程安全。无法出队时阻塞
+    public E take() throws InterruptedException {
+        final ReentrantLock lock = this.lock;
+        lock.lockInterruptibly();
+        try {
+            for(; ; ) {
+                // 获取队头任务first
+                E first = queue.peek();
+                
+                // 如果队列为空，则需要阻塞
+                if(first == null) {
+                    available.await();
+                } else {
+                    // 队头任务获取距被触发还剩余的时间
+                    long delay = first.getDelay(NANOSECONDS);
+                    // 如果已经可以执行了
+                    if(delay<=0L) {
+                        // 队头任务已经可以开始了，移除并返回队头任务first
+                        return queue.poll();
+                    }
+                    
+                    // 如果队头任务还未到触发时间，则不需要保持其引用
+                    first = null; // don't retain ref while waiting
+                    
+                    // 如果已有阻塞线程，当前线程需要无限期阻塞，直到被唤醒
+                    if(leader != null) {
+                        available.await();
+                    } else {
+                        Thread thisThread = Thread.currentThread();
+                        // 记录首个被阻塞的线程
+                        leader = thisThread;
+                        try {
+                            // 在任务触发之前阻塞
+                            available.awaitNanos(delay);
+                        } finally {
+                            // 醒来后，置空leader，重新参与循环，以获取队头任务
+                            if(leader == thisThread) {
+                                leader = null;
+                            }
+                        }
+                    }
+                }
+            }
+        } finally {
+            // 执行完之后，需要唤醒后续等待的阻塞线程
+            if(leader == null && queue.peek() != null) {
+                available.signal();
+            }
+            lock.unlock();
+        }
+    }
+    
+    
+    /**
+     * Removes a single instance of the specified element from this
+     * queue, if it is present, whether or not it has expired.
+     */
+    // 移除，线程安全。移除成功则返回true
+    public boolean remove(Object o) {
+        final ReentrantLock lock = this.lock;
+        lock.lock();
+        try {
+            return queue.remove(o);
+        } finally {
+            lock.unlock();
+        }
+    }
+    
+    
+    /**
+     * Atomically removes all of the elements from this delay queue.
+     * The queue will be empty after this call returns.
+     * Elements with an unexpired delay are not waited for; they are
+     * simply discarded from the queue.
+     */
+    // 清空。将所有元素移除，不阻塞，不抛异常
+    public void clear() {
+        final ReentrantLock lock = this.lock;
+        lock.lock();
+        try {
+            queue.clear();
+        } finally {
+            lock.unlock();
+        }
+    }
+    
+    
+    /**
+     * @throws UnsupportedOperationException {@inheritDoc}
+     * @throws ClassCastException            {@inheritDoc}
+     * @throws NullPointerException          {@inheritDoc}
+     * @throws IllegalArgumentException      {@inheritDoc}
+     */
+    // 将队列中所有元素移除，并转移到给定的容器当中
+    public int drainTo(Collection<? super E> c) {
+        return drainTo(c, Integer.MAX_VALUE);
+    }
+    
+    /**
+     * @throws UnsupportedOperationException {@inheritDoc}
+     * @throws ClassCastException            {@inheritDoc}
+     * @throws NullPointerException          {@inheritDoc}
+     * @throws IllegalArgumentException      {@inheritDoc}
+     */
+    // 将队列中前maxElements个元素移除，并转移到给定的容器当中
+    public int drainTo(Collection<? super E> c, int maxElements) {
+        Objects.requireNonNull(c);
+        if(c == this) {
+            throw new IllegalArgumentException();
+        }
+        
+        if(maxElements<=0) {
+            return 0;
+        }
+        
+        final ReentrantLock lock = this.lock;
+        lock.lock();
+        try {
+            int n = 0;
+            for(E first;
+                n<maxElements && (first = queue.peek()) != null && first.getDelay(NANOSECONDS)<=0;
+            ) {
+                // 任务添加到容器中
+                c.add(first);   // In this order, in case add() throws.
+                // 移除队头元素first
+                queue.poll();
+                ++n;
+            }
+            return n;
+        } finally {
+            lock.unlock();
+        }
+    }
+    
+    /*▲ 出队 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 取值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Retrieves, but does not remove, the head of this queue, or
      * returns {@code null} if this queue is empty.  Unlike
@@ -300,94 +488,25 @@ public class DelayQueue<E extends Delayed> extends AbstractQueue<E>
      * if one exists.
      *
      * @return the head of this queue, or {@code null} if this
-     *         queue is empty
+     * queue is empty
      */
+    // 查看队头任务，如果队列为空，返回null
     public E peek() {
         final ReentrantLock lock = this.lock;
         lock.lock();
         try {
-            return q.peek();
+            return queue.peek();
         } finally {
             lock.unlock();
         }
     }
-
-    public int size() {
-        final ReentrantLock lock = this.lock;
-        lock.lock();
-        try {
-            return q.size();
-        } finally {
-            lock.unlock();
-        }
-    }
-
-    /**
-     * @throws UnsupportedOperationException {@inheritDoc}
-     * @throws ClassCastException            {@inheritDoc}
-     * @throws NullPointerException          {@inheritDoc}
-     * @throws IllegalArgumentException      {@inheritDoc}
-     */
-    public int drainTo(Collection<? super E> c) {
-        return drainTo(c, Integer.MAX_VALUE);
-    }
-
-    /**
-     * @throws UnsupportedOperationException {@inheritDoc}
-     * @throws ClassCastException            {@inheritDoc}
-     * @throws NullPointerException          {@inheritDoc}
-     * @throws IllegalArgumentException      {@inheritDoc}
-     */
-    public int drainTo(Collection<? super E> c, int maxElements) {
-        Objects.requireNonNull(c);
-        if (c == this)
-            throw new IllegalArgumentException();
-        if (maxElements <= 0)
-            return 0;
-        final ReentrantLock lock = this.lock;
-        lock.lock();
-        try {
-            int n = 0;
-            for (E first;
-                 n < maxElements
-                     && (first = q.peek()) != null
-                     && first.getDelay(NANOSECONDS) <= 0;) {
-                c.add(first);   // In this order, in case add() throws.
-                q.poll();
-                ++n;
-            }
-            return n;
-        } finally {
-            lock.unlock();
-        }
-    }
-
-    /**
-     * Atomically removes all of the elements from this delay queue.
-     * The queue will be empty after this call returns.
-     * Elements with an unexpired delay are not waited for; they are
-     * simply discarded from the queue.
-     */
-    public void clear() {
-        final ReentrantLock lock = this.lock;
-        lock.lock();
-        try {
-            q.clear();
-        } finally {
-            lock.unlock();
-        }
-    }
-
-    /**
-     * Always returns {@code Integer.MAX_VALUE} because
-     * a {@code DelayQueue} is not capacity constrained.
-     *
-     * @return {@code Integer.MAX_VALUE}
-     */
-    public int remainingCapacity() {
-        return Integer.MAX_VALUE;
-    }
-
+    
+    /*▲ 取值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 视图 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns an array containing all of the elements in this queue.
      * The returned array elements are in no particular order.
@@ -405,12 +524,12 @@ public class DelayQueue<E extends Delayed> extends AbstractQueue<E>
         final ReentrantLock lock = this.lock;
         lock.lock();
         try {
-            return q.toArray();
+            return queue.toArray();
         } finally {
             lock.unlock();
         }
     }
-
+    
     /**
      * Returns an array containing all of the elements in this queue; the
      * runtime type of the returned array is that of the specified array.
@@ -440,54 +559,30 @@ public class DelayQueue<E extends Delayed> extends AbstractQueue<E>
      * @param a the array into which the elements of the queue are to
      *          be stored, if it is big enough; otherwise, a new array of the
      *          same runtime type is allocated for this purpose
+     *
      * @return an array containing all of the elements in this queue
-     * @throws ArrayStoreException if the runtime type of the specified array
-     *         is not a supertype of the runtime type of every element in
-     *         this queue
+     *
+     * @throws ArrayStoreException  if the runtime type of the specified array
+     *                              is not a supertype of the runtime type of every element in
+     *                              this queue
      * @throws NullPointerException if the specified array is null
      */
     public <T> T[] toArray(T[] a) {
         final ReentrantLock lock = this.lock;
         lock.lock();
         try {
-            return q.toArray(a);
+            return queue.toArray(a);
         } finally {
             lock.unlock();
         }
     }
-
-    /**
-     * Removes a single instance of the specified element from this
-     * queue, if it is present, whether or not it has expired.
-     */
-    public boolean remove(Object o) {
-        final ReentrantLock lock = this.lock;
-        lock.lock();
-        try {
-            return q.remove(o);
-        } finally {
-            lock.unlock();
-        }
-    }
-
-    /**
-     * Identity-based version for use in Itr.remove.
-     */
-    void removeEQ(Object o) {
-        final ReentrantLock lock = this.lock;
-        lock.lock();
-        try {
-            for (Iterator<E> it = q.iterator(); it.hasNext(); ) {
-                if (o == it.next()) {
-                    it.remove();
-                    break;
-                }
-            }
-        } finally {
-            lock.unlock();
-        }
-    }
-
+    
+    /*▲ 视图 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 迭代 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns an iterator over all the elements (both expired and
      * unexpired) in this queue. The iterator does not return the
@@ -498,40 +593,100 @@ public class DelayQueue<E extends Delayed> extends AbstractQueue<E>
      *
      * @return an iterator over the elements in this queue
      */
+    // 返回当前队列的迭代器
     public Iterator<E> iterator() {
         return new Itr(toArray());
     }
-
+    
+    /*▲ 迭代 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 返回队列中的任务数
+    public int size() {
+        final ReentrantLock lock = this.lock;
+        lock.lock();
+        try {
+            return queue.size();
+        } finally {
+            lock.unlock();
+        }
+    }
+    
+    /**
+     * Always returns {@code Integer.MAX_VALUE} because
+     * a {@code DelayQueue} is not capacity constrained.
+     *
+     * @return {@code Integer.MAX_VALUE}
+     */
+    // 计算队列剩余空间，返回Integer.MAX_VALUE代表无限
+    public int remainingCapacity() {
+        return Integer.MAX_VALUE;
+    }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /**
+     * Identity-based version for use in Itr.remove.
+     */
+    // 移除元素o
+    void removeEQ(Object o) {
+        final ReentrantLock lock = this.lock;
+        lock.lock();
+        try {
+            for(Iterator<E> it = queue.iterator(); it.hasNext(); ) {
+                if(o == it.next()) {
+                    it.remove();
+                    break;
+                }
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+    
+    
+    
+    
+    
+    
     /**
      * Snapshot iterator that works off copy of underlying q array.
      */
+    // 用于当前队列的外部迭代器
     private class Itr implements Iterator<E> {
         final Object[] array; // Array of all elements
         int cursor;           // index of next element to return
         int lastRet;          // index of last element, or -1 if no such
-
+        
+        // 拷贝源数据
         Itr(Object[] array) {
             lastRet = -1;
             this.array = array;
         }
-
+        
         public boolean hasNext() {
-            return cursor < array.length;
+            return cursor<array.length;
         }
-
+        
         @SuppressWarnings("unchecked")
         public E next() {
-            if (cursor >= array.length)
+            if(cursor >= array.length) {
                 throw new NoSuchElementException();
-            return (E)array[lastRet = cursor++];
+            }
+            return (E) array[lastRet = cursor++];
         }
-
+        
         public void remove() {
-            if (lastRet < 0)
+            if(lastRet<0) {
                 throw new IllegalStateException();
+            }
             removeEQ(array[lastRet]);
             lastRet = -1;
         }
     }
-
 }
