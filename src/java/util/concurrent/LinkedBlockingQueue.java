@@ -35,6 +35,9 @@
 
 package java.util.concurrent;
 
+import java.io.IOException;
+import java.io.Serializable;
+import java.lang.reflect.Array;
 import java.util.AbstractQueue;
 import java.util.Collection;
 import java.util.Iterator;
@@ -74,14 +77,21 @@ import java.util.function.Predicate;
  * <a href="{@docRoot}/java.base/java/util/package-summary.html#CollectionsFramework">
  * Java Collections Framework</a>.
  *
- * @since 1.5
- * @author Doug Lea
  * @param <E> the type of elements held in this queue
+ *
+ * @author Doug Lea
+ * @since 1.5
  */
-public class LinkedBlockingQueue<E> extends AbstractQueue<E>
-        implements BlockingQueue<E>, java.io.Serializable {
-    private static final long serialVersionUID = -6903933977591709194L;
-
+/*
+ * 链式有界/无界（初始化时决定使用有界还是无界）单向阻塞队列，线程安全（锁）
+ *
+ * LinkedBlockingQueue的侧重点是存储【数据】，可以将大量【数据】缓存到该队列中以便取用
+ *
+ * 该队列使用的锁是ReentrantLock，配套Condition，在"入队"/"出队"时，会锁住整个队列。
+ * 这样的锁粒度较大，所以线程争用高时，性能较差。
+ */
+public class LinkedBlockingQueue<E> extends AbstractQueue<E> implements BlockingQueue<E>, Serializable {
+    
     /*
      * A variant of the "two lock queue" algorithm.  The putLock gates
      * entry to put (and offer), and has an associated condition for
@@ -116,146 +126,73 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
      * linking a Node that has just been dequeued to itself.  Such a
      * self-link implicitly means to advance to head.next.
      */
-
-    /**
-     * Linked list node class.
-     */
-    static class Node<E> {
-        E item;
-
-        /**
-         * One of:
-         * - the real successor Node
-         * - this Node, meaning the successor is head.next
-         * - null, meaning there is no successor (this is the last node)
-         */
-        Node<E> next;
-
-        Node(E x) { item = x; }
-    }
-
+    
     /** The capacity bound, or Integer.MAX_VALUE if none */
+    // 队列容量，决定队列是有界还是无界
     private final int capacity;
-
+    
     /** Current number of elements */
+    // 当前队列中的元素数量
     private final AtomicInteger count = new AtomicInteger();
-
+    
+    /** Lock held by put, offer, etc */
+    // "入队"锁
+    private final ReentrantLock putLock = new ReentrantLock();
+    /** Wait queue for waiting puts */
+    // "入队"条件
+    private final Condition notFull = putLock.newCondition();
+    
+    /** Lock held by take, poll, etc */
+    // "出队"锁
+    private final ReentrantLock takeLock = new ReentrantLock();
+    /** Wait queue for waiting takes */
+    // "出队"条件
+    private final Condition notEmpty = takeLock.newCondition();
+    
     /**
      * Head of linked list.
      * Invariant: head.item == null
      */
+    // 队头
     transient Node<E> head;
-
+    
     /**
      * Tail of linked list.
      * Invariant: last.next == null
      */
+    // 队尾
     private transient Node<E> last;
-
-    /** Lock held by take, poll, etc */
-    private final ReentrantLock takeLock = new ReentrantLock();
-
-    /** Wait queue for waiting takes */
-    private final Condition notEmpty = takeLock.newCondition();
-
-    /** Lock held by put, offer, etc */
-    private final ReentrantLock putLock = new ReentrantLock();
-
-    /** Wait queue for waiting puts */
-    private final Condition notFull = putLock.newCondition();
-
-    /**
-     * Signals a waiting take. Called only from put/offer (which do not
-     * otherwise ordinarily lock takeLock.)
-     */
-    private void signalNotEmpty() {
-        final ReentrantLock takeLock = this.takeLock;
-        takeLock.lock();
-        try {
-            notEmpty.signal();
-        } finally {
-            takeLock.unlock();
-        }
-    }
-
-    /**
-     * Signals a waiting put. Called only from take/poll.
-     */
-    private void signalNotFull() {
-        final ReentrantLock putLock = this.putLock;
-        putLock.lock();
-        try {
-            notFull.signal();
-        } finally {
-            putLock.unlock();
-        }
-    }
-
-    /**
-     * Links node at end of queue.
-     *
-     * @param node the node
-     */
-    private void enqueue(Node<E> node) {
-        // assert putLock.isHeldByCurrentThread();
-        // assert last.next == null;
-        last = last.next = node;
-    }
-
-    /**
-     * Removes a node from head of queue.
-     *
-     * @return the node
-     */
-    private E dequeue() {
-        // assert takeLock.isHeldByCurrentThread();
-        // assert head.item == null;
-        Node<E> h = head;
-        Node<E> first = h.next;
-        h.next = h; // help GC
-        head = first;
-        E x = first.item;
-        first.item = null;
-        return x;
-    }
-
-    /**
-     * Locks to prevent both puts and takes.
-     */
-    void fullyLock() {
-        putLock.lock();
-        takeLock.lock();
-    }
-
-    /**
-     * Unlocks to allow both puts and takes.
-     */
-    void fullyUnlock() {
-        takeLock.unlock();
-        putLock.unlock();
-    }
-
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates a {@code LinkedBlockingQueue} with a capacity of
      * {@link Integer#MAX_VALUE}.
      */
+    // 构造阻塞式单向链队，最大容量为Integer.MAX_VALUE
     public LinkedBlockingQueue() {
         this(Integer.MAX_VALUE);
     }
-
+    
     /**
      * Creates a {@code LinkedBlockingQueue} with the given (fixed) capacity.
      *
      * @param capacity the capacity of this queue
+     *
      * @throws IllegalArgumentException if {@code capacity} is not greater
-     *         than zero
+     *                                  than zero
      */
+    // 构造指定容量的阻塞式单向链队
     public LinkedBlockingQueue(int capacity) {
-        if (capacity <= 0) throw new IllegalArgumentException();
+        if(capacity<=0) {
+            throw new IllegalArgumentException();
+        }
         this.capacity = capacity;
         last = head = new Node<E>(null);
     }
-
+    
     /**
      * Creates a {@code LinkedBlockingQueue} with a capacity of
      * {@link Integer#MAX_VALUE}, initially containing the elements of the
@@ -263,20 +200,26 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
      * added in traversal order of the collection's iterator.
      *
      * @param c the collection of elements to initially contain
+     *
      * @throws NullPointerException if the specified collection or any
-     *         of its elements are null
+     *                              of its elements are null
      */
+    // 用给定容器中的元素初始化队列
     public LinkedBlockingQueue(Collection<? extends E> c) {
         this(Integer.MAX_VALUE);
         final ReentrantLock putLock = this.putLock;
         putLock.lock(); // Never contended, but necessary for visibility
         try {
             int n = 0;
-            for (E e : c) {
-                if (e == null)
+            for(E e : c) {
+                if(e == null) {
                     throw new NullPointerException();
-                if (n == capacity)
+                }
+                
+                if(n == capacity) {
                     throw new IllegalStateException("Queue full");
+                }
+                // 元素入队
                 enqueue(new Node<E>(e));
                 ++n;
             }
@@ -285,35 +228,124 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
             putLock.unlock();
         }
     }
-
-    // this doc comment is overridden to remove the reference to collections
-    // greater in size than Integer.MAX_VALUE
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 入队 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns the number of elements in this queue.
+     * Inserts the specified element at the tail of this queue if it is
+     * possible to do so immediately without exceeding the queue's capacity,
+     * returning {@code true} upon success and {@code false} if this queue
+     * is full.
+     * When using a capacity-restricted queue, this method is generally
+     * preferable to method {@link BlockingQueue#add add}, which can fail to
+     * insert an element only by throwing an exception.
      *
-     * @return the number of elements in this queue
+     * @throws NullPointerException if the specified element is null
      */
-    public int size() {
-        return count.get();
+    // 入队，线程安全，队满时不阻塞，直接返回false
+    public boolean offer(E e) {
+        if(e == null) {
+            throw new NullPointerException();
+        }
+        
+        final AtomicInteger count = this.count;
+        
+        if(count.get() == capacity) {
+            return false;
+        }
+        
+        final int c;
+        final Node<E> node = new Node<E>(e);
+        final ReentrantLock putLock = this.putLock;
+        putLock.lock();
+        try {
+            // 队满时直接返回
+            if(count.get() == capacity) {
+                return false;
+            }
+            
+            // 入队
+            enqueue(node);
+            
+            // 元素个数增一
+            c = count.getAndIncrement();
+            
+            // 如果现在至少还剩一个空槽（c是入队前容量）
+            if(c + 1<capacity) {
+                // 唤醒可能阻塞的"入队"线程
+                notFull.signal();
+            }
+        } finally {
+            putLock.unlock();
+        }
+        
+        // 如果队列之前为空（现在不空了）
+        if(c == 0) {
+            // 唤醒可能阻塞的"出队"线程
+            signalNotEmpty();
+        }
+        
+        return true;
     }
-
-    // this doc comment is a modified copy of the inherited doc comment,
-    // without the reference to unlimited queues.
+    
     /**
-     * Returns the number of additional elements that this queue can ideally
-     * (in the absence of memory or resource constraints) accept without
-     * blocking. This is always equal to the initial capacity of this queue
-     * less the current {@code size} of this queue.
+     * Inserts the specified element at the tail of this queue, waiting if
+     * necessary up to the specified wait time for space to become available.
      *
-     * <p>Note that you <em>cannot</em> always tell if an attempt to insert
-     * an element will succeed by inspecting {@code remainingCapacity}
-     * because it may be the case that another thread is about to
-     * insert or remove an element.
+     * @return {@code true} if successful, or {@code false} if
+     * the specified waiting time elapses before space is available
+     *
+     * @throws InterruptedException {@inheritDoc}
+     * @throws NullPointerException {@inheritDoc}
      */
-    public int remainingCapacity() {
-        return capacity - count.get();
+    // 入队，线程安全，队满时阻塞一段时间，如果在指定的时间内没有机会插入元素，则返回false
+    public boolean offer(E e, long timeout, TimeUnit unit) throws InterruptedException {
+        if(e == null) {
+            throw new NullPointerException();
+        }
+        
+        long nanos = unit.toNanos(timeout);
+        final int c;
+        final ReentrantLock putLock = this.putLock;
+        final AtomicInteger count = this.count;
+        putLock.lockInterruptibly();
+        try {
+            // 如果队列已满，且未超时，则需要阻塞一段时间
+            while(count.get() == capacity) {
+                if(nanos<=0L) {
+                    // 如果一直没机会插入元素，则返回false
+                    return false;
+                }
+                nanos = notFull.awaitNanos(nanos);
+            }
+            
+            // 执行入队操作
+            enqueue(new Node<E>(e));
+            c = count.getAndIncrement();
+            
+            // 如果现在至少还剩一个空槽（c是入队前容量）
+            if(c + 1<capacity) {
+                // 唤醒可能阻塞的"入队"线程
+                notFull.signal();
+            }
+        } finally {
+            putLock.unlock();
+        }
+        
+        // 如果队列之前为空（现在不空了）
+        if(c == 0) {
+            // 唤醒可能阻塞的"出队"线程
+            signalNotEmpty();
+        }
+        
+        return true;
     }
-
+    
+    
     /**
      * Inserts the specified element at the tail of this queue, waiting if
      * necessary for space to become available.
@@ -321,8 +353,11 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
      * @throws InterruptedException {@inheritDoc}
      * @throws NullPointerException {@inheritDoc}
      */
+    // 入队，线程安全，队满时线程被阻塞
     public void put(E e) throws InterruptedException {
-        if (e == null) throw new NullPointerException();
+        if(e == null) {
+            throw new NullPointerException();
+        }
         final int c;
         final Node<E> node = new Node<E>(e);
         final ReentrantLock putLock = this.putLock;
@@ -337,113 +372,82 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
              * signalled if it ever changes from capacity. Similarly
              * for all other uses of count in other wait guards.
              */
-            while (count.get() == capacity) {
+            // 如果队列已满，则当前线程陷入阻塞，并唤醒其他等待者
+            while(count.get() == capacity) {
+                // "未满"条件不成立
                 notFull.await();
             }
+            
+            // 入队
             enqueue(node);
+            
+            // 元素个数增一
             c = count.getAndIncrement();
-            if (c + 1 < capacity)
+            
+            // 如果现在至少还剩一个空槽（c是入队前容量）
+            if(c + 1<capacity) {
+                // 唤醒可能阻塞的"入队"线程
                 notFull.signal();
-        } finally {
-            putLock.unlock();
-        }
-        if (c == 0)
-            signalNotEmpty();
-    }
-
-    /**
-     * Inserts the specified element at the tail of this queue, waiting if
-     * necessary up to the specified wait time for space to become available.
-     *
-     * @return {@code true} if successful, or {@code false} if
-     *         the specified waiting time elapses before space is available
-     * @throws InterruptedException {@inheritDoc}
-     * @throws NullPointerException {@inheritDoc}
-     */
-    public boolean offer(E e, long timeout, TimeUnit unit)
-        throws InterruptedException {
-
-        if (e == null) throw new NullPointerException();
-        long nanos = unit.toNanos(timeout);
-        final int c;
-        final ReentrantLock putLock = this.putLock;
-        final AtomicInteger count = this.count;
-        putLock.lockInterruptibly();
-        try {
-            while (count.get() == capacity) {
-                if (nanos <= 0L)
-                    return false;
-                nanos = notFull.awaitNanos(nanos);
             }
-            enqueue(new Node<E>(e));
-            c = count.getAndIncrement();
-            if (c + 1 < capacity)
-                notFull.signal();
         } finally {
             putLock.unlock();
         }
-        if (c == 0)
+        
+        // 如果队列之前为空（现在不空了）
+        if(c == 0) {
+            // 唤醒可能阻塞的"出队"线程
             signalNotEmpty();
-        return true;
+        }
     }
-
-    /**
-     * Inserts the specified element at the tail of this queue if it is
-     * possible to do so immediately without exceeding the queue's capacity,
-     * returning {@code true} upon success and {@code false} if this queue
-     * is full.
-     * When using a capacity-restricted queue, this method is generally
-     * preferable to method {@link BlockingQueue#add add}, which can fail to
-     * insert an element only by throwing an exception.
-     *
-     * @throws NullPointerException if the specified element is null
-     */
-    public boolean offer(E e) {
-        if (e == null) throw new NullPointerException();
+    
+    /*▲ 入队 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 出队 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 出队，线程安全，队空时不阻塞，直接返回null
+    public E poll() {
         final AtomicInteger count = this.count;
-        if (count.get() == capacity)
-            return false;
-        final int c;
-        final Node<E> node = new Node<E>(e);
-        final ReentrantLock putLock = this.putLock;
-        putLock.lock();
-        try {
-            if (count.get() == capacity)
-                return false;
-            enqueue(node);
-            c = count.getAndIncrement();
-            if (c + 1 < capacity)
-                notFull.signal();
-        } finally {
-            putLock.unlock();
+        if(count.get() == 0) {
+            return null;
         }
-        if (c == 0)
-            signalNotEmpty();
-        return true;
-    }
-
-    public E take() throws InterruptedException {
+        
         final E x;
         final int c;
-        final AtomicInteger count = this.count;
         final ReentrantLock takeLock = this.takeLock;
-        takeLock.lockInterruptibly();
+        takeLock.lock();
         try {
-            while (count.get() == 0) {
-                notEmpty.await();
+            // 队空时直接返回
+            if(count.get() == 0) {
+                return null;
             }
+            
+            // 出队
             x = dequeue();
+            
+            // 元素个数减一
             c = count.getAndDecrement();
-            if (c > 1)
+            
+            // 如果现在至少还剩一个元素（c是入队前容量）
+            if(c>1) {
+                // 唤醒可能阻塞的"出队"线程
                 notEmpty.signal();
+            }
         } finally {
             takeLock.unlock();
         }
-        if (c == capacity)
+        
+        // 如果队列之前为满（现在不满了）
+        if(c == capacity) {
+            // 唤醒可能阻塞的"入队"线程
             signalNotFull();
+        }
+        
         return x;
     }
-
+    
+    // 出队，线程安全，队空时阻塞一段时间，如果在指定的时间内没有机会取出元素，则返回null
     public E poll(long timeout, TimeUnit unit) throws InterruptedException {
         final E x;
         final int c;
@@ -452,75 +456,77 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
         final ReentrantLock takeLock = this.takeLock;
         takeLock.lockInterruptibly();
         try {
-            while (count.get() == 0) {
-                if (nanos <= 0L)
+            // 如果队列已空，且未超时，则需要阻塞一段时间
+            while(count.get() == 0) {
+                if(nanos<=0L) {
+                    // 如果一直没机会取出元素，则返回null
                     return null;
+                }
                 nanos = notEmpty.awaitNanos(nanos);
             }
+            
+            // 执行出队操作
             x = dequeue();
             c = count.getAndDecrement();
-            if (c > 1)
+            
+            // 如果现在至少还剩一个元素（c是入队前容量）
+            if(c>1) {
+                // 唤醒可能阻塞的"出队"线程
                 notEmpty.signal();
+            }
         } finally {
             takeLock.unlock();
         }
-        if (c == capacity)
+        
+        // 如果队列之前为满（现在不满了）
+        if(c == capacity) {
+            // 唤醒可能阻塞的"入队"线程
             signalNotFull();
+        }
+        
         return x;
     }
-
-    public E poll() {
-        final AtomicInteger count = this.count;
-        if (count.get() == 0)
-            return null;
+    
+    
+    // 出队，线程安全，队空时线程被阻塞
+    public E take() throws InterruptedException {
         final E x;
         final int c;
+        final AtomicInteger count = this.count;
         final ReentrantLock takeLock = this.takeLock;
-        takeLock.lock();
+        takeLock.lockInterruptibly();
         try {
-            if (count.get() == 0)
-                return null;
+            // 如果队列已空，则当前线程陷入阻塞，并唤醒其他等待者
+            while(count.get() == 0) {
+                // "未空"条件不成立
+                notEmpty.await();
+            }
+            
+            // 出队
             x = dequeue();
+            
+            // 元素个数减一
             c = count.getAndDecrement();
-            if (c > 1)
+            
+            // 如果现在至少还剩一个元素（c是入队前容量）
+            if(c>1) {
+                // 唤醒可能阻塞的"出队"线程
                 notEmpty.signal();
+            }
         } finally {
             takeLock.unlock();
         }
-        if (c == capacity)
+        
+        // 如果队列之前为满（现在不满了）
+        if(c == capacity) {
+            // 唤醒可能阻塞的"入队"线程
             signalNotFull();
+        }
+        
         return x;
     }
-
-    public E peek() {
-        final AtomicInteger count = this.count;
-        if (count.get() == 0)
-            return null;
-        final ReentrantLock takeLock = this.takeLock;
-        takeLock.lock();
-        try {
-            return (count.get() > 0) ? head.next.item : null;
-        } finally {
-            takeLock.unlock();
-        }
-    }
-
-    /**
-     * Unlinks interior Node p with predecessor pred.
-     */
-    void unlink(Node<E> p, Node<E> pred) {
-        // assert putLock.isHeldByCurrentThread();
-        // assert takeLock.isHeldByCurrentThread();
-        // p.next is not changed, to allow iterators that are
-        // traversing p to maintain their weak-consistency guarantee.
-        p.item = null;
-        pred.next = p.next;
-        if (last == p)
-            last = pred;
-        if (count.getAndDecrement() == capacity)
-            notFull.signal();
-    }
-
+    
+    
     /**
      * Removes a single instance of the specified element from this queue,
      * if it is present.  More formally, removes an element {@code e} such
@@ -530,47 +536,221 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
      * (or equivalently, if this queue changed as a result of the call).
      *
      * @param o element to be removed from this queue, if present
+     *
      * @return {@code true} if this queue changed as a result of the call
      */
+    // 移除元素，不阻塞（线程安全）
     public boolean remove(Object o) {
-        if (o == null) return false;
+        if(o == null) {
+            return false;
+        }
+        
+        // 对入队和出队动作加锁
         fullyLock();
         try {
-            for (Node<E> pred = head, p = pred.next;
-                 p != null;
-                 pred = p, p = p.next) {
-                if (o.equals(p.item)) {
+            // 用p指向待移除结点
+            for(Node<E> pred = head, p = pred.next; p != null; pred = p, p = p.next) {
+                if(o.equals(p.item)) {
+                    // 移除pred后面链接的结点p
                     unlink(p, pred);
                     return true;
                 }
             }
             return false;
         } finally {
+            // 对入队和出队解锁
             fullyUnlock();
         }
     }
-
+    
+    
+    /**
+     * @throws NullPointerException {@inheritDoc}
+     */
+    // 移除所有满足过滤条件的元素，不阻塞（线程安全）
+    public boolean removeIf(Predicate<? super E> filter) {
+        Objects.requireNonNull(filter);
+        return bulkRemove(filter);
+    }
+    
+    
+    /**
+     * @throws NullPointerException {@inheritDoc}
+     */
+    // (匹配则移除)移除队列中所有与给定容器中的元素匹配的元素，不阻塞（线程安全）
+    public boolean removeAll(Collection<?> c) {
+        Objects.requireNonNull(c);
+        return bulkRemove(e -> c.contains(e));
+    }
+    
+    /**
+     * @throws NullPointerException {@inheritDoc}
+     */
+    // (不匹配则移除)移除队列中所有与给定容器中的元素不匹配的元素，不阻塞（线程安全）
+    public boolean retainAll(Collection<?> c) {
+        Objects.requireNonNull(c);
+        return bulkRemove(e -> !c.contains(e));
+    }
+    
+    
+    /**
+     * Atomically removes all of the elements from this queue.
+     * The queue will be empty after this call returns.
+     */
+    // 清空，即移除所有元素，不阻塞（线程安全）
+    public void clear() {
+        // 对入队和出队动作加锁
+        fullyLock();
+        try {
+            for(Node<E> p, h = head; (p = h.next) != null; h = p) {
+                h.next = h;
+                p.item = null;
+            }
+            head = last;
+            // assert head.item == null && head.next == null;
+            if(count.getAndSet(0) == capacity) {
+                // 唤醒入队线程
+                notFull.signal();
+            }
+        } finally {
+            // 对入队和出队解锁
+            fullyUnlock();
+        }
+    }
+    
+    
+    /**
+     * @throws UnsupportedOperationException {@inheritDoc}
+     * @throws ClassCastException            {@inheritDoc}
+     * @throws NullPointerException          {@inheritDoc}
+     * @throws IllegalArgumentException      {@inheritDoc}
+     */
+    // 将队列中所有元素移除，并转移到给定的容器当中
+    public int drainTo(Collection<? super E> c) {
+        return drainTo(c, Integer.MAX_VALUE);
+    }
+    
+    /**
+     * @throws UnsupportedOperationException {@inheritDoc}
+     * @throws ClassCastException            {@inheritDoc}
+     * @throws NullPointerException          {@inheritDoc}
+     * @throws IllegalArgumentException      {@inheritDoc}
+     */
+    // 将队列中前maxElements个元素移除，并转移到给定的容器当中
+    public int drainTo(Collection<? super E> c, int maxElements) {
+        Objects.requireNonNull(c);
+        
+        if(c == this) {
+            throw new IllegalArgumentException();
+        }
+        
+        if(maxElements<=0) {
+            return 0;
+        }
+        
+        boolean signalNotFull = false;
+        final ReentrantLock takeLock = this.takeLock;
+        takeLock.lock();
+        try {
+            int n = Math.min(maxElements, count.get());
+            // count.get provides visibility to first n Nodes
+            Node<E> h = head;
+            int i = 0;
+            try {
+                // 将队列中的元素转移到给定的容器当中
+                while(i<n) {
+                    Node<E> p = h.next;
+                    c.add(p.item);
+                    p.item = null;
+                    h.next = h;
+                    h = p;
+                    ++i;
+                }
+                return n;
+            } finally {
+                // Restore invariants even if c.add() threw
+                if(i>0) {
+                    // assert h.item == null;
+                    head = h;   // 更新head
+                    
+                    // 判断是否有必要唤醒"入队"线程
+                    signalNotFull = (count.getAndAdd(-i) == capacity);
+                }
+            }
+        } finally {
+            takeLock.unlock();
+            
+            // 如果转移元素前队列是满的（现在不满了），则唤醒"入队"线程
+            if(signalNotFull) {
+                signalNotFull();
+            }
+        }
+    }
+    
+    /*▲ 出队 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 取值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 获取队头元素，线程安全
+    public E peek() {
+        final AtomicInteger count = this.count;
+        if(count.get() == 0) {
+            return null;
+        }
+        final ReentrantLock takeLock = this.takeLock;
+        takeLock.lock();
+        try {
+            return (count.get()>0) ? head.next.item : null;
+        } finally {
+            takeLock.unlock();
+        }
+    }
+    
+    /*▲ 取值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 包含查询 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns {@code true} if this queue contains the specified element.
      * More formally, returns {@code true} if and only if this queue contains
      * at least one element {@code e} such that {@code o.equals(e)}.
      *
      * @param o object to be checked for containment in this queue
+     *
      * @return {@code true} if this queue contains the specified element
      */
+    // 判断队列中是否包含元素o
     public boolean contains(Object o) {
-        if (o == null) return false;
+        if(o == null) {
+            return false;
+        }
+        
+        // 对入队和出队动作加锁
         fullyLock();
+        
         try {
-            for (Node<E> p = head.next; p != null; p = p.next)
-                if (o.equals(p.item))
+            for(Node<E> p = head.next; p != null; p = p.next) {
+                if(o.equals(p.item)) {
                     return true;
+                }
+            }
             return false;
         } finally {
+            // 对入队和出队解锁
             fullyUnlock();
         }
     }
-
+    
+    /*▲ 包含查询 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 视图 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns an array containing all of the elements in this queue, in
      * proper sequence.
@@ -590,14 +770,15 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
             int size = count.get();
             Object[] a = new Object[size];
             int k = 0;
-            for (Node<E> p = head.next; p != null; p = p.next)
+            for(Node<E> p = head.next; p != null; p = p.next) {
                 a[k++] = p.item;
+            }
             return a;
         } finally {
             fullyUnlock();
         }
     }
-
+    
     /**
      * Returns an array containing all of the elements in this queue, in
      * proper sequence; the runtime type of the returned array is that of
@@ -627,10 +808,12 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
      * @param a the array into which the elements of the queue are to
      *          be stored, if it is big enough; otherwise, a new array of the
      *          same runtime type is allocated for this purpose
+     *
      * @return an array containing all of the elements in this queue
-     * @throws ArrayStoreException if the runtime type of the specified array
-     *         is not a supertype of the runtime type of every element in
-     *         this queue
+     *
+     * @throws ArrayStoreException  if the runtime type of the specified array
+     *                              is not a supertype of the runtime type of every element in
+     *                              this queue
      * @throws NullPointerException if the specified array is null
      */
     @SuppressWarnings("unchecked")
@@ -638,112 +821,39 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
         fullyLock();
         try {
             int size = count.get();
-            if (a.length < size)
-                a = (T[])java.lang.reflect.Array.newInstance
-                    (a.getClass().getComponentType(), size);
-
+            if(a.length<size) {
+                a = (T[]) Array.newInstance(a.getClass().getComponentType(), size);
+            }
+            
             int k = 0;
-            for (Node<E> p = head.next; p != null; p = p.next)
-                a[k++] = (T)p.item;
-            if (a.length > k)
+            for(Node<E> p = head.next; p != null; p = p.next) {
+                a[k++] = (T) p.item;
+            }
+            if(a.length>k) {
                 a[k] = null;
+            }
             return a;
         } finally {
             fullyUnlock();
         }
     }
-
-    public String toString() {
-        return Helpers.collectionToString(this);
-    }
-
+    
+    /*▲ 视图 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 迭代 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Atomically removes all of the elements from this queue.
-     * The queue will be empty after this call returns.
+     * @throws NullPointerException {@inheritDoc}
      */
-    public void clear() {
-        fullyLock();
-        try {
-            for (Node<E> p, h = head; (p = h.next) != null; h = p) {
-                h.next = h;
-                p.item = null;
-            }
-            head = last;
-            // assert head.item == null && head.next == null;
-            if (count.getAndSet(0) == capacity)
-                notFull.signal();
-        } finally {
-            fullyUnlock();
-        }
+    // 遍历所有元素，并执行相应的择取操作
+    public void forEach(Consumer<? super E> action) {
+        Objects.requireNonNull(action);
+        forEachFrom(action, null);
     }
-
-    /**
-     * @throws UnsupportedOperationException {@inheritDoc}
-     * @throws ClassCastException            {@inheritDoc}
-     * @throws NullPointerException          {@inheritDoc}
-     * @throws IllegalArgumentException      {@inheritDoc}
-     */
-    public int drainTo(Collection<? super E> c) {
-        return drainTo(c, Integer.MAX_VALUE);
-    }
-
-    /**
-     * @throws UnsupportedOperationException {@inheritDoc}
-     * @throws ClassCastException            {@inheritDoc}
-     * @throws NullPointerException          {@inheritDoc}
-     * @throws IllegalArgumentException      {@inheritDoc}
-     */
-    public int drainTo(Collection<? super E> c, int maxElements) {
-        Objects.requireNonNull(c);
-        if (c == this)
-            throw new IllegalArgumentException();
-        if (maxElements <= 0)
-            return 0;
-        boolean signalNotFull = false;
-        final ReentrantLock takeLock = this.takeLock;
-        takeLock.lock();
-        try {
-            int n = Math.min(maxElements, count.get());
-            // count.get provides visibility to first n Nodes
-            Node<E> h = head;
-            int i = 0;
-            try {
-                while (i < n) {
-                    Node<E> p = h.next;
-                    c.add(p.item);
-                    p.item = null;
-                    h.next = h;
-                    h = p;
-                    ++i;
-                }
-                return n;
-            } finally {
-                // Restore invariants even if c.add() threw
-                if (i > 0) {
-                    // assert h.item == null;
-                    head = h;
-                    signalNotFull = (count.getAndAdd(-i) == capacity);
-                }
-            }
-        } finally {
-            takeLock.unlock();
-            if (signalNotFull)
-                signalNotFull();
-        }
-    }
-
-    /**
-     * Used for any element traversal that is not entirely under lock.
-     * Such traversals must handle both:
-     * - dequeued nodes (p.next == p)
-     * - (possibly multiple) interior removed nodes (p.item == null)
-     */
-    Node<E> succ(Node<E> p) {
-        if (p == (p = p.next))
-            p = head.next;
-        return p;
-    }
-
+    
+    
     /**
      * Returns an iterator over the elements in this queue in proper sequence.
      * The elements will be returned in order from first (head) to last (tail).
@@ -753,204 +863,11 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
      *
      * @return an iterator over the elements in this queue in proper sequence
      */
+    // 返回当前队列的迭代器
     public Iterator<E> iterator() {
         return new Itr();
     }
-
-    /**
-     * Weakly-consistent iterator.
-     *
-     * Lazily updated ancestor field provides expected O(1) remove(),
-     * but still O(n) in the worst case, whenever the saved ancestor
-     * is concurrently deleted.
-     */
-    private class Itr implements Iterator<E> {
-        private Node<E> next;           // Node holding nextItem
-        private E nextItem;             // next item to hand out
-        private Node<E> lastRet;
-        private Node<E> ancestor;       // Helps unlink lastRet on remove()
-
-        Itr() {
-            fullyLock();
-            try {
-                if ((next = head.next) != null)
-                    nextItem = next.item;
-            } finally {
-                fullyUnlock();
-            }
-        }
-
-        public boolean hasNext() {
-            return next != null;
-        }
-
-        public E next() {
-            Node<E> p;
-            if ((p = next) == null)
-                throw new NoSuchElementException();
-            lastRet = p;
-            E x = nextItem;
-            fullyLock();
-            try {
-                E e = null;
-                for (p = p.next; p != null && (e = p.item) == null; )
-                    p = succ(p);
-                next = p;
-                nextItem = e;
-            } finally {
-                fullyUnlock();
-            }
-            return x;
-        }
-
-        public void forEachRemaining(Consumer<? super E> action) {
-            // A variant of forEachFrom
-            Objects.requireNonNull(action);
-            Node<E> p;
-            if ((p = next) == null) return;
-            lastRet = p;
-            next = null;
-            final int batchSize = 64;
-            Object[] es = null;
-            int n, len = 1;
-            do {
-                fullyLock();
-                try {
-                    if (es == null) {
-                        p = p.next;
-                        for (Node<E> q = p; q != null; q = succ(q))
-                            if (q.item != null && ++len == batchSize)
-                                break;
-                        es = new Object[len];
-                        es[0] = nextItem;
-                        nextItem = null;
-                        n = 1;
-                    } else
-                        n = 0;
-                    for (; p != null && n < len; p = succ(p))
-                        if ((es[n] = p.item) != null) {
-                            lastRet = p;
-                            n++;
-                        }
-                } finally {
-                    fullyUnlock();
-                }
-                for (int i = 0; i < n; i++) {
-                    @SuppressWarnings("unchecked") E e = (E) es[i];
-                    action.accept(e);
-                }
-            } while (n > 0 && p != null);
-        }
-
-        public void remove() {
-            Node<E> p = lastRet;
-            if (p == null)
-                throw new IllegalStateException();
-            lastRet = null;
-            fullyLock();
-            try {
-                if (p.item != null) {
-                    if (ancestor == null)
-                        ancestor = head;
-                    ancestor = findPred(p, ancestor);
-                    unlink(p, ancestor);
-                }
-            } finally {
-                fullyUnlock();
-            }
-        }
-    }
-
-    /**
-     * A customized variant of Spliterators.IteratorSpliterator.
-     * Keep this class in sync with (very similar) LBDSpliterator.
-     */
-    private final class LBQSpliterator implements Spliterator<E> {
-        static final int MAX_BATCH = 1 << 25;  // max batch array size;
-        Node<E> current;    // current node; null until initialized
-        int batch;          // batch size for splits
-        boolean exhausted;  // true when no more nodes
-        long est = size();  // size estimate
-
-        LBQSpliterator() {}
-
-        public long estimateSize() { return est; }
-
-        public Spliterator<E> trySplit() {
-            Node<E> h;
-            if (!exhausted &&
-                ((h = current) != null || (h = head.next) != null)
-                && h.next != null) {
-                int n = batch = Math.min(batch + 1, MAX_BATCH);
-                Object[] a = new Object[n];
-                int i = 0;
-                Node<E> p = current;
-                fullyLock();
-                try {
-                    if (p != null || (p = head.next) != null)
-                        for (; p != null && i < n; p = succ(p))
-                            if ((a[i] = p.item) != null)
-                                i++;
-                } finally {
-                    fullyUnlock();
-                }
-                if ((current = p) == null) {
-                    est = 0L;
-                    exhausted = true;
-                }
-                else if ((est -= i) < 0L)
-                    est = 0L;
-                if (i > 0)
-                    return Spliterators.spliterator
-                        (a, 0, i, (Spliterator.ORDERED |
-                                   Spliterator.NONNULL |
-                                   Spliterator.CONCURRENT));
-            }
-            return null;
-        }
-
-        public boolean tryAdvance(Consumer<? super E> action) {
-            Objects.requireNonNull(action);
-            if (!exhausted) {
-                E e = null;
-                fullyLock();
-                try {
-                    Node<E> p;
-                    if ((p = current) != null || (p = head.next) != null)
-                        do {
-                            e = p.item;
-                            p = succ(p);
-                        } while (e == null && p != null);
-                    if ((current = p) == null)
-                        exhausted = true;
-                } finally {
-                    fullyUnlock();
-                }
-                if (e != null) {
-                    action.accept(e);
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        public void forEachRemaining(Consumer<? super E> action) {
-            Objects.requireNonNull(action);
-            if (!exhausted) {
-                exhausted = true;
-                Node<E> p = current;
-                current = null;
-                forEachFrom(action, p);
-            }
-        }
-
-        public int characteristics() {
-            return (Spliterator.ORDERED |
-                    Spliterator.NONNULL |
-                    Spliterator.CONCURRENT);
-        }
-    }
-
+    
     /**
      * Returns a {@link Spliterator} over the elements in this queue.
      *
@@ -960,97 +877,239 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
      * <p>The {@code Spliterator} reports {@link Spliterator#CONCURRENT},
      * {@link Spliterator#ORDERED}, and {@link Spliterator#NONNULL}.
      *
-     * @implNote
-     * The {@code Spliterator} implements {@code trySplit} to permit limited
-     * parallelism.
-     *
      * @return a {@code Spliterator} over the elements in this queue
+     *
+     * @implNote The {@code Spliterator} implements {@code trySplit} to permit limited
+     * parallelism.
      * @since 1.8
      */
+    // 返回描述此队列中元素的Spliterator
     public Spliterator<E> spliterator() {
         return new LBQSpliterator();
     }
-
+    
+    /*▲ 迭代 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * @throws NullPointerException {@inheritDoc}
+     * Returns the number of elements in this queue.
+     *
+     * @return the number of elements in this queue
+     *
+     * this doc comment is overridden to remove the reference to collections greater in size than Integer.MAX_VALUE
      */
-    public void forEach(Consumer<? super E> action) {
-        Objects.requireNonNull(action);
-        forEachFrom(action, null);
+    // 返回队列中元素数量
+    public int size() {
+        return count.get();
     }
-
+    
     /**
-     * Runs action on each element found during a traversal starting at p.
-     * If p is null, traversal starts at head.
+     * Returns the number of additional elements that this queue can ideally
+     * (in the absence of memory or resource constraints) accept without
+     * blocking. This is always equal to the initial capacity of this queue
+     * less the current {@code size} of this queue.
+     *
+     * <p>Note that you <em>cannot</em> always tell if an attempt to insert
+     * an element will succeed by inspecting {@code remainingCapacity}
+     * because it may be the case that another thread is about to
+     * insert or remove an element.
+     *
+     * this doc comment is a modified copy of the inherited doc comment, without the reference to unlimited queues.
      */
-    void forEachFrom(Consumer<? super E> action, Node<E> p) {
-        // Extract batches of elements while holding the lock; then
-        // run the action on the elements while not
-        final int batchSize = 64;       // max number of elements per batch
-        Object[] es = null;             // container for batch of elements
-        int n, len = 0;
-        do {
-            fullyLock();
-            try {
-                if (es == null) {
-                    if (p == null) p = head.next;
-                    for (Node<E> q = p; q != null; q = succ(q))
-                        if (q.item != null && ++len == batchSize)
-                            break;
-                    es = new Object[len];
-                }
-                for (n = 0; p != null && n < len; p = succ(p))
-                    if ((es[n] = p.item) != null)
-                        n++;
-            } finally {
-                fullyUnlock();
+    // 返回队列的剩余容量
+    public int remainingCapacity() {
+        return capacity - count.get();
+    }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 锁 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Locks to prevent both puts and takes.
+     */
+    // 对入队和出队动作加锁
+    void fullyLock() {
+        putLock.lock();
+        takeLock.lock();
+    }
+    
+    /**
+     * Unlocks to allow both puts and takes.
+     */
+    // 对入队和出队动作解锁
+    void fullyUnlock() {
+        takeLock.unlock();
+        putLock.unlock();
+    }
+    
+    /**
+     * Signals a waiting put. Called only from take/poll.
+     */
+    // 唤醒"入队"线程
+    private void signalNotFull() {
+        final ReentrantLock putLock = this.putLock;
+        putLock.lock();
+        try {
+            notFull.signal();
+        } finally {
+            putLock.unlock();
+        }
+    }
+    
+    /**
+     * Signals a waiting take. Called only from put/offer (which do not
+     * otherwise ordinarily lock takeLock.)
+     */
+    // 唤醒"出队"线程
+    private void signalNotEmpty() {
+        final ReentrantLock takeLock = this.takeLock;
+        takeLock.lock();
+        try {
+            notEmpty.signal();
+        } finally {
+            takeLock.unlock();
+        }
+    }
+    
+    /*▲ 锁 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    private static final long serialVersionUID = -6903933977591709194L;
+    
+    
+    /**
+     * Saves this queue to a stream (that is, serializes it).
+     *
+     * @param s the stream
+     *
+     * @throws java.io.IOException if an I/O error occurs
+     * @serialData The capacity is emitted (int), followed by all of
+     * its elements (each an {@code Object}) in the proper order,
+     * followed by a null
+     */
+    private void writeObject(java.io.ObjectOutputStream s) throws IOException {
+        
+        fullyLock();
+        
+        try {
+            // Write out any hidden stuff, plus capacity
+            s.defaultWriteObject();
+            
+            // Write out all elements in the proper order.
+            for(Node<E> p = head.next; p != null; p = p.next) {
+                s.writeObject(p.item);
             }
-            for (int i = 0; i < n; i++) {
-                @SuppressWarnings("unchecked") E e = (E) es[i];
-                action.accept(e);
+            
+            // Use trailing null as sentinel
+            s.writeObject(null);
+        } finally {
+            fullyUnlock();
+        }
+    }
+    
+    /**
+     * Reconstitutes this queue from a stream (that is, deserializes it).
+     *
+     * @param s the stream
+     *
+     * @throws ClassNotFoundException if the class of a serialized object
+     *                                could not be found
+     * @throws java.io.IOException    if an I/O error occurs
+     */
+    private void readObject(java.io.ObjectInputStream s) throws IOException, ClassNotFoundException {
+        // Read in capacity, and any hidden stuff
+        s.defaultReadObject();
+        
+        count.set(0);
+        last = head = new Node<E>(null);
+        
+        // Read in all elements and place in queue
+        for(; ; ) {
+            @SuppressWarnings("unchecked")
+            E item = (E) s.readObject();
+            if(item == null) {
+                break;
             }
-        } while (n > 0 && p != null);
+            add(item);
+        }
     }
-
+    
+    /*▲ 序列化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    public String toString() {
+        return Helpers.collectionToString(this);
+    }
+    
+    
+    
     /**
-     * @throws NullPointerException {@inheritDoc}
+     * Links node at end of queue.
+     *
+     * @param node the node
      */
-    public boolean removeIf(Predicate<? super E> filter) {
-        Objects.requireNonNull(filter);
-        return bulkRemove(filter);
+    // 入队，非线程安全，仅内部使用
+    private void enqueue(Node<E> node) {
+        // assert putLock.isHeldByCurrentThread();
+        // assert last.next == null;
+        last = last.next = node;
     }
-
+    
     /**
-     * @throws NullPointerException {@inheritDoc}
+     * Removes a node from head of queue.
+     *
+     * @return the node
      */
-    public boolean removeAll(Collection<?> c) {
-        Objects.requireNonNull(c);
-        return bulkRemove(e -> c.contains(e));
+    // 出队，非线程安全，仅内部使用
+    private E dequeue() {
+        // assert takeLock.isHeldByCurrentThread();
+        // assert head.item == null;
+        Node<E> h = head;
+        Node<E> first = h.next;
+        // 辅助GC
+        h.next = h; // help GC
+        // 队头前进
+        head = first;
+        E x = first.item;
+        first.item = null;
+        return x;
     }
-
+    
     /**
-     * @throws NullPointerException {@inheritDoc}
+     * Unlinks interior Node p with predecessor pred.
      */
-    public boolean retainAll(Collection<?> c) {
-        Objects.requireNonNull(c);
-        return bulkRemove(e -> !c.contains(e));
+    // 移除pred后面链接的结点p
+    void unlink(Node<E> p, Node<E> pred) {
+        // assert putLock.isHeldByCurrentThread();
+        // assert takeLock.isHeldByCurrentThread();
+        // p.next is not changed, to allow iterators that are
+        // traversing p to maintain their weak-consistency guarantee.
+        p.item = null;
+        pred.next = p.next;
+        
+        // 如果移除的是最后一个结点，则更新last
+        if(last == p) {
+            last = pred;
+        }
+        
+        // 如果移除元素前队列是满的（现在不满了），唤醒"入队"线程
+        if(count.getAndDecrement() == capacity) {
+            notFull.signal();
+        }
     }
-
-    /**
-     * Returns the predecessor of live node p, given a node that was
-     * once a live ancestor of p (or head); allows unlinking of p.
-     */
-    Node<E> findPred(Node<E> p, Node<E> ancestor) {
-        // assert p.item != null;
-        if (ancestor.item == null)
-            ancestor = head;
-        // Fails with NPE if precondition not satisfied
-        for (Node<E> q; (q = ancestor.next) != p; )
-            ancestor = q;
-        return ancestor;
-    }
-
+    
     /** Implementation of bulk remove methods. */
+    // 批量移除元素，即满足过滤条件的元素将被移除，不阻塞（线程安全）
     @SuppressWarnings("unchecked")
     private boolean bulkRemove(Predicate<? super E> filter) {
         boolean removed = false;
@@ -1061,35 +1120,43 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
             // 1. Extract batch of up to 64 elements while holding the lock.
             fullyLock();
             try {
-                if (nodes == null) {  // first batch; initialize
+                // 初始化容器，用来存储待筛选元素
+                if(nodes == null) {  // first batch; initialize
                     p = head.next;
-                    for (Node<E> q = p; q != null; q = succ(q))
-                        if (q.item != null && ++len == 64)
+                    for(Node<E> q = p; q != null; q = succ(q)) {
+                        if(q.item != null && ++len == 64) {
                             break;
+                        }
+                    }
                     nodes = (Node<E>[]) new Node<?>[len];
                 }
-                for (n = 0; p != null && n < len; p = succ(p))
+                
+                // 取出一批元素
+                for(n = 0; p != null && n<len; p = succ(p)) {
                     nodes[n++] = p;
+                }
             } finally {
                 fullyUnlock();
             }
-
+            
             // 2. Run the filter on the elements while lock is free.
             long deathRow = 0L;       // "bitset" of size 64
-            for (int i = 0; i < n; i++) {
+            for(int i = 0; i<n; i++) {
                 final E e;
-                if ((e = nodes[i].item) != null && filter.test(e))
+                // 标记应当移除的元素
+                if((e = nodes[i].item) != null && filter.test(e)) {
                     deathRow |= 1L << i;
+                }
             }
-
+            
             // 3. Remove any filtered elements while holding the lock.
-            if (deathRow != 0) {
+            if(deathRow != 0) {
                 fullyLock();
                 try {
-                    for (int i = 0; i < n; i++) {
+                    for(int i = 0; i<n; i++) {
                         final Node<E> q;
-                        if ((deathRow & (1L << i)) != 0L
-                            && (q = nodes[i]).item != null) {
+                        // 移除满足筛选条件的元素
+                        if((deathRow & (1L << i)) != 0L && (q = nodes[i]).item != null) {
                             ancestor = findPred(q, ancestor);
                             unlink(q, ancestor);
                             removed = true;
@@ -1100,60 +1167,381 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
                     fullyUnlock();
                 }
             }
-        } while (n > 0 && p != null);
+        } while(n>0 && p != null);
+        
         return removed;
     }
-
+    
     /**
-     * Saves this queue to a stream (that is, serializes it).
+     * Returns the predecessor of live node p, given a node that was
+     * once a live ancestor of p (or head); allows unlinking of p.
+     */
+    // 从ancestor开始，查找结点p的前驱
+    Node<E> findPred(Node<E> p, Node<E> ancestor) {
+        // assert p.item != null;
+        if(ancestor.item == null) {
+            ancestor = head;
+        }
+        
+        // Fails with NPE if precondition not satisfied
+        for(Node<E> q; (q = ancestor.next) != p; ) {
+            ancestor = q;
+        }
+        
+        return ancestor;
+    }
+    
+    /**
+     * Used for any element traversal that is not entirely under lock.
+     * Such traversals must handle both:
+     * - dequeued nodes (p.next == p)
+     * - (possibly multiple) interior removed nodes (p.item == null)
+     */
+    // 返回p的后继
+    Node<E> succ(Node<E> p) {
+        // 如果p结点已经被移除
+        if(p == (p = p.next)) {
+            // 让p指向首个结点
+            p = head.next;
+        }
+        return p;
+    }
+    
+    /**
+     * Runs action on each element found during a traversal starting at p.
+     * If p is null, traversal starts at head.
+     */
+    // 从p开始遍历所有剩余元素，并执行相应的择取操作
+    void forEachFrom(Consumer<? super E> action, Node<E> p) {
+        // Extract batches of elements while holding the lock; then run the action on the elements while not
+        final int batchSize = 64;       // max number of elements per batch
+        Object[] es = null;             // container for batch of elements
+        int n, len = 0;
+        
+        // 分批遍历元素，参考迭代器Itr中的遍历，原理是一致的
+        do {
+            fullyLock();
+            try {
+                // 第一批
+                if(es == null) {
+                    // 从队头开始遍历
+                    if(p == null) {
+                        p = head.next;
+                    }
+                    
+                    for(Node<E> q = p; q != null; q = succ(q)) {
+                        if(q.item != null && ++len == batchSize) {
+                            break;
+                        }
+                    }
+                    es = new Object[len];
+                }
+                
+                for(n = 0; p != null && n<len; p = succ(p)) {
+                    if((es[n] = p.item) != null) {
+                        n++;
+                    }
+                }
+            } finally {
+                fullyUnlock();
+            }
+            
+            for(int i = 0; i<n; i++) {
+                @SuppressWarnings("unchecked")
+                E e = (E) es[i];
+                action.accept(e);
+            }
+        } while(n>0 && p != null);
+    }
+    
+    
+    
+    
+    
+    
+    /**
+     * Linked list node class.
+     */
+    // 队列结点
+    static class Node<E> {
+        E item;
+        
+        /**
+         * One of:
+         * - the real successor Node
+         * - this Node, meaning the successor is head.next
+         * - null, meaning there is no successor (this is the last node)
+         */
+        // 后继
+        Node<E> next;
+        
+        Node(E x) {
+            item = x;
+        }
+    }
+    
+    /**
+     * Weakly-consistent iterator.
      *
-     * @param s the stream
-     * @throws java.io.IOException if an I/O error occurs
-     * @serialData The capacity is emitted (int), followed by all of
-     * its elements (each an {@code Object}) in the proper order,
-     * followed by a null
+     * Lazily updated ancestor field provides expected O(1) remove(),
+     * but still O(n) in the worst case, whenever the saved ancestor
+     * is concurrently deleted.
      */
-    private void writeObject(java.io.ObjectOutputStream s)
-        throws java.io.IOException {
-
-        fullyLock();
-        try {
-            // Write out any hidden stuff, plus capacity
-            s.defaultWriteObject();
-
-            // Write out all elements in the proper order.
-            for (Node<E> p = head.next; p != null; p = p.next)
-                s.writeObject(p.item);
-
-            // Use trailing null as sentinel
-            s.writeObject(null);
-        } finally {
-            fullyUnlock();
+    // 用于当前队列的外部迭代器
+    private class Itr implements Iterator<E> {
+        // 指向下一个结点
+        private Node<E> next;           // Node holding nextItem
+        
+        // 持有下一个元素
+        private E nextItem;             // next item to hand out
+        
+        private Node<E> lastRet;
+        private Node<E> ancestor;       // Helps unlink lastRet on remove()
+        
+        // 初始化迭代器
+        Itr() {
+            fullyLock();
+            try {
+                if((next = head.next) != null) {
+                    nextItem = next.item;
+                }
+            } finally {
+                fullyUnlock();
+            }
+        }
+        
+        // 判断是否存在下一个元素
+        public boolean hasNext() {
+            return next != null;
+        }
+        
+        // 返回下一个元素，并更新next与nextItem
+        public E next() {
+            Node<E> p;
+            if((p = next) == null) {
+                throw new NoSuchElementException();
+            }
+            lastRet = p;
+            E x = nextItem;
+            fullyLock();
+            try {
+                E e = null;
+                for(p = p.next; p != null && (e = p.item) == null; ) {
+                    p = succ(p);
+                }
+                next = p;
+                nextItem = e;
+            } finally {
+                fullyUnlock();
+            }
+            return x;
+        }
+        
+        // 移除刚刚遍历过的那个元素
+        public void remove() {
+            // p指向上一个遍历过的元素
+            Node<E> p = lastRet;
+            
+            if(p == null) {
+                throw new IllegalStateException();
+            }
+            
+            lastRet = null;
+            
+            fullyLock();
+            try {
+                if(p.item != null) {
+                    if(ancestor == null) {
+                        ancestor = head;
+                    }
+                    
+                    // 从ancestor开始，查找结点p的前驱
+                    ancestor = findPred(p, ancestor);
+                    
+                    // 移除ancestor后面链接的结点p
+                    unlink(p, ancestor);
+                }
+            } finally {
+                fullyUnlock();
+            }
+        }
+        
+        // 遍历剩余元素，并对其执行相应的择取操作
+        public void forEachRemaining(Consumer<? super E> action) {
+            // A variant of forEachFrom
+            Objects.requireNonNull(action);
+            
+            Node<E> p;
+            
+            if((p = next) == null) {
+                return;
+            }
+            
+            lastRet = p;
+            
+            next = null;
+            
+            final int batchSize = 64;
+            
+            Object[] es = null;
+            
+            int n, len = 1;
+            
+            do {
+                fullyLock();
+                try {
+                    if(es == null) {
+                        p = p.next;
+                        
+                        // 统计剩余元素（如果超过了64个，则分批统计）
+                        for(Node<E> q = p; q != null; q = succ(q)) {
+                            if(q.item != null && ++len == batchSize) {
+                                break;
+                            }
+                        }
+                        es = new Object[len];
+                        es[0] = nextItem;
+                        nextItem = null;
+                        n = 1;
+                    } else {
+                        // 统计下一批元素
+                        n = 0;
+                    }
+                    
+                    for(; p != null && n<len; p = succ(p)) {
+                        if((es[n] = p.item) != null) {
+                            lastRet = p;
+                            n++;
+                        }
+                    }
+                } finally {
+                    fullyUnlock();
+                }
+                
+                // 应用择取操作
+                for(int i = 0; i<n; i++) {
+                    @SuppressWarnings("unchecked")
+                    E e = (E) es[i];
+                    action.accept(e);
+                }
+                
+            } while(n>0 && p != null);
         }
     }
-
+    
     /**
-     * Reconstitutes this queue from a stream (that is, deserializes it).
-     * @param s the stream
-     * @throws ClassNotFoundException if the class of a serialized object
-     *         could not be found
-     * @throws java.io.IOException if an I/O error occurs
+     * A customized variant of Spliterators.IteratorSpliterator.
+     * Keep this class in sync with (very similar) LBDSpliterator.
      */
-    private void readObject(java.io.ObjectInputStream s)
-        throws java.io.IOException, ClassNotFoundException {
-        // Read in capacity, and any hidden stuff
-        s.defaultReadObject();
-
-        count.set(0);
-        last = head = new Node<E>(null);
-
-        // Read in all elements and place in queue
-        for (;;) {
-            @SuppressWarnings("unchecked")
-            E item = (E)s.readObject();
-            if (item == null)
-                break;
-            add(item);
+    // 描述此队列中元素的Spliterator
+    private final class LBQSpliterator implements Spliterator<E> {
+        static final int MAX_BATCH = 1 << 25;  // max batch array size;
+        
+        // 指向当前这批待遍历元素中的首个元素
+        Node<E> current;    // current node; null until initialized
+        
+        // 当前这批待遍历元素的数量
+        int batch;          // batch size for splits
+        
+        // true代表没有待遍历元素了
+        boolean exhausted;  // true when no more nodes
+        
+        // 迭代器当前的容量（会变化）
+        long est = size();  // size estimate
+        
+        LBQSpliterator() {
+        }
+        
+        public long estimateSize() {
+            return est;
+        }
+        
+        // 从容器的指定范围切割一段元素，将其打包到Spliterator后返回
+        public Spliterator<E> trySplit() {
+            Node<E> h;
+            
+            if(!exhausted
+                && ((h = current) != null || (h = head.next) != null)
+                && h.next != null) {
+                
+                // 当前这批元素的数量
+                int n = batch = Math.min(batch + 1, MAX_BATCH);
+                Object[] a = new Object[n];
+                int i = 0;
+                Node<E> p = current;
+                fullyLock();
+                try {
+                    if(p != null || (p = head.next) != null) {
+                        // 选出一批元素
+                        for(; p != null && i<n; p = succ(p)) {
+                            if((a[i] = p.item) != null) {
+                                i++;
+                            }
+                        }
+                    }
+                } finally {
+                    fullyUnlock();
+                }
+                
+                if((current = p) == null) {
+                    est = 0L;
+                    exhausted = true;
+                } else if((est -= i)<0L) {
+                    est = 0L;
+                }
+                
+                if(i>0) {
+                    return Spliterators.spliterator(a, 0, i, (Spliterator.ORDERED | Spliterator.NONNULL | Spliterator.CONCURRENT));
+                }
+            }
+            
+            return null;
+        }
+        
+        // 对容器中的单个当前元素执行择取操作
+        public boolean tryAdvance(Consumer<? super E> action) {
+            Objects.requireNonNull(action);
+            if(!exhausted) {
+                E e = null;
+                fullyLock();
+                try {
+                    Node<E> p;
+                    if((p = current) != null || (p = head.next) != null)
+                        do {
+                            e = p.item;
+                            p = succ(p);
+                        } while(e == null && p != null);
+                    if((current = p) == null) {
+                        exhausted = true;
+                    }
+                } finally {
+                    fullyUnlock();
+                }
+                
+                if(e != null) {
+                    action.accept(e);
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // 遍历所有剩余元素，并执行相应的择取操作
+        public void forEachRemaining(Consumer<? super E> action) {
+            Objects.requireNonNull(action);
+            
+            // 如果仍有待遍历元素
+            if(!exhausted) {
+                exhausted = true;
+                Node<E> p = current;
+                current = null;
+                forEachFrom(action, p);
+            }
+        }
+        
+        public int characteristics() {
+            return (Spliterator.ORDERED | Spliterator.NONNULL | Spliterator.CONCURRENT);
         }
     }
+    
 }
