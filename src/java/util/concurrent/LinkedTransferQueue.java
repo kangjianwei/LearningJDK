@@ -35,6 +35,10 @@
 
 package java.util.concurrent;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.AbstractQueue;
@@ -88,10 +92,14 @@ import java.util.function.Predicate;
  * @author Doug Lea
  * @param <E> the type of elements held in this queue
  */
-public class LinkedTransferQueue<E> extends AbstractQueue<E>
-    implements TransferQueue<E>, java.io.Serializable {
-    private static final long serialVersionUID = -3223113410248163686L;
-
+/*
+ * 链式无界单向阻塞队列，线程安全（CAS），可以看做是SynchronousQueue的加强版
+ *
+ * 使用LinkedTransferQueue的时候，如果一个线程的put()操作找不到互补的take()操作时，
+ * 它将数据放入阻塞队列，并立即返回，这一点上与SynchronousQueue不同。
+ */
+public class LinkedTransferQueue<E> extends AbstractQueue<E> implements TransferQueue<E>, Serializable {
+    
     /*
      * *** Overview of Dual Queues with Slack ***
      *
@@ -404,30 +412,22 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      * some successor ultimately falls off the head of the list and is
      * self-linked.
      */
-
-    /** True if on multiprocessor */
-    private static final boolean MP =
-        Runtime.getRuntime().availableProcessors() > 1;
-
+    
+    
+    /* Possible values for "how" argument in xfer method. */
+    
+    private static final int NOW = 0;   // for untimed poll, tryTransfer
+    private static final int ASYNC = 1; // for offer, put, add
+    private static final int SYNC = 2;  // for transfer, take
+    private static final int TIMED = 3; // for timed poll, tryTransfer
+    
+    
     /**
-     * The number of times to spin (with randomly interspersed calls
-     * to Thread.yield) on multiprocessor before blocking when a node
-     * is apparently the first waiter in the queue.  See above for
-     * explanation. Must be a power of two. The value is empirically
-     * derived -- it works pretty well across a variety of processors,
-     * numbers of CPUs, and OSes.
+     * Tolerate this many consecutive dead nodes before CAS-collapsing.
+     * Amortized cost of clear() is (1 + 1/MAX_HOPS) CASes per element.
      */
-    private static final int FRONT_SPINS   = 1 << 7;
-
-    /**
-     * The number of times to spin before blocking when a node is
-     * preceded by another node that is apparently spinning.  Also
-     * serves as an increment to FRONT_SPINS on phase changes, and as
-     * base average frequency for yielding during spins. Must be a
-     * power of two.
-     */
-    private static final int CHAINED_SPINS = FRONT_SPINS >>> 1;
-
+    private static final int MAX_HOPS = 8;
+    
     /**
      * The maximum number of estimated removal failures (sweepVotes)
      * to tolerate before sweeping through the queue unlinking
@@ -436,107 +436,29 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      * two to avoid useless sweeps when removing trailing nodes.
      */
     static final int SWEEP_THRESHOLD = 32;
-
+    
     /**
-     * Queue nodes. Uses Object, not E, for items to allow forgetting
-     * them after use.  Writes that are intrinsically ordered wrt
-     * other accesses or CASes use simple relaxed forms.
+     * The number of times to spin (with randomly interspersed calls
+     * to Thread.yield) on multiprocessor before blocking when a node
+     * is apparently the first waiter in the queue.  See above for
+     * explanation. Must be a power of two. The value is empirically
+     * derived -- it works pretty well across a variety of processors,
+     * numbers of CPUs, and OSes.
      */
-    static final class Node {
-        final boolean isData;   // false if this is a request node
-        volatile Object item;   // initially non-null if isData; CASed to match
-        volatile Node next;
-        volatile Thread waiter; // null when not waiting for a match
-
-        /**
-         * Constructs a data node holding item if item is non-null,
-         * else a request node.  Uses relaxed write because item can
-         * only be seen after piggy-backing publication via CAS.
-         */
-        Node(Object item) {
-            ITEM.set(this, item);
-            isData = (item != null);
-        }
-
-        /** Constructs a (matched data) dummy node. */
-        Node() {
-            isData = true;
-        }
-
-        final boolean casNext(Node cmp, Node val) {
-            // assert val != null;
-            return NEXT.compareAndSet(this, cmp, val);
-        }
-
-        final boolean casItem(Object cmp, Object val) {
-            // assert isData == (cmp != null);
-            // assert isData == (val == null);
-            // assert !(cmp instanceof Node);
-            return ITEM.compareAndSet(this, cmp, val);
-        }
-
-        /**
-         * Links node to itself to avoid garbage retention.  Called
-         * only after CASing head field, so uses relaxed write.
-         */
-        final void selfLink() {
-            // assert isMatched();
-            NEXT.setRelease(this, this);
-        }
-
-        final void appendRelaxed(Node next) {
-            // assert next != null;
-            // assert this.next == null;
-            NEXT.set(this, next);
-        }
-
-        /**
-         * Sets item (of a request node) to self and waiter to null,
-         * to avoid garbage retention after matching or cancelling.
-         * Uses relaxed writes because order is already constrained in
-         * the only calling contexts: item is forgotten only after
-         * volatile/atomic mechanics that extract items, and visitors
-         * of request nodes only ever check whether item is null.
-         * Similarly, clearing waiter follows either CAS or return
-         * from park (if ever parked; else we don't care).
-         */
-        final void forgetContents() {
-            // assert isMatched();
-            if (!isData)
-                ITEM.set(this, this);
-            WAITER.set(this, null);
-        }
-
-        /**
-         * Returns true if this node has been matched, including the
-         * case of artificial matches due to cancellation.
-         */
-        final boolean isMatched() {
-            return isData == (item == null);
-        }
-
-        /** Tries to CAS-match this node; if successful, wakes waiter. */
-        final boolean tryMatch(Object cmp, Object val) {
-            if (casItem(cmp, val)) {
-                LockSupport.unpark(waiter);
-                return true;
-            }
-            return false;
-        }
-
-        /**
-         * Returns true if a node with the given mode cannot be
-         * appended to this node because this node is unmatched and
-         * has opposite data mode.
-         */
-        final boolean cannotPrecede(boolean haveData) {
-            boolean d = isData;
-            return d != haveData && d != (item == null);
-        }
-
-        private static final long serialVersionUID = -3375979862319811754L;
-    }
-
+    private static final int FRONT_SPINS = 1 << 7;
+    
+    /**
+     * The number of times to spin before blocking when a node is
+     * preceded by another node that is apparently spinning.  Also
+     * serves as an increment to FRONT_SPINS on phase changes, and as
+     * base average frequency for yielding during spins. Must be a
+     * power of two.
+     */
+    private static final int CHAINED_SPINS = FRONT_SPINS >>> 1;
+    
+    /** True if on multiprocessor */
+    private static final boolean MP = Runtime.getRuntime().availableProcessors()>1;
+    
     /**
      * A node from which the first live (non-matched) node (if any)
      * can be reached in O(1) time.
@@ -547,10 +469,10 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      * Non-invariants:
      * - head may or may not be live
      * - it is permitted for tail to lag behind head, that is, for tail
-     *   to not be reachable from head!
+     * to not be reachable from head!
      */
-    transient volatile Node head;
-
+    transient volatile Node head;   // 队头
+    
     /**
      * A node from which the last node on list (that is, the unique
      * node with node.next == null) can be reached in O(1) time.
@@ -560,322 +482,395 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      * Non-invariants:
      * - tail may or may not be live
      * - it is permitted for tail to lag behind head, that is, for tail
-     *   to not be reachable from head!
+     * to not be reachable from head!
      * - tail.next may or may not be self-linked.
      */
-    private transient volatile Node tail;
-
+    private transient volatile Node tail;   // 队尾
+    
     /** The number of apparent failures to unsplice cancelled nodes */
     private transient volatile int sweepVotes;
-
-    private boolean casTail(Node cmp, Node val) {
-        // assert cmp != null;
-        // assert val != null;
-        return TAIL.compareAndSet(this, cmp, val);
-    }
-
-    private boolean casHead(Node cmp, Node val) {
-        return HEAD.compareAndSet(this, cmp, val);
-    }
-
-    /** Atomic version of ++sweepVotes. */
-    private int incSweepVotes() {
-        return (int) SWEEPVOTES.getAndAdd(this, 1) + 1;
-    }
-
-    /**
-     * Tries to CAS pred.next (or head, if pred is null) from c to p.
-     * Caller must ensure that we're not unlinking the trailing node.
-     */
-    private boolean tryCasSuccessor(Node pred, Node c, Node p) {
-        // assert p != null;
-        // assert c.isData != (c.item != null);
-        // assert c != p;
-        if (pred != null)
-            return pred.casNext(c, p);
-        if (casHead(c, p)) {
-            c.selfLink();
-            return true;
+    
+    
+    private static final VarHandle HEAD;
+    private static final VarHandle TAIL;
+    private static final VarHandle SWEEPVOTES;
+    static final VarHandle ITEM;
+    static final VarHandle NEXT;
+    static final VarHandle WAITER;
+    static {
+        try {
+            MethodHandles.Lookup l = MethodHandles.lookup();
+            HEAD = l.findVarHandle(LinkedTransferQueue.class, "head", Node.class);
+            TAIL = l.findVarHandle(LinkedTransferQueue.class, "tail", Node.class);
+            SWEEPVOTES = l.findVarHandle(LinkedTransferQueue.class, "sweepVotes", int.class);
+            ITEM = l.findVarHandle(Node.class, "item", Object.class);
+            NEXT = l.findVarHandle(Node.class, "next", Node.class);
+            WAITER = l.findVarHandle(Node.class, "waiter", Thread.class);
+        } catch(ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
         }
-        return false;
+        
+        // Reduce the risk of rare disastrous classloading in first call to
+        // LockSupport.park: https://bugs.openjdk.java.net/browse/JDK-8074773
+        Class<?> ensureLoaded = LockSupport.class;
     }
-
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Collapses dead (matched) nodes between pred and q.
-     * @param pred the last known live node, or null if none
-     * @param c the first dead node
-     * @param p the last dead node
-     * @param q p.next: the next live node, or null if at end
-     * @return pred if pred still alive and CAS succeeded; else p
+     * Creates an initially empty {@code LinkedTransferQueue}.
      */
-    private Node skipDeadNodes(Node pred, Node c, Node p, Node q) {
-        // assert pred != c;
-        // assert p != q;
-        // assert c.isMatched();
-        // assert p.isMatched();
-        if (q == null) {
-            // Never unlink trailing node.
-            if (c == p) return pred;
-            q = p;
-        }
-        return (tryCasSuccessor(pred, c, q)
-                && (pred == null || !pred.isMatched()))
-            ? pred : p;
+    public LinkedTransferQueue() {
+        // 初始化队头/队尾指向一个已匹配结点（isData域与item域不匹配）
+        head = tail = new Node();
     }
-
+    
     /**
-     * Collapses dead (matched) nodes from h (which was once head) to p.
-     * Caller ensures all nodes from h up to and including p are dead.
-     */
-    private void skipDeadNodesNearHead(Node h, Node p) {
-        // assert h != null;
-        // assert h != p;
-        // assert p.isMatched();
-        for (;;) {
-            final Node q;
-            if ((q = p.next) == null) break;
-            else if (!q.isMatched()) { p = q; break; }
-            else if (p == (p = q)) return;
-        }
-        if (casHead(h, p))
-            h.selfLink();
-    }
-
-    /* Possible values for "how" argument in xfer method. */
-
-    private static final int NOW   = 0; // for untimed poll, tryTransfer
-    private static final int ASYNC = 1; // for offer, put, add
-    private static final int SYNC  = 2; // for transfer, take
-    private static final int TIMED = 3; // for timed poll, tryTransfer
-
-    /**
-     * Implements all queuing methods. See above for explanation.
+     * Creates a {@code LinkedTransferQueue}
+     * initially containing the elements of the given collection,
+     * added in traversal order of the collection's iterator.
      *
-     * @param e the item or null for take
-     * @param haveData true if this is a put, else a take
-     * @param how NOW, ASYNC, SYNC, or TIMED
-     * @param nanos timeout in nanosecs, used only if mode is TIMED
-     * @return an item if matched, else e
-     * @throws NullPointerException if haveData mode but e is null
+     * @param c the collection of elements to initially contain
+     *
+     * @throws NullPointerException if the specified collection or any
+     *                              of its elements are null
      */
-    @SuppressWarnings("unchecked")
-    private E xfer(E e, boolean haveData, int how, long nanos) {
-        if (haveData && (e == null))
-            throw new NullPointerException();
+    // 使用指定容器中的元素初始化队列
+    public LinkedTransferQueue(Collection<? extends E> c) {
+        Node h = null;
+        Node t = null;
+        
+        for(E e : c) {
+            Node newNode = new Node(Objects.requireNonNull(e));
+            
+            if(h == null) {
+                h = t = newNode;
+            } else {
+                // 尝试将结点t的next域更新为newNode，并将t指向newNode
+                t.appendRelaxed(t = newNode);
+            }
+        }
+        
+        if(h == null) {
+            h = t = new Node();
+        }
+        
+        head = h;
+        tail = t;
+    }
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 入队 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Inserts the specified element at the tail of this queue.
+     * As the queue is unbounded, this method will never return {@code false}.
+     *
+     * @return {@code true} (as specified by {@link Queue#offer})
+     * @throws NullPointerException if the specified element is null
+     */
+    // 入队，不会队满，不会阻塞（线程安全）
+    public boolean offer(E e) {
+        xfer(e, true, ASYNC, 0);
+        return true;
+    }
+    
+    /**
+     * Inserts the specified element at the tail of this queue.
+     * As the queue is unbounded, this method will never block or
+     * return {@code false}.
+     *
+     * @return {@code true} (as specified by
+     *  {@link BlockingQueue#offer(Object,long,TimeUnit) BlockingQueue.offer})
+     * @throws NullPointerException if the specified element is null
+     */
+    // 入队，不会队满，不会阻塞（线程安全）
+    public boolean offer(E e, long timeout, TimeUnit unit) {
+        xfer(e, true, ASYNC, 0);
+        return true;
+    }
+    
+    
+    /**
+     * Inserts the specified element at the tail of this queue.
+     * As the queue is unbounded, this method will never block.
+     *
+     * @throws NullPointerException if the specified element is null
+     */
+    // 入队，不会队满，不会阻塞（线程安全）
+    public void put(E e) {
+        xfer(e, true, ASYNC, 0);
+    }
+    
+    
+    /**
+     * Inserts the specified element at the tail of this queue.
+     * As the queue is unbounded, this method will never throw
+     * {@link IllegalStateException} or return {@code false}.
+     *
+     * @return {@code true} (as specified by {@link Collection#add})
+     *
+     * @throws NullPointerException if the specified element is null
+     */
+    // 入队/添加，不会队满，不会阻塞（线程安全）
+    public boolean add(E e) {
+        xfer(e, true, ASYNC, 0);
+        return true;
+    }
+    
+    /*▲ 入队 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 出队 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 出队，没有互补结点时，返回null（线程安全）
+    public E poll() {
+        return xfer(null, false, NOW, 0);
+    }
+    
+    // 出队，没有互补结点时，队空时阻塞一段时间，超时后无法出队则返回null（线程安全）
+    public E poll(long timeout, TimeUnit unit) throws InterruptedException {
+        E e = xfer(null, false, TIMED, unit.toNanos(timeout));
+        if (e != null || !Thread.interrupted()) {
+            return e;
+        }
+        throw new InterruptedException();
+    }
+    
+    
+    // 出队，没有互补结点时，线程被阻塞（线程安全）
+    public E take() throws InterruptedException {
+        E e = xfer(null, false, SYNC, 0);
+        if (e != null) {
+            return e;
+        }
+        Thread.interrupted();
+        throw new InterruptedException();
+    }
+    
+    
+    /**
+     * Removes a single instance of the specified element from this queue,
+     * if it is present.  More formally, removes an element {@code e} such
+     * that {@code o.equals(e)}, if this queue contains one or more such
+     * elements.
+     * Returns {@code true} if this queue contained the specified element
+     * (or equivalently, if this queue changed as a result of the call).
+     *
+     * @param o element to be removed from this queue, if present
+     *
+     * @return {@code true} if this queue changed as a result of the call
+     */
+    // 移除元素，不阻塞（线程安全）
+    public boolean remove(Object o) {
+        if(o == null) {
+            return false;
+        }
 
-        restart: for (Node s = null, t = null, h = null;;) {
-            for (Node p = (t != (t = tail) && t.isData == haveData) ? t
-                     : (h = head);; ) {
-                final Node q; final Object item;
-                if (p.isData != haveData
-                    && haveData == ((item = p.item) == null)) {
-                    if (h == null) h = head;
-                    if (p.tryMatch(item, e)) {
-                        if (h != p) skipDeadNodesNearHead(h, p);
-                        return (E) item;
+restartFromHead:
+        for(; ; ) {
+            for(Node p = head, pred = null; p != null; ) {
+                Node q = p.next;
+                final Object item;
+                if((item = p.item) != null) {
+                    if(p.isData) {
+                        if(o.equals(item) && p.tryMatch(item, null)) {
+                            skipDeadNodes(pred, p, p, q);
+                            return true;
+                        }
+                        pred = p;
+                        p = q;
+                        continue;
                     }
+                } else if(!p.isData) {
+                    break;
                 }
-                if ((q = p.next) == null) {
-                    if (how == NOW) return e;
-                    if (s == null) s = new Node(e);
-                    if (!p.casNext(null, s)) continue;
-                    if (p != t) casTail(t, s);
-                    if (how == ASYNC) return e;
-                    return awaitMatch(s, p, e, (how == TIMED), nanos);
-                }
-                if (p == (p = q)) continue restart;
-            }
-        }
-    }
-
-    /**
-     * Spins/yields/blocks until node s is matched or caller gives up.
-     *
-     * @param s the waiting node
-     * @param pred the predecessor of s, or null if unknown (the null
-     * case does not occur in any current calls but may in possible
-     * future extensions)
-     * @param e the comparison value for checking match
-     * @param timed if true, wait only until timeout elapses
-     * @param nanos timeout in nanosecs, used only if timed is true
-     * @return matched item, or e if unmatched on interrupt or timeout
-     */
-    private E awaitMatch(Node s, Node pred, E e, boolean timed, long nanos) {
-        final long deadline = timed ? System.nanoTime() + nanos : 0L;
-        Thread w = Thread.currentThread();
-        int spins = -1; // initialized after first item and cancel checks
-        ThreadLocalRandom randomYields = null; // bound if needed
-
-        for (;;) {
-            final Object item;
-            if ((item = s.item) != e) {       // matched
-                // assert item != s;
-                s.forgetContents();           // avoid garbage
-                @SuppressWarnings("unchecked") E itemE = (E) item;
-                return itemE;
-            }
-            else if (w.isInterrupted() || (timed && nanos <= 0L)) {
-                // try to cancel and unlink
-                if (s.casItem(e, s.isData ? null : s)) {
-                    unsplice(pred, s);
-                    return e;
-                }
-                // return normally if lost CAS
-            }
-            else if (spins < 0) {            // establish spins at/near front
-                if ((spins = spinsFor(pred, s.isData)) > 0)
-                    randomYields = ThreadLocalRandom.current();
-            }
-            else if (spins > 0) {             // spin
-                --spins;
-                if (randomYields.nextInt(CHAINED_SPINS) == 0)
-                    Thread.yield();           // occasionally yield
-            }
-            else if (s.waiter == null) {
-                s.waiter = w;                 // request unpark then recheck
-            }
-            else if (timed) {
-                nanos = deadline - System.nanoTime();
-                if (nanos > 0L)
-                    LockSupport.parkNanos(this, nanos);
-            }
-            else {
-                LockSupport.park(this);
-            }
-        }
-    }
-
-    /**
-     * Returns spin/yield value for a node with given predecessor and
-     * data mode. See above for explanation.
-     */
-    private static int spinsFor(Node pred, boolean haveData) {
-        if (MP && pred != null) {
-            if (pred.isData != haveData)      // phase change
-                return FRONT_SPINS + CHAINED_SPINS;
-            if (pred.isMatched())             // probably at front
-                return FRONT_SPINS;
-            if (pred.waiter == null)          // pred apparently spinning
-                return CHAINED_SPINS;
-        }
-        return 0;
-    }
-
-    /* -------------- Traversal methods -------------- */
-
-    /**
-     * Returns the first unmatched data node, or null if none.
-     * Callers must recheck if the returned node is unmatched
-     * before using.
-     */
-    final Node firstDataNode() {
-        Node first = null;
-        restartFromHead: for (;;) {
-            Node h = head, p = h;
-            while (p != null) {
-                if (p.item != null) {
-                    if (p.isData) {
-                        first = p;
+                
+                for(Node c = p; ; q = p.next) {
+                    if(q == null || !q.isMatched()) {
+                        pred = skipDeadNodes(pred, c, p, q);
+                        p = q;
                         break;
                     }
+                    if(p == (p = q)) {
+                        continue restartFromHead;
+                    }
                 }
-                else if (!p.isData)
-                    break;
-                final Node q;
-                if ((q = p.next) == null)
-                    break;
-                if (p == (p = q))
-                    continue restartFromHead;
             }
-            if (p != h && casHead(h, p))
-                h.selfLink();
-            return first;
+            return false;
         }
     }
-
+    
+    
     /**
-     * Traverses and counts unmatched nodes of the given mode.
-     * Used by methods size and getWaitingConsumerCount.
+     * @throws NullPointerException {@inheritDoc}
      */
-    private int countOfMode(boolean data) {
-        restartFromHead: for (;;) {
-            int count = 0;
-            for (Node p = head; p != null;) {
-                if (!p.isMatched()) {
-                    if (p.isData != data)
-                        return 0;
-                    if (++count == Integer.MAX_VALUE)
-                        break;  // @see Collection.size()
+    // 移除所有满足过滤条件的元素，不阻塞（线程安全）
+    public boolean removeIf(Predicate<? super E> filter) {
+        Objects.requireNonNull(filter);
+        return bulkRemove(filter);
+    }
+    
+    
+    /**
+     * @throws NullPointerException {@inheritDoc}
+     */
+    // (匹配则移除)移除队列中所有与给定容器中的元素匹配的元素，不阻塞（线程安全）
+    public boolean removeAll(Collection<?> c) {
+        Objects.requireNonNull(c);
+        return bulkRemove(e -> c.contains(e));
+    }
+    
+    /**
+     * @throws NullPointerException {@inheritDoc}
+     */
+    // (不匹配则移除)移除队列中所有与给定容器中的元素不匹配的元素，不阻塞（线程安全）
+    public boolean retainAll(Collection<?> c) {
+        Objects.requireNonNull(c);
+        return bulkRemove(e -> !c.contains(e));
+    }
+    
+    
+    // 清空，即移除所有元素，不阻塞（线程安全）
+    public void clear() {
+        bulkRemove(e -> true);
+    }
+    
+    
+    /**
+     * @throws NullPointerException     {@inheritDoc}
+     * @throws IllegalArgumentException {@inheritDoc}
+     */
+    // 将队列中所有元素移除，并转移到给定的容器当中
+    public int drainTo(Collection<? super E> c) {
+        Objects.requireNonNull(c);
+        if(c == this) {
+            throw new IllegalArgumentException();
+        }
+        
+        int n = 0;
+        for(E e; (e = poll()) != null; n++) {
+            c.add(e);
+        }
+        
+        return n;
+    }
+    
+    /**
+     * @throws NullPointerException     {@inheritDoc}
+     * @throws IllegalArgumentException {@inheritDoc}
+     */
+    // 将队列中前maxElements个元素移除，并转移到给定的容器当中
+    public int drainTo(Collection<? super E> c, int maxElements) {
+        Objects.requireNonNull(c);
+        if(c == this) {
+            throw new IllegalArgumentException();
+        }
+        
+        int n = 0;
+        for(E e; n<maxElements && (e = poll()) != null; n++) {
+            c.add(e);
+        }
+        
+        return n;
+    }
+    
+    /*▲ 出队 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 取值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 获取队头元素，线程安全
+    public E peek() {
+restartFromHead:
+        for(; ; ) {
+            for(Node p = head; p != null; ) {
+                Object item = p.item;
+                if(p.isData) {
+                    if(item != null) {
+                        @SuppressWarnings("unchecked")
+                        E e = (E) item;
+                        return e;
+                    }
+                } else if(item == null) {
+                    break;
                 }
-                if (p == (p = p.next))
+                
+                if(p == (p = p.next)) {
                     continue restartFromHead;
+                }
             }
-            return count;
+            return null;
         }
     }
+    
+    /*▲ 取值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 包含查询 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns {@code true} if this queue contains the specified element.
+     * More formally, returns {@code true} if and only if this queue contains
+     * at least one element {@code e} such that {@code o.equals(e)}.
+     *
+     * @param o object to be checked for containment in this queue
+     *
+     * @return {@code true} if this queue contains the specified element
+     */
+    // 判断队列中是否包含元素o
+    public boolean contains(Object o) {
+        if(o == null) {
+            return false;
+        }
 
-    public String toString() {
-        String[] a = null;
-        restartFromHead: for (;;) {
-            int charLength = 0;
-            int size = 0;
-            for (Node p = head; p != null;) {
-                Object item = p.item;
-                if (p.isData) {
-                    if (item != null) {
-                        if (a == null)
-                            a = new String[4];
-                        else if (size == a.length)
-                            a = Arrays.copyOf(a, 2 * size);
-                        String s = item.toString();
-                        a[size++] = s;
-                        charLength += s.length();
+restartFromHead:
+        for(; ; ) {
+            for(Node p = head, pred = null; p != null; ) {
+                Node q = p.next;
+                final Object item;
+                if((item = p.item) != null) {
+                    if(p.isData) {
+                        if(o.equals(item)) {
+                            return true;
+                        }
+                        pred = p;
+                        p = q;
+                        continue;
                     }
-                } else if (item == null)
+                } else if(!p.isData) {
                     break;
-                if (p == (p = p.next))
-                    continue restartFromHead;
-            }
-
-            if (size == 0)
-                return "[]";
-
-            return Helpers.toString(a, size, charLength);
-        }
-    }
-
-    private Object[] toArrayInternal(Object[] a) {
-        Object[] x = a;
-        restartFromHead: for (;;) {
-            int size = 0;
-            for (Node p = head; p != null;) {
-                Object item = p.item;
-                if (p.isData) {
-                    if (item != null) {
-                        if (x == null)
-                            x = new Object[4];
-                        else if (size == x.length)
-                            x = Arrays.copyOf(x, 2 * (size + 4));
-                        x[size++] = item;
+                }
+                
+                for(Node c = p; ; q = p.next) {
+                    if(q == null || !q.isMatched()) {
+                        pred = skipDeadNodes(pred, c, p, q);
+                        p = q;
+                        break;
                     }
-                } else if (item == null)
-                    break;
-                if (p == (p = p.next))
-                    continue restartFromHead;
+                    if(p == (p = q)) {
+                        continue restartFromHead;
+                    }
+                }
             }
-            if (x == null)
-                return new Object[0];
-            else if (a != null && size <= a.length) {
-                if (a != x)
-                    System.arraycopy(x, 0, a, 0, size);
-                if (size < a.length)
-                    a[size] = null;
-                return a;
-            }
-            return (size == x.length) ? x : Arrays.copyOf(x, size);
+            return false;
         }
     }
-
+    
+    /*▲ 包含查询 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 视图 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns an array containing all of the elements in this queue, in
      * proper sequence.
@@ -892,7 +887,7 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
     public Object[] toArray() {
         return toArrayInternal(null);
     }
-
+    
     /**
      * Returns an array containing all of the elements in this queue, in
      * proper sequence; the runtime type of the returned array is that of
@@ -922,10 +917,12 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      * @param a the array into which the elements of the queue are to
      *          be stored, if it is big enough; otherwise, a new array of the
      *          same runtime type is allocated for this purpose
+     *
      * @return an array containing all of the elements in this queue
-     * @throws ArrayStoreException if the runtime type of the specified array
-     *         is not a supertype of the runtime type of every element in
-     *         this queue
+     *
+     * @throws ArrayStoreException  if the runtime type of the specified array
+     *                              is not a supertype of the runtime type of every element in
+     *                              this queue
      * @throws NullPointerException if the specified array is null
      */
     @SuppressWarnings("unchecked")
@@ -933,482 +930,23 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
         Objects.requireNonNull(a);
         return (T[]) toArrayInternal(a);
     }
-
+    
+    /*▲ 视图 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 迭代 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Weakly-consistent iterator.
-     *
-     * Lazily updated ancestor is expected to be amortized O(1) remove(),
-     * but O(n) in the worst case, when lastRet is concurrently deleted.
+     * @throws NullPointerException {@inheritDoc}
      */
-    final class Itr implements Iterator<E> {
-        private Node nextNode;   // next node to return item for
-        private E nextItem;      // the corresponding item
-        private Node lastRet;    // last returned node, to support remove
-        private Node ancestor;   // Helps unlink lastRet on remove()
-
-        /**
-         * Moves to next node after pred, or first node if pred null.
-         */
-        @SuppressWarnings("unchecked")
-        private void advance(Node pred) {
-            for (Node p = (pred == null) ? head : pred.next, c = p;
-                 p != null; ) {
-                final Object item;
-                if ((item = p.item) != null && p.isData) {
-                    nextNode = p;
-                    nextItem = (E) item;
-                    if (c != p)
-                        tryCasSuccessor(pred, c, p);
-                    return;
-                }
-                else if (!p.isData && item == null)
-                    break;
-                if (c != p && !tryCasSuccessor(pred, c, c = p)) {
-                    pred = p;
-                    c = p = p.next;
-                }
-                else if (p == (p = p.next)) {
-                    pred = null;
-                    c = p = head;
-                }
-            }
-            nextItem = null;
-            nextNode = null;
-        }
-
-        Itr() {
-            advance(null);
-        }
-
-        public final boolean hasNext() {
-            return nextNode != null;
-        }
-
-        public final E next() {
-            final Node p;
-            if ((p = nextNode) == null) throw new NoSuchElementException();
-            E e = nextItem;
-            advance(lastRet = p);
-            return e;
-        }
-
-        public void forEachRemaining(Consumer<? super E> action) {
-            Objects.requireNonNull(action);
-            Node q = null;
-            for (Node p; (p = nextNode) != null; advance(q = p))
-                action.accept(nextItem);
-            if (q != null)
-                lastRet = q;
-        }
-
-        public final void remove() {
-            final Node lastRet = this.lastRet;
-            if (lastRet == null)
-                throw new IllegalStateException();
-            this.lastRet = null;
-            if (lastRet.item == null)   // already deleted?
-                return;
-            // Advance ancestor, collapsing intervening dead nodes
-            Node pred = ancestor;
-            for (Node p = (pred == null) ? head : pred.next, c = p, q;
-                 p != null; ) {
-                if (p == lastRet) {
-                    final Object item;
-                    if ((item = p.item) != null)
-                        p.tryMatch(item, null);
-                    if ((q = p.next) == null) q = p;
-                    if (c != q) tryCasSuccessor(pred, c, q);
-                    ancestor = pred;
-                    return;
-                }
-                final Object item; final boolean pAlive;
-                if (pAlive = ((item = p.item) != null && p.isData)) {
-                    // exceptionally, nothing to do
-                }
-                else if (!p.isData && item == null)
-                    break;
-                if ((c != p && !tryCasSuccessor(pred, c, c = p)) || pAlive) {
-                    pred = p;
-                    c = p = p.next;
-                }
-                else if (p == (p = p.next)) {
-                    pred = null;
-                    c = p = head;
-                }
-            }
-            // traversal failed to find lastRet; must have been deleted;
-            // leave ancestor at original location to avoid overshoot;
-            // better luck next time!
-
-            // assert lastRet.isMatched();
-        }
+    // 遍历所有元素，并执行相应的择取操作
+    public void forEach(Consumer<? super E> action) {
+        Objects.requireNonNull(action);
+        forEachFrom(action, head);
     }
-
-    /** A customized variant of Spliterators.IteratorSpliterator */
-    final class LTQSpliterator implements Spliterator<E> {
-        static final int MAX_BATCH = 1 << 25;  // max batch array size;
-        Node current;       // current node; null until initialized
-        int batch;          // batch size for splits
-        boolean exhausted;  // true when no more nodes
-        LTQSpliterator() {}
-
-        public Spliterator<E> trySplit() {
-            Node p, q;
-            if ((p = current()) == null || (q = p.next) == null)
-                return null;
-            int i = 0, n = batch = Math.min(batch + 1, MAX_BATCH);
-            Object[] a = null;
-            do {
-                final Object item = p.item;
-                if (p.isData) {
-                    if (item != null) {
-                        if (a == null)
-                            a = new Object[n];
-                        a[i++] = item;
-                    }
-                } else if (item == null) {
-                    p = null;
-                    break;
-                }
-                if (p == (p = q))
-                    p = firstDataNode();
-            } while (p != null && (q = p.next) != null && i < n);
-            setCurrent(p);
-            return (i == 0) ? null :
-                Spliterators.spliterator(a, 0, i, (Spliterator.ORDERED |
-                                                   Spliterator.NONNULL |
-                                                   Spliterator.CONCURRENT));
-        }
-
-        public void forEachRemaining(Consumer<? super E> action) {
-            Objects.requireNonNull(action);
-            final Node p;
-            if ((p = current()) != null) {
-                current = null;
-                exhausted = true;
-                forEachFrom(action, p);
-            }
-        }
-
-        @SuppressWarnings("unchecked")
-        public boolean tryAdvance(Consumer<? super E> action) {
-            Objects.requireNonNull(action);
-            Node p;
-            if ((p = current()) != null) {
-                E e = null;
-                do {
-                    final Object item = p.item;
-                    final boolean isData = p.isData;
-                    if (p == (p = p.next))
-                        p = head;
-                    if (isData) {
-                        if (item != null) {
-                            e = (E) item;
-                            break;
-                        }
-                    }
-                    else if (item == null)
-                        p = null;
-                } while (p != null);
-                setCurrent(p);
-                if (e != null) {
-                    action.accept(e);
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        private void setCurrent(Node p) {
-            if ((current = p) == null)
-                exhausted = true;
-        }
-
-        private Node current() {
-            Node p;
-            if ((p = current) == null && !exhausted)
-                setCurrent(p = firstDataNode());
-            return p;
-        }
-
-        public long estimateSize() { return Long.MAX_VALUE; }
-
-        public int characteristics() {
-            return (Spliterator.ORDERED |
-                    Spliterator.NONNULL |
-                    Spliterator.CONCURRENT);
-        }
-    }
-
-    /**
-     * Returns a {@link Spliterator} over the elements in this queue.
-     *
-     * <p>The returned spliterator is
-     * <a href="package-summary.html#Weakly"><i>weakly consistent</i></a>.
-     *
-     * <p>The {@code Spliterator} reports {@link Spliterator#CONCURRENT},
-     * {@link Spliterator#ORDERED}, and {@link Spliterator#NONNULL}.
-     *
-     * @implNote
-     * The {@code Spliterator} implements {@code trySplit} to permit limited
-     * parallelism.
-     *
-     * @return a {@code Spliterator} over the elements in this queue
-     * @since 1.8
-     */
-    public Spliterator<E> spliterator() {
-        return new LTQSpliterator();
-    }
-
-    /* -------------- Removal methods -------------- */
-
-    /**
-     * Unsplices (now or later) the given deleted/cancelled node with
-     * the given predecessor.
-     *
-     * @param pred a node that was at one time known to be the
-     * predecessor of s
-     * @param s the node to be unspliced
-     */
-    final void unsplice(Node pred, Node s) {
-        // assert pred != null;
-        // assert pred != s;
-        // assert s != null;
-        // assert s.isMatched();
-        // assert (SWEEP_THRESHOLD & (SWEEP_THRESHOLD - 1)) == 0;
-        s.waiter = null; // disable signals
-        /*
-         * See above for rationale. Briefly: if pred still points to
-         * s, try to unlink s.  If s cannot be unlinked, because it is
-         * trailing node or pred might be unlinked, and neither pred
-         * nor s are head or offlist, add to sweepVotes, and if enough
-         * votes have accumulated, sweep.
-         */
-        if (pred != null && pred.next == s) {
-            Node n = s.next;
-            if (n == null ||
-                (n != s && pred.casNext(s, n) && pred.isMatched())) {
-                for (;;) {               // check if at, or could be, head
-                    Node h = head;
-                    if (h == pred || h == s)
-                        return;          // at head or list empty
-                    if (!h.isMatched())
-                        break;
-                    Node hn = h.next;
-                    if (hn == null)
-                        return;          // now empty
-                    if (hn != h && casHead(h, hn))
-                        h.selfLink();  // advance head
-                }
-                // sweep every SWEEP_THRESHOLD votes
-                if (pred.next != pred && s.next != s // recheck if offlist
-                    && (incSweepVotes() & (SWEEP_THRESHOLD - 1)) == 0)
-                    sweep();
-            }
-        }
-    }
-
-    /**
-     * Unlinks matched (typically cancelled) nodes encountered in a
-     * traversal from head.
-     */
-    private void sweep() {
-        for (Node p = head, s, n; p != null && (s = p.next) != null; ) {
-            if (!s.isMatched())
-                // Unmatched nodes are never self-linked
-                p = s;
-            else if ((n = s.next) == null) // trailing node is pinned
-                break;
-            else if (s == n)    // stale
-                // No need to also check for p == s, since that implies s == n
-                p = head;
-            else
-                p.casNext(s, n);
-        }
-    }
-
-    /**
-     * Creates an initially empty {@code LinkedTransferQueue}.
-     */
-    public LinkedTransferQueue() {
-        head = tail = new Node();
-    }
-
-    /**
-     * Creates a {@code LinkedTransferQueue}
-     * initially containing the elements of the given collection,
-     * added in traversal order of the collection's iterator.
-     *
-     * @param c the collection of elements to initially contain
-     * @throws NullPointerException if the specified collection or any
-     *         of its elements are null
-     */
-    public LinkedTransferQueue(Collection<? extends E> c) {
-        Node h = null, t = null;
-        for (E e : c) {
-            Node newNode = new Node(Objects.requireNonNull(e));
-            if (h == null)
-                h = t = newNode;
-            else
-                t.appendRelaxed(t = newNode);
-        }
-        if (h == null)
-            h = t = new Node();
-        head = h;
-        tail = t;
-    }
-
-    /**
-     * Inserts the specified element at the tail of this queue.
-     * As the queue is unbounded, this method will never block.
-     *
-     * @throws NullPointerException if the specified element is null
-     */
-    public void put(E e) {
-        xfer(e, true, ASYNC, 0);
-    }
-
-    /**
-     * Inserts the specified element at the tail of this queue.
-     * As the queue is unbounded, this method will never block or
-     * return {@code false}.
-     *
-     * @return {@code true} (as specified by
-     *  {@link BlockingQueue#offer(Object,long,TimeUnit) BlockingQueue.offer})
-     * @throws NullPointerException if the specified element is null
-     */
-    public boolean offer(E e, long timeout, TimeUnit unit) {
-        xfer(e, true, ASYNC, 0);
-        return true;
-    }
-
-    /**
-     * Inserts the specified element at the tail of this queue.
-     * As the queue is unbounded, this method will never return {@code false}.
-     *
-     * @return {@code true} (as specified by {@link Queue#offer})
-     * @throws NullPointerException if the specified element is null
-     */
-    public boolean offer(E e) {
-        xfer(e, true, ASYNC, 0);
-        return true;
-    }
-
-    /**
-     * Inserts the specified element at the tail of this queue.
-     * As the queue is unbounded, this method will never throw
-     * {@link IllegalStateException} or return {@code false}.
-     *
-     * @return {@code true} (as specified by {@link Collection#add})
-     * @throws NullPointerException if the specified element is null
-     */
-    public boolean add(E e) {
-        xfer(e, true, ASYNC, 0);
-        return true;
-    }
-
-    /**
-     * Transfers the element to a waiting consumer immediately, if possible.
-     *
-     * <p>More precisely, transfers the specified element immediately
-     * if there exists a consumer already waiting to receive it (in
-     * {@link #take} or timed {@link #poll(long,TimeUnit) poll}),
-     * otherwise returning {@code false} without enqueuing the element.
-     *
-     * @throws NullPointerException if the specified element is null
-     */
-    public boolean tryTransfer(E e) {
-        return xfer(e, true, NOW, 0) == null;
-    }
-
-    /**
-     * Transfers the element to a consumer, waiting if necessary to do so.
-     *
-     * <p>More precisely, transfers the specified element immediately
-     * if there exists a consumer already waiting to receive it (in
-     * {@link #take} or timed {@link #poll(long,TimeUnit) poll}),
-     * else inserts the specified element at the tail of this queue
-     * and waits until the element is received by a consumer.
-     *
-     * @throws NullPointerException if the specified element is null
-     */
-    public void transfer(E e) throws InterruptedException {
-        if (xfer(e, true, SYNC, 0) != null) {
-            Thread.interrupted(); // failure possible only due to interrupt
-            throw new InterruptedException();
-        }
-    }
-
-    /**
-     * Transfers the element to a consumer if it is possible to do so
-     * before the timeout elapses.
-     *
-     * <p>More precisely, transfers the specified element immediately
-     * if there exists a consumer already waiting to receive it (in
-     * {@link #take} or timed {@link #poll(long,TimeUnit) poll}),
-     * else inserts the specified element at the tail of this queue
-     * and waits until the element is received by a consumer,
-     * returning {@code false} if the specified wait time elapses
-     * before the element can be transferred.
-     *
-     * @throws NullPointerException if the specified element is null
-     */
-    public boolean tryTransfer(E e, long timeout, TimeUnit unit)
-        throws InterruptedException {
-        if (xfer(e, true, TIMED, unit.toNanos(timeout)) == null)
-            return true;
-        if (!Thread.interrupted())
-            return false;
-        throw new InterruptedException();
-    }
-
-    public E take() throws InterruptedException {
-        E e = xfer(null, false, SYNC, 0);
-        if (e != null)
-            return e;
-        Thread.interrupted();
-        throw new InterruptedException();
-    }
-
-    public E poll(long timeout, TimeUnit unit) throws InterruptedException {
-        E e = xfer(null, false, TIMED, unit.toNanos(timeout));
-        if (e != null || !Thread.interrupted())
-            return e;
-        throw new InterruptedException();
-    }
-
-    public E poll() {
-        return xfer(null, false, NOW, 0);
-    }
-
-    /**
-     * @throws NullPointerException     {@inheritDoc}
-     * @throws IllegalArgumentException {@inheritDoc}
-     */
-    public int drainTo(Collection<? super E> c) {
-        Objects.requireNonNull(c);
-        if (c == this)
-            throw new IllegalArgumentException();
-        int n = 0;
-        for (E e; (e = poll()) != null; n++)
-            c.add(e);
-        return n;
-    }
-
-    /**
-     * @throws NullPointerException     {@inheritDoc}
-     * @throws IllegalArgumentException {@inheritDoc}
-     */
-    public int drainTo(Collection<? super E> c, int maxElements) {
-        Objects.requireNonNull(c);
-        if (c == this)
-            throw new IllegalArgumentException();
-        int n = 0;
-        for (E e; n < maxElements && (e = poll()) != null; n++)
-            c.add(e);
-        return n;
-    }
-
+    
+    
     /**
      * Returns an iterator over the elements in this queue in proper sequence.
      * The elements will be returned in order from first (head) to last (tail).
@@ -1418,55 +956,65 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      *
      * @return an iterator over the elements in this queue in proper sequence
      */
+    // 返回当前队列的迭代器
     public Iterator<E> iterator() {
         return new Itr();
     }
-
-    public E peek() {
-        restartFromHead: for (;;) {
-            for (Node p = head; p != null;) {
-                Object item = p.item;
-                if (p.isData) {
-                    if (item != null) {
-                        @SuppressWarnings("unchecked") E e = (E) item;
-                        return e;
-                    }
-                }
-                else if (item == null)
-                    break;
-                if (p == (p = p.next))
-                    continue restartFromHead;
-            }
-            return null;
-        }
-    }
-
+    
     /**
-     * Returns {@code true} if this queue contains no elements.
+     * Returns a {@link Spliterator} over the elements in this queue.
      *
-     * @return {@code true} if this queue contains no elements
+     * <p>The returned spliterator is
+     * <a href="package-summary.html#Weakly"><i>weakly consistent</i></a>.
+     *
+     * <p>The {@code Spliterator} reports {@link Spliterator#CONCURRENT},
+     * {@link Spliterator#ORDERED}, and {@link Spliterator#NONNULL}.
+     *
+     * @return a {@code Spliterator} over the elements in this queue
+     *
+     * @implNote The {@code Spliterator} implements {@code trySplit} to permit limited
+     * parallelism.
+     * @since 1.8
      */
-    public boolean isEmpty() {
-        return firstDataNode() == null;
+    // 返回描述此队列中元素的Spliterator
+    public Spliterator<E> spliterator() {
+        return new LTQSpliterator();
     }
-
+    
+    /*▲ 迭代 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 判断队列中是否包含消费者（阻塞的"取"操作）
     public boolean hasWaitingConsumer() {
-        restartFromHead: for (;;) {
-            for (Node p = head; p != null;) {
+restartFromHead:
+        for(; ; ) {
+            for(Node p = head; p != null; ) {
                 Object item = p.item;
-                if (p.isData) {
-                    if (item != null)
+                if(p.isData) {
+                    if(item != null) {
                         break;
-                }
-                else if (item == null)
+                    }
+                } else if(item == null) {
                     return true;
-                if (p == (p = p.next))
+                }
+                
+                if(p == (p = p.next)) {
                     continue restartFromHead;
+                }
             }
             return false;
         }
     }
-
+    
+    // 返回队列中包含的消费者数量（阻塞的"取"操作）
+    public int getWaitingConsumerCount() {
+        return countOfMode(false);
+    }
+    
+    
     /**
      * Returns the number of elements in this queue.  If this queue
      * contains more than {@code Integer.MAX_VALUE} elements, returns
@@ -1479,179 +1027,706 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      *
      * @return the number of elements in this queue
      */
+    // 返回队列中元素数量
     public int size() {
         return countOfMode(true);
     }
-
-    public int getWaitingConsumerCount() {
-        return countOfMode(false);
-    }
-
-    /**
-     * Removes a single instance of the specified element from this queue,
-     * if it is present.  More formally, removes an element {@code e} such
-     * that {@code o.equals(e)}, if this queue contains one or more such
-     * elements.
-     * Returns {@code true} if this queue contained the specified element
-     * (or equivalently, if this queue changed as a result of the call).
-     *
-     * @param o element to be removed from this queue, if present
-     * @return {@code true} if this queue changed as a result of the call
-     */
-    public boolean remove(Object o) {
-        if (o == null) return false;
-        restartFromHead: for (;;) {
-            for (Node p = head, pred = null; p != null; ) {
-                Node q = p.next;
-                final Object item;
-                if ((item = p.item) != null) {
-                    if (p.isData) {
-                        if (o.equals(item) && p.tryMatch(item, null)) {
-                            skipDeadNodes(pred, p, p, q);
-                            return true;
-                        }
-                        pred = p; p = q; continue;
-                    }
-                }
-                else if (!p.isData)
-                    break;
-                for (Node c = p;; q = p.next) {
-                    if (q == null || !q.isMatched()) {
-                        pred = skipDeadNodes(pred, c, p, q); p = q; break;
-                    }
-                    if (p == (p = q)) continue restartFromHead;
-                }
-            }
-            return false;
-        }
-    }
-
-    /**
-     * Returns {@code true} if this queue contains the specified element.
-     * More formally, returns {@code true} if and only if this queue contains
-     * at least one element {@code e} such that {@code o.equals(e)}.
-     *
-     * @param o object to be checked for containment in this queue
-     * @return {@code true} if this queue contains the specified element
-     */
-    public boolean contains(Object o) {
-        if (o == null) return false;
-        restartFromHead: for (;;) {
-            for (Node p = head, pred = null; p != null; ) {
-                Node q = p.next;
-                final Object item;
-                if ((item = p.item) != null) {
-                    if (p.isData) {
-                        if (o.equals(item))
-                            return true;
-                        pred = p; p = q; continue;
-                    }
-                }
-                else if (!p.isData)
-                    break;
-                for (Node c = p;; q = p.next) {
-                    if (q == null || !q.isMatched()) {
-                        pred = skipDeadNodes(pred, c, p, q); p = q; break;
-                    }
-                    if (p == (p = q)) continue restartFromHead;
-                }
-            }
-            return false;
-        }
-    }
-
+    
     /**
      * Always returns {@code Integer.MAX_VALUE} because a
      * {@code LinkedTransferQueue} is not capacity constrained.
      *
      * @return {@code Integer.MAX_VALUE} (as specified by
-     *         {@link BlockingQueue#remainingCapacity()})
+     * {@link BlockingQueue#remainingCapacity()})
      */
+    // 总是返回Integer.MAX_VALUE，因为该结构容量无限
     public int remainingCapacity() {
         return Integer.MAX_VALUE;
     }
+    
+    /**
+     * Returns {@code true} if this queue contains no elements.
+     *
+     * @return {@code true} if this queue contains no elements
+     */
+    // 判断队列是否为空
+    public boolean isEmpty() {
+        return firstDataNode() == null;
+    }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 传递数据 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Transfers the element to a consumer, waiting if necessary to do so.
+     *
+     * <p>More precisely, transfers the specified element immediately
+     * if there exists a consumer already waiting to receive it (in
+     * {@link #take} or timed {@link #poll(long, TimeUnit) poll}),
+     * else inserts the specified element at the tail of this queue
+     * and waits until the element is received by a consumer.
+     *
+     * @throws NullPointerException if the specified element is null
+     */
+    // 传递元素，没有消费者时阻塞，直到消费者到达时解除阻塞
+    public void transfer(E e) throws InterruptedException {
+        if(xfer(e, true, SYNC, 0) != null) {
+            Thread.interrupted(); // failure possible only due to interrupt
+            throw new InterruptedException();
+        }
+    }
+    
+    /**
+     * Transfers the element to a waiting consumer immediately, if possible.
+     *
+     * <p>More precisely, transfers the specified element immediately
+     * if there exists a consumer already waiting to receive it (in
+     * {@link #take} or timed {@link #poll(long, TimeUnit) poll}),
+     * otherwise returning {@code false} without enqueuing the element.
+     *
+     * @throws NullPointerException if the specified element is null
+     */
+    /*
+     * 尝试传递元素，没有消费者时返回false
+     *
+     * 如果已有"取"操作在阻塞，则将元素传递给取操作，返回true
+     * 否则，直接返回false（不会将数据放在队列中）
+     */
+    public boolean tryTransfer(E e) {
+        return xfer(e, true, NOW, 0) == null;
+    }
+    
+    /**
+     * Transfers the element to a consumer if it is possible to do so
+     * before the timeout elapses.
+     *
+     * <p>More precisely, transfers the specified element immediately
+     * if there exists a consumer already waiting to receive it (in
+     * {@link #take} or timed {@link #poll(long, TimeUnit) poll}),
+     * else inserts the specified element at the tail of this queue
+     * and waits until the element is received by a consumer,
+     * returning {@code false} if the specified wait time elapses
+     * before the element can be transferred.
+     *
+     * @throws NullPointerException if the specified element is null
+     */
+    /*
+     * 尝试传递元素，没有消费者时则阻塞一段时间，超时后无法传递则返回false
+     *
+     * 如果已有"取"操作在阻塞，则将元素传递给取操作，返回true
+     * 否则，将数据结点放在队列中，并阻塞一段时间
+     * 阻塞超时后，将数据结点标记为已匹配，并返回false
+     */
+    public boolean tryTransfer(E e, long timeout, TimeUnit unit) throws InterruptedException {
+        if(xfer(e, true, TIMED, unit.toNanos(timeout)) == null) {
+            return true;
+        }
+        
+        if(!Thread.interrupted()) {
+            return false;
+        }
+        
+        throw new InterruptedException();
+    }
+    
+    /**
+     * Implements all queuing methods. See above for explanation.
+     *
+     * @param e        the item or null for take
+     * @param haveData true if this is a put, else a take
+     * @param how      NOW, ASYNC, SYNC, or TIMED
+     * @param nanos    timeout in nanosecs, used only if mode is TIMED
+     *
+     * @return an item if matched, else e
+     *
+     * @throws NullPointerException if haveData mode but e is null
+     */
+    // 队列操作的核心方法
+    @SuppressWarnings("unchecked")
+    private E xfer(E e, boolean haveData, int how, long nanos) {
+        if(haveData && (e == null)) {
+            throw new NullPointerException();
+        }
 
+restart:
+        for(Node s = null, h = null, t = null; ; ) {
+            //
+            Node p = (t != (t = tail) && t.isData == haveData)
+                ? t             // 入队（存入数据）时，从队尾开始
+                : (h = head);   // 出队（进行匹配）时，从队头开始
+            
+            for(; ; ) {
+                final Node q;
+                final Object item;
+                
+                // 如果结点类型不匹配，说明可以开始匹配了
+                if(p.isData != haveData && haveData == ((item = p.item) == null)) {
+                    if(h == null) {
+                        h = head;
+                    }
+                    
+                    // 尝试将结点p的item域从item更新到e，且唤醒阻塞线程（可能为null）
+                    if(p.tryMatch(item, e)) {
+                        /* 至此，结点p从未匹配结点转为匹配结点 */
+                        
+                        if(h != p) {
+                            // 折叠h到p之间的已匹配结点
+                            skipDeadNodesNearHead(h, p);
+                        }
+                        
+                        return (E) item;
+                    }
+                }
+                
+                /*
+                 * 至此，有两种可能：
+                 * 1.入队/出队结点与队尾/队头结点类型一致，
+                 *   此时，需要将数据存入队列，或者，需要阻塞"取"操作
+                 * 2.结点类型不一致，但是尝试更新结点p的item域时失败了，
+                 *   这可能是因为别的线程抢先执行了匹配过程
+                 */
+                
+                // 如果p已经是最后一个结点
+                if((q = p.next) == null) {
+                    // 如果是poll()或tryTransfer()操作，立即返回
+                    if(how == NOW) {
+                        return e;
+                    }
+                    
+                    // 如果需要存数据，或者需要阻塞"取"操作，则创建排队结点
+                    if(s == null) {
+                        s = new Node(e);
+                    }
+                    
+                    // 尝试将结点p的next域从null更新到s
+                    if(!p.casNext(null, s)) {
+                        continue;
+                    }
+                    
+                    // 队尾滞后了，则需要更新tail
+                    if(p != t) {
+                        casTail(t, s);
+                    }
+                    
+                    // 如果是put/offer/add操作，直接返回
+                    if(how == ASYNC) {
+                        return e;
+                    }
+                    
+                    /*
+                     * 如果是：
+                     * SYNC  - take()/transfer()
+                     * TIMED - 超时的poll()/tryTransfer()
+                     * 将当前线程转入阻塞
+                     */
+                    return awaitMatch(s, p, e, (how == TIMED), nanos);
+                }
+                
+                /* 如果p不是最后一个结点，继续向后查找 */
+                
+                // 如果p结点已经被移除，则需要重新执行xfer()方法
+                if(p == (p = q)) {
+                    continue restart;
+                }
+            } // for(; ; )
+        } // for
+    }
+    
+    /**
+     * Spins/yields/blocks until node s is matched or caller gives up.
+     *
+     * @param s     the waiting node
+     * @param pred  the predecessor of s, or null if unknown (the null
+     *              case does not occur in any current calls but may in possible
+     *              future extensions)
+     * @param e     the comparison value for checking match
+     * @param timed if true, wait only until timeout elapses
+     * @param nanos timeout in nanosecs, used only if timed is true
+     *
+     * @return matched item, or e if unmatched on interrupt or timeout
+     */
+    // 使用take()/transfer()或超时的poll()/tryTransfer()时，将当前线程转入阻塞
+    private E awaitMatch(Node s, Node pred, E e, boolean timed, long nanos) {
+        int spins = -1; // initialized after first item and cancel checks
+        
+        // 使用超时的poll()，则timed==true
+        final long deadline = timed ? System.nanoTime() + nanos : 0L;
+        
+        Thread w = Thread.currentThread();
+        
+        ThreadLocalRandom randomYields = null; // bound if needed
+        
+        for(; ; ) {
+            final Object item = s.item;
+            
+            // 如果数据域发生变化，说明该结点已被匹配
+            if(item != e) {       // matched
+                // 将结点作废（使item域指向自身，且置空waiter域）
+                s.forgetContents();           // avoid garbage
+                
+                @SuppressWarnings("unchecked")
+                E itemE = (E) item;
+                
+                return itemE;
+                
+                // 如果线程已中断，或已超时
+            } else if(w.isInterrupted() || (timed && nanos<=0L)) {
+                /* try to cancel and unlink */
+                
+                // 尝试更新结点s的item域（将未匹配结点设置为已匹配结点）
+                if(s.casItem(e, s.isData ? null : s)) {
+                    // 取消已匹配结点的链接
+                    unsplice(pred, s);
+                    return e;
+                }
+                
+                // 初始化自旋次数
+            } else if(spins<0) {            // establish spins at/near front
+                spins = spinsFor(pred, s.isData);
+                
+                if(spins>0) {
+                    randomYields = ThreadLocalRandom.current();
+                }
+                
+                // 进入自旋
+            } else if(spins>0) {             // spin
+                --spins;
+                
+                if(randomYields.nextInt(CHAINED_SPINS) == 0) {
+                    Thread.yield();           // occasionally yield
+                }
+                
+                // 设置阻塞线程
+            } else if(s.waiter == null) {
+                s.waiter = w;                 // request unpark then recheck
+                
+                // 超时的poll()/tryTransfer()
+            } else if(timed) {
+                nanos = deadline - System.nanoTime();
+                if(nanos>0L) {
+                    LockSupport.parkNanos(this, nanos);
+                }
+                
+                // take()
+            } else {
+                LockSupport.park(this);
+            }
+        } // for(; ; )
+    }
+    
+    /**
+     * Unsplices (now or later) the given deleted/cancelled node with the given predecessor.
+     *
+     * @param pred a node that was at one time known to be the predecessor of s
+     * @param s the node to be unspliced
+     */
+    // 取消已匹配结点的链接
+    final void unsplice(Node pred, Node s) {
+        // assert pred != null;
+        // assert pred != s;
+        // assert s != null;
+        // assert s.isMatched();
+        // assert (SWEEP_THRESHOLD & (SWEEP_THRESHOLD - 1)) == 0;
+        s.waiter = null; // disable signals
+        
+        /*
+         * See above for rationale. Briefly: if pred still points to
+         * s, try to unlink s.  If s cannot be unlinked, because it is
+         * trailing node or pred might be unlinked, and neither pred
+         * nor s are head or offlist, add to sweepVotes, and if enough
+         * votes have accumulated, sweep.
+         */
+        if (pred != null && pred.next == s) {
+            Node n = s.next;
+            
+            if (n == null
+                || (n != s && pred.casNext(s, n) && pred.isMatched())) {
+                
+                for (;;) {               // check if at, or could be, head
+                    Node h = head;
+                    
+                    if (h == pred || h == s) {
+                        return;          // at head or list empty
+                    }
+                    
+                    if (!h.isMatched()) {
+                        break;
+                    }
+                    
+                    Node hn = h.next;
+                    if (hn == null) {
+                        return;          // now empty
+                    }
+                    
+                    if (hn != h && casHead(h, hn)) {
+                        // 更新结点h的next域为自身
+                        h.selfLink();  // advance head
+                    }
+                }
+                
+                // sweep every SWEEP_THRESHOLD votes
+                if (pred.next != pred && s.next != s // recheck if offlist
+                    && (incSweepVotes() & (SWEEP_THRESHOLD - 1)) == 0) {
+                    // 从头结点开始遍历，取消已匹配结点的链接
+                    sweep();
+                }
+            }
+        }
+    }
+    
+    /**
+     * Unlinks matched (typically cancelled) nodes encountered in a traversal from head.
+     */
+    // 从头结点开始遍历，取消已匹配结点的链接
+    private void sweep() {
+        for (Node p = head, s, n; p != null && (s = p.next) != null; ) {
+            if (!s.isMatched()) {
+                // Unmatched nodes are never self-linked
+                p = s;
+            } else if ((n = s.next) == null) {
+                // trailing node is pinned
+                break;
+            } else if (s == n) {    // stale
+                // No need to also check for p == s, since that implies s == n
+                p = head;
+            } else {
+                p.casNext(s, n);
+            }
+        }
+    }
+    
+    /*▲ 传递数据 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    private static final long serialVersionUID = -3223113410248163686L;
+    
+    
     /**
      * Saves this queue to a stream (that is, serializes it).
      *
      * @param s the stream
+     *
      * @throws java.io.IOException if an I/O error occurs
      * @serialData All of the elements (each an {@code E}) in
      * the proper order, followed by a null
      */
-    private void writeObject(java.io.ObjectOutputStream s)
-        throws java.io.IOException {
+    private void writeObject(ObjectOutputStream s) throws IOException {
         s.defaultWriteObject();
-        for (E e : this)
+        for(E e : this)
             s.writeObject(e);
         // Use trailing null as sentinel
         s.writeObject(null);
     }
-
+    
     /**
      * Reconstitutes this queue from a stream (that is, deserializes it).
+     *
      * @param s the stream
+     *
      * @throws ClassNotFoundException if the class of a serialized object
-     *         could not be found
-     * @throws java.io.IOException if an I/O error occurs
+     *                                could not be found
+     * @throws java.io.IOException    if an I/O error occurs
      */
-    private void readObject(java.io.ObjectInputStream s)
-        throws java.io.IOException, ClassNotFoundException {
-
+    private void readObject(ObjectInputStream s) throws IOException, ClassNotFoundException {
+        
         // Read in elements until trailing null sentinel found
         Node h = null, t = null;
-        for (Object item; (item = s.readObject()) != null; ) {
+        for(Object item; (item = s.readObject()) != null; ) {
             Node newNode = new Node(item);
-            if (h == null)
+            if(h == null) {
                 h = t = newNode;
-            else
-                t.appendRelaxed(t = newNode);
+            } else {
+                t = newNode;
+                t.appendRelaxed(t);
+            }
         }
-        if (h == null)
+        if(h == null)
             h = t = new Node();
         head = h;
         tail = t;
     }
+    
+    /*▲ 序列化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    public String toString() {
+        String[] a = null;
 
-    /**
-     * @throws NullPointerException {@inheritDoc}
-     */
-    public boolean removeIf(Predicate<? super E> filter) {
-        Objects.requireNonNull(filter);
-        return bulkRemove(filter);
+restartFromHead:
+        for(; ; ) {
+            int charLength = 0;
+            int size = 0;
+            for(Node p = head; p != null; ) {
+                Object item = p.item;
+                if(p.isData) {
+                    if(item != null) {
+                        if(a == null) {
+                            a = new String[4];
+                        } else if(size == a.length) {
+                            a = Arrays.copyOf(a, 2 * size);
+                        }
+                        String s = item.toString();
+                        a[size++] = s;
+                        charLength += s.length();
+                    }
+                } else if(item == null) {
+                    break;
+                }
+                
+                if(p == (p = p.next)) {
+                    continue restartFromHead;
+                }
+            }
+            
+            if(size == 0) {
+                return "[]";
+            }
+            
+            return Helpers.toString(a, size, charLength);
+        }
     }
-
-    /**
-     * @throws NullPointerException {@inheritDoc}
-     */
-    public boolean removeAll(Collection<?> c) {
-        Objects.requireNonNull(c);
-        return bulkRemove(e -> c.contains(e));
+    
+    
+    
+    // 尝试将队列的tail域从cmp更新到val
+    private boolean casTail(Node cmp, Node val) {
+        // assert cmp != null;
+        // assert val != null;
+        return TAIL.compareAndSet(this, cmp, val);
     }
-
-    /**
-     * @throws NullPointerException {@inheritDoc}
-     */
-    public boolean retainAll(Collection<?> c) {
-        Objects.requireNonNull(c);
-        return bulkRemove(e -> !c.contains(e));
+    
+    // 尝试将队列的head域从cmp更新到val
+    private boolean casHead(Node cmp, Node val) {
+        return HEAD.compareAndSet(this, cmp, val);
     }
-
-    public void clear() {
-        bulkRemove(e -> true);
+    
+    /** Atomic version of ++sweepVotes. */
+    private int incSweepVotes() {
+        return (int) SWEEPVOTES.getAndAdd(this, 1) + 1;
     }
-
+    
     /**
-     * Tolerate this many consecutive dead nodes before CAS-collapsing.
-     * Amortized cost of clear() is (1 + 1/MAX_HOPS) CASes per element.
+     * Tries to CAS pred.next (or head, if pred is null) from c to p.
+     * Caller must ensure that we're not unlinking the trailing node.
      */
-    private static final int MAX_HOPS = 8;
-
+    private boolean tryCasSuccessor(Node pred, Node c, Node p) {
+        // assert p != null;
+        // assert c.isData != (c.item != null);
+        // assert c != p;
+        if(pred != null) {
+            return pred.casNext(c, p);
+        }
+        
+        if(casHead(c, p)) {
+            // 更新结点c的next域为自身
+            c.selfLink();
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Collapses dead (matched) nodes between pred and q.
+     *
+     * @param pred the last known live node, or null if none
+     * @param c    the first dead node
+     * @param p    the last dead node
+     * @param q    p.next: the next live node, or null if at end
+     *
+     * @return pred if pred still alive and CAS succeeded; else p
+     */
+    private Node skipDeadNodes(Node pred, Node c, Node p, Node q) {
+        // assert pred != c;
+        // assert p != q;
+        // assert c.isMatched();
+        // assert p.isMatched();
+        
+        if(q == null) {
+            // Never unlink trailing node.
+            if(c == p) {
+                return pred;
+            }
+            
+            q = p;
+        }
+        
+        if(!tryCasSuccessor(pred, c, q)){
+            return p;
+        }
+        
+        if(pred == null){
+            return pred;
+        }
+        
+        // 判断当前结点是否为已匹配结点（isData域与item域不匹配）
+        return !pred.isMatched() ? pred : p;
+    }
+    
+    /**
+     * Collapses dead (matched) nodes from h (which was once head) to p.
+     * Caller ensures all nodes from h up to and including p are dead.
+     */
+    // 折叠h到p之间的已匹配结点
+    private void skipDeadNodesNearHead(Node h, Node p) {
+        // assert h != null;
+        // assert h != p;
+        // assert p.isMatched();
+        
+        for(; ; ) {
+            final Node q;
+            
+            // 如果p已经是最后一个结点
+            if((q = p.next) == null) {
+                break;
+            }
+            
+            // 如果结点q还未匹配（isData域与item域匹配）
+            if(!q.isMatched()) {
+                p = q;
+                break;
+            }
+            
+            // 如果p的next域指向了自身
+            if(p == (p = q)) {
+                return;
+            }
+        }
+        
+        // 尝试将队列的head域从h更新到p
+        if(casHead(h, p)) {
+            // 更新结点h的next域为自身
+            h.selfLink();
+        }
+    }
+    
+    /**
+     * Returns spin/yield value for a node with given predecessor and data mode. See above for explanation.
+     */
+    private static int spinsFor(Node pred, boolean haveData) {
+        if(MP && pred != null) {
+            if(pred.isData != haveData) {
+                // phase change
+                return FRONT_SPINS + CHAINED_SPINS;
+            }
+            
+            if(pred.isMatched()) {
+                // probably at front
+                return FRONT_SPINS;
+            }
+            
+            if(pred.waiter == null) {
+                // pred apparently spinning
+                return CHAINED_SPINS;
+            }
+        }
+        return 0;
+    }
+    
+    /**
+     * Returns the first unmatched data node, or null if none.
+     * Callers must recheck if the returned node is unmatched
+     * before using.
+     */
+    final Node firstDataNode() {
+        Node first = null;
+restartFromHead:
+        for(; ; ) {
+            Node h = head, p = h;
+            while(p != null) {
+                if(p.item != null) {
+                    if(p.isData) {
+                        first = p;
+                        break;
+                    }
+                } else if(!p.isData) {
+                    break;
+                }
+                
+                final Node q;
+                if((q = p.next) == null) {
+                    break;
+                }
+                
+                if(p == (p = q)) {
+                    continue restartFromHead;
+                }
+            }
+            if(p != h && casHead(h, p)) {
+                // 尝试将结点h的next域更新为自身
+                h.selfLink();
+            }
+            
+            return first;
+        }
+    }
+    
+    /**
+     * Traverses and counts unmatched nodes of the given mode.
+     * Used by methods size and getWaitingConsumerCount.
+     */
+    private int countOfMode(boolean data) {
+restartFromHead:
+        for(; ; ) {
+            int count = 0;
+            for(Node p = head; p != null; ) {
+                // 该结点还未匹配
+                if(!p.isMatched()) {
+                    if(p.isData != data) {
+                        return 0;
+                    }
+                    
+                    if(++count == Integer.MAX_VALUE) {
+                        break;  // @see Collection.size()
+                    }
+                }
+                
+                if(p == (p = p.next)) {
+                    continue restartFromHead;
+                }
+            }
+            return count;
+        }
+    }
+    
+    /**
+     * Runs action on each element found during a traversal starting at p.
+     * If p is null, the action is not run.
+     */
+    @SuppressWarnings("unchecked")
+    void forEachFrom(Consumer<? super E> action, Node p) {
+        for (Node pred = null; p != null; ) {
+            Node q = p.next;
+            final Object item;
+            if ((item = p.item) != null) {
+                if (p.isData) {
+                    action.accept((E) item);
+                    pred = p; p = q; continue;
+                }
+            }
+            else if (!p.isData)
+                break;
+            for (Node c = p;; q = p.next) {
+                if (q == null || !q.isMatched()) {
+                    pred = skipDeadNodes(pred, c, p, q); p = q; break;
+                }
+                if (p == (p = q)) { pred = null; p = head; break; }
+            }
+        }
+    }
+    
     /** Implementation of bulk remove methods. */
     @SuppressWarnings("unchecked")
     private boolean bulkRemove(Predicate<? super E> filter) {
         boolean removed = false;
-        restartFromHead: for (;;) {
+restartFromHead: for (;;) {
             int hops = MAX_HOPS;
             // c will be CASed to collapse intervening dead nodes between
             // pred (or head if null) and p.
@@ -1684,66 +1759,395 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
             return removed;
         }
     }
-
-    /**
-     * Runs action on each element found during a traversal starting at p.
-     * If p is null, the action is not run.
-     */
-    @SuppressWarnings("unchecked")
-    void forEachFrom(Consumer<? super E> action, Node p) {
-        for (Node pred = null; p != null; ) {
-            Node q = p.next;
-            final Object item;
-            if ((item = p.item) != null) {
-                if (p.isData) {
-                    action.accept((E) item);
-                    pred = p; p = q; continue;
-                }
+    
+    private Object[] toArrayInternal(Object[] a) {
+        Object[] x = a;
+restartFromHead:
+        for(; ; ) {
+            int size = 0;
+            for(Node p = head; p != null; ) {
+                Object item = p.item;
+                if(p.isData) {
+                    if(item != null) {
+                        if(x == null)
+                            x = new Object[4];
+                        else if(size == x.length)
+                            x = Arrays.copyOf(x, 2 * (size + 4));
+                        x[size++] = item;
+                    }
+                } else if(item == null)
+                    break;
+                if(p == (p = p.next))
+                    continue restartFromHead;
             }
-            else if (!p.isData)
-                break;
-            for (Node c = p;; q = p.next) {
-                if (q == null || !q.isMatched()) {
-                    pred = skipDeadNodes(pred, c, p, q); p = q; break;
-                }
-                if (p == (p = q)) { pred = null; p = head; break; }
+            if(x == null)
+                return new Object[0];
+            else if(a != null && size<=a.length) {
+                if(a != x)
+                    System.arraycopy(x, 0, a, 0, size);
+                if(size<a.length)
+                    a[size] = null;
+                return a;
             }
+            return (size == x.length) ? x : Arrays.copyOf(x, size);
         }
     }
-
+    
+    
+    
+    
+    
+    
     /**
-     * @throws NullPointerException {@inheritDoc}
+     * Queue nodes. Uses Object, not E, for items to allow forgetting
+     * them after use.  Writes that are intrinsically ordered wrt
+     * other accesses or CASes use simple relaxed forms.
      */
-    public void forEach(Consumer<? super E> action) {
-        Objects.requireNonNull(action);
-        forEachFrom(action, head);
-    }
-
-    // VarHandle mechanics
-    private static final VarHandle HEAD;
-    private static final VarHandle TAIL;
-    private static final VarHandle SWEEPVOTES;
-    static final VarHandle ITEM;
-    static final VarHandle NEXT;
-    static final VarHandle WAITER;
-    static {
-        try {
-            MethodHandles.Lookup l = MethodHandles.lookup();
-            HEAD = l.findVarHandle(LinkedTransferQueue.class, "head",
-                                   Node.class);
-            TAIL = l.findVarHandle(LinkedTransferQueue.class, "tail",
-                                   Node.class);
-            SWEEPVOTES = l.findVarHandle(LinkedTransferQueue.class, "sweepVotes",
-                                         int.class);
-            ITEM = l.findVarHandle(Node.class, "item", Object.class);
-            NEXT = l.findVarHandle(Node.class, "next", Node.class);
-            WAITER = l.findVarHandle(Node.class, "waiter", Thread.class);
-        } catch (ReflectiveOperationException e) {
-            throw new ExceptionInInitializerError(e);
+    // 队列结点
+    static final class Node {
+        private static final long serialVersionUID = -3375979862319811754L;
+        
+        // 指向下一个结点
+        volatile Node next;
+        
+        // 判断当前结点是否为数据结点
+        final boolean isData;   // false if this is a request node
+        
+        // 数据域（生产者存数据，消费者存null。取消操作时指向自身）
+        volatile Object item;   // initially non-null if isData; CASed to match
+        
+        // 被阻塞的操作/线程/结点
+        volatile Thread waiter; // null when not waiting for a match
+        
+        /** Constructs a (matched data) dummy node. */
+        // 初始化一个"已匹配"结点
+        Node() {
+            isData = true;
         }
-
-        // Reduce the risk of rare disastrous classloading in first call to
-        // LockSupport.park: https://bugs.openjdk.java.net/browse/JDK-8074773
-        Class<?> ensureLoaded = LockSupport.class;
+        
+        /**
+         * Constructs a data node holding item if item is non-null,
+         * else a request node.  Uses relaxed write because item can
+         * only be seen after piggy-backing publication via CAS.
+         */
+        // 初始化一个生产者结点或消费者结点
+        Node(Object item) {
+            ITEM.set(this, item);
+            isData = (item != null);
+        }
+        
+        // 尝试将当前结点的next域从cmp更新到val
+        final boolean casNext(Node cmp, Node val) {
+            // assert val != null;
+            return NEXT.compareAndSet(this, cmp, val);
+        }
+        
+        /**
+         * Links node to itself to avoid garbage retention.  Called
+         * only after CASing head field, so uses relaxed write.
+         */
+        // 尝试将当前结点的next域更新为自身
+        final void selfLink() {
+            // assert isMatched();
+            NEXT.setRelease(this, this);
+        }
+        
+        // 尝试将结点next的next域更新为自身
+        final void appendRelaxed(Node next) {
+            // assert next != null;
+            // assert this.next == null;
+            NEXT.set(this, next);
+        }
+        
+        // 尝试将当前结点的item域从cmp更新到val
+        final boolean casItem(Object cmp, Object val) {
+            // assert isData == (cmp != null);
+            // assert isData == (val == null);
+            // assert !(cmp instanceof Node);
+            return ITEM.compareAndSet(this, cmp, val);
+        }
+        
+        /**
+         * Sets item (of a request node) to self and waiter to null,
+         * to avoid garbage retention after matching or cancelling.
+         * Uses relaxed writes because order is already constrained in
+         * the only calling contexts: item is forgotten only after
+         * volatile/atomic mechanics that extract items, and visitors
+         * of request nodes only ever check whether item is null.
+         * Similarly, clearing waiter follows either CAS or return
+         * from park (if ever parked; else we don't care).
+         */
+        // 将结点作废（使item域指向自身，且置空waiter域）
+        final void forgetContents() {
+            // assert isMatched();
+            if(!isData) {
+                ITEM.set(this, this);
+            }
+            WAITER.set(this, null);
+        }
+        
+        /**
+         * Returns true if this node has been matched, including the
+         * case of artificial matches due to cancellation.
+         */
+        // 判断当前结点是否为已匹配结点（isData域与item域不匹配）
+        final boolean isMatched() {
+            return isData == (item == null);
+        }
+        
+        /** Tries to CAS-match this node; if successful, wakes waiter. */
+        // 尝试将当前结点的item域从cmp更新到val，且唤醒阻塞线程（可能为null）
+        final boolean tryMatch(Object cmp, Object val) {
+            // 尝试将当前结点的item域从cmp更新到val
+            if(casItem(cmp, val)) {
+                LockSupport.unpark(waiter);
+                return true;
+            }
+            return false;
+        }
+        
+        /**
+         * Returns true if a node with the given mode cannot be
+         * appended to this node because this node is unmatched and
+         * has opposite data mode.
+         */
+        final boolean cannotPrecede(boolean haveData) {
+            boolean d = isData;
+            return d != haveData && d != (item == null);
+        }
     }
+    
+    /**
+     * Weakly-consistent iterator.
+     *
+     * Lazily updated ancestor is expected to be amortized O(1) remove(),
+     * but O(n) in the worst case, when lastRet is concurrently deleted.
+     */
+    // 用于当前队列的外部迭代器
+    final class Itr implements Iterator<E> {
+        private Node nextNode;   // next node to return item for
+        private E nextItem;      // the corresponding item
+        private Node lastRet;    // last returned node, to support remove
+        private Node ancestor;   // Helps unlink lastRet on remove()
+        
+        Itr() {
+            advance(null);
+        }
+        
+        public final boolean hasNext() {
+            return nextNode != null;
+        }
+        
+        public final E next() {
+            final Node p;
+            if((p = nextNode) == null) {
+                throw new NoSuchElementException();
+            }
+            E e = nextItem;
+            advance(lastRet = p);
+            return e;
+        }
+        
+        public final void remove() {
+            final Node lastRet = this.lastRet;
+            if(lastRet == null) {
+                throw new IllegalStateException();
+            }
+            this.lastRet = null;
+            if(lastRet.item == null) {
+                // already deleted?
+                return;
+            }
+            // Advance ancestor, collapsing intervening dead nodes
+            Node pred = ancestor;
+            for(Node p = (pred == null) ? head : pred.next, c = p, q; p != null; ) {
+                if(p == lastRet) {
+                    final Object item;
+                    if((item = p.item) != null) {
+                        p.tryMatch(item, null);
+                    }
+                    if((q = p.next) == null) {
+                        q = p;
+                    }
+                    if(c != q) {
+                        tryCasSuccessor(pred, c, q);
+                    }
+                    ancestor = pred;
+                    return;
+                }
+                final Object item;
+                final boolean pAlive;
+                if(pAlive = ((item = p.item) != null && p.isData)) {
+                    // exceptionally, nothing to do
+                } else if(!p.isData && item == null)
+                    break;
+                if((c != p && !tryCasSuccessor(pred, c, c = p)) || pAlive) {
+                    pred = p;
+                    c = p = p.next;
+                } else if(p == (p = p.next)) {
+                    pred = null;
+                    c = p = head;
+                }
+            }
+            // traversal failed to find lastRet; must have been deleted;
+            // leave ancestor at original location to avoid overshoot;
+            // better luck next time!
+            
+            // assert lastRet.isMatched();
+        }
+        
+        public void forEachRemaining(Consumer<? super E> action) {
+            Objects.requireNonNull(action);
+            Node q = null;
+            for(Node p; (p = nextNode) != null; advance(q = p)) {
+                action.accept(nextItem);
+            }
+            if(q != null) {
+                lastRet = q;
+            }
+        }
+        
+        /**
+         * Moves to next node after pred, or first node if pred null.
+         */
+        @SuppressWarnings("unchecked")
+        private void advance(Node pred) {
+            for(Node p = (pred == null) ? head : pred.next, c = p; p != null; ) {
+                final Object item;
+                if((item = p.item) != null && p.isData) {
+                    nextNode = p;
+                    nextItem = (E) item;
+                    if(c != p) {
+                        tryCasSuccessor(pred, c, p);
+                    }
+                    return;
+                } else if(!p.isData && item == null)
+                    break;
+                if(c != p && !tryCasSuccessor(pred, c, c = p)) {
+                    pred = p;
+                    c = p = p.next;
+                } else if(p == (p = p.next)) {
+                    pred = null;
+                    c = p = head;
+                }
+            }
+            nextItem = null;
+            nextNode = null;
+        }
+    }
+    
+    /** A customized variant of Spliterators.IteratorSpliterator */
+    // 描述此队列中元素的Spliterator
+    final class LTQSpliterator implements Spliterator<E> {
+        static final int MAX_BATCH = 1 << 25;  // max batch array size;
+        Node current;       // current node; null until initialized
+        int batch;          // batch size for splits
+        boolean exhausted;  // true when no more nodes
+        
+        LTQSpliterator() {
+        }
+        
+        public Spliterator<E> trySplit() {
+            Node p, q;
+            
+            if((p = current()) == null || (q = p.next) == null) {
+                return null;
+            }
+            
+            int i = 0, n = batch = Math.min(batch + 1, MAX_BATCH);
+            
+            Object[] a = null;
+            
+            do {
+                final Object item = p.item;
+                if(p.isData) {
+                    if(item != null) {
+                        if(a == null) {
+                            a = new Object[n];
+                        }
+                        a[i++] = item;
+                    }
+                } else if(item == null) {
+                    p = null;
+                    break;
+                }
+                if(p == (p = q)) {
+                    p = firstDataNode();
+                }
+            } while(p != null && (q = p.next) != null && i<n);
+            
+            setCurrent(p);
+            
+            return (i == 0)
+                ? null
+                : Spliterators.spliterator(a, 0, i, (Spliterator.ORDERED | Spliterator.NONNULL | Spliterator.CONCURRENT));
+        }
+        
+        public void forEachRemaining(Consumer<? super E> action) {
+            Objects.requireNonNull(action);
+            final Node p;
+            if((p = current()) != null) {
+                current = null;
+                exhausted = true;
+                forEachFrom(action, p);
+            }
+        }
+        
+        @SuppressWarnings("unchecked")
+        public boolean tryAdvance(Consumer<? super E> action) {
+            Objects.requireNonNull(action);
+            Node p;
+            if((p = current()) != null) {
+                E e = null;
+                do {
+                    final Object item = p.item;
+                    final boolean isData = p.isData;
+                    if(p == (p = p.next)) {
+                        p = head;
+                    }
+                    
+                    if(isData) {
+                        if(item != null) {
+                            e = (E) item;
+                            break;
+                        }
+                    } else if(item == null) {
+                        p = null;
+                    }
+                    
+                } while(p != null);
+                
+                setCurrent(p);
+                
+                if(e != null) {
+                    action.accept(e);
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        public long estimateSize() {
+            return Long.MAX_VALUE;
+        }
+        
+        public int characteristics() {
+            return (Spliterator.ORDERED | Spliterator.NONNULL | Spliterator.CONCURRENT);
+        }
+        
+        private void setCurrent(Node p) {
+            if((current = p) == null) {
+                exhausted = true;
+            }
+        }
+        
+        private Node current() {
+            Node p;
+            if((p = current) == null && !exhausted) {
+                setCurrent(p = firstDataNode());
+            }
+            return p;
+        }
+    }
+    
 }
