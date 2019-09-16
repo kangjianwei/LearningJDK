@@ -87,7 +87,9 @@ package java.util;
  * @param <E> the type of elements maintained by this set
  * @since 1.6
  */
+// 可导航的Set，要求Set必须有序，支持定位元素的起点/终点和前驱/后继，以及截取子视图
 public interface NavigableSet<E> extends SortedSet<E> {
+    
     /**
      * Returns the greatest element in this set strictly less than the
      * given element, or {@code null} if there is no such element.
@@ -100,36 +102,9 @@ public interface NavigableSet<E> extends SortedSet<E> {
      * @throws NullPointerException if the specified element is null
      *         and this set does not permit null elements
      */
+    // 〖前驱〗获取遍历当前Set时形参e的前驱
     E lower(E e);
-
-    /**
-     * Returns the greatest element in this set less than or equal to
-     * the given element, or {@code null} if there is no such element.
-     *
-     * @param e the value to match
-     * @return the greatest element less than or equal to {@code e},
-     *         or {@code null} if there is no such element
-     * @throws ClassCastException if the specified element cannot be
-     *         compared with the elements currently in the set
-     * @throws NullPointerException if the specified element is null
-     *         and this set does not permit null elements
-     */
-    E floor(E e);
-
-    /**
-     * Returns the least element in this set greater than or equal to
-     * the given element, or {@code null} if there is no such element.
-     *
-     * @param e the value to match
-     * @return the least element greater than or equal to {@code e},
-     *         or {@code null} if there is no such element
-     * @throws ClassCastException if the specified element cannot be
-     *         compared with the elements currently in the set
-     * @throws NullPointerException if the specified element is null
-     *         and this set does not permit null elements
-     */
-    E ceiling(E e);
-
+    
     /**
      * Returns the least element in this set strictly greater than the
      * given element, or {@code null} if there is no such element.
@@ -142,31 +117,200 @@ public interface NavigableSet<E> extends SortedSet<E> {
      * @throws NullPointerException if the specified element is null
      *         and this set does not permit null elements
      */
+    // 〖后继〗获取遍历当前Set时形参e的后继
     E higher(E e);
-
+    
+    /**
+     * Returns the greatest element in this set less than or equal to
+     * the given element, or {@code null} if there is no such element.
+     *
+     * @param e the value to match
+     * @return the greatest element less than or equal to {@code e},
+     *         or {@code null} if there is no such element
+     * @throws ClassCastException if the specified element cannot be
+     *         compared with the elements currently in the set
+     * @throws NullPointerException if the specified element is null
+     *         and this set does not permit null elements
+     */
+    // 【前驱】获取遍历当前Set时形参e的前驱（包括e本身）
+    E floor(E e);
+    
+    /**
+     * Returns the least element in this set greater than or equal to
+     * the given element, or {@code null} if there is no such element.
+     *
+     * @param e the value to match
+     * @return the least element greater than or equal to {@code e},
+     *         or {@code null} if there is no such element
+     * @throws ClassCastException if the specified element cannot be
+     *         compared with the elements currently in the set
+     * @throws NullPointerException if the specified element is null
+     *         and this set does not permit null elements
+     */
+    // 【后继】获取遍历当前Set时形参e的后继（包括e本身）
+    E ceiling(E e);
+    
+    
     /**
      * Retrieves and removes the first (lowest) element,
      * or returns {@code null} if this set is empty.
      *
      * @return the first element, or {@code null} if this set is empty
      */
+    // 移除遍历当前Set时的首个元素（及其关联的内容）
     E pollFirst();
-
+    
     /**
      * Retrieves and removes the last (highest) element,
      * or returns {@code null} if this set is empty.
      *
      * @return the last element, or {@code null} if this set is empty
      */
+    // 移除遍历当前Set时的最后一个元素（及其关联的内容）
     E pollLast();
-
+    
+    
     /**
-     * Returns an iterator over the elements in this set, in ascending order.
+     * {@inheritDoc}
      *
-     * @return an iterator over the elements in this set, in ascending order
+     * <p>Equivalent to {@code subSet(fromElement, true, toElement, false)}.
+     *
+     * @throws ClassCastException       {@inheritDoc}
+     * @throws NullPointerException     {@inheritDoc}
+     * @throws IllegalArgumentException {@inheritDoc}
      */
-    Iterator<E> iterator();
-
+    // 获取【理论区间】为[fromElement, toElement)的Set
+    SortedSet<E> subSet(E fromElement, E toElement);
+    
+    /**
+     * Returns a view of the portion of this set whose elements range from
+     * {@code fromElement} to {@code toElement}.  If {@code fromElement} and
+     * {@code toElement} are equal, the returned set is empty unless {@code
+     * fromInclusive} and {@code toInclusive} are both true.  The returned set
+     * is backed by this set, so changes in the returned set are reflected in
+     * this set, and vice-versa.  The returned set supports all optional set
+     * operations that this set supports.
+     *
+     * <p>The returned set will throw an {@code IllegalArgumentException}
+     * on an attempt to insert an element outside its range.
+     *
+     * @param fromElement   low endpoint of the returned set
+     * @param fromInclusive {@code true} if the low endpoint
+     *                      is to be included in the returned view
+     * @param toElement     high endpoint of the returned set
+     * @param toInclusive   {@code true} if the high endpoint
+     *                      is to be included in the returned view
+     *
+     * @return a view of the portion of this set whose elements range from
+     * {@code fromElement}, inclusive, to {@code toElement}, exclusive
+     *
+     * @throws ClassCastException       if {@code fromElement} and
+     *                                  {@code toElement} cannot be compared to one another using this
+     *                                  set's comparator (or, if the set has no comparator, using
+     *                                  natural ordering).  Implementations may, but are not required
+     *                                  to, throw this exception if {@code fromElement} or
+     *                                  {@code toElement} cannot be compared to elements currently in
+     *                                  the set.
+     * @throws NullPointerException     if {@code fromElement} or
+     *                                  {@code toElement} is null and this set does
+     *                                  not permit null elements
+     * @throws IllegalArgumentException if {@code fromElement} is
+     *                                  greater than {@code toElement}; or if this set itself
+     *                                  has a restricted range, and {@code fromElement} or
+     *                                  {@code toElement} lies outside the bounds of the range.
+     */
+    // 获取【理论区间】为〖fromElement, toElement〗的Set，区间下限/上限是否为闭区间由fromInclusive和toInclusive参数决定
+    NavigableSet<E> subSet(E fromElement, boolean fromInclusive, E toElement, boolean toInclusive);
+    
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Equivalent to {@code headSet(toElement, false)}.
+     *
+     * @throws ClassCastException       {@inheritDoc}
+     * @throws NullPointerException     {@inheritDoc}
+     * @throws IllegalArgumentException {@inheritDoc}
+     */
+    // 获取【理论区间】上限为toElement(不包含)的Set
+    SortedSet<E> headSet(E toElement);
+    
+    /**
+     * Returns a view of the portion of this set whose elements are less than
+     * (or equal to, if {@code inclusive} is true) {@code toElement}.  The
+     * returned set is backed by this set, so changes in the returned set are
+     * reflected in this set, and vice-versa.  The returned set supports all
+     * optional set operations that this set supports.
+     *
+     * <p>The returned set will throw an {@code IllegalArgumentException}
+     * on an attempt to insert an element outside its range.
+     *
+     * @param toElement high endpoint of the returned set
+     * @param inclusive {@code true} if the high endpoint
+     *                  is to be included in the returned view
+     *
+     * @return a view of the portion of this set whose elements are less than
+     * (or equal to, if {@code inclusive} is true) {@code toElement}
+     *
+     * @throws ClassCastException       if {@code toElement} is not compatible
+     *                                  with this set's comparator (or, if the set has no comparator,
+     *                                  if {@code toElement} does not implement {@link Comparable}).
+     *                                  Implementations may, but are not required to, throw this
+     *                                  exception if {@code toElement} cannot be compared to elements
+     *                                  currently in the set.
+     * @throws NullPointerException     if {@code toElement} is null and
+     *                                  this set does not permit null elements
+     * @throws IllegalArgumentException if this set itself has a
+     *                                  restricted range, and {@code toElement} lies outside the
+     *                                  bounds of the range
+     */
+    // 获取【理论区间】上限为toElement的Set，区间上限是否为闭区间由inclusive参数决定
+    NavigableSet<E> headSet(E toElement, boolean inclusive);
+    
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Equivalent to {@code tailSet(fromElement, true)}.
+     *
+     * @throws ClassCastException       {@inheritDoc}
+     * @throws NullPointerException     {@inheritDoc}
+     * @throws IllegalArgumentException {@inheritDoc}
+     */
+    // 获取【理论区间】下限为fromElement(包含)的Set
+    SortedSet<E> tailSet(E fromElement);
+    
+    /**
+     * Returns a view of the portion of this set whose elements are greater
+     * than (or equal to, if {@code inclusive} is true) {@code fromElement}.
+     * The returned set is backed by this set, so changes in the returned set
+     * are reflected in this set, and vice-versa.  The returned set supports
+     * all optional set operations that this set supports.
+     *
+     * <p>The returned set will throw an {@code IllegalArgumentException}
+     * on an attempt to insert an element outside its range.
+     *
+     * @param fromElement low endpoint of the returned set
+     * @param inclusive   {@code true} if the low endpoint
+     *                    is to be included in the returned view
+     *
+     * @return a view of the portion of this set whose elements are greater
+     * than or equal to {@code fromElement}
+     *
+     * @throws ClassCastException       if {@code fromElement} is not compatible
+     *                                  with this set's comparator (or, if the set has no comparator,
+     *                                  if {@code fromElement} does not implement {@link Comparable}).
+     *                                  Implementations may, but are not required to, throw this
+     *                                  exception if {@code fromElement} cannot be compared to elements
+     *                                  currently in the set.
+     * @throws NullPointerException     if {@code fromElement} is null
+     *                                  and this set does not permit null elements
+     * @throws IllegalArgumentException if this set itself has a
+     *                                  restricted range, and {@code fromElement} lies outside the
+     *                                  bounds of the range
+     */
+    // 获取【理论区间】下限为fromElement的Set，区间下限是否为闭区间由inclusive参数决定
+    NavigableSet<E> tailSet(E fromElement, boolean inclusive);
+    
+    
     /**
      * Returns a reverse order view of the elements contained in this set.
      * The descending set is backed by this set, so changes to the set are
@@ -182,142 +326,25 @@ public interface NavigableSet<E> extends SortedSet<E> {
      *
      * @return a reverse order view of this set
      */
+    // 获取【逆序】Set
     NavigableSet<E> descendingSet();
-
+    
+    
+    /**
+     * Returns an iterator over the elements in this set, in ascending order.
+     *
+     * @return an iterator over the elements in this set, in ascending order
+     */
+    // 返回当前Set的Iterator
+    Iterator<E> iterator();
+    
     /**
      * Returns an iterator over the elements in this set, in descending order.
      * Equivalent in effect to {@code descendingSet().iterator()}.
      *
      * @return an iterator over the elements in this set, in descending order
      */
+    // 返回【逆序】Set的Iterator
     Iterator<E> descendingIterator();
-
-    /**
-     * Returns a view of the portion of this set whose elements range from
-     * {@code fromElement} to {@code toElement}.  If {@code fromElement} and
-     * {@code toElement} are equal, the returned set is empty unless {@code
-     * fromInclusive} and {@code toInclusive} are both true.  The returned set
-     * is backed by this set, so changes in the returned set are reflected in
-     * this set, and vice-versa.  The returned set supports all optional set
-     * operations that this set supports.
-     *
-     * <p>The returned set will throw an {@code IllegalArgumentException}
-     * on an attempt to insert an element outside its range.
-     *
-     * @param fromElement low endpoint of the returned set
-     * @param fromInclusive {@code true} if the low endpoint
-     *        is to be included in the returned view
-     * @param toElement high endpoint of the returned set
-     * @param toInclusive {@code true} if the high endpoint
-     *        is to be included in the returned view
-     * @return a view of the portion of this set whose elements range from
-     *         {@code fromElement}, inclusive, to {@code toElement}, exclusive
-     * @throws ClassCastException if {@code fromElement} and
-     *         {@code toElement} cannot be compared to one another using this
-     *         set's comparator (or, if the set has no comparator, using
-     *         natural ordering).  Implementations may, but are not required
-     *         to, throw this exception if {@code fromElement} or
-     *         {@code toElement} cannot be compared to elements currently in
-     *         the set.
-     * @throws NullPointerException if {@code fromElement} or
-     *         {@code toElement} is null and this set does
-     *         not permit null elements
-     * @throws IllegalArgumentException if {@code fromElement} is
-     *         greater than {@code toElement}; or if this set itself
-     *         has a restricted range, and {@code fromElement} or
-     *         {@code toElement} lies outside the bounds of the range.
-     */
-    NavigableSet<E> subSet(E fromElement, boolean fromInclusive,
-                           E toElement,   boolean toInclusive);
-
-    /**
-     * Returns a view of the portion of this set whose elements are less than
-     * (or equal to, if {@code inclusive} is true) {@code toElement}.  The
-     * returned set is backed by this set, so changes in the returned set are
-     * reflected in this set, and vice-versa.  The returned set supports all
-     * optional set operations that this set supports.
-     *
-     * <p>The returned set will throw an {@code IllegalArgumentException}
-     * on an attempt to insert an element outside its range.
-     *
-     * @param toElement high endpoint of the returned set
-     * @param inclusive {@code true} if the high endpoint
-     *        is to be included in the returned view
-     * @return a view of the portion of this set whose elements are less than
-     *         (or equal to, if {@code inclusive} is true) {@code toElement}
-     * @throws ClassCastException if {@code toElement} is not compatible
-     *         with this set's comparator (or, if the set has no comparator,
-     *         if {@code toElement} does not implement {@link Comparable}).
-     *         Implementations may, but are not required to, throw this
-     *         exception if {@code toElement} cannot be compared to elements
-     *         currently in the set.
-     * @throws NullPointerException if {@code toElement} is null and
-     *         this set does not permit null elements
-     * @throws IllegalArgumentException if this set itself has a
-     *         restricted range, and {@code toElement} lies outside the
-     *         bounds of the range
-     */
-    NavigableSet<E> headSet(E toElement, boolean inclusive);
-
-    /**
-     * Returns a view of the portion of this set whose elements are greater
-     * than (or equal to, if {@code inclusive} is true) {@code fromElement}.
-     * The returned set is backed by this set, so changes in the returned set
-     * are reflected in this set, and vice-versa.  The returned set supports
-     * all optional set operations that this set supports.
-     *
-     * <p>The returned set will throw an {@code IllegalArgumentException}
-     * on an attempt to insert an element outside its range.
-     *
-     * @param fromElement low endpoint of the returned set
-     * @param inclusive {@code true} if the low endpoint
-     *        is to be included in the returned view
-     * @return a view of the portion of this set whose elements are greater
-     *         than or equal to {@code fromElement}
-     * @throws ClassCastException if {@code fromElement} is not compatible
-     *         with this set's comparator (or, if the set has no comparator,
-     *         if {@code fromElement} does not implement {@link Comparable}).
-     *         Implementations may, but are not required to, throw this
-     *         exception if {@code fromElement} cannot be compared to elements
-     *         currently in the set.
-     * @throws NullPointerException if {@code fromElement} is null
-     *         and this set does not permit null elements
-     * @throws IllegalArgumentException if this set itself has a
-     *         restricted range, and {@code fromElement} lies outside the
-     *         bounds of the range
-     */
-    NavigableSet<E> tailSet(E fromElement, boolean inclusive);
-
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Equivalent to {@code subSet(fromElement, true, toElement, false)}.
-     *
-     * @throws ClassCastException       {@inheritDoc}
-     * @throws NullPointerException     {@inheritDoc}
-     * @throws IllegalArgumentException {@inheritDoc}
-     */
-    SortedSet<E> subSet(E fromElement, E toElement);
-
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Equivalent to {@code headSet(toElement, false)}.
-     *
-     * @throws ClassCastException       {@inheritDoc}
-     * @throws NullPointerException     {@inheritDoc}
-     * @throws IllegalArgumentException {@inheritDoc}
-     */
-    SortedSet<E> headSet(E toElement);
-
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Equivalent to {@code tailSet(fromElement, true)}.
-     *
-     * @throws ClassCastException       {@inheritDoc}
-     * @throws NullPointerException     {@inheritDoc}
-     * @throws IllegalArgumentException {@inheritDoc}
-     */
-    SortedSet<E> tailSet(E fromElement);
+    
 }
