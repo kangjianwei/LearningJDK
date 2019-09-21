@@ -25,6 +25,9 @@
 
 package java.util;
 
+import java.io.InvalidObjectException;
+import java.io.ObjectInputStream;
+import java.io.Serializable;
 import jdk.internal.misc.SharedSecrets;
 
 /**
@@ -73,84 +76,151 @@ import jdk.internal.misc.SharedSecrets;
  * Java Collections Framework</a>.
  *
  * @author Josh Bloch
- * @since 1.5
  * @see EnumMap
+ * @since 1.5
  */
+// 枚举集合，要求集合元素必须限定为指定枚举类型中的(常量)实例
 @SuppressWarnings("serial") // No serialVersionUID due to usage of
-                            // serial proxy pattern
-public abstract class EnumSet<E extends Enum<E>> extends AbstractSet<E>
-    implements Cloneable, java.io.Serializable
-{
+public abstract class EnumSet<E extends Enum<E>> extends AbstractSet<E> implements Cloneable, Serializable {
+    
     /**
      * The class of all the elements of this set.
      */
-    final transient Class<E> elementType;
-
+    final transient Class<E> elementType;   // 当前集合中的元素类型（枚举类型）
+    
     /**
      * All of the values comprising E.  (Cached for performance.)
      */
-    final transient Enum<?>[] universe;
-
-    EnumSet(Class<E>elementType, Enum<?>[] universe) {
+    final transient Enum<?>[] universe;     // 缓存所有可能存储的枚举实例
+    
+    EnumSet(Class<E> elementType, Enum<?>[] universe) {
         this.elementType = elementType;
-        this.universe    = universe;
+        this.universe = universe;
     }
-
+    
+    /**
+     * Adds all of the elements from the appropriate enum type to this enum set, which is empty prior to the call.
+     */
+    // 将所有枚举实例添加到当前枚举集合中（universe指示了所有枚举实例）
+    abstract void addAll();
+    
+    /**
+     * Adds the specified range to this enum set, which is empty prior to the call.
+     */
+    // 向当前枚举集合中添加指定范围内的枚举实例
+    abstract void addRange(E from, E to);
+    
+    /**
+     * Complements the contents of this enum set.
+     */
+    // 获取当前枚举集合的补集
+    abstract void complement();
+    
     /**
      * Creates an empty enum set with the specified element type.
      *
      * @param <E> The class of the elements in the set
-     * @param elementType the class object of the element type for this enum
-     *     set
+     * @param elementType the class object of the element type for this enum set
      * @return An empty enum set of the specified type.
      * @throws NullPointerException if {@code elementType} is null
      */
+    // 返回一个空的枚举集合，其元素类型为elementType
     public static <E extends Enum<E>> EnumSet<E> noneOf(Class<E> elementType) {
+        // 获取枚举类型elementType中包含的枚举常量
         Enum<?>[] universe = getUniverse(elementType);
-        if (universe == null)
+        if(universe == null) {
             throw new ClassCastException(elementType + " not an enum");
-
-        if (universe.length <= 64)
+        }
+        
+        if(universe.length<=64) {
+            // 小容量的枚举集合
             return new RegularEnumSet<>(elementType, universe);
-        else
+        } else {
+            // 大容量的枚举集合
             return new JumboEnumSet<>(elementType, universe);
+        }
     }
-
+    
     /**
-     * Creates an enum set containing all of the elements in the specified
-     * element type.
+     * Creates an enum set containing all of the elements in the specified element type.
      *
      * @param <E> The class of the elements in the set
-     * @param elementType the class object of the element type for this enum
-     *     set
+     * @param elementType the class object of the element type for this enum set
      * @return An enum set containing all the elements in the specified type.
      * @throws NullPointerException if {@code elementType} is null
      */
+    // 返回一个包含了所有枚举实例的枚举集合（universe指示了所有枚举实例）
     public static <E extends Enum<E>> EnumSet<E> allOf(Class<E> elementType) {
+        // 返回一个枚举集合，其元素类型为elementType
         EnumSet<E> result = noneOf(elementType);
+        // 将所有枚举实例添加到当前枚举集合中（universe指示了所有枚举实例）
         result.addAll();
         return result;
     }
-
+    
     /**
-     * Adds all of the elements from the appropriate enum type to this enum
-     * set, which is empty prior to the call.
+     * Creates an enum set initially containing all of the elements in the
+     * range defined by the two specified endpoints.  The returned set will
+     * contain the endpoints themselves, which may be identical but must not
+     * be out of order.
+     *
+     * @param <E> The class of the parameter elements and of the set
+     * @param from the first element in the range
+     * @param to the last element in the range
+     * @throws NullPointerException if {@code from} or {@code to} are null
+     * @throws IllegalArgumentException if {@code from.compareTo(to) > 0}
+     * @return an enum set initially containing all of the elements in the
+     *         range defined by the two specified endpoints
      */
-    abstract void addAll();
-
+    // 返回一个包含了指定范围枚举实例的枚举集合
+    public static <E extends Enum<E>> EnumSet<E> range(E from, E to) {
+        if(from.compareTo(to)>0) {
+            throw new IllegalArgumentException(from + " > " + to);
+        }
+        
+        // 获取枚举类类对象
+        Class<E> elementType = from.getDeclaringClass();
+        
+        // 返回一个空的枚举集合，其元素类型为elementType
+        EnumSet<E> result = noneOf(elementType);
+        
+        // 向当前枚举集合中添加指定范围内的枚举实例
+        result.addRange(from, to);
+        
+        return result;
+    }
+    
     /**
      * Creates an enum set with the same element type as the specified enum
-     * set, initially containing the same elements (if any).
+     * set, initially containing all the elements of this type that are
+     * <i>not</i> contained in the specified set.
+     *
+     * @param <E> The class of the elements in the enum set
+     * @param s the enum set from whose complement to initialize this enum set
+     * @return The complement of the specified set in this set
+     * @throws NullPointerException if {@code s} is null
+     */
+    // 获取当前枚举集合的补集
+    public static <E extends Enum<E>> EnumSet<E> complementOf(EnumSet<E> s) {
+        EnumSet<E> result = copyOf(s);
+        result.complement();
+        return result;
+    }
+    
+    /**
+     * Creates an enum set with the same element type as the specified enum set,
+     * initially containing the same elements (if any).
      *
      * @param <E> The class of the elements in the set
      * @param s the enum set from which to initialize this enum set
      * @return A copy of the specified enum set.
      * @throws NullPointerException if {@code s} is null
      */
+    // 返回当前枚举集合的一个克隆
     public static <E extends Enum<E>> EnumSet<E> copyOf(EnumSet<E> s) {
         return s.clone();
     }
-
+    
     /**
      * Creates an enum set initialized from the specified collection.  If
      * the specified collection is an {@code EnumSet} instance, this static
@@ -165,37 +235,29 @@ public abstract class EnumSet<E extends Enum<E>> extends AbstractSet<E>
      *     {@code EnumSet} instance and contains no elements
      * @throws NullPointerException if {@code c} is null
      */
+    // 返回包含了指定容器中元素的一个枚举集合
     public static <E extends Enum<E>> EnumSet<E> copyOf(Collection<E> c) {
-        if (c instanceof EnumSet) {
-            return ((EnumSet<E>)c).clone();
+        if(c instanceof EnumSet) {
+            return ((EnumSet<E>) c).clone();
         } else {
-            if (c.isEmpty())
+            if(c.isEmpty()) {
                 throw new IllegalArgumentException("Collection is empty");
-            Iterator<E> i = c.iterator();
-            E first = i.next();
+            }
+            
+            Iterator<E> iterator = c.iterator();
+            
+            E first = iterator.next();
             EnumSet<E> result = EnumSet.of(first);
-            while (i.hasNext())
-                result.add(i.next());
+            
+            while(iterator.hasNext()) {
+                result.add(iterator.next());
+            }
+            
+            
             return result;
         }
     }
-
-    /**
-     * Creates an enum set with the same element type as the specified enum
-     * set, initially containing all the elements of this type that are
-     * <i>not</i> contained in the specified set.
-     *
-     * @param <E> The class of the elements in the enum set
-     * @param s the enum set from whose complement to initialize this enum set
-     * @return The complement of the specified set in this set
-     * @throws NullPointerException if {@code s} is null
-     */
-    public static <E extends Enum<E>> EnumSet<E> complementOf(EnumSet<E> s) {
-        EnumSet<E> result = copyOf(s);
-        result.complement();
-        return result;
-    }
-
+    
     /**
      * Creates an enum set initially containing the specified element.
      *
@@ -210,12 +272,20 @@ public abstract class EnumSet<E extends Enum<E>> extends AbstractSet<E>
      * @throws NullPointerException if {@code e} is null
      * @return an enum set initially containing the specified element
      */
+    // 返回包含了指定元素的枚举集合
     public static <E extends Enum<E>> EnumSet<E> of(E e) {
-        EnumSet<E> result = noneOf(e.getDeclaringClass());
+        // 获取枚举类类对象
+        Class<E> elementType = e.getDeclaringClass();
+        
+        // 返回一个空的枚举集合，其元素类型为elementType
+        EnumSet<E> result = noneOf(elementType);
+        
+        // 向当前容器中添加元素
         result.add(e);
+        
         return result;
     }
-
+    
     /**
      * Creates an enum set initially containing the specified elements.
      *
@@ -231,13 +301,21 @@ public abstract class EnumSet<E extends Enum<E>> extends AbstractSet<E>
      * @throws NullPointerException if any parameters are null
      * @return an enum set initially containing the specified elements
      */
+    // 返回包含了指定元素的枚举集合
     public static <E extends Enum<E>> EnumSet<E> of(E e1, E e2) {
-        EnumSet<E> result = noneOf(e1.getDeclaringClass());
+        // 获取枚举类类对象
+        Class<E> elementType = e1.getDeclaringClass();
+        
+        // 返回一个空的枚举集合，其元素类型为elementType
+        EnumSet<E> result = noneOf(elementType);
+        
+        // 向当前容器中添加元素
         result.add(e1);
         result.add(e2);
+        
         return result;
     }
-
+    
     /**
      * Creates an enum set initially containing the specified elements.
      *
@@ -254,14 +332,22 @@ public abstract class EnumSet<E extends Enum<E>> extends AbstractSet<E>
      * @throws NullPointerException if any parameters are null
      * @return an enum set initially containing the specified elements
      */
+    // 返回包含了指定元素的枚举集合
     public static <E extends Enum<E>> EnumSet<E> of(E e1, E e2, E e3) {
-        EnumSet<E> result = noneOf(e1.getDeclaringClass());
+        // 获取枚举类类对象
+        Class<E> elementType = e1.getDeclaringClass();
+        
+        // 返回一个空的枚举集合，其元素类型为elementType
+        EnumSet<E> result = noneOf(elementType);
+        
+        // 向当前容器中添加元素
         result.add(e1);
         result.add(e2);
         result.add(e3);
+        
         return result;
     }
-
+    
     /**
      * Creates an enum set initially containing the specified elements.
      *
@@ -279,15 +365,23 @@ public abstract class EnumSet<E extends Enum<E>> extends AbstractSet<E>
      * @throws NullPointerException if any parameters are null
      * @return an enum set initially containing the specified elements
      */
+    // 返回包含了指定元素的枚举集合
     public static <E extends Enum<E>> EnumSet<E> of(E e1, E e2, E e3, E e4) {
-        EnumSet<E> result = noneOf(e1.getDeclaringClass());
+        // 获取枚举类类对象
+        Class<E> elementType = e1.getDeclaringClass();
+        
+        // 返回一个空的枚举集合，其元素类型为elementType
+        EnumSet<E> result = noneOf(elementType);
+        
+        // 向当前容器中添加元素
         result.add(e1);
         result.add(e2);
         result.add(e3);
         result.add(e4);
+        
         return result;
     }
-
+    
     /**
      * Creates an enum set initially containing the specified elements.
      *
@@ -306,18 +400,24 @@ public abstract class EnumSet<E extends Enum<E>> extends AbstractSet<E>
      * @throws NullPointerException if any parameters are null
      * @return an enum set initially containing the specified elements
      */
-    public static <E extends Enum<E>> EnumSet<E> of(E e1, E e2, E e3, E e4,
-                                                    E e5)
-    {
-        EnumSet<E> result = noneOf(e1.getDeclaringClass());
+    // 返回包含了指定元素的枚举集合
+    public static <E extends Enum<E>> EnumSet<E> of(E e1, E e2, E e3, E e4, E e5) {
+        // 获取枚举类类对象
+        Class<E> elementType = e1.getDeclaringClass();
+        
+        // 返回一个空的枚举集合，其元素类型为elementType
+        EnumSet<E> result = noneOf(elementType);
+        
+        // 向当前容器中添加元素
         result.add(e1);
         result.add(e2);
         result.add(e3);
         result.add(e4);
         result.add(e5);
+        
         return result;
     }
-
+    
     /**
      * Creates an enum set initially containing the specified elements.
      * This factory, whose parameter list uses the varargs feature, may
@@ -332,43 +432,42 @@ public abstract class EnumSet<E extends Enum<E>> extends AbstractSet<E>
      *     or if {@code rest} is null
      * @return an enum set initially containing the specified elements
      */
+    // 返回包含了指定元素的枚举集合
     @SafeVarargs
     public static <E extends Enum<E>> EnumSet<E> of(E first, E... rest) {
-        EnumSet<E> result = noneOf(first.getDeclaringClass());
+        // 获取枚举类类对象
+        Class<E> elementType = first.getDeclaringClass();
+        
+        // 返回一个空的枚举集合，其元素类型为elementType
+        EnumSet<E> result = noneOf(elementType);
+        
+        // 向当前容器中添加元素
         result.add(first);
-        for (E e : rest)
-            result.add(e);
+        Collections.addAll(result, rest);
+        
         return result;
     }
-
+    
     /**
-     * Creates an enum set initially containing all of the elements in the
-     * range defined by the two specified endpoints.  The returned set will
-     * contain the endpoints themselves, which may be identical but must not
-     * be out of order.
-     *
-     * @param <E> The class of the parameter elements and of the set
-     * @param from the first element in the range
-     * @param to the last element in the range
-     * @throws NullPointerException if {@code from} or {@code to} are null
-     * @throws IllegalArgumentException if {@code from.compareTo(to) > 0}
-     * @return an enum set initially containing all of the elements in the
-     *         range defined by the two specified endpoints
+     * Throws an exception if e is not of the correct type for this enum set.
      */
-    public static <E extends Enum<E>> EnumSet<E> range(E from, E to) {
-        if (from.compareTo(to) > 0)
-            throw new IllegalArgumentException(from + " > " + to);
-        EnumSet<E> result = noneOf(from.getDeclaringClass());
-        result.addRange(from, to);
-        return result;
+    // 类型校验
+    final void typeCheck(E e) {
+        Class<?> eClass = e.getClass();
+        if(eClass != elementType && eClass.getSuperclass() != elementType) {
+            throw new ClassCastException(eClass + " != " + elementType);
+        }
     }
-
+    
     /**
-     * Adds the specified range to this enum set, which is empty prior
-     * to the call.
+     * Returns all of the values comprising E.
+     * The result is uncloned, cached, and shared by all callers.
      */
-    abstract void addRange(E from, E to);
-
+    // 获取枚举类型elementType中包含的枚举常量
+    private static <E extends Enum<E>> E[] getUniverse(Class<E> elementType) {
+        return SharedSecrets.getJavaLangAccess().getEnumConstantsShared(elementType);
+    }
+    
     /**
      * Returns a copy of this set.
      *
@@ -382,85 +481,7 @@ public abstract class EnumSet<E extends Enum<E>> extends AbstractSet<E>
             throw new AssertionError(e);
         }
     }
-
-    /**
-     * Complements the contents of this enum set.
-     */
-    abstract void complement();
-
-    /**
-     * Throws an exception if e is not of the correct type for this enum set.
-     */
-    final void typeCheck(E e) {
-        Class<?> eClass = e.getClass();
-        if (eClass != elementType && eClass.getSuperclass() != elementType)
-            throw new ClassCastException(eClass + " != " + elementType);
-    }
-
-    /**
-     * Returns all of the values comprising E.
-     * The result is uncloned, cached, and shared by all callers.
-     */
-    private static <E extends Enum<E>> E[] getUniverse(Class<E> elementType) {
-        return SharedSecrets.getJavaLangAccess()
-                                        .getEnumConstantsShared(elementType);
-    }
-
-    /**
-     * This class is used to serialize all EnumSet instances, regardless of
-     * implementation type.  It captures their "logical contents" and they
-     * are reconstructed using public static factories.  This is necessary
-     * to ensure that the existence of a particular implementation type is
-     * an implementation detail.
-     *
-     * @serial include
-     */
-    private static class SerializationProxy<E extends Enum<E>>
-        implements java.io.Serializable
-    {
-
-        private static final Enum<?>[] ZERO_LENGTH_ENUM_ARRAY = new Enum<?>[0];
-
-        /**
-         * The element type of this enum set.
-         *
-         * @serial
-         */
-        private final Class<E> elementType;
-
-        /**
-         * The elements contained in this enum set.
-         *
-         * @serial
-         */
-        private final Enum<?>[] elements;
-
-        SerializationProxy(EnumSet<E> set) {
-            elementType = set.elementType;
-            elements = set.toArray(ZERO_LENGTH_ENUM_ARRAY);
-        }
-
-        /**
-         * Returns an {@code EnumSet} object with initial state
-         * held by this proxy.
-         *
-         * @return a {@code EnumSet} object with initial state
-         * held by this proxy
-         */
-        @SuppressWarnings("unchecked")
-        private Object readResolve() {
-            // instead of cast to E, we should perhaps use elementType.cast()
-            // to avoid injection of forged stream, but it will slow the
-            // implementation
-            EnumSet<E> result = EnumSet.noneOf(elementType);
-            for (Enum<?> e : elements)
-                result.add((E)e);
-            return result;
-        }
-
-        private static final long serialVersionUID = 362491234563181265L;
-    }
-
+    
     /**
      * Returns a
      * <a href="../../serialized-form.html#java.util.EnumSet.SerializationProxy">
@@ -473,13 +494,68 @@ public abstract class EnumSet<E extends Enum<E>> extends AbstractSet<E>
     Object writeReplace() {
         return new SerializationProxy<>(this);
     }
-
+    
     /**
      * @param s the stream
+     *
      * @throws java.io.InvalidObjectException always
      */
-    private void readObject(java.io.ObjectInputStream s)
-        throws java.io.InvalidObjectException {
-        throw new java.io.InvalidObjectException("Proxy required");
+    private void readObject(ObjectInputStream s) throws InvalidObjectException {
+        throw new InvalidObjectException("Proxy required");
     }
+    
+    
+    
+    /**
+     * This class is used to serialize all EnumSet instances, regardless of
+     * implementation type.  It captures their "logical contents" and they
+     * are reconstructed using public static factories.  This is necessary
+     * to ensure that the existence of a particular implementation type is
+     * an implementation detail.
+     *
+     * @serial include
+     */
+    private static class SerializationProxy<E extends Enum<E>> implements Serializable {
+        private static final long serialVersionUID = 362491234563181265L;
+        
+        private static final Enum<?>[] ZERO_LENGTH_ENUM_ARRAY = new Enum<?>[0];
+        
+        /**
+         * The element type of this enum set.
+         *
+         * @serial
+         */
+        private final Class<E> elementType;
+        
+        /**
+         * The elements contained in this enum set.
+         *
+         * @serial
+         */
+        private final Enum<?>[] elements;
+        
+        SerializationProxy(EnumSet<E> set) {
+            elementType = set.elementType;
+            elements = set.toArray(ZERO_LENGTH_ENUM_ARRAY);
+        }
+        
+        /**
+         * Returns an {@code EnumSet} object with initial state
+         * held by this proxy.
+         *
+         * @return a {@code EnumSet} object with initial state
+         * held by this proxy
+         */
+        @SuppressWarnings("unchecked")
+        private Object readResolve() {
+            // instead of cast to E, we should perhaps use elementType.cast() to avoid injection of forged stream,
+            // but it will slow the implementation
+            EnumSet<E> result = EnumSet.noneOf(elementType);
+            for(Enum<?> e : elements) {
+                result.add((E) e);
+            }
+            return result;
+        }
+    }
+    
 }
