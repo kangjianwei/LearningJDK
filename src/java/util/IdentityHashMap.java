@@ -25,6 +25,8 @@
 
 package java.util;
 
+import java.io.IOException;
+import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -126,20 +128,24 @@ import jdk.internal.misc.SharedSecrets;
  * <a href="{@docRoot}/java.base/java/util/package-summary.html#CollectionsFramework">
  * Java Collections Framework</a>.
  *
- * @see     System#identityHashCode(Object)
- * @see     Object#hashCode()
- * @see     Collection
- * @see     Map
- * @see     HashMap
- * @see     TreeMap
- * @author  Doug Lea and Josh Bloch
- * @since   1.4
+ * @author Doug Lea and Josh Bloch
+ * @see System#identityHashCode(Object)
+ * @see Object#hashCode()
+ * @see Collection
+ * @see Map
+ * @see HashMap
+ * @see TreeMap
+ * @since 1.4
  */
 
-public class IdentityHashMap<K,V>
-    extends AbstractMap<K,V>
-    implements Map<K,V>, java.io.Serializable, Cloneable
-{
+// IdentityHashMap结构：数组(可扩容)，由同一个数组存储key和value。key和value均可以为null
+public class IdentityHashMap<K, V> extends AbstractMap<K, V> implements Map<K, V>, Serializable, Cloneable {
+    
+    /**
+     * Value representing null keys inside tables.
+     */
+    static final Object NULL_KEY = new Object();    // 专用空值
+    
     /**
      * The initial capacity used by the no-args constructor.
      * MUST be a power of two.  The value 32 corresponds to the
@@ -147,7 +153,7 @@ public class IdentityHashMap<K,V>
      * of 2/3.
      */
     private static final int DEFAULT_CAPACITY = 32;
-
+    
     /**
      * The minimum capacity, used if a lower value is implicitly specified
      * by either of the constructors with arguments.  The value 4 corresponds
@@ -155,7 +161,7 @@ public class IdentityHashMap<K,V>
      * MUST be a power of two.
      */
     private static final int MINIMUM_CAPACITY = 4;
-
+    
     /**
      * The maximum capacity, used if a higher value is implicitly specified
      * by either of the constructors with arguments.
@@ -166,43 +172,38 @@ public class IdentityHashMap<K,V>
      * in order to avoid infinite loops in get(), put(), remove()
      */
     private static final int MAXIMUM_CAPACITY = 1 << 29;
-
+    
     /**
      * The table, resized as necessary. Length MUST always be a power of two.
+     *
+     * non-private to simplify nested class access
      */
-    transient Object[] table; // non-private to simplify nested class access
-
+    transient Object[] table; // 哈希数组，这个哈希数组同时存储key和value，且value总是紧挨在对应的key之后
+    
     /**
      * The number of key-value mappings contained in this identity hash map.
      *
      * @serial
      */
-    int size;
-
+    int size;   // IdentityHashMap中元素数量
+    
+    /**
+     * This field is initialized to contain an instance of the entry set
+     * view the first time this view is requested.  The view is stateless,
+     * so there's no reason to create more than one.
+     */
+    private transient Set<Map.Entry<K, V>> entrySet;    // entry的集合
+    
     /**
      * The number of modifications, to support fast-fail iterators
      */
-    transient int modCount;
-
-    /**
-     * Value representing null keys inside tables.
-     */
-    static final Object NULL_KEY = new Object();
-
-    /**
-     * Use NULL_KEY for key if it is null.
-     */
-    private static Object maskNull(Object key) {
-        return (key == null ? NULL_KEY : key);
-    }
-
-    /**
-     * Returns internal representation of null key back to caller as null.
-     */
-    static final Object unmaskNull(Object key) {
-        return (key == NULL_KEY ? null : key);
-    }
-
+    transient int modCount; // 记录IdentityHashMap结构的修改次数
+    
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Constructs a new, empty identity hash map with a default expected
      * maximum size (21).
@@ -210,7 +211,7 @@ public class IdentityHashMap<K,V>
     public IdentityHashMap() {
         init(DEFAULT_CAPACITY);
     }
-
+    
     /**
      * Constructs a new, empty map with the specified expected maximum size.
      * Putting more than the expected number of key-value mappings into
@@ -218,48 +219,26 @@ public class IdentityHashMap<K,V>
      * somewhat time-consuming.
      *
      * @param expectedMaxSize the expected maximum size of the map
+     *
      * @throws IllegalArgumentException if {@code expectedMaxSize} is negative
      */
     public IdentityHashMap(int expectedMaxSize) {
-        if (expectedMaxSize < 0)
-            throw new IllegalArgumentException("expectedMaxSize is negative: "
-                                               + expectedMaxSize);
-        init(capacity(expectedMaxSize));
+        if(expectedMaxSize<0) {
+            throw new IllegalArgumentException("expectedMaxSize is negative: " + expectedMaxSize);
+        }
+        
+        // 计算出适当的容量(由给定的预期容量计算而来)
+        int cap = capacity(expectedMaxSize);
+        
+        init(cap);
     }
-
-    /**
-     * Returns the appropriate capacity for the given expected maximum size.
-     * Returns the smallest power of two between MINIMUM_CAPACITY and
-     * MAXIMUM_CAPACITY, inclusive, that is greater than (3 *
-     * expectedMaxSize)/2, if such a number exists.  Otherwise returns
-     * MAXIMUM_CAPACITY.
-     */
-    private static int capacity(int expectedMaxSize) {
-        // assert expectedMaxSize >= 0;
-        return
-            (expectedMaxSize > MAXIMUM_CAPACITY / 3) ? MAXIMUM_CAPACITY :
-            (expectedMaxSize <= 2 * MINIMUM_CAPACITY / 3) ? MINIMUM_CAPACITY :
-            Integer.highestOneBit(expectedMaxSize + (expectedMaxSize << 1));
-    }
-
-    /**
-     * Initializes object to be an empty map with the specified initial
-     * capacity, which is assumed to be a power of two between
-     * MINIMUM_CAPACITY and MAXIMUM_CAPACITY inclusive.
-     */
-    private void init(int initCapacity) {
-        // assert (initCapacity & -initCapacity) == initCapacity; // power of 2
-        // assert initCapacity >= MINIMUM_CAPACITY;
-        // assert initCapacity <= MAXIMUM_CAPACITY;
-
-        table = new Object[2 * initCapacity];
-    }
-
+    
     /**
      * Constructs a new identity hash map containing the keys-value mappings
      * in the specified map.
      *
      * @param m the map whose mappings are to be placed into this map
+     *
      * @throws NullPointerException if the specified map is null
      */
     public IdentityHashMap(Map<? extends K, ? extends V> m) {
@@ -267,43 +246,112 @@ public class IdentityHashMap<K,V>
         this((int) ((1 + m.size()) * 1.1));
         putAll(m);
     }
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 存值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns the number of key-value mappings in this identity hash map.
+     * Associates the specified value with the specified key in this identity
+     * hash map.  If the map previously contained a mapping for the key, the
+     * old value is replaced.
      *
-     * @return the number of key-value mappings in this map
-     */
-    public int size() {
-        return size;
-    }
-
-    /**
-     * Returns {@code true} if this identity hash map contains no key-value
-     * mappings.
+     * @param key   the key with which the specified value is to be associated
+     * @param value the value to be associated with the specified key
      *
-     * @return {@code true} if this identity hash map contains no key-value
-     *         mappings
+     * @return the previous value associated with {@code key}, or
+     * {@code null} if there was no mapping for {@code key}.
+     * (A {@code null} return can also indicate that the map
+     * previously associated {@code null} with {@code key}.)
+     *
+     * @see Object#equals(Object)
+     * @see #get(Object)
+     * @see #containsKey(Object)
      */
-    public boolean isEmpty() {
-        return size == 0;
-    }
+    // 将指定的元素（key-value）存入IdentityHashMap，并返回旧值，允许覆盖
+    public V put(K key, V value) {
+        // (包装空值)如果key是null，返回一个专用空值。否则，原样返回
+        final Object k = maskNull(key);
 
+retryAfterResize:
+        for(; ; ) {
+            final Object[] tab = table;
+            final int len = tab.length;
+            
+            // 计算指定对象的哈希值
+            int i = hash(k, len);
+            
+            // 寻找合适的插槽
+            for(Object item; (item = tab[i]) != null; i = nextKeyIndex(i, len)) {
+                // 如果出现同位元素
+                if(item == k) {
+                    @SuppressWarnings("unchecked")
+                    V oldValue = (V) tab[i + 1];// 获取旧值
+                    tab[i + 1] = value;         // 覆盖旧值
+                    return oldValue;            // 返回旧值
+                }
+            }
+            
+            // 计数增一
+            final int s = size + 1;
+            
+            /*
+             * Use optimized form of 3 * s.
+             * Next capacity is len, 2 * current capacity.
+             */
+            // 如果超过了容量阙值，则需要扩容
+            if(s + (s << 1)>len && resize(len)) {
+                continue retryAfterResize;
+            }
+            
+            modCount++;
+            
+            // 存储key和value
+            tab[i] = k;
+            tab[i + 1] = value;
+            
+            size = s;
+            
+            return null;
+        }
+    }
+    
     /**
-     * Returns index for Object x.
+     * Copies all of the mappings from the specified map to this map.
+     * These mappings will replace any mappings that this map had for
+     * any of the keys currently in the specified map.
+     *
+     * @param m mappings to be stored in this map
+     *
+     * @throws NullPointerException if the specified map is null
      */
-    private static int hash(Object x, int length) {
-        int h = System.identityHashCode(x);
-        // Multiply by -127, and left-shift to use least bit as part of hash
-        return ((h << 1) - (h << 8)) & (length - 1);
+    // 将指定Map中的元素存入到当前Map（允许覆盖）
+    public void putAll(Map<? extends K, ? extends V> m) {
+        int n = m.size();
+        
+        if(n == 0) {
+            return;
+        }
+        
+        if(n>size) {
+            // 返回适当的容量(由给定的预期容量计算而来)
+            int cap = capacity(n);
+            resize(cap); // conservatively pre-expand
+        }
+        
+        for(Entry<? extends K, ? extends V> e : m.entrySet()) {
+            put(e.getKey(), e.getValue());
+        }
     }
-
-    /**
-     * Circularly traverses table of size len.
-     */
-    private static int nextKeyIndex(int i, int len) {
-        return (i + 2 < len ? i + 2 : 0);
-    }
-
+    
+    /*▲ 存值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 取值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns the value to which the specified key is mapped,
      * or {@code null} if this map contains no mapping for the key.
@@ -321,610 +369,196 @@ public class IdentityHashMap<K,V>
      *
      * @see #put(Object, Object)
      */
+    // 根据指定的key获取对应的value，如果不存在，则返回null
     @SuppressWarnings("unchecked")
     public V get(Object key) {
         Object k = maskNull(key);
+        
         Object[] tab = table;
         int len = tab.length;
+        
         int i = hash(k, len);
-        while (true) {
+        
+        while(true) {
             Object item = tab[i];
-            if (item == k)
+            
+            if(item == k) {
                 return (V) tab[i + 1];
-            if (item == null)
+            }
+            
+            if(item == null) {
                 return null;
+            }
+            
             i = nextKeyIndex(i, len);
         }
     }
-
+    
+    /*▲ 取值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 移除 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Removes the mapping for this key from this map if present.
+     *
+     * @param key key whose mapping is to be removed from the map
+     *
+     * @return the previous value associated with {@code key}, or
+     * {@code null} if there was no mapping for {@code key}.
+     * (A {@code null} return can also indicate that the map
+     * previously associated {@code null} with {@code key}.)
+     */
+    // 移除拥有指定key的元素，并返回刚刚移除的元素的值
+    public V remove(Object key) {
+        Object k = maskNull(key);
+        
+        Object[] tab = table;
+        int len = tab.length;
+        
+        int d = hash(k, len);
+        
+        while(true) {
+            Object item = tab[d];
+            
+            // 如果找到了目标元素，则将其移除
+            if(item == k) {
+                modCount++;
+                size--;
+                
+                @SuppressWarnings("unchecked")
+                V oldValue = (V) tab[d + 1];
+                
+                tab[d + 1] = null;
+                tab[d] = null;
+                
+                // 填充被移除的空位，以保证之前的开放地址策略依然有效
+                closeDeletion(d);
+                
+                return oldValue;
+            }
+            
+            if(item == null) {
+                return null;
+            }
+            
+            d = nextKeyIndex(d, len);
+        }
+    }
+    
+    
+    /**
+     * Removes all of the mappings from this map.
+     * The map will be empty after this call returns.
+     */
+    // 清空IdentityHashMap中所有元素
+    public void clear() {
+        modCount++;
+        Object[] tab = table;
+        Arrays.fill(tab, null);
+        size = 0;
+    }
+    
+    /*▲ 移除 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 替换 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 替换当前IdentityHashMap中的所有元素，替换策略由function决定，function的入参是元素的key和value，出参作为新值
+    @SuppressWarnings("unchecked")
+    @Override
+    public void replaceAll(BiFunction<? super K, ? super V, ? extends V> function) {
+        Objects.requireNonNull(function);
+        
+        int expectedModCount = modCount;
+        
+        Object[] t = table;
+        
+        for(int index = 0; index<t.length; index += 2) {
+            Object k = t[index];
+            
+            if(k != null) {
+                t[index + 1] = function.apply((K) unmaskNull(k), (V) t[index + 1]);
+            }
+            
+            if(modCount != expectedModCount) {
+                throw new ConcurrentModificationException();
+            }
+        }
+    }
+    
+    /*▲ 替换 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 包含查询 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Tests whether the specified object reference is a key in this identity
      * hash map.
      *
-     * @param   key   possible key
-     * @return  {@code true} if the specified object reference is a key
-     *          in this map
-     * @see     #containsValue(Object)
+     * @param key possible key
+     *
+     * @return {@code true} if the specified object reference is a key
+     * in this map
+     *
+     * @see #containsValue(Object)
      */
+    // 判断HashMap中是否存在指定key的元素
     public boolean containsKey(Object key) {
         Object k = maskNull(key);
+        
         Object[] tab = table;
         int len = tab.length;
+        
         int i = hash(k, len);
-        while (true) {
+        
+        while(true) {
             Object item = tab[i];
-            if (item == k)
+            if(item == k) {
                 return true;
-            if (item == null)
+            }
+            
+            if(item == null) {
                 return false;
+            }
+            
             i = nextKeyIndex(i, len);
         }
     }
-
+    
     /**
      * Tests whether the specified object reference is a value in this identity
      * hash map.
      *
      * @param value value whose presence in this map is to be tested
+     *
      * @return {@code true} if this map maps one or more keys to the
-     *         specified object reference
-     * @see     #containsKey(Object)
+     * specified object reference
+     *
+     * @see #containsKey(Object)
      */
+    // 判断HashMap中是否存在指定value的元素
     public boolean containsValue(Object value) {
         Object[] tab = table;
-        for (int i = 1; i < tab.length; i += 2)
-            if (tab[i] == value && tab[i - 1] != null)
+        
+        for(int i = 1; i<tab.length; i += 2) {
+            if(tab[i] == value && tab[i - 1] != null) {
                 return true;
-
+            }
+        }
+        
         return false;
     }
-
-    /**
-     * Tests if the specified key-value mapping is in the map.
-     *
-     * @param   key   possible key
-     * @param   value possible value
-     * @return  {@code true} if and only if the specified key-value
-     *          mapping is in the map
-     */
-    private boolean containsMapping(Object key, Object value) {
-        Object k = maskNull(key);
-        Object[] tab = table;
-        int len = tab.length;
-        int i = hash(k, len);
-        while (true) {
-            Object item = tab[i];
-            if (item == k)
-                return tab[i + 1] == value;
-            if (item == null)
-                return false;
-            i = nextKeyIndex(i, len);
-        }
-    }
-
-    /**
-     * Associates the specified value with the specified key in this identity
-     * hash map.  If the map previously contained a mapping for the key, the
-     * old value is replaced.
-     *
-     * @param key the key with which the specified value is to be associated
-     * @param value the value to be associated with the specified key
-     * @return the previous value associated with {@code key}, or
-     *         {@code null} if there was no mapping for {@code key}.
-     *         (A {@code null} return can also indicate that the map
-     *         previously associated {@code null} with {@code key}.)
-     * @see     Object#equals(Object)
-     * @see     #get(Object)
-     * @see     #containsKey(Object)
-     */
-    public V put(K key, V value) {
-        final Object k = maskNull(key);
-
-        retryAfterResize: for (;;) {
-            final Object[] tab = table;
-            final int len = tab.length;
-            int i = hash(k, len);
-
-            for (Object item; (item = tab[i]) != null;
-                 i = nextKeyIndex(i, len)) {
-                if (item == k) {
-                    @SuppressWarnings("unchecked")
-                        V oldValue = (V) tab[i + 1];
-                    tab[i + 1] = value;
-                    return oldValue;
-                }
-            }
-
-            final int s = size + 1;
-            // Use optimized form of 3 * s.
-            // Next capacity is len, 2 * current capacity.
-            if (s + (s << 1) > len && resize(len))
-                continue retryAfterResize;
-
-            modCount++;
-            tab[i] = k;
-            tab[i + 1] = value;
-            size = s;
-            return null;
-        }
-    }
-
-    /**
-     * Resizes the table if necessary to hold given capacity.
-     *
-     * @param newCapacity the new capacity, must be a power of two.
-     * @return whether a resize did in fact take place
-     */
-    private boolean resize(int newCapacity) {
-        // assert (newCapacity & -newCapacity) == newCapacity; // power of 2
-        int newLength = newCapacity * 2;
-
-        Object[] oldTable = table;
-        int oldLength = oldTable.length;
-        if (oldLength == 2 * MAXIMUM_CAPACITY) { // can't expand any further
-            if (size == MAXIMUM_CAPACITY - 1)
-                throw new IllegalStateException("Capacity exhausted.");
-            return false;
-        }
-        if (oldLength >= newLength)
-            return false;
-
-        Object[] newTable = new Object[newLength];
-
-        for (int j = 0; j < oldLength; j += 2) {
-            Object key = oldTable[j];
-            if (key != null) {
-                Object value = oldTable[j+1];
-                oldTable[j] = null;
-                oldTable[j+1] = null;
-                int i = hash(key, newLength);
-                while (newTable[i] != null)
-                    i = nextKeyIndex(i, newLength);
-                newTable[i] = key;
-                newTable[i + 1] = value;
-            }
-        }
-        table = newTable;
-        return true;
-    }
-
-    /**
-     * Copies all of the mappings from the specified map to this map.
-     * These mappings will replace any mappings that this map had for
-     * any of the keys currently in the specified map.
-     *
-     * @param m mappings to be stored in this map
-     * @throws NullPointerException if the specified map is null
-     */
-    public void putAll(Map<? extends K, ? extends V> m) {
-        int n = m.size();
-        if (n == 0)
-            return;
-        if (n > size)
-            resize(capacity(n)); // conservatively pre-expand
-
-        for (Entry<? extends K, ? extends V> e : m.entrySet())
-            put(e.getKey(), e.getValue());
-    }
-
-    /**
-     * Removes the mapping for this key from this map if present.
-     *
-     * @param key key whose mapping is to be removed from the map
-     * @return the previous value associated with {@code key}, or
-     *         {@code null} if there was no mapping for {@code key}.
-     *         (A {@code null} return can also indicate that the map
-     *         previously associated {@code null} with {@code key}.)
-     */
-    public V remove(Object key) {
-        Object k = maskNull(key);
-        Object[] tab = table;
-        int len = tab.length;
-        int i = hash(k, len);
-
-        while (true) {
-            Object item = tab[i];
-            if (item == k) {
-                modCount++;
-                size--;
-                @SuppressWarnings("unchecked")
-                    V oldValue = (V) tab[i + 1];
-                tab[i + 1] = null;
-                tab[i] = null;
-                closeDeletion(i);
-                return oldValue;
-            }
-            if (item == null)
-                return null;
-            i = nextKeyIndex(i, len);
-        }
-    }
-
-    /**
-     * Removes the specified key-value mapping from the map if it is present.
-     *
-     * @param   key   possible key
-     * @param   value possible value
-     * @return  {@code true} if and only if the specified key-value
-     *          mapping was in the map
-     */
-    private boolean removeMapping(Object key, Object value) {
-        Object k = maskNull(key);
-        Object[] tab = table;
-        int len = tab.length;
-        int i = hash(k, len);
-
-        while (true) {
-            Object item = tab[i];
-            if (item == k) {
-                if (tab[i + 1] != value)
-                    return false;
-                modCount++;
-                size--;
-                tab[i] = null;
-                tab[i + 1] = null;
-                closeDeletion(i);
-                return true;
-            }
-            if (item == null)
-                return false;
-            i = nextKeyIndex(i, len);
-        }
-    }
-
-    /**
-     * Rehash all possibly-colliding entries following a
-     * deletion. This preserves the linear-probe
-     * collision properties required by get, put, etc.
-     *
-     * @param d the index of a newly empty deleted slot
-     */
-    private void closeDeletion(int d) {
-        // Adapted from Knuth Section 6.4 Algorithm R
-        Object[] tab = table;
-        int len = tab.length;
-
-        // Look for items to swap into newly vacated slot
-        // starting at index immediately following deletion,
-        // and continuing until a null slot is seen, indicating
-        // the end of a run of possibly-colliding keys.
-        Object item;
-        for (int i = nextKeyIndex(d, len); (item = tab[i]) != null;
-             i = nextKeyIndex(i, len) ) {
-            // The following test triggers if the item at slot i (which
-            // hashes to be at slot r) should take the spot vacated by d.
-            // If so, we swap it in, and then continue with d now at the
-            // newly vacated i.  This process will terminate when we hit
-            // the null slot at the end of this run.
-            // The test is messy because we are using a circular table.
-            int r = hash(item, len);
-            if ((i < r && (r <= d || d <= i)) || (r <= d && d <= i)) {
-                tab[d] = item;
-                tab[d + 1] = tab[i + 1];
-                tab[i] = null;
-                tab[i + 1] = null;
-                d = i;
-            }
-        }
-    }
-
-    /**
-     * Removes all of the mappings from this map.
-     * The map will be empty after this call returns.
-     */
-    public void clear() {
-        modCount++;
-        Object[] tab = table;
-        for (int i = 0; i < tab.length; i++)
-            tab[i] = null;
-        size = 0;
-    }
-
-    /**
-     * Compares the specified object with this map for equality.  Returns
-     * {@code true} if the given object is also a map and the two maps
-     * represent identical object-reference mappings.  More formally, this
-     * map is equal to another map {@code m} if and only if
-     * {@code this.entrySet().equals(m.entrySet())}.
-     *
-     * <p><b>Owing to the reference-equality-based semantics of this map it is
-     * possible that the symmetry and transitivity requirements of the
-     * {@code Object.equals} contract may be violated if this map is compared
-     * to a normal map.  However, the {@code Object.equals} contract is
-     * guaranteed to hold among {@code IdentityHashMap} instances.</b>
-     *
-     * @param  o object to be compared for equality with this map
-     * @return {@code true} if the specified object is equal to this map
-     * @see Object#equals(Object)
-     */
-    public boolean equals(Object o) {
-        if (o == this) {
-            return true;
-        } else if (o instanceof IdentityHashMap) {
-            IdentityHashMap<?,?> m = (IdentityHashMap<?,?>) o;
-            if (m.size() != size)
-                return false;
-
-            Object[] tab = m.table;
-            for (int i = 0; i < tab.length; i+=2) {
-                Object k = tab[i];
-                if (k != null && !containsMapping(k, tab[i + 1]))
-                    return false;
-            }
-            return true;
-        } else if (o instanceof Map) {
-            Map<?,?> m = (Map<?,?>)o;
-            return entrySet().equals(m.entrySet());
-        } else {
-            return false;  // o is not a Map
-        }
-    }
-
-    /**
-     * Returns the hash code value for this map.  The hash code of a map is
-     * defined to be the sum of the hash codes of each entry in the map's
-     * {@code entrySet()} view.  This ensures that {@code m1.equals(m2)}
-     * implies that {@code m1.hashCode()==m2.hashCode()} for any two
-     * {@code IdentityHashMap} instances {@code m1} and {@code m2}, as
-     * required by the general contract of {@link Object#hashCode}.
-     *
-     * <p><b>Owing to the reference-equality-based semantics of the
-     * {@code Map.Entry} instances in the set returned by this map's
-     * {@code entrySet} method, it is possible that the contractual
-     * requirement of {@code Object.hashCode} mentioned in the previous
-     * paragraph will be violated if one of the two objects being compared is
-     * an {@code IdentityHashMap} instance and the other is a normal map.</b>
-     *
-     * @return the hash code value for this map
-     * @see Object#equals(Object)
-     * @see #equals(Object)
-     */
-    public int hashCode() {
-        int result = 0;
-        Object[] tab = table;
-        for (int i = 0; i < tab.length; i +=2) {
-            Object key = tab[i];
-            if (key != null) {
-                Object k = unmaskNull(key);
-                result += System.identityHashCode(k) ^
-                          System.identityHashCode(tab[i + 1]);
-            }
-        }
-        return result;
-    }
-
-    /**
-     * Returns a shallow copy of this identity hash map: the keys and values
-     * themselves are not cloned.
-     *
-     * @return a shallow copy of this map
-     */
-    public Object clone() {
-        try {
-            IdentityHashMap<?,?> m = (IdentityHashMap<?,?>) super.clone();
-            m.entrySet = null;
-            m.table = table.clone();
-            return m;
-        } catch (CloneNotSupportedException e) {
-            throw new InternalError(e);
-        }
-    }
-
-    private abstract class IdentityHashMapIterator<T> implements Iterator<T> {
-        int index = (size != 0 ? 0 : table.length); // current slot.
-        int expectedModCount = modCount; // to support fast-fail
-        int lastReturnedIndex = -1;      // to allow remove()
-        boolean indexValid; // To avoid unnecessary next computation
-        Object[] traversalTable = table; // reference to main table or copy
-
-        public boolean hasNext() {
-            Object[] tab = traversalTable;
-            for (int i = index; i < tab.length; i+=2) {
-                Object key = tab[i];
-                if (key != null) {
-                    index = i;
-                    return indexValid = true;
-                }
-            }
-            index = tab.length;
-            return false;
-        }
-
-        protected int nextIndex() {
-            if (modCount != expectedModCount)
-                throw new ConcurrentModificationException();
-            if (!indexValid && !hasNext())
-                throw new NoSuchElementException();
-
-            indexValid = false;
-            lastReturnedIndex = index;
-            index += 2;
-            return lastReturnedIndex;
-        }
-
-        public void remove() {
-            if (lastReturnedIndex == -1)
-                throw new IllegalStateException();
-            if (modCount != expectedModCount)
-                throw new ConcurrentModificationException();
-
-            expectedModCount = ++modCount;
-            int deletedSlot = lastReturnedIndex;
-            lastReturnedIndex = -1;
-            // back up index to revisit new contents after deletion
-            index = deletedSlot;
-            indexValid = false;
-
-            // Removal code proceeds as in closeDeletion except that
-            // it must catch the rare case where an element already
-            // seen is swapped into a vacant slot that will be later
-            // traversed by this iterator. We cannot allow future
-            // next() calls to return it again.  The likelihood of
-            // this occurring under 2/3 load factor is very slim, but
-            // when it does happen, we must make a copy of the rest of
-            // the table to use for the rest of the traversal. Since
-            // this can only happen when we are near the end of the table,
-            // even in these rare cases, this is not very expensive in
-            // time or space.
-
-            Object[] tab = traversalTable;
-            int len = tab.length;
-
-            int d = deletedSlot;
-            Object key = tab[d];
-            tab[d] = null;        // vacate the slot
-            tab[d + 1] = null;
-
-            // If traversing a copy, remove in real table.
-            // We can skip gap-closure on copy.
-            if (tab != IdentityHashMap.this.table) {
-                IdentityHashMap.this.remove(key);
-                expectedModCount = modCount;
-                return;
-            }
-
-            size--;
-
-            Object item;
-            for (int i = nextKeyIndex(d, len); (item = tab[i]) != null;
-                 i = nextKeyIndex(i, len)) {
-                int r = hash(item, len);
-                // See closeDeletion for explanation of this conditional
-                if ((i < r && (r <= d || d <= i)) ||
-                    (r <= d && d <= i)) {
-
-                    // If we are about to swap an already-seen element
-                    // into a slot that may later be returned by next(),
-                    // then clone the rest of table for use in future
-                    // next() calls. It is OK that our copy will have
-                    // a gap in the "wrong" place, since it will never
-                    // be used for searching anyway.
-
-                    if (i < deletedSlot && d >= deletedSlot &&
-                        traversalTable == IdentityHashMap.this.table) {
-                        int remaining = len - deletedSlot;
-                        Object[] newTable = new Object[remaining];
-                        System.arraycopy(tab, deletedSlot,
-                                         newTable, 0, remaining);
-                        traversalTable = newTable;
-                        index = 0;
-                    }
-
-                    tab[d] = item;
-                    tab[d + 1] = tab[i + 1];
-                    tab[i] = null;
-                    tab[i + 1] = null;
-                    d = i;
-                }
-            }
-        }
-    }
-
-    private class KeyIterator extends IdentityHashMapIterator<K> {
-        @SuppressWarnings("unchecked")
-        public K next() {
-            return (K) unmaskNull(traversalTable[nextIndex()]);
-        }
-    }
-
-    private class ValueIterator extends IdentityHashMapIterator<V> {
-        @SuppressWarnings("unchecked")
-        public V next() {
-            return (V) traversalTable[nextIndex() + 1];
-        }
-    }
-
-    private class EntryIterator
-        extends IdentityHashMapIterator<Map.Entry<K,V>>
-    {
-        private Entry lastReturnedEntry;
-
-        public Map.Entry<K,V> next() {
-            lastReturnedEntry = new Entry(nextIndex());
-            return lastReturnedEntry;
-        }
-
-        public void remove() {
-            lastReturnedIndex =
-                ((null == lastReturnedEntry) ? -1 : lastReturnedEntry.index);
-            super.remove();
-            lastReturnedEntry.index = lastReturnedIndex;
-            lastReturnedEntry = null;
-        }
-
-        private class Entry implements Map.Entry<K,V> {
-            private int index;
-
-            private Entry(int index) {
-                this.index = index;
-            }
-
-            @SuppressWarnings("unchecked")
-            public K getKey() {
-                checkIndexForEntryUse();
-                return (K) unmaskNull(traversalTable[index]);
-            }
-
-            @SuppressWarnings("unchecked")
-            public V getValue() {
-                checkIndexForEntryUse();
-                return (V) traversalTable[index+1];
-            }
-
-            @SuppressWarnings("unchecked")
-            public V setValue(V value) {
-                checkIndexForEntryUse();
-                V oldValue = (V) traversalTable[index+1];
-                traversalTable[index+1] = value;
-                // if shadowing, force into main table
-                if (traversalTable != IdentityHashMap.this.table)
-                    put((K) traversalTable[index], value);
-                return oldValue;
-            }
-
-            public boolean equals(Object o) {
-                if (index < 0)
-                    return super.equals(o);
-
-                if (!(o instanceof Map.Entry))
-                    return false;
-                Map.Entry<?,?> e = (Map.Entry<?,?>)o;
-                return (e.getKey() == unmaskNull(traversalTable[index]) &&
-                       e.getValue() == traversalTable[index+1]);
-            }
-
-            public int hashCode() {
-                if (lastReturnedIndex < 0)
-                    return super.hashCode();
-
-                return (System.identityHashCode(unmaskNull(traversalTable[index])) ^
-                       System.identityHashCode(traversalTable[index+1]));
-            }
-
-            public String toString() {
-                if (index < 0)
-                    return super.toString();
-
-                return (unmaskNull(traversalTable[index]) + "="
-                        + traversalTable[index+1]);
-            }
-
-            private void checkIndexForEntryUse() {
-                if (index < 0)
-                    throw new IllegalStateException("Entry was removed");
-            }
-        }
-    }
-
-    // Views
-
-    /**
-     * This field is initialized to contain an instance of the entry set
-     * view the first time this view is requested.  The view is stateless,
-     * so there's no reason to create more than one.
-     */
-    private transient Set<Map.Entry<K,V>> entrySet;
-
+    
+    /*▲ 包含查询 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 视图 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns an identity-based set view of the keys contained in this map.
      * The set is backed by the map, so changes to the map are reflected in
@@ -960,95 +594,16 @@ public class IdentityHashMap<K,V>
      * returned by this method.
      *
      * @return an identity-based set view of the keys contained in this map
+     *
      * @see Object#equals(Object)
      * @see System#identityHashCode(Object)
      */
+    // 获取IdentityHashMap中key的集合
     public Set<K> keySet() {
         Set<K> ks = keySet;
-        if (ks == null) {
-            ks = new KeySet();
-            keySet = ks;
-        }
-        return ks;
+        return ks!=null ? ks : (keySet = new KeySet());
     }
-
-    private class KeySet extends AbstractSet<K> {
-        public Iterator<K> iterator() {
-            return new KeyIterator();
-        }
-        public int size() {
-            return size;
-        }
-        public boolean contains(Object o) {
-            return containsKey(o);
-        }
-        public boolean remove(Object o) {
-            int oldSize = size;
-            IdentityHashMap.this.remove(o);
-            return size != oldSize;
-        }
-        /*
-         * Must revert from AbstractSet's impl to AbstractCollection's, as
-         * the former contains an optimization that results in incorrect
-         * behavior when c is a smaller "normal" (non-identity-based) Set.
-         */
-        public boolean removeAll(Collection<?> c) {
-            Objects.requireNonNull(c);
-            boolean modified = false;
-            for (Iterator<K> i = iterator(); i.hasNext(); ) {
-                if (c.contains(i.next())) {
-                    i.remove();
-                    modified = true;
-                }
-            }
-            return modified;
-        }
-        public void clear() {
-            IdentityHashMap.this.clear();
-        }
-        public int hashCode() {
-            int result = 0;
-            for (K key : this)
-                result += System.identityHashCode(key);
-            return result;
-        }
-        public Object[] toArray() {
-            return toArray(new Object[0]);
-        }
-        @SuppressWarnings("unchecked")
-        public <T> T[] toArray(T[] a) {
-            int expectedModCount = modCount;
-            int size = size();
-            if (a.length < size)
-                a = (T[]) Array.newInstance(a.getClass().getComponentType(), size);
-            Object[] tab = table;
-            int ti = 0;
-            for (int si = 0; si < tab.length; si += 2) {
-                Object key;
-                if ((key = tab[si]) != null) { // key present ?
-                    // more elements than expected -> concurrent modification from other thread
-                    if (ti >= size) {
-                        throw new ConcurrentModificationException();
-                    }
-                    a[ti++] = (T) unmaskNull(key); // unmask key
-                }
-            }
-            // fewer elements than expected or concurrent modification from other thread detected
-            if (ti < size || expectedModCount != modCount) {
-                throw new ConcurrentModificationException();
-            }
-            // final null marker as per spec
-            if (ti < a.length) {
-                a[ti] = null;
-            }
-            return a;
-        }
-
-        public Spliterator<K> spliterator() {
-            return new KeySpliterator<>(IdentityHashMap.this, 0, -1, 0, 0);
-        }
-    }
-
+    
     /**
      * Returns a {@link Collection} view of the values contained in this map.
      * The collection is backed by the map, so changes to the map are
@@ -1069,73 +624,12 @@ public class IdentityHashMap<K,V>
      * behavior of its {@code contains}, {@code remove} and
      * {@code containsAll} methods.</b>
      */
+    // 获取IdentityHashMap中value的集合
     public Collection<V> values() {
         Collection<V> vs = values;
-        if (vs == null) {
-            vs = new Values();
-            values = vs;
-        }
-        return vs;
+        return vs!=null ? vs : (values = new Values());
     }
-
-    private class Values extends AbstractCollection<V> {
-        public Iterator<V> iterator() {
-            return new ValueIterator();
-        }
-        public int size() {
-            return size;
-        }
-        public boolean contains(Object o) {
-            return containsValue(o);
-        }
-        public boolean remove(Object o) {
-            for (Iterator<V> i = iterator(); i.hasNext(); ) {
-                if (i.next() == o) {
-                    i.remove();
-                    return true;
-                }
-            }
-            return false;
-        }
-        public void clear() {
-            IdentityHashMap.this.clear();
-        }
-        public Object[] toArray() {
-            return toArray(new Object[0]);
-        }
-        @SuppressWarnings("unchecked")
-        public <T> T[] toArray(T[] a) {
-            int expectedModCount = modCount;
-            int size = size();
-            if (a.length < size)
-                a = (T[]) Array.newInstance(a.getClass().getComponentType(), size);
-            Object[] tab = table;
-            int ti = 0;
-            for (int si = 0; si < tab.length; si += 2) {
-                if (tab[si] != null) { // key present ?
-                    // more elements than expected -> concurrent modification from other thread
-                    if (ti >= size) {
-                        throw new ConcurrentModificationException();
-                    }
-                    a[ti++] = (T) tab[si+1]; // copy value
-                }
-            }
-            // fewer elements than expected or concurrent modification from other thread detected
-            if (ti < size || expectedModCount != modCount) {
-                throw new ConcurrentModificationException();
-            }
-            // final null marker as per spec
-            if (ti < a.length) {
-                a[ti] = null;
-            }
-            return a;
-        }
-
-        public Spliterator<V> spliterator() {
-            return new ValueSpliterator<>(IdentityHashMap.this, 0, -1, 0, 0);
-        }
-    }
-
+    
     /**
      * Returns a {@link Set} view of the mappings contained in this map.
      * Each element in the returned set is a reference-equality-based
@@ -1174,36 +668,537 @@ public class IdentityHashMap<K,V>
      *
      * @return a set view of the identity-mappings contained in this map
      */
-    public Set<Map.Entry<K,V>> entrySet() {
-        Set<Map.Entry<K,V>> es = entrySet;
-        if (es != null)
-            return es;
-        else
-            return entrySet = new EntrySet();
+    // 获取IdentityHashMap中key-value对的集合
+    public Set<Map.Entry<K, V>> entrySet() {
+        Set<Map.Entry<K, V>> es = entrySet;
+        return es != null ? es : (entrySet = new EntrySet());
     }
-
-    private class EntrySet extends AbstractSet<Map.Entry<K,V>> {
-        public Iterator<Map.Entry<K,V>> iterator() {
-            return new EntryIterator();
+    
+    /*▲ 视图 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 遍历 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 遍历IdentityHashMap中的元素，并对其应用action操作，action的入参是元素的key和value
+    @SuppressWarnings("unchecked")
+    @Override
+    public void forEach(BiConsumer<? super K, ? super V> action) {
+        Objects.requireNonNull(action);
+        
+        int expectedModCount = modCount;
+        
+        Object[] t = table;
+        for(int index = 0; index<t.length; index += 2) {
+            Object k = t[index];
+            if(k != null) {
+                action.accept((K) unmaskNull(k), (V) t[index + 1]);
+            }
+            
+            if(modCount != expectedModCount) {
+                throw new ConcurrentModificationException();
+            }
         }
-        public boolean contains(Object o) {
-            if (!(o instanceof Map.Entry))
+    }
+    
+    /*▲ 遍历 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 重新映射 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /*▲ 重新映射 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the number of key-value mappings in this identity hash map.
+     *
+     * @return the number of key-value mappings in this map
+     */
+    // 获取IdentityHashMap中的元素数量
+    public int size() {
+        return size;
+    }
+    
+    /**
+     * Returns {@code true} if this identity hash map contains no key-value
+     * mappings.
+     *
+     * @return {@code true} if this identity hash map contains no key-value
+     * mappings
+     */
+    // 判断IdentityHashMap是否为空集
+    public boolean isEmpty() {
+        return size == 0;
+    }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    private static final long serialVersionUID = 8188218128353913216L;
+    
+    
+    /**
+     * Saves the state of the {@code IdentityHashMap} instance to a stream
+     * (i.e., serializes it).
+     *
+     * @serialData The <i>size</i> of the HashMap (the number of key-value
+     * mappings) ({@code int}), followed by the key (Object) and
+     * value (Object) for each key-value mapping represented by the
+     * IdentityHashMap.  The key-value mappings are emitted in no
+     * particular order.
+     */
+    private void writeObject(java.io.ObjectOutputStream s) throws IOException {
+        // Write out and any hidden stuff
+        s.defaultWriteObject();
+        
+        // Write out size (number of Mappings)
+        s.writeInt(size);
+        
+        // Write out keys and values (alternating)
+        Object[] tab = table;
+        for(int i = 0; i<tab.length; i += 2) {
+            Object key = tab[i];
+            if(key != null) {
+                s.writeObject(unmaskNull(key));
+                s.writeObject(tab[i + 1]);
+            }
+        }
+    }
+    
+    /**
+     * Reconstitutes the {@code IdentityHashMap} instance from a stream (i.e.,
+     * deserializes it).
+     */
+    private void readObject(java.io.ObjectInputStream s) throws IOException, ClassNotFoundException {
+        // Read in any hidden stuff
+        s.defaultReadObject();
+        
+        // Read in size (number of Mappings)
+        int size = s.readInt();
+        if(size<0)
+            throw new java.io.StreamCorruptedException("Illegal mappings count: " + size);
+        int cap = capacity(size);
+        SharedSecrets.getJavaObjectInputStreamAccess().checkArray(s, Object[].class, cap);
+        init(cap);
+        
+        // Read the keys and values, and put the mappings in the table
+        for(int i = 0; i<size; i++) {
+            @SuppressWarnings("unchecked")
+            K key = (K) s.readObject();
+            @SuppressWarnings("unchecked")
+            V value = (V) s.readObject();
+            putForCreate(key, value);
+        }
+    }
+    
+    /**
+     * The put method for readObject.  It does not resize the table,
+     * update modCount, etc.
+     */
+    private void putForCreate(K key, V value) throws java.io.StreamCorruptedException {
+        Object k = maskNull(key);
+        Object[] tab = table;
+        int len = tab.length;
+        int i = hash(k, len);
+        
+        Object item;
+        while((item = tab[i]) != null) {
+            if(item == k)
+                throw new java.io.StreamCorruptedException();
+            i = nextKeyIndex(i, len);
+        }
+        tab[i] = k;
+        tab[i + 1] = value;
+    }
+    
+    /*▲ 序列化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /**
+     * Compares the specified object with this map for equality.  Returns
+     * {@code true} if the given object is also a map and the two maps
+     * represent identical object-reference mappings.  More formally, this
+     * map is equal to another map {@code m} if and only if
+     * {@code this.entrySet().equals(m.entrySet())}.
+     *
+     * <p><b>Owing to the reference-equality-based semantics of this map it is
+     * possible that the symmetry and transitivity requirements of the
+     * {@code Object.equals} contract may be violated if this map is compared
+     * to a normal map.  However, the {@code Object.equals} contract is
+     * guaranteed to hold among {@code IdentityHashMap} instances.</b>
+     *
+     * @param o object to be compared for equality with this map
+     *
+     * @return {@code true} if the specified object is equal to this map
+     *
+     * @see Object#equals(Object)
+     */
+    public boolean equals(Object o) {
+        if(o == this) {
+            return true;
+        } else if(o instanceof IdentityHashMap) {
+            IdentityHashMap<?, ?> m = (IdentityHashMap<?, ?>) o;
+            if(m.size() != size) {
                 return false;
-            Map.Entry<?,?> entry = (Map.Entry<?,?>)o;
-            return containsMapping(entry.getKey(), entry.getValue());
+            }
+            
+            Object[] tab = m.table;
+            for(int i = 0; i<tab.length; i += 2) {
+                Object k = tab[i];
+                if(k != null && !containsMapping(k, tab[i + 1])) {
+                    return false;
+                }
+            }
+            return true;
+        } else if(o instanceof Map) {
+            Map<?, ?> m = (Map<?, ?>) o;
+            return entrySet().equals(m.entrySet());
+        } else {
+            return false;  // o is not a Map
         }
-        public boolean remove(Object o) {
-            if (!(o instanceof Map.Entry))
+    }
+    
+    /**
+     * Returns the hash code value for this map.  The hash code of a map is
+     * defined to be the sum of the hash codes of each entry in the map's
+     * {@code entrySet()} view.  This ensures that {@code m1.equals(m2)}
+     * implies that {@code m1.hashCode()==m2.hashCode()} for any two
+     * {@code IdentityHashMap} instances {@code m1} and {@code m2}, as
+     * required by the general contract of {@link Object#hashCode}.
+     *
+     * <p><b>Owing to the reference-equality-based semantics of the
+     * {@code Map.Entry} instances in the set returned by this map's
+     * {@code entrySet} method, it is possible that the contractual
+     * requirement of {@code Object.hashCode} mentioned in the previous
+     * paragraph will be violated if one of the two objects being compared is
+     * an {@code IdentityHashMap} instance and the other is a normal map.</b>
+     *
+     * @return the hash code value for this map
+     *
+     * @see Object#equals(Object)
+     * @see #equals(Object)
+     */
+    public int hashCode() {
+        int result = 0;
+        Object[] tab = table;
+        for(int i = 0; i<tab.length; i += 2) {
+            Object key = tab[i];
+            if(key != null) {
+                Object k = unmaskNull(key);
+                result += System.identityHashCode(k) ^ System.identityHashCode(tab[i + 1]);
+            }
+        }
+        return result;
+    }
+    
+    /**
+     * Returns a shallow copy of this identity hash map: the keys and values
+     * themselves are not cloned.
+     *
+     * @return a shallow copy of this map
+     */
+    public Object clone() {
+        try {
+            IdentityHashMap<?, ?> m = (IdentityHashMap<?, ?>) super.clone();
+            m.entrySet = null;
+            m.table = table.clone();
+            return m;
+        } catch(CloneNotSupportedException e) {
+            throw new InternalError(e);
+        }
+    }
+    
+    
+    
+    /**
+     * Use NULL_KEY for key if it is null.
+     */
+    // (包装空值)如果key是null，返回一个专用空值。否则，原样返回
+    private static Object maskNull(Object key) {
+        return (key == null ? NULL_KEY : key);
+    }
+    
+    /**
+     * Returns internal representation of null key back to caller as null.
+     */
+    // (解析空值)如果key是一个专用空值，返回null。否则，原样返回
+    static final Object unmaskNull(Object key) {
+        return (key == NULL_KEY ? null : key);
+    }
+    
+    /**
+     * Returns the appropriate capacity for the given expected maximum size.
+     * Returns the smallest power of two between MINIMUM_CAPACITY and
+     * MAXIMUM_CAPACITY, inclusive, that is greater than (3 *
+     * expectedMaxSize)/2, if such a number exists.  Otherwise returns
+     * MAXIMUM_CAPACITY.
+     */
+    // 返回适当的容量(由给定的预期容量计算而来)
+    private static int capacity(int expectedMaxSize) {
+        // assert expectedMaxSize >= 0;
+        
+        if(expectedMaxSize>MAXIMUM_CAPACITY / 3) {
+            return MAXIMUM_CAPACITY;
+        } else if(expectedMaxSize<=2 * MINIMUM_CAPACITY / 3) {
+            return MINIMUM_CAPACITY;
+        } else {
+            return Integer.highestOneBit(expectedMaxSize + (expectedMaxSize << 1));
+        }
+    }
+    
+    /**
+     * Initializes object to be an empty map with the specified initial
+     * capacity, which is assumed to be a power of two between
+     * MINIMUM_CAPACITY and MAXIMUM_CAPACITY inclusive.
+     */
+    // 初始化哈希数组
+    private void init(int initCapacity) {
+        // assert (initCapacity & -initCapacity) == initCapacity; // power of 2
+        // assert initCapacity >= MINIMUM_CAPACITY;
+        // assert initCapacity <= MAXIMUM_CAPACITY;
+        
+        table = new Object[2 * initCapacity];
+    }
+    
+    /**
+     * Returns index for Object x.
+     */
+    // 计算指定对象的哈希值
+    private static int hash(Object obj, int length) {
+        int h = System.identityHashCode(obj);
+        
+        // Multiply by -127, and left-shift to use least bit as part of hash
+        return ((h << 1) - (h << 8)) & (length - 1);
+    }
+    
+    /**
+     * Circularly traverses table of size len.
+     */
+    // 计算下一个key的索引(key之间的间隔总是2)
+    private static int nextKeyIndex(int i, int len) {
+        return i + 2<len ? i + 2 : 0;
+    }
+    
+    /**
+     * Resizes the table if necessary to hold given capacity.
+     *
+     * @param newCapacity the new capacity, must be a power of two.
+     *
+     * @return whether a resize did in fact take place
+     */
+    // 扩容
+    private boolean resize(int newCapacity) {
+        // assert (newCapacity & -newCapacity) == newCapacity; // power of 2
+        int newLength = newCapacity * 2;
+        
+        Object[] oldTable = table;
+        int oldLength = oldTable.length;
+        if(oldLength == 2 * MAXIMUM_CAPACITY) { // can't expand any further
+            if(size == MAXIMUM_CAPACITY - 1) {
+                throw new IllegalStateException("Capacity exhausted.");
+            }
+            return false;
+        }
+        
+        if(oldLength >= newLength) {
+            return false;
+        }
+        
+        Object[] newTable = new Object[newLength];
+        
+        for(int j = 0; j<oldLength; j += 2) {
+            Object key = oldTable[j];
+            if(key != null) {
+                Object value = oldTable[j + 1];
+                oldTable[j] = null;
+                oldTable[j + 1] = null;
+                
+                // 重新计算哈希值
+                int i = hash(key, newLength);
+                
+                while(newTable[i] != null) {
+                    i = nextKeyIndex(i, newLength);
+                }
+                
+                newTable[i] = key;
+                newTable[i + 1] = value;
+            }
+        }
+        
+        table = newTable;
+        
+        return true;
+    }
+    
+    /**
+     * Tests if the specified key-value mapping is in the map.
+     *
+     * @param key   possible key
+     * @param value possible value
+     *
+     * @return {@code true} if and only if the specified key-value
+     * mapping is in the map
+     */
+    // 判断当前Map中是否包含指定的键值对
+    private boolean containsMapping(Object key, Object value) {
+        Object k = maskNull(key);
+        
+        Object[] tab = table;
+        
+        int len = tab.length;
+        int i = hash(k, len);
+        
+        while(true) {
+            Object item = tab[i];
+            if(item == k) {
+                return tab[i + 1] == value;
+            }
+            
+            if(item == null) {
                 return false;
-            Map.Entry<?,?> entry = (Map.Entry<?,?>)o;
-            return removeMapping(entry.getKey(), entry.getValue());
+            }
+            
+            i = nextKeyIndex(i, len);
         }
+    }
+    
+    /**
+     * Removes the specified key-value mapping from the map if it is present.
+     *
+     * @param key   possible key
+     * @param value possible value
+     *
+     * @return {@code true} if and only if the specified key-value
+     * mapping was in the map
+     */
+    // 移除指定的键值对，返回值指示是否成功移除
+    private boolean removeMapping(Object key, Object value) {
+        Object k = maskNull(key);
+        
+        Object[] tab = table;
+        int len = tab.length;
+        
+        int d = hash(k, len);
+        
+        while(true) {
+            Object item = tab[d];
+            
+            // 如果找到了目标元素，则将其移除
+            if(item == k) {
+                // 需要保证value也相等
+                if(tab[d + 1] != value) {
+                    return false;
+                }
+                
+                modCount++;
+                size--;
+                
+                tab[d] = null;
+                tab[d + 1] = null;
+                
+                // 填充被移除的空位，以保证之前的开放地址策略依然有效
+                closeDeletion(d);
+                
+                return true;
+            }
+            
+            if(item == null) {
+                return false;
+            }
+            
+            d = nextKeyIndex(d, len);
+        }
+    }
+    
+    /**
+     * Rehash all possibly-colliding entries following a eletion.
+     * This preserves the linear-probe collision properties required by get, put, etc.
+     *
+     * @param d the index of a newly empty deleted slot
+     */
+    // 填充被移除的空位，以保证之前的开放地址策略依然有效
+    private void closeDeletion(int d) {
+        // Adapted from Knuth Section 6.4 Algorithm R
+        Object[] tab = table;
+        
+        int len = tab.length;
+        
+        /*
+         * Look for items to swap into newly vacated slot starting at index immediately following deletion,
+         * and continuing until a null slot is seen, indicating the end of a run of possibly-colliding keys.
+         */
+        Object item;
+        
+        for(int i = nextKeyIndex(d, len); (item = tab[i]) != null; i = nextKeyIndex(i, len)) {
+            /*
+             * The following test triggers if the item at slot i (which hashes to be at slot r) should take the spot vacated by d.
+             * If so, we swap it in, and then continue with d now at the newly vacated i.
+             * This process will terminate when we hit the null slot at the end of this run.
+             * The test is messy because we are using a circular table.
+             */
+            // 计算理想索引
+            int r = hash(item, len);
+            
+            /*
+             * 三种情形：
+             *
+             *     d     i                          r
+             *     ↓     ↓                          ↓
+             * ▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+             *
+             *           i                          r         d
+             *           ↓                          ↓         ↓
+             * ▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+             *
+             *        r                    d        i
+             *        ↓                    ↓        ↓
+             * ░░░░░░░▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░
+             */
+            if((i<r && (r<=d || d<=i)) || (r<=d && d<=i)) {
+                tab[d] = item;
+                tab[d + 1] = tab[i + 1];
+                
+                tab[i] = null;
+                tab[i + 1] = null;
+                
+                d = i;
+            }
+        }
+    }
+    
+    
+    
+    
+    
+    
+    // key的集合
+    private class KeySet extends AbstractSet<K> {
+        public Iterator<K> iterator() {
+            return new KeyIterator();
+        }
+        
         public int size() {
             return size;
         }
-        public void clear() {
-            IdentityHashMap.this.clear();
+        
+        public boolean contains(Object o) {
+            return containsKey(o);
         }
+        
+        public boolean remove(Object o) {
+            int oldSize = size;
+            IdentityHashMap.this.remove(o);
+            return size != oldSize;
+        }
+        
         /*
          * Must revert from AbstractSet's impl to AbstractCollection's, as
          * the former contains an optimization that results in incorrect
@@ -1212,389 +1207,648 @@ public class IdentityHashMap<K,V>
         public boolean removeAll(Collection<?> c) {
             Objects.requireNonNull(c);
             boolean modified = false;
-            for (Iterator<Map.Entry<K,V>> i = iterator(); i.hasNext(); ) {
-                if (c.contains(i.next())) {
+            for(Iterator<K> i = iterator(); i.hasNext(); ) {
+                if(c.contains(i.next())) {
                     i.remove();
                     modified = true;
                 }
             }
             return modified;
         }
-
+        
+        public void clear() {
+            IdentityHashMap.this.clear();
+        }
+        
+        public int hashCode() {
+            int result = 0;
+            for(K key : this) {
+                result += System.identityHashCode(key);
+            }
+            return result;
+        }
+        
         public Object[] toArray() {
             return toArray(new Object[0]);
         }
-
+        
         @SuppressWarnings("unchecked")
         public <T> T[] toArray(T[] a) {
             int expectedModCount = modCount;
             int size = size();
-            if (a.length < size)
+            if(a.length<size) {
                 a = (T[]) Array.newInstance(a.getClass().getComponentType(), size);
+            }
             Object[] tab = table;
             int ti = 0;
-            for (int si = 0; si < tab.length; si += 2) {
+            for(int si = 0; si<tab.length; si += 2) {
                 Object key;
-                if ((key = tab[si]) != null) { // key present ?
+                if((key = tab[si]) != null) { // key present ?
                     // more elements than expected -> concurrent modification from other thread
-                    if (ti >= size) {
+                    if(ti >= size) {
+                        throw new ConcurrentModificationException();
+                    }
+                    a[ti++] = (T) unmaskNull(key); // unmask key
+                }
+            }
+            // fewer elements than expected or concurrent modification from other thread detected
+            if(ti<size || expectedModCount != modCount) {
+                throw new ConcurrentModificationException();
+            }
+            // final null marker as per spec
+            if(ti<a.length) {
+                a[ti] = null;
+            }
+            return a;
+        }
+        
+        public Spliterator<K> spliterator() {
+            return new KeySpliterator<>(IdentityHashMap.this, 0, -1, 0, 0);
+        }
+    }
+    
+    // value的集合
+    private class Values extends AbstractCollection<V> {
+        public Iterator<V> iterator() {
+            return new ValueIterator();
+        }
+        
+        public int size() {
+            return size;
+        }
+        
+        public boolean contains(Object o) {
+            return containsValue(o);
+        }
+        
+        public boolean remove(Object o) {
+            for(Iterator<V> i = iterator(); i.hasNext(); ) {
+                if(i.next() == o) {
+                    i.remove();
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        public void clear() {
+            IdentityHashMap.this.clear();
+        }
+        
+        public Object[] toArray() {
+            return toArray(new Object[0]);
+        }
+        
+        @SuppressWarnings("unchecked")
+        public <T> T[] toArray(T[] a) {
+            int expectedModCount = modCount;
+            int size = size();
+            if(a.length<size) {
+                a = (T[]) Array.newInstance(a.getClass().getComponentType(), size);
+            }
+            Object[] tab = table;
+            int ti = 0;
+            for(int si = 0; si<tab.length; si += 2) {
+                if(tab[si] != null) { // key present ?
+                    // more elements than expected -> concurrent modification from other thread
+                    if(ti >= size) {
+                        throw new ConcurrentModificationException();
+                    }
+                    a[ti++] = (T) tab[si + 1]; // copy value
+                }
+            }
+            // fewer elements than expected or concurrent modification from other thread detected
+            if(ti<size || expectedModCount != modCount) {
+                throw new ConcurrentModificationException();
+            }
+            // final null marker as per spec
+            if(ti<a.length) {
+                a[ti] = null;
+            }
+            return a;
+        }
+        
+        public Spliterator<V> spliterator() {
+            return new ValueSpliterator<>(IdentityHashMap.this, 0, -1, 0, 0);
+        }
+    }
+    
+    // key-value的集合
+    private class EntrySet extends AbstractSet<Map.Entry<K, V>> {
+        public Iterator<Map.Entry<K, V>> iterator() {
+            return new EntryIterator();
+        }
+        
+        public boolean contains(Object o) {
+            if(!(o instanceof Map.Entry)) {
+                return false;
+            }
+            Map.Entry<?, ?> entry = (Map.Entry<?, ?>) o;
+            return containsMapping(entry.getKey(), entry.getValue());
+        }
+        
+        public boolean remove(Object o) {
+            if(!(o instanceof Map.Entry)) {
+                return false;
+            }
+            Map.Entry<?, ?> entry = (Map.Entry<?, ?>) o;
+            return removeMapping(entry.getKey(), entry.getValue());
+        }
+        
+        public int size() {
+            return size;
+        }
+        
+        public void clear() {
+            IdentityHashMap.this.clear();
+        }
+        
+        /*
+         * Must revert from AbstractSet's impl to AbstractCollection's, as
+         * the former contains an optimization that results in incorrect
+         * behavior when c is a smaller "normal" (non-identity-based) Set.
+         */
+        public boolean removeAll(Collection<?> c) {
+            Objects.requireNonNull(c);
+            boolean modified = false;
+            for(Iterator<Map.Entry<K, V>> i = iterator(); i.hasNext(); ) {
+                if(c.contains(i.next())) {
+                    i.remove();
+                    modified = true;
+                }
+            }
+            return modified;
+        }
+        
+        public Object[] toArray() {
+            return toArray(new Object[0]);
+        }
+        
+        @SuppressWarnings("unchecked")
+        public <T> T[] toArray(T[] a) {
+            int expectedModCount = modCount;
+            int size = size();
+            if(a.length<size) {
+                a = (T[]) Array.newInstance(a.getClass().getComponentType(), size);
+            }
+            Object[] tab = table;
+            int ti = 0;
+            for(int si = 0; si<tab.length; si += 2) {
+                Object key;
+                if((key = tab[si]) != null) { // key present ?
+                    // more elements than expected -> concurrent modification from other thread
+                    if(ti >= size) {
                         throw new ConcurrentModificationException();
                     }
                     a[ti++] = (T) new AbstractMap.SimpleEntry<>(unmaskNull(key), tab[si + 1]);
                 }
             }
             // fewer elements than expected or concurrent modification from other thread detected
-            if (ti < size || expectedModCount != modCount) {
+            if(ti<size || expectedModCount != modCount) {
                 throw new ConcurrentModificationException();
             }
             // final null marker as per spec
-            if (ti < a.length) {
+            if(ti<a.length) {
                 a[ti] = null;
             }
             return a;
         }
-
-        public Spliterator<Map.Entry<K,V>> spliterator() {
+        
+        public Spliterator<Map.Entry<K, V>> spliterator() {
             return new EntrySpliterator<>(IdentityHashMap.this, 0, -1, 0, 0);
         }
     }
-
-
-    private static final long serialVersionUID = 8188218128353913216L;
-
-    /**
-     * Saves the state of the {@code IdentityHashMap} instance to a stream
-     * (i.e., serializes it).
-     *
-     * @serialData The <i>size</i> of the HashMap (the number of key-value
-     *          mappings) ({@code int}), followed by the key (Object) and
-     *          value (Object) for each key-value mapping represented by the
-     *          IdentityHashMap.  The key-value mappings are emitted in no
-     *          particular order.
-     */
-    private void writeObject(java.io.ObjectOutputStream s)
-        throws java.io.IOException  {
-        // Write out and any hidden stuff
-        s.defaultWriteObject();
-
-        // Write out size (number of Mappings)
-        s.writeInt(size);
-
-        // Write out keys and values (alternating)
-        Object[] tab = table;
-        for (int i = 0; i < tab.length; i += 2) {
-            Object key = tab[i];
-            if (key != null) {
-                s.writeObject(unmaskNull(key));
-                s.writeObject(tab[i + 1]);
+    
+    
+    
+    // 迭代器，用来遍历IdentityHashMap中的key、value、entry
+    private abstract class IdentityHashMapIterator<T> implements Iterator<T> {
+        int index = (size != 0 ? 0 : table.length); // current slot.
+        int expectedModCount = modCount; // to support fast-fail
+        int lastReturnedIndex = -1;      // to allow remove()
+        boolean indexValid; // To avoid unnecessary next computation
+        Object[] traversalTable = table; // reference to main table or copy
+        
+        public boolean hasNext() {
+            Object[] tab = traversalTable;
+            for(int i = index; i<tab.length; i += 2) {
+                Object key = tab[i];
+                if(key != null) {
+                    index = i;
+                    return indexValid = true;
+                }
             }
+            index = tab.length;
+            return false;
         }
-    }
-
-    /**
-     * Reconstitutes the {@code IdentityHashMap} instance from a stream (i.e.,
-     * deserializes it).
-     */
-    private void readObject(java.io.ObjectInputStream s)
-        throws java.io.IOException, ClassNotFoundException  {
-        // Read in any hidden stuff
-        s.defaultReadObject();
-
-        // Read in size (number of Mappings)
-        int size = s.readInt();
-        if (size < 0)
-            throw new java.io.StreamCorruptedException
-                ("Illegal mappings count: " + size);
-        int cap = capacity(size);
-        SharedSecrets.getJavaObjectInputStreamAccess().checkArray(s, Object[].class, cap);
-        init(cap);
-
-        // Read the keys and values, and put the mappings in the table
-        for (int i=0; i<size; i++) {
-            @SuppressWarnings("unchecked")
-                K key = (K) s.readObject();
-            @SuppressWarnings("unchecked")
-                V value = (V) s.readObject();
-            putForCreate(key, value);
-        }
-    }
-
-    /**
-     * The put method for readObject.  It does not resize the table,
-     * update modCount, etc.
-     */
-    private void putForCreate(K key, V value)
-        throws java.io.StreamCorruptedException
-    {
-        Object k = maskNull(key);
-        Object[] tab = table;
-        int len = tab.length;
-        int i = hash(k, len);
-
-        Object item;
-        while ( (item = tab[i]) != null) {
-            if (item == k)
-                throw new java.io.StreamCorruptedException();
-            i = nextKeyIndex(i, len);
-        }
-        tab[i] = k;
-        tab[i + 1] = value;
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public void forEach(BiConsumer<? super K, ? super V> action) {
-        Objects.requireNonNull(action);
-        int expectedModCount = modCount;
-
-        Object[] t = table;
-        for (int index = 0; index < t.length; index += 2) {
-            Object k = t[index];
-            if (k != null) {
-                action.accept((K) unmaskNull(k), (V) t[index + 1]);
+        
+        public void remove() {
+            if(lastReturnedIndex == -1) {
+                throw new IllegalStateException();
             }
-
-            if (modCount != expectedModCount) {
+            if(modCount != expectedModCount) {
                 throw new ConcurrentModificationException();
             }
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public void replaceAll(BiFunction<? super K, ? super V, ? extends V> function) {
-        Objects.requireNonNull(function);
-        int expectedModCount = modCount;
-
-        Object[] t = table;
-        for (int index = 0; index < t.length; index += 2) {
-            Object k = t[index];
-            if (k != null) {
-                t[index + 1] = function.apply((K) unmaskNull(k), (V) t[index + 1]);
+            
+            expectedModCount = ++modCount;
+            int deletedSlot = lastReturnedIndex;
+            lastReturnedIndex = -1;
+            // back up index to revisit new contents after deletion
+            index = deletedSlot;
+            indexValid = false;
+            
+            // Removal code proceeds as in closeDeletion except that
+            // it must catch the rare case where an element already
+            // seen is swapped into a vacant slot that will be later
+            // traversed by this iterator. We cannot allow future
+            // next() calls to return it again.  The likelihood of
+            // this occurring under 2/3 load factor is very slim, but
+            // when it does happen, we must make a copy of the rest of
+            // the table to use for the rest of the traversal. Since
+            // this can only happen when we are near the end of the table,
+            // even in these rare cases, this is not very expensive in
+            // time or space.
+            
+            Object[] tab = traversalTable;
+            int len = tab.length;
+            
+            int d = deletedSlot;
+            Object key = tab[d];
+            tab[d] = null;        // vacate the slot
+            tab[d + 1] = null;
+            
+            // If traversing a copy, remove in real table.
+            // We can skip gap-closure on copy.
+            if(tab != IdentityHashMap.this.table) {
+                IdentityHashMap.this.remove(key);
+                expectedModCount = modCount;
+                return;
             }
-
-            if (modCount != expectedModCount) {
+            
+            size--;
+            
+            Object item;
+            for(int i = nextKeyIndex(d, len); (item = tab[i]) != null; i = nextKeyIndex(i, len)) {
+                int r = hash(item, len);
+                // See closeDeletion for explanation of this conditional
+                if((i<r && (r<=d || d<=i)) || (r<=d && d<=i)) {
+                    
+                    // If we are about to swap an already-seen element
+                    // into a slot that may later be returned by next(),
+                    // then clone the rest of table for use in future
+                    // next() calls. It is OK that our copy will have
+                    // a gap in the "wrong" place, since it will never
+                    // be used for searching anyway.
+                    
+                    if(i<deletedSlot && d >= deletedSlot && traversalTable == IdentityHashMap.this.table) {
+                        int remaining = len - deletedSlot;
+                        Object[] newTable = new Object[remaining];
+                        System.arraycopy(tab, deletedSlot, newTable, 0, remaining);
+                        traversalTable = newTable;
+                        index = 0;
+                    }
+                    
+                    tab[d] = item;
+                    tab[d + 1] = tab[i + 1];
+                    tab[i] = null;
+                    tab[i + 1] = null;
+                    d = i;
+                }
+            }
+        }
+        
+        protected int nextIndex() {
+            if(modCount != expectedModCount) {
                 throw new ConcurrentModificationException();
             }
+            if(!indexValid && !hasNext()) {
+                throw new NoSuchElementException();
+            }
+            
+            indexValid = false;
+            lastReturnedIndex = index;
+            index += 2;
+            return lastReturnedIndex;
         }
     }
-
+    
+    // key的迭代器
+    private class KeyIterator extends IdentityHashMapIterator<K> {
+        @SuppressWarnings("unchecked")
+        public K next() {
+            return (K) unmaskNull(traversalTable[nextIndex()]);
+        }
+    }
+    
+    // value的迭代器
+    private class ValueIterator extends IdentityHashMapIterator<V> {
+        @SuppressWarnings("unchecked")
+        public V next() {
+            return (V) traversalTable[nextIndex() + 1];
+        }
+    }
+    
+    // entry的迭代器
+    private class EntryIterator extends IdentityHashMapIterator<Map.Entry<K, V>> {
+        private Entry lastReturnedEntry;
+        
+        public Map.Entry<K, V> next() {
+            lastReturnedEntry = new Entry(nextIndex());
+            return lastReturnedEntry;
+        }
+        
+        public void remove() {
+            lastReturnedIndex = ((null == lastReturnedEntry) ? -1 : lastReturnedEntry.index);
+            super.remove();
+            lastReturnedEntry.index = lastReturnedIndex;
+            lastReturnedEntry = null;
+        }
+        
+        private class Entry implements Map.Entry<K, V> {
+            private int index;
+            
+            private Entry(int index) {
+                this.index = index;
+            }
+            
+            @SuppressWarnings("unchecked")
+            public K getKey() {
+                checkIndexForEntryUse();
+                return (K) unmaskNull(traversalTable[index]);
+            }
+            
+            @SuppressWarnings("unchecked")
+            public V getValue() {
+                checkIndexForEntryUse();
+                return (V) traversalTable[index + 1];
+            }
+            
+            @SuppressWarnings("unchecked")
+            public V setValue(V value) {
+                checkIndexForEntryUse();
+                V oldValue = (V) traversalTable[index + 1];
+                traversalTable[index + 1] = value;
+                // if shadowing, force into main table
+                if(traversalTable != IdentityHashMap.this.table) {
+                    put((K) traversalTable[index], value);
+                }
+                return oldValue;
+            }
+            
+            public boolean equals(Object o) {
+                if(index<0) {
+                    return super.equals(o);
+                }
+                
+                if(!(o instanceof Map.Entry)) {
+                    return false;
+                }
+                Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
+                return (e.getKey() == unmaskNull(traversalTable[index]) && e.getValue() == traversalTable[index + 1]);
+            }
+            
+            public int hashCode() {
+                if(lastReturnedIndex<0) {
+                    return super.hashCode();
+                }
+                
+                return (System.identityHashCode(unmaskNull(traversalTable[index])) ^ System.identityHashCode(traversalTable[index + 1]));
+            }
+            
+            public String toString() {
+                if(index<0) {
+                    return super.toString();
+                }
+                
+                return (unmaskNull(traversalTable[index]) + "=" + traversalTable[index + 1]);
+            }
+            
+            private void checkIndexForEntryUse() {
+                if(index<0) {
+                    throw new IllegalStateException("Entry was removed");
+                }
+            }
+        }
+    }
+    
+    
+    
     /**
      * Similar form as array-based Spliterators, but skips blank elements,
      * and guestimates size as decreasing by half per split.
      */
-    static class IdentityHashMapSpliterator<K,V> {
-        final IdentityHashMap<K,V> map;
+    // 可分割迭代器
+    static class IdentityHashMapSpliterator<K, V> {
+        final IdentityHashMap<K, V> map;
         int index;             // current index, modified on advance/split
         int fence;             // -1 until first use; then one past last index
         int est;               // size estimate
         int expectedModCount;  // initialized when fence set
-
-        IdentityHashMapSpliterator(IdentityHashMap<K,V> map, int origin,
-                                   int fence, int est, int expectedModCount) {
+        
+        IdentityHashMapSpliterator(IdentityHashMap<K, V> map, int origin, int fence, int est, int expectedModCount) {
             this.map = map;
             this.index = origin;
             this.fence = fence;
             this.est = est;
             this.expectedModCount = expectedModCount;
         }
-
+        
+        public final long estimateSize() {
+            getFence(); // force init
+            return est;
+        }
+        
         final int getFence() { // initialize fence and size on first use
             int hi;
-            if ((hi = fence) < 0) {
+            if((hi = fence)<0) {
                 est = map.size;
                 expectedModCount = map.modCount;
                 hi = fence = map.table.length;
             }
             return hi;
         }
-
-        public final long estimateSize() {
-            getFence(); // force init
-            return (long) est;
-        }
     }
-
-    static final class KeySpliterator<K,V>
-        extends IdentityHashMapSpliterator<K,V>
-        implements Spliterator<K> {
-        KeySpliterator(IdentityHashMap<K,V> map, int origin, int fence, int est,
-                       int expectedModCount) {
+    
+    // key的可分割迭代器
+    static final class KeySpliterator<K, V> extends IdentityHashMapSpliterator<K, V> implements Spliterator<K> {
+        KeySpliterator(IdentityHashMap<K, V> map, int origin, int fence, int est, int expectedModCount) {
             super(map, origin, fence, est, expectedModCount);
         }
-
-        public KeySpliterator<K,V> trySplit() {
+        
+        public KeySpliterator<K, V> trySplit() {
             int hi = getFence(), lo = index, mid = ((lo + hi) >>> 1) & ~1;
-            return (lo >= mid) ? null :
-                new KeySpliterator<>(map, lo, index = mid, est >>>= 1,
-                                     expectedModCount);
+            return (lo >= mid) ? null : new KeySpliterator<>(map, lo, index = mid, est >>>= 1, expectedModCount);
         }
-
+        
         @SuppressWarnings("unchecked")
         public void forEachRemaining(Consumer<? super K> action) {
-            if (action == null)
+            if(action == null) {
                 throw new NullPointerException();
-            int i, hi, mc; Object key;
-            IdentityHashMap<K,V> m; Object[] a;
-            if ((m = map) != null && (a = m.table) != null &&
-                (i = index) >= 0 && (index = hi = getFence()) <= a.length) {
-                for (; i < hi; i += 2) {
-                    if ((key = a[i]) != null)
-                        action.accept((K)unmaskNull(key));
+            }
+            int i, hi, mc;
+            Object key;
+            IdentityHashMap<K, V> m;
+            Object[] a;
+            if((m = map) != null && (a = m.table) != null && (i = index) >= 0 && (index = hi = getFence())<=a.length) {
+                for(; i<hi; i += 2) {
+                    if((key = a[i]) != null)
+                        action.accept((K) unmaskNull(key));
                 }
-                if (m.modCount == expectedModCount)
+                if(m.modCount == expectedModCount) {
                     return;
+                }
             }
             throw new ConcurrentModificationException();
         }
-
+        
         @SuppressWarnings("unchecked")
         public boolean tryAdvance(Consumer<? super K> action) {
-            if (action == null)
+            if(action == null) {
                 throw new NullPointerException();
+            }
             Object[] a = map.table;
             int hi = getFence();
-            while (index < hi) {
+            while(index<hi) {
                 Object key = a[index];
                 index += 2;
-                if (key != null) {
-                    action.accept((K)unmaskNull(key));
-                    if (map.modCount != expectedModCount)
+                if(key != null) {
+                    action.accept((K) unmaskNull(key));
+                    if(map.modCount != expectedModCount)
                         throw new ConcurrentModificationException();
                     return true;
                 }
             }
             return false;
         }
-
+        
         public int characteristics() {
-            return (fence < 0 || est == map.size ? SIZED : 0) | Spliterator.DISTINCT;
+            return (fence<0 || est == map.size ? SIZED : 0) | Spliterator.DISTINCT;
         }
     }
-
-    static final class ValueSpliterator<K,V>
-        extends IdentityHashMapSpliterator<K,V>
-        implements Spliterator<V> {
-        ValueSpliterator(IdentityHashMap<K,V> m, int origin, int fence, int est,
-                         int expectedModCount) {
+    
+    // value的可分割迭代器
+    static final class ValueSpliterator<K, V> extends IdentityHashMapSpliterator<K, V> implements Spliterator<V> {
+        ValueSpliterator(IdentityHashMap<K, V> m, int origin, int fence, int est, int expectedModCount) {
             super(m, origin, fence, est, expectedModCount);
         }
-
-        public ValueSpliterator<K,V> trySplit() {
+        
+        public ValueSpliterator<K, V> trySplit() {
             int hi = getFence(), lo = index, mid = ((lo + hi) >>> 1) & ~1;
-            return (lo >= mid) ? null :
-                new ValueSpliterator<>(map, lo, index = mid, est >>>= 1,
-                                       expectedModCount);
+            return (lo >= mid) ? null : new ValueSpliterator<>(map, lo, index = mid, est >>>= 1, expectedModCount);
         }
-
+        
         public void forEachRemaining(Consumer<? super V> action) {
-            if (action == null)
+            if(action == null) {
                 throw new NullPointerException();
+            }
             int i, hi, mc;
-            IdentityHashMap<K,V> m; Object[] a;
-            if ((m = map) != null && (a = m.table) != null &&
-                (i = index) >= 0 && (index = hi = getFence()) <= a.length) {
-                for (; i < hi; i += 2) {
-                    if (a[i] != null) {
-                        @SuppressWarnings("unchecked") V v = (V)a[i+1];
+            IdentityHashMap<K, V> m;
+            Object[] a;
+            if((m = map) != null && (a = m.table) != null && (i = index) >= 0 && (index = hi = getFence())<=a.length) {
+                for(; i<hi; i += 2) {
+                    if(a[i] != null) {
+                        @SuppressWarnings("unchecked")
+                        V v = (V) a[i + 1];
                         action.accept(v);
                     }
                 }
-                if (m.modCount == expectedModCount)
+                if(m.modCount == expectedModCount) {
                     return;
+                }
             }
             throw new ConcurrentModificationException();
         }
-
+        
         public boolean tryAdvance(Consumer<? super V> action) {
-            if (action == null)
+            if(action == null) {
                 throw new NullPointerException();
+            }
             Object[] a = map.table;
             int hi = getFence();
-            while (index < hi) {
+            while(index<hi) {
                 Object key = a[index];
-                @SuppressWarnings("unchecked") V v = (V)a[index+1];
+                @SuppressWarnings("unchecked")
+                V v = (V) a[index + 1];
                 index += 2;
-                if (key != null) {
+                if(key != null) {
                     action.accept(v);
-                    if (map.modCount != expectedModCount)
+                    if(map.modCount != expectedModCount)
                         throw new ConcurrentModificationException();
                     return true;
                 }
             }
             return false;
         }
-
+        
         public int characteristics() {
-            return (fence < 0 || est == map.size ? SIZED : 0);
+            return (fence<0 || est == map.size ? SIZED : 0);
         }
-
+        
     }
-
-    static final class EntrySpliterator<K,V>
-        extends IdentityHashMapSpliterator<K,V>
-        implements Spliterator<Map.Entry<K,V>> {
-        EntrySpliterator(IdentityHashMap<K,V> m, int origin, int fence, int est,
-                         int expectedModCount) {
+    
+    // key-value的可分割迭代器
+    static final class EntrySpliterator<K, V> extends IdentityHashMapSpliterator<K, V> implements Spliterator<Map.Entry<K, V>> {
+        EntrySpliterator(IdentityHashMap<K, V> m, int origin, int fence, int est, int expectedModCount) {
             super(m, origin, fence, est, expectedModCount);
         }
-
-        public EntrySpliterator<K,V> trySplit() {
+        
+        public EntrySpliterator<K, V> trySplit() {
             int hi = getFence(), lo = index, mid = ((lo + hi) >>> 1) & ~1;
-            return (lo >= mid) ? null :
-                new EntrySpliterator<>(map, lo, index = mid, est >>>= 1,
-                                       expectedModCount);
+            return (lo >= mid) ? null : new EntrySpliterator<>(map, lo, index = mid, est >>>= 1, expectedModCount);
         }
-
+        
         public void forEachRemaining(Consumer<? super Map.Entry<K, V>> action) {
-            if (action == null)
+            if(action == null) {
                 throw new NullPointerException();
+            }
             int i, hi, mc;
-            IdentityHashMap<K,V> m; Object[] a;
-            if ((m = map) != null && (a = m.table) != null &&
-                (i = index) >= 0 && (index = hi = getFence()) <= a.length) {
-                for (; i < hi; i += 2) {
+            IdentityHashMap<K, V> m;
+            Object[] a;
+            if((m = map) != null && (a = m.table) != null && (i = index) >= 0 && (index = hi = getFence())<=a.length) {
+                for(; i<hi; i += 2) {
                     Object key = a[i];
-                    if (key != null) {
-                        @SuppressWarnings("unchecked") K k =
-                            (K)unmaskNull(key);
-                        @SuppressWarnings("unchecked") V v = (V)a[i+1];
-                        action.accept
-                            (new AbstractMap.SimpleImmutableEntry<>(k, v));
-
+                    if(key != null) {
+                        @SuppressWarnings("unchecked")
+                        K k = (K) unmaskNull(key);
+                        @SuppressWarnings("unchecked")
+                        V v = (V) a[i + 1];
+                        action.accept(new AbstractMap.SimpleImmutableEntry<>(k, v));
+                        
                     }
                 }
-                if (m.modCount == expectedModCount)
+                if(m.modCount == expectedModCount) {
                     return;
+                }
             }
             throw new ConcurrentModificationException();
         }
-
-        public boolean tryAdvance(Consumer<? super Map.Entry<K,V>> action) {
-            if (action == null)
+        
+        public boolean tryAdvance(Consumer<? super Map.Entry<K, V>> action) {
+            if(action == null) {
                 throw new NullPointerException();
+            }
             Object[] a = map.table;
             int hi = getFence();
-            while (index < hi) {
+            while(index<hi) {
                 Object key = a[index];
-                @SuppressWarnings("unchecked") V v = (V)a[index+1];
+                @SuppressWarnings("unchecked")
+                V v = (V) a[index + 1];
                 index += 2;
-                if (key != null) {
-                    @SuppressWarnings("unchecked") K k =
-                        (K)unmaskNull(key);
-                    action.accept
-                        (new AbstractMap.SimpleImmutableEntry<>(k, v));
-                    if (map.modCount != expectedModCount)
+                if(key != null) {
+                    @SuppressWarnings("unchecked")
+                    K k = (K) unmaskNull(key);
+                    action.accept(new AbstractMap.SimpleImmutableEntry<>(k, v));
+                    if(map.modCount != expectedModCount)
                         throw new ConcurrentModificationException();
                     return true;
                 }
             }
             return false;
         }
-
+        
         public int characteristics() {
-            return (fence < 0 || est == map.size ? SIZED : 0) | Spliterator.DISTINCT;
+            return (fence<0 || est == map.size ? SIZED : 0) | Spliterator.DISTINCT;
         }
     }
-
+    
 }
