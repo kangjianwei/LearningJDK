@@ -25,13 +25,11 @@
 
 package java.util;
 
-import java.lang.ref.WeakReference;
 import java.lang.ref.ReferenceQueue;
-import java.util.concurrent.ThreadLocalRandom;
+import java.lang.ref.WeakReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-
 
 /**
  * Hash table based implementation of the {@code Map} interface, with
@@ -126,59 +124,74 @@ import java.util.function.Consumer;
  * @param <K> the type of keys maintained by this map
  * @param <V> the type of mapped values
  *
- * @author      Doug Lea
- * @author      Josh Bloch
- * @author      Mark Reinhold
- * @since       1.2
- * @see         java.util.HashMap
- * @see         java.lang.ref.WeakReference
+ * @author Doug Lea
+ * @author Josh Bloch
+ * @author Mark Reinhold
+ * @see java.util.HashMap
+ * @see java.lang.ref.WeakReference
+ * @since 1.2
  */
-public class WeakHashMap<K,V>
-    extends AbstractMap<K,V>
-    implements Map<K,V> {
 
+/*
+ * WeakHashMap结构：数组+链表，key和value均可以为null
+ *
+ * WeakHashMap的key被弱引用追踪，如果一个元素的key被回收，则其value也会在后续被回收
+ *
+ * 注：WeakHashMap非线程安全
+ */
+public class WeakHashMap<K, V> extends AbstractMap<K, V> implements Map<K, V> {
+    
     /**
-     * The default initial capacity -- MUST be a power of two.
+     * Value representing null keys inside tables.
      */
-    private static final int DEFAULT_INITIAL_CAPACITY = 16;
-
+    private static final Object NULL_KEY = new Object();
+    
     /**
      * The maximum capacity, used if a higher value is implicitly specified
      * by either of the constructors with arguments.
      * MUST be a power of two <= 1<<30.
      */
-    private static final int MAXIMUM_CAPACITY = 1 << 30;
-
+    private static final int MAXIMUM_CAPACITY = 1 << 30;    // 哈希数组最大容量
+    
+    /**
+     * The default initial capacity -- MUST be a power of two.
+     */
+    private static final int DEFAULT_INITIAL_CAPACITY = 16; // 哈希数组默认容量
+    
     /**
      * The load factor used when none specified in constructor.
      */
-    private static final float DEFAULT_LOAD_FACTOR = 0.75f;
-
-    /**
-     * The table, resized as necessary. Length MUST Always be a power of two.
-     */
-    Entry<K,V>[] table;
-
-    /**
-     * The number of key-value mappings contained in this weak hash map.
-     */
-    private int size;
-
-    /**
-     * The next size value at which to resize (capacity * load factor).
-     */
-    private int threshold;
-
-    /**
-     * The load factor for the hash table.
-     */
-    private final float loadFactor;
-
+    private static final float DEFAULT_LOAD_FACTOR = 0.75f; // WeakHashMap默认装载因子（负荷系数）
+    
+    
     /**
      * Reference queue for cleared WeakEntries
      */
     private final ReferenceQueue<Object> queue = new ReferenceQueue<>();
-
+    
+    
+    /**
+     * The table, resized as necessary. Length MUST Always be a power of two.
+     */
+    Entry<K, V>[] table;    // 哈希数组（注：哈希数组的容量跟WeakHashMap可以存储的元素数量不是一回事）
+    
+    /**
+     * The number of key-value mappings contained in this weak hash map.
+     */
+    private int size;       // WeakHashMap中的元素数量
+    
+    /**
+     * The load factor for the hash table.
+     */
+    private final float loadFactor; // WeakHashMap当前使用的装载因子
+    
+    /**
+     * The next size value at which to resize (capacity * load factor).
+     */
+    private int threshold;  // WeakHashMap扩容阈值，【一般】由（哈希数组容量*WeakHashMap装载因子）计算而来，WeakHashMap中元素数量超过该阈值时，哈希数组需要扩容
+    
+    private transient Set<Map.Entry<K, V>> entrySet;    // entry集合
+    
     /**
      * The number of times this WeakHashMap has been structurally modified.
      * Structural modifications are those that change the number of
@@ -188,51 +201,12 @@ public class WeakHashMap<K,V>
      *
      * @see ConcurrentModificationException
      */
-    int modCount;
-
-    @SuppressWarnings("unchecked")
-    private Entry<K,V>[] newTable(int n) {
-        return (Entry<K,V>[]) new Entry<?,?>[n];
-    }
-
-    /**
-     * Constructs a new, empty {@code WeakHashMap} with the given initial
-     * capacity and the given load factor.
-     *
-     * @param  initialCapacity The initial capacity of the {@code WeakHashMap}
-     * @param  loadFactor      The load factor of the {@code WeakHashMap}
-     * @throws IllegalArgumentException if the initial capacity is negative,
-     *         or if the load factor is nonpositive.
-     */
-    public WeakHashMap(int initialCapacity, float loadFactor) {
-        if (initialCapacity < 0)
-            throw new IllegalArgumentException("Illegal Initial Capacity: "+
-                                               initialCapacity);
-        if (initialCapacity > MAXIMUM_CAPACITY)
-            initialCapacity = MAXIMUM_CAPACITY;
-
-        if (loadFactor <= 0 || Float.isNaN(loadFactor))
-            throw new IllegalArgumentException("Illegal Load factor: "+
-                                               loadFactor);
-        int capacity = 1;
-        while (capacity < initialCapacity)
-            capacity <<= 1;
-        table = newTable(capacity);
-        this.loadFactor = loadFactor;
-        threshold = (int)(capacity * loadFactor);
-    }
-
-    /**
-     * Constructs a new, empty {@code WeakHashMap} with the given initial
-     * capacity and the default load factor (0.75).
-     *
-     * @param  initialCapacity The initial capacity of the {@code WeakHashMap}
-     * @throws IllegalArgumentException if the initial capacity is negative
-     */
-    public WeakHashMap(int initialCapacity) {
-        this(initialCapacity, DEFAULT_LOAD_FACTOR);
-    }
-
+    int modCount;   // 记录WeakHashMap结构的修改次数
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Constructs a new, empty {@code WeakHashMap} with the default initial
      * capacity (16) and load factor (0.75).
@@ -240,140 +214,187 @@ public class WeakHashMap<K,V>
     public WeakHashMap() {
         this(DEFAULT_INITIAL_CAPACITY, DEFAULT_LOAD_FACTOR);
     }
-
+    
+    /**
+     * Constructs a new, empty {@code WeakHashMap} with the given initial
+     * capacity and the default load factor (0.75).
+     *
+     * @param initialCapacity The initial capacity of the {@code WeakHashMap}
+     *
+     * @throws IllegalArgumentException if the initial capacity is negative
+     */
+    public WeakHashMap(int initialCapacity) {
+        this(initialCapacity, DEFAULT_LOAD_FACTOR);
+    }
+    
+    /**
+     * Constructs a new, empty {@code WeakHashMap} with the given initial
+     * capacity and the given load factor.
+     *
+     * @param initialCapacity The initial capacity of the {@code WeakHashMap}
+     * @param loadFactor      The load factor of the {@code WeakHashMap}
+     *
+     * @throws IllegalArgumentException if the initial capacity is negative,
+     *                                  or if the load factor is nonpositive.
+     */
+    public WeakHashMap(int initialCapacity, float loadFactor) {
+        if(initialCapacity<0) {
+            throw new IllegalArgumentException("Illegal Initial Capacity: " + initialCapacity);
+        }
+        
+        if(initialCapacity>MAXIMUM_CAPACITY) {
+            initialCapacity = MAXIMUM_CAPACITY;
+        }
+        
+        if(loadFactor<=0 || Float.isNaN(loadFactor)) {
+            throw new IllegalArgumentException("Illegal Load factor: " + loadFactor);
+        }
+        
+        int capacity = 1;
+        
+        while(capacity<initialCapacity) {
+            capacity <<= 1;
+        }
+        
+        table = newTable(capacity);
+        
+        this.loadFactor = loadFactor;
+        
+        threshold = (int) (capacity * loadFactor);
+    }
+    
     /**
      * Constructs a new {@code WeakHashMap} with the same mappings as the
      * specified map.  The {@code WeakHashMap} is created with the default
      * load factor (0.75) and an initial capacity sufficient to hold the
      * mappings in the specified map.
      *
-     * @param   m the map whose mappings are to be placed in this map
-     * @throws  NullPointerException if the specified map is null
-     * @since   1.3
+     * @param m the map whose mappings are to be placed in this map
+     *
+     * @throws NullPointerException if the specified map is null
+     * @since 1.3
      */
     public WeakHashMap(Map<? extends K, ? extends V> m) {
-        this(Math.max((int) (m.size() / DEFAULT_LOAD_FACTOR) + 1,
-                DEFAULT_INITIAL_CAPACITY),
-             DEFAULT_LOAD_FACTOR);
+        this(Math.max((int) (m.size() / DEFAULT_LOAD_FACTOR) + 1, DEFAULT_INITIAL_CAPACITY), DEFAULT_LOAD_FACTOR);
         putAll(m);
     }
-
-    // internal utilities
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 存值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Value representing null keys inside tables.
+     * Associates the specified value with the specified key in this map.
+     * If the map previously contained a mapping for this key, the old
+     * value is replaced.
+     *
+     * @param key   key with which the specified value is to be associated.
+     * @param value value to be associated with the specified key.
+     *
+     * @return the previous value associated with {@code key}, or
+     * {@code null} if there was no mapping for {@code key}.
+     * (A {@code null} return can also indicate that the map
+     * previously associated {@code null} with {@code key}.)
      */
-    private static final Object NULL_KEY = new Object();
-
-    /**
-     * Use NULL_KEY for key if it is null.
-     */
-    private static Object maskNull(Object key) {
-        return (key == null) ? NULL_KEY : key;
-    }
-
-    /**
-     * Returns internal representation of null key back to caller as null.
-     */
-    static Object unmaskNull(Object key) {
-        return (key == NULL_KEY) ? null : key;
-    }
-
-    /**
-     * Checks for equality of non-null reference x and possibly-null y.  By
-     * default uses Object.equals.
-     */
-    private static boolean eq(Object x, Object y) {
-        return x == y || x.equals(y);
-    }
-
-    /**
-     * Retrieve object hash code and applies a supplemental hash function to the
-     * result hash, which defends against poor quality hash functions.  This is
-     * critical because HashMap uses power-of-two length hash tables, that
-     * otherwise encounter collisions for hashCodes that do not differ
-     * in lower bits.
-     */
-    final int hash(Object k) {
-        int h = k.hashCode();
-
-        // This function ensures that hashCodes that differ only by
-        // constant multiples at each bit position have a bounded
-        // number of collisions (approximately 8 at default load factor).
-        h ^= (h >>> 20) ^ (h >>> 12);
-        return h ^ (h >>> 7) ^ (h >>> 4);
-    }
-
-    /**
-     * Returns index for hash code h.
-     */
-    private static int indexFor(int h, int length) {
-        return h & (length-1);
-    }
-
-    /**
-     * Expunges stale entries from the table.
-     */
-    private void expungeStaleEntries() {
-        for (Object x; (x = queue.poll()) != null; ) {
-            synchronized (queue) {
-                @SuppressWarnings("unchecked")
-                    Entry<K,V> e = (Entry<K,V>) x;
-                int i = indexFor(e.hash, table.length);
-
-                Entry<K,V> prev = table[i];
-                Entry<K,V> p = prev;
-                while (p != null) {
-                    Entry<K,V> next = p.next;
-                    if (p == e) {
-                        if (prev == e)
-                            table[i] = next;
-                        else
-                            prev.next = next;
-                        // Must not null out e.next;
-                        // stale entries may be in use by a HashIterator
-                        e.value = null; // Help GC
-                        size--;
-                        break;
-                    }
-                    prev = p;
-                    p = next;
+    // 将指定的元素（key-value）存入WeakHashMap，并返回旧值，允许覆盖
+    public V put(K key, V value) {
+        // (包装空值)如果key是null，返回一个专用空值。否则，原样返回
+        Object k = maskNull(key);
+        
+        // 计算key的哈希码
+        int h = hash(k);
+        
+        // 获取哈希数组（会先清理失效元素）
+        Entry<K, V>[] tab = getTable();
+        
+        // 将哈希码转换为哈希数组索引
+        int i = indexFor(h, tab.length);
+        
+        // 确定当前元素应当插入的位置
+        for(Entry<K, V> e = tab[i]; e != null; e = e.next) {
+            // 如果遇到同位元素
+            if(h == e.hash && eq(k, e.get())) {
+                V oldValue = e.value;
+                
+                // 覆盖旧值
+                if(value != oldValue) {
+                    e.value = value;
                 }
+                
+                return oldValue;
             }
         }
+        
+        modCount++;
+        
+        Entry<K, V> e = tab[i];
+        
+        // 在链表上插入新元素（头插法）
+        tab[i] = new Entry<>(k, value, queue, h, e);
+        
+        // 如果元素数量达到了扩容阈值，则使容量翻倍
+        if(++size >= threshold) {
+            resize(tab.length * 2);
+        }
+        
+        return null;
     }
-
+    
     /**
-     * Returns the table after first expunging stale entries.
+     * Copies all of the mappings from the specified map to this map.
+     * These mappings will replace any mappings that this map had for any
+     * of the keys currently in the specified map.
+     *
+     * @param m mappings to be stored in this map.
+     *
+     * @throws NullPointerException if the specified map is null.
      */
-    private Entry<K,V>[] getTable() {
-        expungeStaleEntries();
-        return table;
+    // 将指定Map中的元素存入到当前Map（允许覆盖）
+    public void putAll(Map<? extends K, ? extends V> m) {
+        int numKeysToBeAdded = m.size();
+        
+        if(numKeysToBeAdded == 0) {
+            return;
+        }
+        
+        /*
+         * Expand the map if the map if the number of mappings to be added
+         * is greater than or equal to threshold.  This is conservative; the
+         * obvious condition is (m.size() + size) >= threshold, but this
+         * condition could result in a map with twice the appropriate capacity,
+         * if the keys to be added overlap with the keys already in this map.
+         * By using the conservative calculation, we subject ourself
+         * to at most one extra resize.
+         */
+        if(numKeysToBeAdded>threshold) {
+            int targetCapacity = (int) (numKeysToBeAdded / loadFactor + 1);
+            if(targetCapacity>MAXIMUM_CAPACITY) {
+                targetCapacity = MAXIMUM_CAPACITY;
+            }
+            
+            int newCapacity = table.length;
+            while(newCapacity<targetCapacity) {
+                newCapacity <<= 1;
+            }
+            
+            if(newCapacity>table.length) {
+                resize(newCapacity);
+            }
+        }
+        
+        for(Map.Entry<? extends K, ? extends V> e : m.entrySet()) {
+            put(e.getKey(), e.getValue());
+        }
     }
-
-    /**
-     * Returns the number of key-value mappings in this map.
-     * This result is a snapshot, and may not reflect unprocessed
-     * entries that will be removed before next attempted access
-     * because they are no longer referenced.
-     */
-    public int size() {
-        if (size == 0)
-            return 0;
-        expungeStaleEntries();
-        return size;
-    }
-
-    /**
-     * Returns {@code true} if this map contains no key-value mappings.
-     * This result is a snapshot, and may not reflect unprocessed
-     * entries that will be removed before next attempted access
-     * because they are no longer referenced.
-     */
-    public boolean isEmpty() {
-        return size() == 0;
-    }
-
+    
+    /*▲ 存值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 取值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns the value to which the specified key is mapped,
      * or {@code null} if this map contains no mapping for the key.
@@ -392,181 +413,40 @@ public class WeakHashMap<K,V>
      *
      * @see #put(Object, Object)
      */
+    // 根据指定的key获取对应的value，如果不存在，则返回null
     public V get(Object key) {
+        // (包装空值)如果key是null，返回一个专用空值。否则，原样返回
         Object k = maskNull(key);
+        
+        // 计算key的哈希码
         int h = hash(k);
-        Entry<K,V>[] tab = getTable();
+        
+        // 获取哈希数组（会先清理失效元素）
+        Entry<K, V>[] tab = getTable();
+        
+        // 将哈希码转换为哈希数组索引
         int index = indexFor(h, tab.length);
-        Entry<K,V> e = tab[index];
-        while (e != null) {
-            if (e.hash == h && eq(k, e.get()))
+        
+        Entry<K, V> e = tab[index];
+        
+        while(e != null) {
+            // 如果遇到同位元素，则说明找到了
+            if(e.hash == h && eq(k, e.get())) {
                 return e.value;
+            }
+            
             e = e.next;
         }
+        
         return null;
     }
-
-    /**
-     * Returns {@code true} if this map contains a mapping for the
-     * specified key.
-     *
-     * @param  key   The key whose presence in this map is to be tested
-     * @return {@code true} if there is a mapping for {@code key};
-     *         {@code false} otherwise
-     */
-    public boolean containsKey(Object key) {
-        return getEntry(key) != null;
-    }
-
-    /**
-     * Returns the entry associated with the specified key in this map.
-     * Returns null if the map contains no mapping for this key.
-     */
-    Entry<K,V> getEntry(Object key) {
-        Object k = maskNull(key);
-        int h = hash(k);
-        Entry<K,V>[] tab = getTable();
-        int index = indexFor(h, tab.length);
-        Entry<K,V> e = tab[index];
-        while (e != null && !(e.hash == h && eq(k, e.get())))
-            e = e.next;
-        return e;
-    }
-
-    /**
-     * Associates the specified value with the specified key in this map.
-     * If the map previously contained a mapping for this key, the old
-     * value is replaced.
-     *
-     * @param key key with which the specified value is to be associated.
-     * @param value value to be associated with the specified key.
-     * @return the previous value associated with {@code key}, or
-     *         {@code null} if there was no mapping for {@code key}.
-     *         (A {@code null} return can also indicate that the map
-     *         previously associated {@code null} with {@code key}.)
-     */
-    public V put(K key, V value) {
-        Object k = maskNull(key);
-        int h = hash(k);
-        Entry<K,V>[] tab = getTable();
-        int i = indexFor(h, tab.length);
-
-        for (Entry<K,V> e = tab[i]; e != null; e = e.next) {
-            if (h == e.hash && eq(k, e.get())) {
-                V oldValue = e.value;
-                if (value != oldValue)
-                    e.value = value;
-                return oldValue;
-            }
-        }
-
-        modCount++;
-        Entry<K,V> e = tab[i];
-        tab[i] = new Entry<>(k, value, queue, h, e);
-        if (++size >= threshold)
-            resize(tab.length * 2);
-        return null;
-    }
-
-    /**
-     * Rehashes the contents of this map into a new array with a
-     * larger capacity.  This method is called automatically when the
-     * number of keys in this map reaches its threshold.
-     *
-     * If current capacity is MAXIMUM_CAPACITY, this method does not
-     * resize the map, but sets threshold to Integer.MAX_VALUE.
-     * This has the effect of preventing future calls.
-     *
-     * @param newCapacity the new capacity, MUST be a power of two;
-     *        must be greater than current capacity unless current
-     *        capacity is MAXIMUM_CAPACITY (in which case value
-     *        is irrelevant).
-     */
-    void resize(int newCapacity) {
-        Entry<K,V>[] oldTable = getTable();
-        int oldCapacity = oldTable.length;
-        if (oldCapacity == MAXIMUM_CAPACITY) {
-            threshold = Integer.MAX_VALUE;
-            return;
-        }
-
-        Entry<K,V>[] newTable = newTable(newCapacity);
-        transfer(oldTable, newTable);
-        table = newTable;
-
-        /*
-         * If ignoring null elements and processing ref queue caused massive
-         * shrinkage, then restore old table.  This should be rare, but avoids
-         * unbounded expansion of garbage-filled tables.
-         */
-        if (size >= threshold / 2) {
-            threshold = (int)(newCapacity * loadFactor);
-        } else {
-            expungeStaleEntries();
-            transfer(newTable, oldTable);
-            table = oldTable;
-        }
-    }
-
-    /** Transfers all entries from src to dest tables */
-    private void transfer(Entry<K,V>[] src, Entry<K,V>[] dest) {
-        for (int j = 0; j < src.length; ++j) {
-            Entry<K,V> e = src[j];
-            src[j] = null;
-            while (e != null) {
-                Entry<K,V> next = e.next;
-                Object key = e.get();
-                if (key == null) {
-                    e.next = null;  // Help GC
-                    e.value = null; //  "   "
-                    size--;
-                } else {
-                    int i = indexFor(e.hash, dest.length);
-                    e.next = dest[i];
-                    dest[i] = e;
-                }
-                e = next;
-            }
-        }
-    }
-
-    /**
-     * Copies all of the mappings from the specified map to this map.
-     * These mappings will replace any mappings that this map had for any
-     * of the keys currently in the specified map.
-     *
-     * @param m mappings to be stored in this map.
-     * @throws  NullPointerException if the specified map is null.
-     */
-    public void putAll(Map<? extends K, ? extends V> m) {
-        int numKeysToBeAdded = m.size();
-        if (numKeysToBeAdded == 0)
-            return;
-
-        /*
-         * Expand the map if the map if the number of mappings to be added
-         * is greater than or equal to threshold.  This is conservative; the
-         * obvious condition is (m.size() + size) >= threshold, but this
-         * condition could result in a map with twice the appropriate capacity,
-         * if the keys to be added overlap with the keys already in this map.
-         * By using the conservative calculation, we subject ourself
-         * to at most one extra resize.
-         */
-        if (numKeysToBeAdded > threshold) {
-            int targetCapacity = (int)(numKeysToBeAdded / loadFactor + 1);
-            if (targetCapacity > MAXIMUM_CAPACITY)
-                targetCapacity = MAXIMUM_CAPACITY;
-            int newCapacity = table.length;
-            while (newCapacity < targetCapacity)
-                newCapacity <<= 1;
-            if (newCapacity > table.length)
-                resize(newCapacity);
-        }
-
-        for (Map.Entry<? extends K, ? extends V> e : m.entrySet())
-            put(e.getKey(), e.getValue());
-    }
-
+    
+    /*▲ 取值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 移除 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Removes the mapping for a key from this weak hash map if it is present.
      * More formally, if this map contains a mapping from key {@code k} to
@@ -584,273 +464,159 @@ public class WeakHashMap<K,V>
      * call returns.
      *
      * @param key key whose mapping is to be removed from the map
+     *
      * @return the previous value associated with {@code key}, or
-     *         {@code null} if there was no mapping for {@code key}
+     * {@code null} if there was no mapping for {@code key}
      */
+    // 移除拥有指定key的元素，并返回刚刚移除的元素的值
     public V remove(Object key) {
+        // (包装空值)如果key是null，返回一个专用空值。否则，原样返回
         Object k = maskNull(key);
+        
+        // 计算指定对象的哈希值
         int h = hash(k);
-        Entry<K,V>[] tab = getTable();
+        
+        // 获取哈希数组（会先清理失效元素）
+        Entry<K, V>[] tab = getTable();
+        
+        // 将哈希码转换为哈希数组索引
         int i = indexFor(h, tab.length);
-        Entry<K,V> prev = tab[i];
-        Entry<K,V> e = prev;
-
-        while (e != null) {
-            Entry<K,V> next = e.next;
-            if (h == e.hash && eq(k, e.get())) {
+        
+        Entry<K, V> prev = tab[i];
+        Entry<K, V> e = prev;
+        
+        while(e != null) {
+            Entry<K, V> next = e.next;
+            
+            // 找到了同位元素
+            if(h == e.hash && eq(k, e.get())) {
                 modCount++;
                 size--;
-                if (prev == e)
+                if(prev == e) {
                     tab[i] = next;
-                else
+                } else {
                     prev.next = next;
+                }
                 return e.value;
             }
+            
             prev = e;
             e = next;
         }
-
+        
         return null;
     }
-
-    /** Special version of remove needed by Entry set */
-    boolean removeMapping(Object o) {
-        if (!(o instanceof Map.Entry))
-            return false;
-        Entry<K,V>[] tab = getTable();
-        Map.Entry<?,?> entry = (Map.Entry<?,?>)o;
-        Object k = maskNull(entry.getKey());
-        int h = hash(k);
-        int i = indexFor(h, tab.length);
-        Entry<K,V> prev = tab[i];
-        Entry<K,V> e = prev;
-
-        while (e != null) {
-            Entry<K,V> next = e.next;
-            if (h == e.hash && e.equals(entry)) {
-                modCount++;
-                size--;
-                if (prev == e)
-                    tab[i] = next;
-                else
-                    prev.next = next;
-                return true;
-            }
-            prev = e;
-            e = next;
-        }
-
-        return false;
-    }
-
+    
+    
     /**
      * Removes all of the mappings from this map.
      * The map will be empty after this call returns.
      */
+    // 清空WeakHashMap中所有元素
     public void clear() {
-        // clear out ref queue. We don't need to expunge entries
-        // since table is getting cleared.
-        while (queue.poll() != null)
+        // clear out ref queue. We don't need to expunge entries since table is getting cleared.
+        while(queue.poll() != null)
             ;
-
+        
         modCount++;
         Arrays.fill(table, null);
         size = 0;
-
-        // Allocation of array may have caused GC, which may have caused
-        // additional entries to go stale.  Removing these entries from the
-        // reference queue will make them eligible for reclamation.
-        while (queue.poll() != null)
+        
+        // Allocation of array may have caused GC, which may have caused additional entries to go stale.
+        // Removing these entries from the reference queue will make them eligible for reclamation.
+        while(queue.poll() != null)
             ;
     }
-
+    
+    /*▲ 移除 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 替换 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 替换当前WeakHashMap中的所有元素，替换策略由function决定，function的入参是元素的key和value，出参作为新值
+    @SuppressWarnings("unchecked")
+    @Override
+    public void replaceAll(BiFunction<? super K, ? super V, ? extends V> function) {
+        Objects.requireNonNull(function);
+        
+        int expectedModCount = modCount;
+        
+        // 获取哈希数组（会先清理失效元素）
+        Entry<K, V>[] tab = getTable();
+        
+        for(Entry<K, V> entry : tab) {
+            while(entry != null) {
+                Object key = entry.get();
+                if(key != null) {
+                    entry.value = function.apply((K) WeakHashMap.unmaskNull(key), entry.value);
+                }
+                
+                entry = entry.next;
+                
+                if(expectedModCount != modCount) {
+                    throw new ConcurrentModificationException();
+                }
+            }
+        }
+    }
+    
+    /*▲ 替换 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 包含查询 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns {@code true} if this map contains a mapping for the
+     * specified key.
+     *
+     * @param key The key whose presence in this map is to be tested
+     *
+     * @return {@code true} if there is a mapping for {@code key};
+     * {@code false} otherwise
+     */
+    // 判断WeakHashMap中是否存在指定key的元素
+    public boolean containsKey(Object key) {
+        return getEntry(key) != null;
+    }
+    
     /**
      * Returns {@code true} if this map maps one or more keys to the
      * specified value.
      *
      * @param value value whose presence in this map is to be tested
+     *
      * @return {@code true} if this map maps one or more keys to the
-     *         specified value
+     * specified value
      */
+    // 判断WeakHashMap中是否存在指定value的元素
     public boolean containsValue(Object value) {
-        if (value==null)
+        // 处理查找null的情形
+        if(value == null) {
             return containsNullValue();
-
-        Entry<K,V>[] tab = getTable();
-        for (int i = tab.length; i-- > 0;)
-            for (Entry<K,V> e = tab[i]; e != null; e = e.next)
-                if (value.equals(e.value))
+        }
+        
+        // 获取哈希数组（会先清理失效元素）
+        Entry<K, V>[] tab = getTable();
+        
+        for(int i = tab.length; i-->0; ) {
+            for(Entry<K, V> e = tab[i]; e != null; e = e.next) {
+                if(value.equals(e.value)) {
                     return true;
-        return false;
-    }
-
-    /**
-     * Special-case code for containsValue with null argument
-     */
-    private boolean containsNullValue() {
-        Entry<K,V>[] tab = getTable();
-        for (int i = tab.length; i-- > 0;)
-            for (Entry<K,V> e = tab[i]; e != null; e = e.next)
-                if (e.value==null)
-                    return true;
-        return false;
-    }
-
-    /**
-     * The entries in this hash table extend WeakReference, using its main ref
-     * field as the key.
-     */
-    private static class Entry<K,V> extends WeakReference<Object> implements Map.Entry<K,V> {
-        V value;
-        final int hash;
-        Entry<K,V> next;
-
-        /**
-         * Creates new entry.
-         */
-        Entry(Object key, V value,
-              ReferenceQueue<Object> queue,
-              int hash, Entry<K,V> next) {
-            super(key, queue);
-            this.value = value;
-            this.hash  = hash;
-            this.next  = next;
-        }
-
-        @SuppressWarnings("unchecked")
-        public K getKey() {
-            return (K) WeakHashMap.unmaskNull(get());
-        }
-
-        public V getValue() {
-            return value;
-        }
-
-        public V setValue(V newValue) {
-            V oldValue = value;
-            value = newValue;
-            return oldValue;
-        }
-
-        public boolean equals(Object o) {
-            if (!(o instanceof Map.Entry))
-                return false;
-            Map.Entry<?,?> e = (Map.Entry<?,?>)o;
-            K k1 = getKey();
-            Object k2 = e.getKey();
-            if (k1 == k2 || (k1 != null && k1.equals(k2))) {
-                V v1 = getValue();
-                Object v2 = e.getValue();
-                if (v1 == v2 || (v1 != null && v1.equals(v2)))
-                    return true;
-            }
-            return false;
-        }
-
-        public int hashCode() {
-            K k = getKey();
-            V v = getValue();
-            return Objects.hashCode(k) ^ Objects.hashCode(v);
-        }
-
-        public String toString() {
-            return getKey() + "=" + getValue();
-        }
-    }
-
-    private abstract class HashIterator<T> implements Iterator<T> {
-        private int index;
-        private Entry<K,V> entry;
-        private Entry<K,V> lastReturned;
-        private int expectedModCount = modCount;
-
-        /**
-         * Strong reference needed to avoid disappearance of key
-         * between hasNext and next
-         */
-        private Object nextKey;
-
-        /**
-         * Strong reference needed to avoid disappearance of key
-         * between nextEntry() and any use of the entry
-         */
-        private Object currentKey;
-
-        HashIterator() {
-            index = isEmpty() ? 0 : table.length;
-        }
-
-        public boolean hasNext() {
-            Entry<K,V>[] t = table;
-
-            while (nextKey == null) {
-                Entry<K,V> e = entry;
-                int i = index;
-                while (e == null && i > 0)
-                    e = t[--i];
-                entry = e;
-                index = i;
-                if (e == null) {
-                    currentKey = null;
-                    return false;
                 }
-                nextKey = e.get(); // hold on to key in strong ref
-                if (nextKey == null)
-                    entry = entry.next;
             }
-            return true;
         }
-
-        /** The common parts of next() across different types of iterators */
-        protected Entry<K,V> nextEntry() {
-            if (modCount != expectedModCount)
-                throw new ConcurrentModificationException();
-            if (nextKey == null && !hasNext())
-                throw new NoSuchElementException();
-
-            lastReturned = entry;
-            entry = entry.next;
-            currentKey = nextKey;
-            nextKey = null;
-            return lastReturned;
-        }
-
-        public void remove() {
-            if (lastReturned == null)
-                throw new IllegalStateException();
-            if (modCount != expectedModCount)
-                throw new ConcurrentModificationException();
-
-            WeakHashMap.this.remove(currentKey);
-            expectedModCount = modCount;
-            lastReturned = null;
-            currentKey = null;
-        }
-
+        
+        return false;
     }
-
-    private class ValueIterator extends HashIterator<V> {
-        public V next() {
-            return nextEntry().value;
-        }
-    }
-
-    private class KeyIterator extends HashIterator<K> {
-        public K next() {
-            return nextEntry().getKey();
-        }
-    }
-
-    private class EntryIterator extends HashIterator<Map.Entry<K,V>> {
-        public Map.Entry<K,V> next() {
-            return nextEntry();
-        }
-    }
-
-    // Views
-
-    private transient Set<Map.Entry<K,V>> entrySet;
-
+    
+    /*▲ 包含查询 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 视图 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns a {@link Set} view of the keys contained in this map.
      * The set is backed by the map, so changes to the map are
@@ -864,46 +630,16 @@ public class WeakHashMap<K,V>
      * operations.  It does not support the {@code add} or {@code addAll}
      * operations.
      */
+    // 获取Map中key的集合
     public Set<K> keySet() {
         Set<K> ks = keySet;
-        if (ks == null) {
+        if(ks == null) {
             ks = new KeySet();
             keySet = ks;
         }
         return ks;
     }
-
-    private class KeySet extends AbstractSet<K> {
-        public Iterator<K> iterator() {
-            return new KeyIterator();
-        }
-
-        public int size() {
-            return WeakHashMap.this.size();
-        }
-
-        public boolean contains(Object o) {
-            return containsKey(o);
-        }
-
-        public boolean remove(Object o) {
-            if (containsKey(o)) {
-                WeakHashMap.this.remove(o);
-                return true;
-            }
-            else
-                return false;
-        }
-
-        public void clear() {
-            WeakHashMap.this.clear();
-        }
-
-        public Spliterator<K> spliterator() {
-            return new KeySpliterator<>(WeakHashMap.this, 0, -1, 0, 0);
-        }
-    }
-
+    
     /**
      * Returns a {@link Collection} view of the values contained in this map.
      * The collection is backed by the map, so changes to the map are
@@ -917,37 +653,16 @@ public class WeakHashMap<K,V>
      * {@code retainAll} and {@code clear} operations.  It does not
      * support the {@code add} or {@code addAll} operations.
      */
+    // 获取Map中value的集合
     public Collection<V> values() {
         Collection<V> vs = values;
-        if (vs == null) {
+        if(vs == null) {
             vs = new Values();
             values = vs;
         }
         return vs;
     }
-
-    private class Values extends AbstractCollection<V> {
-        public Iterator<V> iterator() {
-            return new ValueIterator();
-        }
-
-        public int size() {
-            return WeakHashMap.this.size();
-        }
-
-        public boolean contains(Object o) {
-            return containsValue(o);
-        }
-
-        public void clear() {
-            WeakHashMap.this.clear();
-        }
-
-        public Spliterator<V> spliterator() {
-            return new ValueSpliterator<>(WeakHashMap.this, 0, -1, 0, 0);
-        }
-    }
-
+    
     /**
      * Returns a {@link Set} view of the mappings contained in this map.
      * The set is backed by the map, so changes to the map are
@@ -962,206 +677,773 @@ public class WeakHashMap<K,V>
      * {@code clear} operations.  It does not support the
      * {@code add} or {@code addAll} operations.
      */
-    public Set<Map.Entry<K,V>> entrySet() {
-        Set<Map.Entry<K,V>> es = entrySet;
+    // 获取Map中key-value对的集合
+    public Set<Map.Entry<K, V>> entrySet() {
+        Set<Map.Entry<K, V>> es = entrySet;
         return es != null ? es : (entrySet = new EntrySet());
     }
-
-    private class EntrySet extends AbstractSet<Map.Entry<K,V>> {
-        public Iterator<Map.Entry<K,V>> iterator() {
-            return new EntryIterator();
-        }
-
-        public boolean contains(Object o) {
-            if (!(o instanceof Map.Entry))
-                return false;
-            Map.Entry<?,?> e = (Map.Entry<?,?>)o;
-            Entry<K,V> candidate = getEntry(e.getKey());
-            return candidate != null && candidate.equals(e);
-        }
-
-        public boolean remove(Object o) {
-            return removeMapping(o);
-        }
-
-        public int size() {
-            return WeakHashMap.this.size();
-        }
-
-        public void clear() {
-            WeakHashMap.this.clear();
-        }
-
-        private List<Map.Entry<K,V>> deepCopy() {
-            List<Map.Entry<K,V>> list = new ArrayList<>(size());
-            for (Map.Entry<K,V> e : this)
-                list.add(new AbstractMap.SimpleEntry<>(e));
-            return list;
-        }
-
-        public Object[] toArray() {
-            return deepCopy().toArray();
-        }
-
-        public <T> T[] toArray(T[] a) {
-            return deepCopy().toArray(a);
-        }
-
-        public Spliterator<Map.Entry<K,V>> spliterator() {
-            return new EntrySpliterator<>(WeakHashMap.this, 0, -1, 0, 0);
-        }
-    }
-
+    
+    /*▲ 视图 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 遍历 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 遍历WeakHashMap中的元素，并对其应用action操作，action的入参是元素的key和value
     @SuppressWarnings("unchecked")
     @Override
     public void forEach(BiConsumer<? super K, ? super V> action) {
         Objects.requireNonNull(action);
+        
         int expectedModCount = modCount;
-
+        
+        // 获取哈希数组（会先清理失效元素）
         Entry<K, V>[] tab = getTable();
-        for (Entry<K, V> entry : tab) {
-            while (entry != null) {
+        
+        for(Entry<K, V> entry : tab) {
+            while(entry != null) {
                 Object key = entry.get();
-                if (key != null) {
-                    action.accept((K)WeakHashMap.unmaskNull(key), entry.value);
+                
+                if(key != null) {
+                    action.accept((K) WeakHashMap.unmaskNull(key), entry.value);
                 }
+                
                 entry = entry.next;
-
-                if (expectedModCount != modCount) {
+                
+                if(expectedModCount != modCount) {
                     throw new ConcurrentModificationException();
                 }
             }
         }
     }
-
+    
+    /*▲ 遍历 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 重新映射 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /*▲ 重新映射 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the number of key-value mappings in this map.
+     * This result is a snapshot, and may not reflect unprocessed
+     * entries that will be removed before next attempted access
+     * because they are no longer referenced.
+     */
+    // 获取WeakHashMap中的元素数量
+    public int size() {
+        if(size == 0) {
+            return 0;
+        }
+        
+        // 清理失效的元素（即key被gc回收的那些键值对）
+        expungeStaleEntries();
+        
+        return size;
+    }
+    
+    /**
+     * Returns {@code true} if this map contains no key-value mappings.
+     * This result is a snapshot, and may not reflect unprocessed
+     * entries that will be removed before next attempted access
+     * because they are no longer referenced.
+     */
+    // 判断WeakHashMap是否为空集
+    public boolean isEmpty() {
+        return size() == 0;
+    }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    
+    
+    
+    /**
+     * Use NULL_KEY for key if it is null.
+     */
+    // (包装空值)如果key是null，返回一个专用空值。否则，原样返回
+    private static Object maskNull(Object key) {
+        return (key == null) ? NULL_KEY : key;
+    }
+    
+    /**
+     * Returns internal representation of null key back to caller as null.
+     */
+    // (解析空值)如果key是一个专用空值，返回null。否则，原样返回
+    static Object unmaskNull(Object key) {
+        return (key == NULL_KEY) ? null : key;
+    }
+    
+    // 初始化哈希数组
     @SuppressWarnings("unchecked")
-    @Override
-    public void replaceAll(BiFunction<? super K, ? super V, ? extends V> function) {
-        Objects.requireNonNull(function);
-        int expectedModCount = modCount;
-
-        Entry<K, V>[] tab = getTable();;
-        for (Entry<K, V> entry : tab) {
-            while (entry != null) {
-                Object key = entry.get();
-                if (key != null) {
-                    entry.value = function.apply((K)WeakHashMap.unmaskNull(key), entry.value);
+    private Entry<K, V>[] newTable(int n) {
+        return (Entry<K, V>[]) new Entry<?, ?>[n];
+    }
+    
+    /**
+     * Retrieve object hash code and applies a supplemental hash function to the
+     * result hash, which defends against poor quality hash functions.  This is
+     * critical because HashMap uses power-of-two length hash tables, that
+     * otherwise encounter collisions for hashCodes that do not differ
+     * in lower bits.
+     */
+    // 计算指定对象的哈希值
+    final int hash(Object k) {
+        int h = k.hashCode();
+        
+        // This function ensures that hashCodes that differ only by
+        // constant multiples at each bit position have a bounded
+        // number of collisions (approximately 8 at default load factor).
+        h ^= (h >>> 20) ^ (h >>> 12);
+        return h ^ (h >>> 7) ^ (h >>> 4);
+    }
+    
+    /**
+     * Rehashes the contents of this map into a new array with a
+     * larger capacity.  This method is called automatically when the
+     * number of keys in this map reaches its threshold.
+     *
+     * If current capacity is MAXIMUM_CAPACITY, this method does not
+     * resize the map, but sets threshold to Integer.MAX_VALUE.
+     * This has the effect of preventing future calls.
+     *
+     * @param newCapacity the new capacity, MUST be a power of two;
+     *                    must be greater than current capacity unless current
+     *                    capacity is MAXIMUM_CAPACITY (in which case value
+     *                    is irrelevant).
+     */
+    // 扩容
+    void resize(int newCapacity) {
+        // 获取哈希数组（会先清理失效元素）
+        Entry<K, V>[] oldTable = getTable();
+        
+        int oldCapacity = oldTable.length;
+        // 如果当前容量已达上限，则只是提升扩容阈值
+        if(oldCapacity == MAXIMUM_CAPACITY) {
+            threshold = Integer.MAX_VALUE;
+            return;
+        }
+        
+        // 初始化新的哈希数组
+        Entry<K, V>[] newTable = newTable(newCapacity);
+        
+        // 元素迁移
+        transfer(oldTable, newTable);
+        
+        table = newTable;
+        
+        /*
+         * If ignoring null elements and processing ref queue caused massive
+         * shrinkage, then restore old table.  This should be rare, but avoids
+         * unbounded expansion of garbage-filled tables.
+         */
+        if(size >= threshold / 2) {
+            threshold = (int) (newCapacity * loadFactor);
+        } else {
+            // 清理失效的元素（即key被gc回收的那些键值对）
+            expungeStaleEntries();
+            
+            // 元素迁移
+            transfer(newTable, oldTable);
+            
+            table = oldTable;
+        }
+    }
+    
+    /**
+     * Checks for equality of non-null reference x and possibly-null y.  By
+     * default uses Object.equals.
+     */
+    // 判断对象x跟y是否相等
+    private static boolean eq(Object x, Object y) {
+        return x == y || x.equals(y);
+    }
+    
+    /**
+     * Returns index for hash code h.
+     */
+    // 将哈希码转换为哈希数组索引
+    private static int indexFor(int h, int length) {
+        return h & (length - 1);
+    }
+    
+    /**
+     * Returns the entry associated with the specified key in this map.
+     * Returns null if the map contains no mapping for this key.
+     */
+    // 获取包含指定key的键值对实体
+    Entry<K, V> getEntry(Object key) {
+        // (包装空值)如果key是null，返回一个专用空值。否则，原样返回
+        Object k = maskNull(key);
+        
+        // 计算指定对象的哈希值
+        int h = hash(k);
+        
+        // 获取哈希数组（会先清理失效元素）
+        Entry<K, V>[] tab = getTable();
+        
+        // 将哈希码转换为哈希数组索引
+        int index = indexFor(h, tab.length);
+        
+        Entry<K, V> e = tab[index];
+        
+        while(e != null && !(e.hash == h && eq(k, e.get()))) {
+            e = e.next;
+        }
+        
+        return e;
+    }
+    
+    /**
+     * Returns the table after first expunging stale entries.
+     */
+    // 获取哈希数组（会先清理失效元素）
+    private Entry<K, V>[] getTable() {
+        // 清理失效的元素（即key被gc回收的那些键值对）
+        expungeStaleEntries();
+        
+        return table;
+    }
+    
+    /** Special version of remove needed by Entry set */
+    // 移除指定的键值对实体
+    boolean removeMapping(Object o) {
+        if(!(o instanceof Map.Entry)) {
+            return false;
+        }
+        
+        Map.Entry<?, ?> entry = (Map.Entry<?, ?>) o;
+        
+        Object k = maskNull(entry.getKey());
+        
+        int h = hash(k);
+        
+        // 获取哈希数组（会先清理失效元素）
+        Entry<K, V>[] tab = getTable();
+        
+        int i = indexFor(h, tab.length);
+        
+        Entry<K, V> prev = tab[i];
+        Entry<K, V> e = prev;
+        
+        while(e != null) {
+            Entry<K, V> next = e.next;
+            if(h == e.hash && e.equals(entry)) {
+                modCount++;
+                size--;
+                if(prev == e) {
+                    tab[i] = next;
+                } else {
+                    prev.next = next;
                 }
-                entry = entry.next;
-
-                if (expectedModCount != modCount) {
-                    throw new ConcurrentModificationException();
+                
+                return true;
+            }
+            
+            prev = e;
+            e = next;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Expunges stale entries from the table.
+     */
+    // 清理失效的元素（即key被gc回收的那些键值对）
+    private void expungeStaleEntries() {
+        
+        Object x;
+        
+        // 获取被gc回收的引用
+        while((x = queue.poll()) != null) {
+            synchronized(queue) {
+                // 待清理引用
+                @SuppressWarnings("unchecked")
+                Entry<K, V> e = (Entry<K, V>) x;
+                
+                // 将哈希码转换为哈希数组索引
+                int i = indexFor(e.hash, table.length);
+                
+                Entry<K, V> prev = table[i];
+                
+                Entry<K, V> p = prev;
+                
+                // 遍历链表，清理已经被gc回收的引用的值
+                while(p != null) {
+                    Entry<K, V> next = p.next;
+                    if(p == e) {
+                        if(prev == e) {
+                            table[i] = next;
+                        } else {
+                            prev.next = next;
+                        }
+                        
+                        /*
+                         * Must not null out e.next;
+                         * stale entries may be in use by a HashIterator
+                         */
+                        
+                        e.value = null;  // Help GC
+                        
+                        size--;
+                        
+                        break;
+                    }
+                    
+                    prev = p;
+                    
+                    p = next;
                 }
             }
         }
     }
-
+    
+    /** Transfers all entries from src to dest tables */
+    // 元素迁移
+    private void transfer(Entry<K, V>[] src, Entry<K, V>[] dest) {
+        for(int j = 0; j<src.length; ++j) {
+            Entry<K, V> e = src[j];
+            src[j] = null;
+            
+            while(e != null) {
+                Entry<K, V> next = e.next;
+                Object key = e.get();
+                
+                // Help GC
+                if(key == null) {
+                    e.next = null;
+                    e.value = null;
+                    size--;
+                } else {
+                    // 重新哈希
+                    int i = indexFor(e.hash, dest.length);
+                    e.next = dest[i];
+                    dest[i] = e;
+                }
+                
+                e = next;
+            }
+        }
+    }
+    
+    /**
+     * Special-case code for containsValue with null argument
+     */
+    // 判断WeakHashMap中是否存在value为null的元素
+    private boolean containsNullValue() {
+        
+        // 获取哈希数组（会先清理失效元素）
+        Entry<K, V>[] tab = getTable();
+        
+        int i = tab.length;
+        
+        while(i-->0) {
+            for(Entry<K, V> e = tab[i]; e != null; e = e.next) {
+                if(e.value == null) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+    
+    
+    
+    
+    
+    /**
+     * The entries in this hash table extend WeakReference, using its main ref
+     * field as the key.
+     */
+    // 键值对实体，实现了弱引用接口，对key进行了追踪
+    private static class Entry<K, V> extends WeakReference<Object> implements Map.Entry<K, V> {
+        V value;
+        
+        final int hash;
+        
+        Entry<K, V> next;
+        
+        /**
+         * Creates new entry.
+         */
+        Entry(Object key, V value, ReferenceQueue<Object> queue, int hash, Entry<K, V> next) {
+            super(key, queue);
+            this.value = value;
+            this.hash = hash;
+            this.next = next;
+        }
+        
+        @SuppressWarnings("unchecked")
+        public K getKey() {
+            return (K) WeakHashMap.unmaskNull(get());
+        }
+        
+        public V getValue() {
+            return value;
+        }
+        
+        public V setValue(V newValue) {
+            V oldValue = value;
+            value = newValue;
+            return oldValue;
+        }
+        
+        public boolean equals(Object o) {
+            if(!(o instanceof Map.Entry)) {
+                return false;
+            }
+            
+            Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
+            K k1 = getKey();
+            Object k2 = e.getKey();
+            if(k1 == k2 || (k1 != null && k1.equals(k2))) {
+                V v1 = getValue();
+                Object v2 = e.getValue();
+                return v1 == v2 || (v1 != null && v1.equals(v2));
+            }
+            
+            return false;
+        }
+        
+        public int hashCode() {
+            K k = getKey();
+            V v = getValue();
+            return Objects.hashCode(k) ^ Objects.hashCode(v);
+        }
+        
+        public String toString() {
+            return getKey() + "=" + getValue();
+        }
+    }
+    
+    
+    
+    // WeakHashMap中key的集合
+    private class KeySet extends AbstractSet<K> {
+        public Iterator<K> iterator() {
+            return new KeyIterator();
+        }
+        
+        public int size() {
+            return WeakHashMap.this.size();
+        }
+        
+        public boolean contains(Object o) {
+            return containsKey(o);
+        }
+        
+        public boolean remove(Object o) {
+            if(containsKey(o)) {
+                WeakHashMap.this.remove(o);
+                return true;
+            } else
+                return false;
+        }
+        
+        public void clear() {
+            WeakHashMap.this.clear();
+        }
+        
+        public Spliterator<K> spliterator() {
+            return new KeySpliterator<>(WeakHashMap.this, 0, -1, 0, 0);
+        }
+    }
+    
+    // WeakHashMap中value的集合
+    private class Values extends AbstractCollection<V> {
+        public Iterator<V> iterator() {
+            return new ValueIterator();
+        }
+        
+        public int size() {
+            return WeakHashMap.this.size();
+        }
+        
+        public boolean contains(Object o) {
+            return containsValue(o);
+        }
+        
+        public void clear() {
+            WeakHashMap.this.clear();
+        }
+        
+        public Spliterator<V> spliterator() {
+            return new ValueSpliterator<>(WeakHashMap.this, 0, -1, 0, 0);
+        }
+    }
+    
+    // WeakHashMap中key-value的集合，Entry的本质就是Node
+    private class EntrySet extends AbstractSet<Map.Entry<K, V>> {
+        public Iterator<Map.Entry<K, V>> iterator() {
+            return new EntryIterator();
+        }
+        
+        public boolean contains(Object o) {
+            if(!(o instanceof Map.Entry)) {
+                return false;
+            }
+            
+            Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
+            Entry<K, V> candidate = getEntry(e.getKey());
+            return candidate != null && candidate.equals(e);
+        }
+        
+        public boolean remove(Object o) {
+            return removeMapping(o);
+        }
+        
+        public int size() {
+            return WeakHashMap.this.size();
+        }
+        
+        public void clear() {
+            WeakHashMap.this.clear();
+        }
+        
+        public Object[] toArray() {
+            return deepCopy().toArray();
+        }
+        
+        public <T> T[] toArray(T[] a) {
+            return deepCopy().toArray(a);
+        }
+        
+        public Spliterator<Map.Entry<K, V>> spliterator() {
+            return new EntrySpliterator<>(WeakHashMap.this, 0, -1, 0, 0);
+        }
+        
+        private List<Map.Entry<K, V>> deepCopy() {
+            List<Map.Entry<K, V>> list = new ArrayList<>(size());
+            for(Map.Entry<K, V> e : this) {
+                list.add(new SimpleEntry<>(e));
+            }
+            return list;
+        }
+    }
+    
+    
+    
+    // WeakHashMap迭代器
+    private abstract class HashIterator<T> implements Iterator<T> {
+        private int index;
+        private Entry<K, V> entry;
+        private Entry<K, V> lastReturned;
+        private int expectedModCount = modCount;
+        
+        /**
+         * Strong reference needed to avoid disappearance of key
+         * between hasNext and next
+         */
+        private Object nextKey;
+        
+        /**
+         * Strong reference needed to avoid disappearance of key
+         * between nextEntry() and any use of the entry
+         */
+        private Object currentKey;
+        
+        HashIterator() {
+            index = isEmpty() ? 0 : table.length;
+        }
+        
+        public boolean hasNext() {
+            Entry<K, V>[] t = table;
+            
+            while(nextKey == null) {
+                Entry<K, V> e = entry;
+                int i = index;
+                while(e == null && i>0) {
+                    e = t[--i];
+                }
+                entry = e;
+                index = i;
+                if(e == null) {
+                    currentKey = null;
+                    return false;
+                }
+                nextKey = e.get(); // hold on to key in strong ref
+                if(nextKey == null) {
+                    entry = entry.next;
+                }
+            }
+            return true;
+        }
+        
+        public void remove() {
+            if(lastReturned == null) {
+                throw new IllegalStateException();
+            }
+            
+            if(modCount != expectedModCount) {
+                throw new ConcurrentModificationException();
+            }
+            
+            WeakHashMap.this.remove(currentKey);
+            expectedModCount = modCount;
+            lastReturned = null;
+            currentKey = null;
+        }
+        
+        /** The common parts of next() across different types of iterators */
+        protected Entry<K, V> nextEntry() {
+            if(modCount != expectedModCount) {
+                throw new ConcurrentModificationException();
+            }
+            
+            if(nextKey == null && !hasNext()) {
+                throw new NoSuchElementException();
+            }
+            
+            lastReturned = entry;
+            entry = entry.next;
+            currentKey = nextKey;
+            nextKey = null;
+            return lastReturned;
+        }
+        
+    }
+    
+    // key的迭代器
+    private class KeyIterator extends HashIterator<K> {
+        public K next() {
+            return nextEntry().getKey();
+        }
+    }
+    
+    // value的迭代器
+    private class ValueIterator extends HashIterator<V> {
+        public V next() {
+            return nextEntry().value;
+        }
+    }
+    
+    // key-value对的迭代器
+    private class EntryIterator extends HashIterator<Map.Entry<K, V>> {
+        public Map.Entry<K, V> next() {
+            return nextEntry();
+        }
+    }
+    
+    
+    
     /**
      * Similar form as other hash Spliterators, but skips dead
      * elements.
      */
-    static class WeakHashMapSpliterator<K,V> {
-        final WeakHashMap<K,V> map;
-        WeakHashMap.Entry<K,V> current; // current node
+    // WeakHashMap可分割迭代器
+    static class WeakHashMapSpliterator<K, V> {
+        final WeakHashMap<K, V> map;
+        WeakHashMap.Entry<K, V> current; // current node
         int index;             // current index, modified on advance/split
         int fence;             // -1 until first use; then one past last index
         int est;               // size estimate
         int expectedModCount;  // for comodification checks
-
-        WeakHashMapSpliterator(WeakHashMap<K,V> m, int origin,
-                               int fence, int est,
-                               int expectedModCount) {
+        
+        WeakHashMapSpliterator(WeakHashMap<K, V> m, int origin, int fence, int est, int expectedModCount) {
             this.map = m;
             this.index = origin;
             this.fence = fence;
             this.est = est;
             this.expectedModCount = expectedModCount;
         }
-
+        
+        public final long estimateSize() {
+            getFence(); // force init
+            return est;
+        }
+        
         final int getFence() { // initialize fence and size on first use
             int hi;
-            if ((hi = fence) < 0) {
-                WeakHashMap<K,V> m = map;
+            if((hi = fence)<0) {
+                WeakHashMap<K, V> m = map;
                 est = m.size();
                 expectedModCount = m.modCount;
                 hi = fence = m.table.length;
             }
             return hi;
         }
-
-        public final long estimateSize() {
-            getFence(); // force init
-            return (long) est;
-        }
     }
-
-    static final class KeySpliterator<K,V>
-        extends WeakHashMapSpliterator<K,V>
-        implements Spliterator<K> {
-        KeySpliterator(WeakHashMap<K,V> m, int origin, int fence, int est,
-                       int expectedModCount) {
+    
+    // key的可分割迭代器
+    static final class KeySpliterator<K, V> extends WeakHashMapSpliterator<K, V> implements Spliterator<K> {
+        KeySpliterator(WeakHashMap<K, V> m, int origin, int fence, int est, int expectedModCount) {
             super(m, origin, fence, est, expectedModCount);
         }
-
-        public KeySpliterator<K,V> trySplit() {
+        
+        public KeySpliterator<K, V> trySplit() {
             int hi = getFence(), lo = index, mid = (lo + hi) >>> 1;
-            return (lo >= mid) ? null :
-                new KeySpliterator<>(map, lo, index = mid, est >>>= 1,
-                                     expectedModCount);
+            return (lo >= mid) ? null : new KeySpliterator<>(map, lo, index = mid, est >>>= 1, expectedModCount);
         }
-
+        
         public void forEachRemaining(Consumer<? super K> action) {
             int i, hi, mc;
-            if (action == null)
+            if(action == null) {
                 throw new NullPointerException();
-            WeakHashMap<K,V> m = map;
-            WeakHashMap.Entry<K,V>[] tab = m.table;
-            if ((hi = fence) < 0) {
+            }
+            
+            WeakHashMap<K, V> m = map;
+            WeakHashMap.Entry<K, V>[] tab = m.table;
+            if((hi = fence)<0) {
                 mc = expectedModCount = m.modCount;
                 hi = fence = tab.length;
-            }
-            else
+            } else {
                 mc = expectedModCount;
-            if (tab.length >= hi && (i = index) >= 0 &&
-                (i < (index = hi) || current != null)) {
-                WeakHashMap.Entry<K,V> p = current;
+            }
+            
+            if(tab.length >= hi && (i = index) >= 0 && (i<(index = hi) || current != null)) {
+                WeakHashMap.Entry<K, V> p = current;
                 current = null; // exhaust
                 do {
-                    if (p == null)
+                    if(p == null) {
                         p = tab[i++];
-                    else {
+                    } else {
                         Object x = p.get();
                         p = p.next;
-                        if (x != null) {
-                            @SuppressWarnings("unchecked") K k =
-                                (K) WeakHashMap.unmaskNull(x);
+                        if(x != null) {
+                            @SuppressWarnings("unchecked")
+                            K k = (K) WeakHashMap.unmaskNull(x);
                             action.accept(k);
                         }
                     }
-                } while (p != null || i < hi);
+                } while(p != null || i<hi);
             }
-            if (m.modCount != mc)
+            
+            if(m.modCount != mc) {
                 throw new ConcurrentModificationException();
+            }
         }
-
+        
         public boolean tryAdvance(Consumer<? super K> action) {
             int hi;
-            if (action == null)
+            
+            if(action == null) {
                 throw new NullPointerException();
-            WeakHashMap.Entry<K,V>[] tab = map.table;
-            if (tab.length >= (hi = getFence()) && index >= 0) {
-                while (current != null || index < hi) {
-                    if (current == null)
+            }
+            
+            WeakHashMap.Entry<K, V>[] tab = map.table;
+            if(tab.length >= (hi = getFence()) && index >= 0) {
+                while(current != null || index<hi) {
+                    if(current == null) {
                         current = tab[index++];
-                    else {
+                    } else {
                         Object x = current.get();
                         current = current.next;
-                        if (x != null) {
-                            @SuppressWarnings("unchecked") K k =
-                                (K) WeakHashMap.unmaskNull(x);
+                        if(x != null) {
+                            @SuppressWarnings("unchecked")
+                            K k = (K) WeakHashMap.unmaskNull(x);
                             action.accept(k);
-                            if (map.modCount != expectedModCount)
+                            if(map.modCount != expectedModCount) {
                                 throw new ConcurrentModificationException();
+                            }
                             return true;
                         }
                     }
@@ -1169,76 +1451,82 @@ public class WeakHashMap<K,V>
             }
             return false;
         }
-
+        
         public int characteristics() {
             return Spliterator.DISTINCT;
         }
     }
-
-    static final class ValueSpliterator<K,V>
-        extends WeakHashMapSpliterator<K,V>
-        implements Spliterator<V> {
-        ValueSpliterator(WeakHashMap<K,V> m, int origin, int fence, int est,
-                         int expectedModCount) {
+    
+    // value的可分割迭代器
+    static final class ValueSpliterator<K, V> extends WeakHashMapSpliterator<K, V> implements Spliterator<V> {
+        ValueSpliterator(WeakHashMap<K, V> m, int origin, int fence, int est, int expectedModCount) {
             super(m, origin, fence, est, expectedModCount);
         }
-
-        public ValueSpliterator<K,V> trySplit() {
+        
+        public ValueSpliterator<K, V> trySplit() {
             int hi = getFence(), lo = index, mid = (lo + hi) >>> 1;
-            return (lo >= mid) ? null :
-                new ValueSpliterator<>(map, lo, index = mid, est >>>= 1,
-                                       expectedModCount);
+            return (lo >= mid) ? null : new ValueSpliterator<>(map, lo, index = mid, est >>>= 1, expectedModCount);
         }
-
+        
         public void forEachRemaining(Consumer<? super V> action) {
             int i, hi, mc;
-            if (action == null)
+            
+            if(action == null) {
                 throw new NullPointerException();
-            WeakHashMap<K,V> m = map;
-            WeakHashMap.Entry<K,V>[] tab = m.table;
-            if ((hi = fence) < 0) {
+            }
+            
+            WeakHashMap<K, V> m = map;
+            WeakHashMap.Entry<K, V>[] tab = m.table;
+            if((hi = fence)<0) {
                 mc = expectedModCount = m.modCount;
                 hi = fence = tab.length;
-            }
-            else
+            } else {
                 mc = expectedModCount;
-            if (tab.length >= hi && (i = index) >= 0 &&
-                (i < (index = hi) || current != null)) {
-                WeakHashMap.Entry<K,V> p = current;
+            }
+            
+            if(tab.length >= hi && (i = index) >= 0 && (i<(index = hi) || current != null)) {
+                WeakHashMap.Entry<K, V> p = current;
                 current = null; // exhaust
                 do {
-                    if (p == null)
+                    if(p == null) {
                         p = tab[i++];
-                    else {
+                    } else {
                         Object x = p.get();
                         V v = p.value;
                         p = p.next;
-                        if (x != null)
+                        if(x != null) {
                             action.accept(v);
+                        }
                     }
-                } while (p != null || i < hi);
+                } while(p != null || i<hi);
             }
-            if (m.modCount != mc)
+            
+            if(m.modCount != mc) {
                 throw new ConcurrentModificationException();
+            }
         }
-
+        
         public boolean tryAdvance(Consumer<? super V> action) {
             int hi;
-            if (action == null)
+            
+            if(action == null) {
                 throw new NullPointerException();
-            WeakHashMap.Entry<K,V>[] tab = map.table;
-            if (tab.length >= (hi = getFence()) && index >= 0) {
-                while (current != null || index < hi) {
-                    if (current == null)
+            }
+            
+            WeakHashMap.Entry<K, V>[] tab = map.table;
+            if(tab.length >= (hi = getFence()) && index >= 0) {
+                while(current != null || index<hi) {
+                    if(current == null) {
                         current = tab[index++];
-                    else {
+                    } else {
                         Object x = current.get();
                         V v = current.value;
                         current = current.next;
-                        if (x != null) {
+                        if(x != null) {
                             action.accept(v);
-                            if (map.modCount != expectedModCount)
+                            if(map.modCount != expectedModCount) {
                                 throw new ConcurrentModificationException();
+                            }
                             return true;
                         }
                     }
@@ -1246,84 +1534,85 @@ public class WeakHashMap<K,V>
             }
             return false;
         }
-
+        
         public int characteristics() {
             return 0;
         }
     }
-
-    static final class EntrySpliterator<K,V>
-        extends WeakHashMapSpliterator<K,V>
-        implements Spliterator<Map.Entry<K,V>> {
-        EntrySpliterator(WeakHashMap<K,V> m, int origin, int fence, int est,
-                       int expectedModCount) {
+    
+    // key-value的可分割迭代器
+    static final class EntrySpliterator<K, V> extends WeakHashMapSpliterator<K, V> implements Spliterator<Map.Entry<K, V>> {
+        EntrySpliterator(WeakHashMap<K, V> m, int origin, int fence, int est, int expectedModCount) {
             super(m, origin, fence, est, expectedModCount);
         }
-
-        public EntrySpliterator<K,V> trySplit() {
+        
+        public EntrySpliterator<K, V> trySplit() {
             int hi = getFence(), lo = index, mid = (lo + hi) >>> 1;
-            return (lo >= mid) ? null :
-                new EntrySpliterator<>(map, lo, index = mid, est >>>= 1,
-                                       expectedModCount);
+            return (lo >= mid) ? null : new EntrySpliterator<>(map, lo, index = mid, est >>>= 1, expectedModCount);
         }
-
-
+        
+        
         public void forEachRemaining(Consumer<? super Map.Entry<K, V>> action) {
             int i, hi, mc;
-            if (action == null)
+            
+            if(action == null) {
                 throw new NullPointerException();
-            WeakHashMap<K,V> m = map;
-            WeakHashMap.Entry<K,V>[] tab = m.table;
-            if ((hi = fence) < 0) {
+            }
+            
+            WeakHashMap<K, V> m = map;
+            WeakHashMap.Entry<K, V>[] tab = m.table;
+            if((hi = fence)<0) {
                 mc = expectedModCount = m.modCount;
                 hi = fence = tab.length;
-            }
-            else
+            } else
                 mc = expectedModCount;
-            if (tab.length >= hi && (i = index) >= 0 &&
-                (i < (index = hi) || current != null)) {
-                WeakHashMap.Entry<K,V> p = current;
+            if(tab.length >= hi && (i = index) >= 0 && (i<(index = hi) || current != null)) {
+                WeakHashMap.Entry<K, V> p = current;
                 current = null; // exhaust
                 do {
-                    if (p == null)
+                    if(p == null) {
                         p = tab[i++];
-                    else {
+                    } else {
                         Object x = p.get();
                         V v = p.value;
                         p = p.next;
-                        if (x != null) {
-                            @SuppressWarnings("unchecked") K k =
-                                (K) WeakHashMap.unmaskNull(x);
-                            action.accept
-                                (new AbstractMap.SimpleImmutableEntry<>(k, v));
+                        if(x != null) {
+                            @SuppressWarnings("unchecked")
+                            K k = (K) WeakHashMap.unmaskNull(x);
+                            action.accept(new AbstractMap.SimpleImmutableEntry<>(k, v));
                         }
                     }
-                } while (p != null || i < hi);
+                } while(p != null || i<hi);
             }
-            if (m.modCount != mc)
+            
+            if(m.modCount != mc) {
                 throw new ConcurrentModificationException();
+            }
         }
-
-        public boolean tryAdvance(Consumer<? super Map.Entry<K,V>> action) {
+        
+        public boolean tryAdvance(Consumer<? super Map.Entry<K, V>> action) {
             int hi;
-            if (action == null)
+            
+            if(action == null) {
                 throw new NullPointerException();
-            WeakHashMap.Entry<K,V>[] tab = map.table;
-            if (tab.length >= (hi = getFence()) && index >= 0) {
-                while (current != null || index < hi) {
-                    if (current == null)
+            }
+            
+            WeakHashMap.Entry<K, V>[] tab = map.table;
+            if(tab.length >= (hi = getFence()) && index >= 0) {
+                while(current != null || index<hi) {
+                    if(current == null) {
                         current = tab[index++];
-                    else {
+                    } else {
                         Object x = current.get();
                         V v = current.value;
                         current = current.next;
-                        if (x != null) {
-                            @SuppressWarnings("unchecked") K k =
-                                (K) WeakHashMap.unmaskNull(x);
-                            action.accept
-                                (new AbstractMap.SimpleImmutableEntry<>(k, v));
-                            if (map.modCount != expectedModCount)
+                        if(x != null) {
+                            @SuppressWarnings("unchecked")
+                            K k = (K) WeakHashMap.unmaskNull(x);
+                            action.accept(new AbstractMap.SimpleImmutableEntry<>(k, v));
+                            if(map.modCount != expectedModCount) {
                                 throw new ConcurrentModificationException();
+                            }
                             return true;
                         }
                     }
@@ -1331,10 +1620,10 @@ public class WeakHashMap<K,V>
             }
             return false;
         }
-
+        
         public int characteristics() {
             return Spliterator.DISTINCT;
         }
     }
-
+    
 }
