@@ -39,78 +39,23 @@ package java.util;
  * <strong>NOTE: This class is obsolete.  New implementations should
  * implement the Map interface, rather than extending this class.</strong>
  *
- * @author  unascribed
- * @see     java.util.Map
- * @see     java.lang.Object#equals(java.lang.Object)
- * @see     java.lang.Object#hashCode()
- * @see     java.util.Hashtable
- * @since   1.0
+ * @author unascribed
+ * @see java.util.Map
+ * @see java.lang.Object#equals(java.lang.Object)
+ * @see java.lang.Object#hashCode()
+ * @see java.util.Hashtable
+ * @since 1.0
  */
-public abstract
-class Dictionary<K,V> {
+// 字典接口，类似于Map，也是一个关于键值对的操作规范
+public abstract class Dictionary<K, V> {
+    
     /**
      * Sole constructor.  (For invocation by subclass constructors, typically
      * implicit.)
      */
     public Dictionary() {
     }
-
-    /**
-     * Returns the number of entries (distinct keys) in this dictionary.
-     *
-     * @return  the number of keys in this dictionary.
-     */
-    public abstract int size();
-
-    /**
-     * Tests if this dictionary maps no keys to value. The general contract
-     * for the {@code isEmpty} method is that the result is true if and only
-     * if this dictionary contains no entries.
-     *
-     * @return  {@code true} if this dictionary maps no keys to values;
-     *          {@code false} otherwise.
-     */
-    public abstract boolean isEmpty();
-
-    /**
-     * Returns an enumeration of the keys in this dictionary. The general
-     * contract for the keys method is that an {@code Enumeration} object
-     * is returned that will generate all the keys for which this dictionary
-     * contains entries.
-     *
-     * @return  an enumeration of the keys in this dictionary.
-     * @see     java.util.Dictionary#elements()
-     * @see     java.util.Enumeration
-     */
-    public abstract Enumeration<K> keys();
-
-    /**
-     * Returns an enumeration of the values in this dictionary. The general
-     * contract for the {@code elements} method is that an
-     * {@code Enumeration} is returned that will generate all the elements
-     * contained in entries in this dictionary.
-     *
-     * @return  an enumeration of the values in this dictionary.
-     * @see     java.util.Dictionary#keys()
-     * @see     java.util.Enumeration
-     */
-    public abstract Enumeration<V> elements();
-
-    /**
-     * Returns the value to which the key is mapped in this dictionary.
-     * The general contract for the {@code isEmpty} method is that if this
-     * dictionary contains an entry for the specified key, the associated
-     * value is returned; otherwise, {@code null} is returned.
-     *
-     * @return  the value to which the key is mapped in this dictionary;
-     * @param   key   a key in this dictionary.
-     *          {@code null} if the key is not mapped to any value in
-     *          this dictionary.
-     * @exception NullPointerException if the {@code key} is {@code null}.
-     * @see     java.util.Dictionary#put(java.lang.Object, java.lang.Object)
-     */
-    public abstract V get(Object key);
-
+    
     /**
      * Maps the specified {@code key} to the specified
      * {@code value} in this dictionary. Neither the key nor the
@@ -119,37 +64,109 @@ class Dictionary<K,V> {
      * If this dictionary already contains an entry for the specified
      * {@code key}, the value already in this dictionary for that
      * {@code key} is returned, after modifying the entry to contain the
-     *  new element. <p>If this dictionary does not already have an entry
-     *  for the specified {@code key}, an entry is created for the
-     *  specified {@code key} and {@code value}, and {@code null} is
-     *  returned.
+     * new element. <p>If this dictionary does not already have an entry
+     * for the specified {@code key}, an entry is created for the
+     * specified {@code key} and {@code value}, and {@code null} is
+     * returned.
      * <p>
      * The {@code value} can be retrieved by calling the
      * {@code get} method with a {@code key} that is equal to
      * the original {@code key}.
      *
-     * @param      key     the hashtable key.
-     * @param      value   the value.
-     * @return     the previous value to which the {@code key} was mapped
-     *             in this dictionary, or {@code null} if the key did not
-     *             have a previous mapping.
-     * @exception  NullPointerException  if the {@code key} or
-     *               {@code value} is {@code null}.
-     * @see        java.lang.Object#equals(java.lang.Object)
-     * @see        java.util.Dictionary#get(java.lang.Object)
+     * @param key   the hashtable key.
+     * @param value the value.
+     *
+     * @return the previous value to which the {@code key} was mapped
+     * in this dictionary, or {@code null} if the key did not
+     * have a previous mapping.
+     *
+     * @throws NullPointerException if the {@code key} or
+     *                              {@code value} is {@code null}.
+     * @see java.lang.Object#equals(java.lang.Object)
+     * @see java.util.Dictionary#get(java.lang.Object)
      */
+    // 将指定的元素（key-value）存入字典，并返回旧值，允许覆盖
     public abstract V put(K key, V value);
-
+    
+    /**
+     * Returns the value to which the key is mapped in this dictionary.
+     * The general contract for the {@code isEmpty} method is that if this
+     * dictionary contains an entry for the specified key, the associated
+     * value is returned; otherwise, {@code null} is returned.
+     *
+     * @param key a key in this dictionary.
+     *            {@code null} if the key is not mapped to any value in
+     *            this dictionary.
+     *
+     * @return the value to which the key is mapped in this dictionary;
+     *
+     * @throws NullPointerException if the {@code key} is {@code null}.
+     * @see java.util.Dictionary#put(java.lang.Object, java.lang.Object)
+     */
+    // 根据指定的key获取对应的value，如果不存在，则返回null
+    public abstract V get(Object key);
+    
     /**
      * Removes the {@code key} (and its corresponding
      * {@code value}) from this dictionary. This method does nothing
      * if the {@code key} is not in this dictionary.
      *
-     * @param   key   the key that needs to be removed.
-     * @return  the value to which the {@code key} had been mapped in this
-     *          dictionary, or {@code null} if the key did not have a
-     *          mapping.
-     * @exception NullPointerException if {@code key} is {@code null}.
+     * @param key the key that needs to be removed.
+     *
+     * @return the value to which the {@code key} had been mapped in this
+     * dictionary, or {@code null} if the key did not have a
+     * mapping.
+     *
+     * @throws NullPointerException if {@code key} is {@code null}.
      */
+    // 移除拥有指定key的元素，并返回刚刚移除的元素的值
     public abstract V remove(Object key);
+    
+    /**
+     * Returns an enumeration of the keys in this dictionary. The general
+     * contract for the keys method is that an {@code Enumeration} object
+     * is returned that will generate all the keys for which this dictionary
+     * contains entries.
+     *
+     * @return an enumeration of the keys in this dictionary.
+     *
+     * @see java.util.Dictionary#elements()
+     * @see java.util.Enumeration
+     */
+    // 返回当前字典中key的枚举器（具体含义需参见子类的实现）
+    public abstract Enumeration<K> keys();
+    
+    /**
+     * Returns an enumeration of the values in this dictionary. The general
+     * contract for the {@code elements} method is that an
+     * {@code Enumeration} is returned that will generate all the elements
+     * contained in entries in this dictionary.
+     *
+     * @return an enumeration of the values in this dictionary.
+     *
+     * @see java.util.Dictionary#keys()
+     * @see java.util.Enumeration
+     */
+    // 返回当前字典中value的枚举器（具体含义需参见子类的实现）
+    public abstract Enumeration<V> elements();
+    
+    /**
+     * Returns the number of entries (distinct keys) in this dictionary.
+     *
+     * @return the number of keys in this dictionary.
+     */
+    // 获取当前字典中的元素数量
+    public abstract int size();
+    
+    /**
+     * Tests if this dictionary maps no keys to value. The general contract
+     * for the {@code isEmpty} method is that the result is true if and only
+     * if this dictionary contains no entries.
+     *
+     * @return {@code true} if this dictionary maps no keys to values;
+     * {@code false} otherwise.
+     */
+    // 判断当前字典是否为空集
+    public abstract boolean isEmpty();
+    
 }
