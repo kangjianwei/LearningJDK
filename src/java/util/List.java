@@ -134,26 +134,300 @@ import java.util.function.UnaryOperator;
  * @see AbstractSequentialList
  * @since 1.2
  */
-
+// 线性表接口，其实现可以是顺序存储结构，也可以是链式存储结构
 public interface List<E> extends Collection<E> {
-    // Query Operations
-
+    
+    /*▼ 存值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns the number of elements in this list.  If this list contains
-     * more than {@code Integer.MAX_VALUE} elements, returns
-     * {@code Integer.MAX_VALUE}.
+     * Appends the specified element to the end of this list (optional
+     * operation).
      *
-     * @return the number of elements in this list
+     * <p>Lists that support this operation may place limitations on what
+     * elements may be added to this list.  In particular, some
+     * lists will refuse to add null elements, and others will impose
+     * restrictions on the type of elements that may be added.  List
+     * classes should clearly specify in their documentation any restrictions
+     * on what elements may be added.
+     *
+     * @param e element to be appended to this list
+     * @return {@code true} (as specified by {@link Collection#add})
+     * @throws UnsupportedOperationException if the {@code add} operation
+     *         is not supported by this list
+     * @throws ClassCastException if the class of the specified element
+     *         prevents it from being added to this list
+     * @throws NullPointerException if the specified element is null and this
+     *         list does not permit null elements
+     * @throws IllegalArgumentException if some property of this element
+     *         prevents it from being added to this list
      */
-    int size();
-
+    // 将元素e追加到当前线性表中
+    boolean add(E e);
+    
     /**
-     * Returns {@code true} if this list contains no elements.
+     * Inserts the specified element at the specified position in this list
+     * (optional operation).  Shifts the element currently at that position
+     * (if any) and any subsequent elements to the right (adds one to their
+     * indices).
      *
-     * @return {@code true} if this list contains no elements
+     * @param index index at which the specified element is to be inserted
+     * @param element element to be inserted
+     * @throws UnsupportedOperationException if the {@code add} operation
+     *         is not supported by this list
+     * @throws ClassCastException if the class of the specified element
+     *         prevents it from being added to this list
+     * @throws NullPointerException if the specified element is null and
+     *         this list does not permit null elements
+     * @throws IllegalArgumentException if some property of the specified
+     *         element prevents it from being added to this list
+     * @throws IndexOutOfBoundsException if the index is out of range
+     *         ({@code index < 0 || index > size()})
      */
-    boolean isEmpty();
-
+    // 将元素element添加到线性表index处
+    void add(int index, E element);
+    
+    /**
+     * Appends all of the elements in the specified collection to the end of
+     * this list, in the order that they are returned by the specified
+     * collection's iterator (optional operation).  The behavior of this
+     * operation is undefined if the specified collection is modified while
+     * the operation is in progress.  (Note that this will occur if the
+     * specified collection is this list, and it's nonempty.)
+     *
+     * @param c collection containing elements to be added to this list
+     * @return {@code true} if this list changed as a result of the call
+     * @throws UnsupportedOperationException if the {@code addAll} operation
+     *         is not supported by this list
+     * @throws ClassCastException if the class of an element of the specified
+     *         collection prevents it from being added to this list
+     * @throws NullPointerException if the specified collection contains one
+     *         or more null elements and this list does not permit null
+     *         elements, or if the specified collection is null
+     * @throws IllegalArgumentException if some property of an element of the
+     *         specified collection prevents it from being added to this list
+     * @see #add(Object)
+     */
+    // 将指定容器中的元素追加到当前线性表中
+    boolean addAll(Collection<? extends E> c);
+    
+    /**
+     * Inserts all of the elements in the specified collection into this
+     * list at the specified position (optional operation).  Shifts the
+     * element currently at that position (if any) and any subsequent
+     * elements to the right (increases their indices).  The new elements
+     * will appear in this list in the order that they are returned by the
+     * specified collection's iterator.  The behavior of this operation is
+     * undefined if the specified collection is modified while the
+     * operation is in progress.  (Note that this will occur if the specified
+     * collection is this list, and it's nonempty.)
+     *
+     * @param index index at which to insert the first element from the
+     *              specified collection
+     * @param c collection containing elements to be added to this list
+     * @return {@code true} if this list changed as a result of the call
+     * @throws UnsupportedOperationException if the {@code addAll} operation
+     *         is not supported by this list
+     * @throws ClassCastException if the class of an element of the specified
+     *         collection prevents it from being added to this list
+     * @throws NullPointerException if the specified collection contains one
+     *         or more null elements and this list does not permit null
+     *         elements, or if the specified collection is null
+     * @throws IllegalArgumentException if some property of an element of the
+     *         specified collection prevents it from being added to this list
+     * @throws IndexOutOfBoundsException if the index is out of range
+     *         ({@code index < 0 || index > size()})
+     */
+    // 将指定容器中的元素添加到当前线性表的index处
+    boolean addAll(int index, Collection<? extends E> c);
+    
+    /*▲ 存值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 取值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the element at the specified position in this list.
+     *
+     * @param index index of the element to return
+     * @return the element at the specified position in this list
+     * @throws IndexOutOfBoundsException if the index is out of range
+     *         ({@code index < 0 || index >= size()})
+     */
+    // 获取指定索引处的元素
+    E get(int index);
+    
+    /*▲ 取值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 移除 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Removes the element at the specified position in this list (optional
+     * operation).  Shifts any subsequent elements to the left (subtracts one
+     * from their indices).  Returns the element that was removed from the
+     * list.
+     *
+     * @param index the index of the element to be removed
+     * @return the element previously at the specified position
+     * @throws UnsupportedOperationException if the {@code remove} operation
+     *         is not supported by this list
+     * @throws IndexOutOfBoundsException if the index is out of range
+     *         ({@code index < 0 || index >= size()})
+     */
+    // 移除索引index处的元素，返回被移除的元素
+    E remove(int index);
+    
+    /**
+     * Removes the first occurrence of the specified element from this list,
+     * if it is present (optional operation).  If this list does not contain
+     * the element, it is unchanged.  More formally, removes the element with
+     * the lowest index {@code i} such that
+     * {@code Objects.equals(o, get(i))}
+     * (if such an element exists).  Returns {@code true} if this list
+     * contained the specified element (or equivalently, if this list changed
+     * as a result of the call).
+     *
+     * @param o element to be removed from this list, if present
+     * @return {@code true} if this list contained the specified element
+     * @throws ClassCastException if the type of the specified element
+     *         is incompatible with this list
+     * (<a href="Collection.html#optional-restrictions">optional</a>)
+     * @throws NullPointerException if the specified element is null and this
+     *         list does not permit null elements
+     * (<a href="Collection.html#optional-restrictions">optional</a>)
+     * @throws UnsupportedOperationException if the {@code remove} operation
+     *         is not supported by this list
+     */
+    // 移除指定的元素，返回值指示是否移除成功
+    boolean remove(Object o);
+    
+    /**
+     * Removes from this list all of its elements that are contained in the
+     * specified collection (optional operation).
+     *
+     * @param c collection containing elements to be removed from this list
+     * @return {@code true} if this list changed as a result of the call
+     * @throws UnsupportedOperationException if the {@code removeAll} operation
+     *         is not supported by this list
+     * @throws ClassCastException if the class of an element of this list
+     *         is incompatible with the specified collection
+     * (<a href="Collection.html#optional-restrictions">optional</a>)
+     * @throws NullPointerException if this list contains a null element and the
+     *         specified collection does not permit null elements
+     *         (<a href="Collection.html#optional-restrictions">optional</a>),
+     *         or if the specified collection is null
+     * @see #remove(Object)
+     * @see #contains(Object)
+     */
+    // (匹配则移除)移除当前线性表中所有与给定容器中的元素匹配的元素
+    boolean removeAll(Collection<?> c);
+    
+    /**
+     * Retains only the elements in this list that are contained in the
+     * specified collection (optional operation).  In other words, removes
+     * from this list all of its elements that are not contained in the
+     * specified collection.
+     *
+     * @param c collection containing elements to be retained in this list
+     * @return {@code true} if this list changed as a result of the call
+     * @throws UnsupportedOperationException if the {@code retainAll} operation
+     *         is not supported by this list
+     * @throws ClassCastException if the class of an element of this list
+     *         is incompatible with the specified collection
+     * (<a href="Collection.html#optional-restrictions">optional</a>)
+     * @throws NullPointerException if this list contains a null element and the
+     *         specified collection does not permit null elements
+     *         (<a href="Collection.html#optional-restrictions">optional</a>),
+     *         or if the specified collection is null
+     * @see #remove(Object)
+     * @see #contains(Object)
+     */
+    // (不匹配则移除)移除当前线性表中所有与给定容器中的元素不匹配的元素
+    boolean retainAll(Collection<?> c);
+    
+    /**
+     * Removes all of the elements from this list (optional operation).
+     * The list will be empty after this call returns.
+     *
+     * @throws UnsupportedOperationException if the {@code clear} operation
+     *         is not supported by this list
+     */
+    // 清空当前线性表中的元素
+    void clear();
+    
+    /*▲ 移除 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 替换 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Replaces the element at the specified position in this list with the
+     * specified element (optional operation).
+     *
+     * @param index index of the element to replace
+     * @param element element to be stored at the specified position
+     * @return the element previously at the specified position
+     * @throws UnsupportedOperationException if the {@code set} operation
+     *         is not supported by this list
+     * @throws ClassCastException if the class of the specified element
+     *         prevents it from being added to this list
+     * @throws NullPointerException if the specified element is null and
+     *         this list does not permit null elements
+     * @throws IllegalArgumentException if some property of the specified
+     *         element prevents it from being added to this list
+     * @throws IndexOutOfBoundsException if the index is out of range
+     *         ({@code index < 0 || index >= size()})
+     */
+    // 将index处的元素更新为element，并返回旧元素
+    E set(int index, E element);
+    
+    /**
+     * Replaces each element of this list with the result of applying the
+     * operator to that element.  Errors or runtime exceptions thrown by
+     * the operator are relayed to the caller.
+     *
+     * @implSpec
+     * The default implementation is equivalent to, for this {@code list}:
+     * <pre>{@code
+     *     final ListIterator<E> li = list.listIterator();
+     *     while (li.hasNext()) {
+     *         li.set(operator.apply(li.next()));
+     *     }
+     * }</pre>
+     *
+     * If the list's list-iterator does not support the {@code set} operation
+     * then an {@code UnsupportedOperationException} will be thrown when
+     * replacing the first element.
+     *
+     * @param operator the operator to apply to each element
+     * @throws UnsupportedOperationException if this list is unmodifiable.
+     *         Implementations may throw this exception if an element
+     *         cannot be replaced or if, in general, modification is not
+     *         supported
+     * @throws NullPointerException if the specified operator is null or
+     *         if the operator result is a null value and this list does
+     *         not permit null elements
+     *         (<a href="Collection.html#optional-restrictions">optional</a>)
+     * @since 1.8
+     */
+    // 更新当前线性表中所有元素，更新策略由operator决定
+    default void replaceAll(UnaryOperator<E> operator) {
+        Objects.requireNonNull(operator);
+        final ListIterator<E> li = this.listIterator();
+        while (li.hasNext()) {
+            li.set(operator.apply(li.next()));
+        }
+    }
+    
+    /*▲ 替换 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 包含查询 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns {@code true} if this list contains the specified element.
      * More formally, returns {@code true} if and only if this list contains
@@ -169,15 +443,120 @@ public interface List<E> extends Collection<E> {
      *         list does not permit null elements
      * (<a href="Collection.html#optional-restrictions">optional</a>)
      */
+    // 判断当前线性表中是否包含指定的元素
     boolean contains(Object o);
-
+    
     /**
-     * Returns an iterator over the elements in this list in proper sequence.
+     * Returns {@code true} if this list contains all of the elements of the
+     * specified collection.
      *
-     * @return an iterator over the elements in this list in proper sequence
+     * @param  c collection to be checked for containment in this list
+     * @return {@code true} if this list contains all of the elements of the
+     *         specified collection
+     * @throws ClassCastException if the types of one or more elements
+     *         in the specified collection are incompatible with this
+     *         list
+     * (<a href="Collection.html#optional-restrictions">optional</a>)
+     * @throws NullPointerException if the specified collection contains one
+     *         or more null elements and this list does not permit null
+     *         elements
+     *         (<a href="Collection.html#optional-restrictions">optional</a>),
+     *         or if the specified collection is null
+     * @see #contains(Object)
      */
-    Iterator<E> iterator();
-
+    // 判读指定容器中的元素是否都包含在当前线性表中
+    boolean containsAll(Collection<?> c);
+    
+    /*▲ 包含查询 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 定位 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the index of the first occurrence of the specified element
+     * in this list, or -1 if this list does not contain the element.
+     * More formally, returns the lowest index {@code i} such that
+     * {@code Objects.equals(o, get(i))},
+     * or -1 if there is no such index.
+     *
+     * @param o element to search for
+     * @return the index of the first occurrence of the specified element in
+     *         this list, or -1 if this list does not contain the element
+     * @throws ClassCastException if the type of the specified element
+     *         is incompatible with this list
+     *         (<a href="Collection.html#optional-restrictions">optional</a>)
+     * @throws NullPointerException if the specified element is null and this
+     *         list does not permit null elements
+     *         (<a href="Collection.html#optional-restrictions">optional</a>)
+     */
+    // 返回指定元素的正序索引(正序查找首个匹配的元素)
+    int indexOf(Object o);
+    
+    /**
+     * Returns the index of the last occurrence of the specified element
+     * in this list, or -1 if this list does not contain the element.
+     * More formally, returns the highest index {@code i} such that
+     * {@code Objects.equals(o, get(i))},
+     * or -1 if there is no such index.
+     *
+     * @param o element to search for
+     * @return the index of the last occurrence of the specified element in
+     *         this list, or -1 if this list does not contain the element
+     * @throws ClassCastException if the type of the specified element
+     *         is incompatible with this list
+     *         (<a href="Collection.html#optional-restrictions">optional</a>)
+     * @throws NullPointerException if the specified element is null and this
+     *         list does not permit null elements
+     *         (<a href="Collection.html#optional-restrictions">optional</a>)
+     */
+    // 返回指定元素的逆序索引(逆序查找首个匹配的元素)
+    int lastIndexOf(Object o);
+    
+    /*▲ 定位 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 视图 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a view of the portion of this list between the specified
+     * {@code fromIndex}, inclusive, and {@code toIndex}, exclusive.  (If
+     * {@code fromIndex} and {@code toIndex} are equal, the returned list is
+     * empty.)  The returned list is backed by this list, so non-structural
+     * changes in the returned list are reflected in this list, and vice-versa.
+     * The returned list supports all of the optional list operations supported
+     * by this list.<p>
+     *
+     * This method eliminates the need for explicit range operations (of
+     * the sort that commonly exist for arrays).  Any operation that expects
+     * a list can be used as a range operation by passing a subList view
+     * instead of a whole list.  For example, the following idiom
+     * removes a range of elements from a list:
+     * <pre>{@code
+     *      list.subList(from, to).clear();
+     * }</pre>
+     * Similar idioms may be constructed for {@code indexOf} and
+     * {@code lastIndexOf}, and all of the algorithms in the
+     * {@code Collections} class can be applied to a subList.<p>
+     *
+     * The semantics of the list returned by this method become undefined if
+     * the backing list (i.e., this list) is <i>structurally modified</i> in
+     * any way other than via the returned list.  (Structural modifications are
+     * those that change the size of this list, or otherwise perturb it in such
+     * a fashion that iterations in progress may yield incorrect results.)
+     *
+     * @param fromIndex low endpoint (inclusive) of the subList
+     * @param toIndex high endpoint (exclusive) of the subList
+     * @return a view of the specified range within this list
+     * @throws IndexOutOfBoundsException for an illegal endpoint index value
+     *         ({@code fromIndex < 0 || toIndex > size ||
+     *         fromIndex > toIndex})
+     */
+    // 返回[fromIndex, toIndex)之间的元素的视图
+    List<E> subList(int fromIndex, int toIndex);
+    
+    
     /**
      * Returns an array containing all of the elements in this list in proper
      * sequence (from first to last element).
@@ -195,7 +574,7 @@ public interface List<E> extends Collection<E> {
      * @see Arrays#asList(Object[])
      */
     Object[] toArray();
-
+    
     /**
      * Returns an array containing all of the elements in this list in
      * proper sequence (from first to last element); the runtime type of
@@ -236,211 +615,116 @@ public interface List<E> extends Collection<E> {
      * @throws NullPointerException if the specified array is null
      */
     <T> T[] toArray(T[] a);
-
-
-    // Modification Operations
-
+    
+    /*▲ 视图 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 迭代 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Appends the specified element to the end of this list (optional
-     * operation).
+     * Returns an iterator over the elements in this list in proper sequence.
      *
-     * <p>Lists that support this operation may place limitations on what
-     * elements may be added to this list.  In particular, some
-     * lists will refuse to add null elements, and others will impose
-     * restrictions on the type of elements that may be added.  List
-     * classes should clearly specify in their documentation any restrictions
-     * on what elements may be added.
-     *
-     * @param e element to be appended to this list
-     * @return {@code true} (as specified by {@link Collection#add})
-     * @throws UnsupportedOperationException if the {@code add} operation
-     *         is not supported by this list
-     * @throws ClassCastException if the class of the specified element
-     *         prevents it from being added to this list
-     * @throws NullPointerException if the specified element is null and this
-     *         list does not permit null elements
-     * @throws IllegalArgumentException if some property of this element
-     *         prevents it from being added to this list
+     * @return an iterator over the elements in this list in proper sequence
      */
-    boolean add(E e);
-
+    // 返回当前线性表的一个迭代器
+    Iterator<E> iterator();
+    
     /**
-     * Removes the first occurrence of the specified element from this list,
-     * if it is present (optional operation).  If this list does not contain
-     * the element, it is unchanged.  More formally, removes the element with
-     * the lowest index {@code i} such that
-     * {@code Objects.equals(o, get(i))}
-     * (if such an element exists).  Returns {@code true} if this list
-     * contained the specified element (or equivalently, if this list changed
-     * as a result of the call).
+     * Returns a list iterator over the elements in this list (in proper
+     * sequence).
      *
-     * @param o element to be removed from this list, if present
-     * @return {@code true} if this list contained the specified element
-     * @throws ClassCastException if the type of the specified element
-     *         is incompatible with this list
-     * (<a href="Collection.html#optional-restrictions">optional</a>)
-     * @throws NullPointerException if the specified element is null and this
-     *         list does not permit null elements
-     * (<a href="Collection.html#optional-restrictions">optional</a>)
-     * @throws UnsupportedOperationException if the {@code remove} operation
-     *         is not supported by this list
+     * @return a list iterator over the elements in this list (in proper
+     *         sequence)
      */
-    boolean remove(Object o);
-
-
-    // Bulk Modification Operations
-
+    // 返回当前线性表的一个增强的迭代器，且设定下一个待遍历元素为索引0处的元素
+    ListIterator<E> listIterator();
+    
     /**
-     * Returns {@code true} if this list contains all of the elements of the
-     * specified collection.
+     * Returns a list iterator over the elements in this list (in proper
+     * sequence), starting at the specified position in the list.
+     * The specified index indicates the first element that would be
+     * returned by an initial call to {@link ListIterator#next next}.
+     * An initial call to {@link ListIterator#previous previous} would
+     * return the element with the specified index minus one.
      *
-     * @param  c collection to be checked for containment in this list
-     * @return {@code true} if this list contains all of the elements of the
-     *         specified collection
-     * @throws ClassCastException if the types of one or more elements
-     *         in the specified collection are incompatible with this
-     *         list
-     * (<a href="Collection.html#optional-restrictions">optional</a>)
-     * @throws NullPointerException if the specified collection contains one
-     *         or more null elements and this list does not permit null
-     *         elements
-     *         (<a href="Collection.html#optional-restrictions">optional</a>),
-     *         or if the specified collection is null
-     * @see #contains(Object)
-     */
-    boolean containsAll(Collection<?> c);
-
-    /**
-     * Appends all of the elements in the specified collection to the end of
-     * this list, in the order that they are returned by the specified
-     * collection's iterator (optional operation).  The behavior of this
-     * operation is undefined if the specified collection is modified while
-     * the operation is in progress.  (Note that this will occur if the
-     * specified collection is this list, and it's nonempty.)
-     *
-     * @param c collection containing elements to be added to this list
-     * @return {@code true} if this list changed as a result of the call
-     * @throws UnsupportedOperationException if the {@code addAll} operation
-     *         is not supported by this list
-     * @throws ClassCastException if the class of an element of the specified
-     *         collection prevents it from being added to this list
-     * @throws NullPointerException if the specified collection contains one
-     *         or more null elements and this list does not permit null
-     *         elements, or if the specified collection is null
-     * @throws IllegalArgumentException if some property of an element of the
-     *         specified collection prevents it from being added to this list
-     * @see #add(Object)
-     */
-    boolean addAll(Collection<? extends E> c);
-
-    /**
-     * Inserts all of the elements in the specified collection into this
-     * list at the specified position (optional operation).  Shifts the
-     * element currently at that position (if any) and any subsequent
-     * elements to the right (increases their indices).  The new elements
-     * will appear in this list in the order that they are returned by the
-     * specified collection's iterator.  The behavior of this operation is
-     * undefined if the specified collection is modified while the
-     * operation is in progress.  (Note that this will occur if the specified
-     * collection is this list, and it's nonempty.)
-     *
-     * @param index index at which to insert the first element from the
-     *              specified collection
-     * @param c collection containing elements to be added to this list
-     * @return {@code true} if this list changed as a result of the call
-     * @throws UnsupportedOperationException if the {@code addAll} operation
-     *         is not supported by this list
-     * @throws ClassCastException if the class of an element of the specified
-     *         collection prevents it from being added to this list
-     * @throws NullPointerException if the specified collection contains one
-     *         or more null elements and this list does not permit null
-     *         elements, or if the specified collection is null
-     * @throws IllegalArgumentException if some property of an element of the
-     *         specified collection prevents it from being added to this list
+     * @param index index of the first element to be returned from the
+     *        list iterator (by a call to {@link ListIterator#next next})
+     * @return a list iterator over the elements in this list (in proper
+     *         sequence), starting at the specified position in the list
      * @throws IndexOutOfBoundsException if the index is out of range
      *         ({@code index < 0 || index > size()})
      */
-    boolean addAll(int index, Collection<? extends E> c);
-
+    // 返回当前线性表的一个增强的迭代器，且设定下一个待遍历元素为索引index处的元素
+    ListIterator<E> listIterator(int index);
+    
     /**
-     * Removes from this list all of its elements that are contained in the
-     * specified collection (optional operation).
+     * Creates a {@link Spliterator} over the elements in this list.
      *
-     * @param c collection containing elements to be removed from this list
-     * @return {@code true} if this list changed as a result of the call
-     * @throws UnsupportedOperationException if the {@code removeAll} operation
-     *         is not supported by this list
-     * @throws ClassCastException if the class of an element of this list
-     *         is incompatible with the specified collection
-     * (<a href="Collection.html#optional-restrictions">optional</a>)
-     * @throws NullPointerException if this list contains a null element and the
-     *         specified collection does not permit null elements
-     *         (<a href="Collection.html#optional-restrictions">optional</a>),
-     *         or if the specified collection is null
-     * @see #remove(Object)
-     * @see #contains(Object)
-     */
-    boolean removeAll(Collection<?> c);
-
-    /**
-     * Retains only the elements in this list that are contained in the
-     * specified collection (optional operation).  In other words, removes
-     * from this list all of its elements that are not contained in the
-     * specified collection.
-     *
-     * @param c collection containing elements to be retained in this list
-     * @return {@code true} if this list changed as a result of the call
-     * @throws UnsupportedOperationException if the {@code retainAll} operation
-     *         is not supported by this list
-     * @throws ClassCastException if the class of an element of this list
-     *         is incompatible with the specified collection
-     * (<a href="Collection.html#optional-restrictions">optional</a>)
-     * @throws NullPointerException if this list contains a null element and the
-     *         specified collection does not permit null elements
-     *         (<a href="Collection.html#optional-restrictions">optional</a>),
-     *         or if the specified collection is null
-     * @see #remove(Object)
-     * @see #contains(Object)
-     */
-    boolean retainAll(Collection<?> c);
-
-    /**
-     * Replaces each element of this list with the result of applying the
-     * operator to that element.  Errors or runtime exceptions thrown by
-     * the operator are relayed to the caller.
+     * <p>The {@code Spliterator} reports {@link Spliterator#SIZED} and
+     * {@link Spliterator#ORDERED}.  Implementations should document the
+     * reporting of additional characteristic values.
      *
      * @implSpec
-     * The default implementation is equivalent to, for this {@code list}:
-     * <pre>{@code
-     *     final ListIterator<E> li = list.listIterator();
-     *     while (li.hasNext()) {
-     *         li.set(operator.apply(li.next()));
-     *     }
-     * }</pre>
+     * The default implementation creates a
+     * <em><a href="Spliterator.html#binding">late-binding</a></em>
+     * spliterator as follows:
+     * <ul>
+     * <li>If the list is an instance of {@link RandomAccess} then the default
+     *     implementation creates a spliterator that traverses elements by
+     *     invoking the method {@link List#get}.  If such invocation results or
+     *     would result in an {@code IndexOutOfBoundsException} then the
+     *     spliterator will <em>fail-fast</em> and throw a
+     *     {@code ConcurrentModificationException}.
+     *     If the list is also an instance of {@link AbstractList} then the
+     *     spliterator will use the list's {@link AbstractList#modCount modCount}
+     *     field to provide additional <em>fail-fast</em> behavior.
+     * <li>Otherwise, the default implementation creates a spliterator from the
+     *     list's {@code Iterator}.  The spliterator inherits the
+     *     <em>fail-fast</em> of the list's iterator.
+     * </ul>
      *
-     * If the list's list-iterator does not support the {@code set} operation
-     * then an {@code UnsupportedOperationException} will be thrown when
-     * replacing the first element.
+     * @implNote
+     * The created {@code Spliterator} additionally reports
+     * {@link Spliterator#SUBSIZED}.
      *
-     * @param operator the operator to apply to each element
-     * @throws UnsupportedOperationException if this list is unmodifiable.
-     *         Implementations may throw this exception if an element
-     *         cannot be replaced or if, in general, modification is not
-     *         supported
-     * @throws NullPointerException if the specified operator is null or
-     *         if the operator result is a null value and this list does
-     *         not permit null elements
-     *         (<a href="Collection.html#optional-restrictions">optional</a>)
+     * @return a {@code Spliterator} over the elements in this list
      * @since 1.8
      */
-    default void replaceAll(UnaryOperator<E> operator) {
-        Objects.requireNonNull(operator);
-        final ListIterator<E> li = this.listIterator();
-        while (li.hasNext()) {
-            li.set(operator.apply(li.next()));
+    // 返回一个可分割的迭代器
+    @Override
+    default Spliterator<E> spliterator() {
+        if (this instanceof RandomAccess) {
+            return new AbstractList.RandomAccessSpliterator<>(this);
+        } else {
+            return Spliterators.spliterator(this, Spliterator.ORDERED);
         }
     }
-
+    
+    /*▲ 迭代 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the number of elements in this list.  If this list contains
+     * more than {@code Integer.MAX_VALUE} elements, returns
+     * {@code Integer.MAX_VALUE}.
+     *
+     * @return the number of elements in this list
+     */
+    // 返回当前线性表的元素数量
+    int size();
+    
+    /**
+     * Returns {@code true} if this list contains no elements.
+     *
+     * @return {@code true} if this list contains no elements
+     */
+    // 判断当前线性表是否为空
+    boolean isEmpty();
+    
     /**
      * Sorts this list according to the order induced by the specified
      * {@link Comparator}.  The sort is <i>stable</i>: this method must not
@@ -500,6 +784,7 @@ public interface List<E> extends Collection<E> {
      *         contract
      * @since 1.8
      */
+    // 使用指定的比较器对当前线性表内的元素进行排序
     @SuppressWarnings({"unchecked", "rawtypes"})
     default void sort(Comparator<? super E> c) {
         Object[] a = this.toArray();
@@ -510,273 +795,34 @@ public interface List<E> extends Collection<E> {
             i.set((E) e);
         }
     }
-
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 只读对象 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Removes all of the elements from this list (optional operation).
-     * The list will be empty after this call returns.
-     *
-     * @throws UnsupportedOperationException if the {@code clear} operation
-     *         is not supported by this list
-     */
-    void clear();
-
-
-    // Comparison and hashing
-
-    /**
-     * Compares the specified object with this list for equality.  Returns
-     * {@code true} if and only if the specified object is also a list, both
-     * lists have the same size, and all corresponding pairs of elements in
-     * the two lists are <i>equal</i>.  (Two elements {@code e1} and
-     * {@code e2} are <i>equal</i> if {@code Objects.equals(e1, e2)}.)
-     * In other words, two lists are defined to be
-     * equal if they contain the same elements in the same order.  This
-     * definition ensures that the equals method works properly across
-     * different implementations of the {@code List} interface.
-     *
-     * @param o the object to be compared for equality with this list
-     * @return {@code true} if the specified object is equal to this list
-     */
-    boolean equals(Object o);
-
-    /**
-     * Returns the hash code value for this list.  The hash code of a list
-     * is defined to be the result of the following calculation:
-     * <pre>{@code
-     *     int hashCode = 1;
-     *     for (E e : list)
-     *         hashCode = 31*hashCode + (e==null ? 0 : e.hashCode());
-     * }</pre>
-     * This ensures that {@code list1.equals(list2)} implies that
-     * {@code list1.hashCode()==list2.hashCode()} for any two lists,
-     * {@code list1} and {@code list2}, as required by the general
-     * contract of {@link Object#hashCode}.
-     *
-     * @return the hash code value for this list
-     * @see Object#equals(Object)
-     * @see #equals(Object)
-     */
-    int hashCode();
-
-
-    // Positional Access Operations
-
-    /**
-     * Returns the element at the specified position in this list.
-     *
-     * @param index index of the element to return
-     * @return the element at the specified position in this list
-     * @throws IndexOutOfBoundsException if the index is out of range
-     *         ({@code index < 0 || index >= size()})
-     */
-    E get(int index);
-
-    /**
-     * Replaces the element at the specified position in this list with the
-     * specified element (optional operation).
-     *
-     * @param index index of the element to replace
-     * @param element element to be stored at the specified position
-     * @return the element previously at the specified position
-     * @throws UnsupportedOperationException if the {@code set} operation
-     *         is not supported by this list
-     * @throws ClassCastException if the class of the specified element
-     *         prevents it from being added to this list
-     * @throws NullPointerException if the specified element is null and
-     *         this list does not permit null elements
-     * @throws IllegalArgumentException if some property of the specified
-     *         element prevents it from being added to this list
-     * @throws IndexOutOfBoundsException if the index is out of range
-     *         ({@code index < 0 || index >= size()})
-     */
-    E set(int index, E element);
-
-    /**
-     * Inserts the specified element at the specified position in this list
-     * (optional operation).  Shifts the element currently at that position
-     * (if any) and any subsequent elements to the right (adds one to their
-     * indices).
-     *
-     * @param index index at which the specified element is to be inserted
-     * @param element element to be inserted
-     * @throws UnsupportedOperationException if the {@code add} operation
-     *         is not supported by this list
-     * @throws ClassCastException if the class of the specified element
-     *         prevents it from being added to this list
-     * @throws NullPointerException if the specified element is null and
-     *         this list does not permit null elements
-     * @throws IllegalArgumentException if some property of the specified
-     *         element prevents it from being added to this list
-     * @throws IndexOutOfBoundsException if the index is out of range
-     *         ({@code index < 0 || index > size()})
-     */
-    void add(int index, E element);
-
-    /**
-     * Removes the element at the specified position in this list (optional
-     * operation).  Shifts any subsequent elements to the left (subtracts one
-     * from their indices).  Returns the element that was removed from the
-     * list.
-     *
-     * @param index the index of the element to be removed
-     * @return the element previously at the specified position
-     * @throws UnsupportedOperationException if the {@code remove} operation
-     *         is not supported by this list
-     * @throws IndexOutOfBoundsException if the index is out of range
-     *         ({@code index < 0 || index >= size()})
-     */
-    E remove(int index);
-
-
-    // Search Operations
-
-    /**
-     * Returns the index of the first occurrence of the specified element
-     * in this list, or -1 if this list does not contain the element.
-     * More formally, returns the lowest index {@code i} such that
-     * {@code Objects.equals(o, get(i))},
-     * or -1 if there is no such index.
-     *
-     * @param o element to search for
-     * @return the index of the first occurrence of the specified element in
-     *         this list, or -1 if this list does not contain the element
-     * @throws ClassCastException if the type of the specified element
-     *         is incompatible with this list
-     *         (<a href="Collection.html#optional-restrictions">optional</a>)
-     * @throws NullPointerException if the specified element is null and this
-     *         list does not permit null elements
-     *         (<a href="Collection.html#optional-restrictions">optional</a>)
-     */
-    int indexOf(Object o);
-
-    /**
-     * Returns the index of the last occurrence of the specified element
-     * in this list, or -1 if this list does not contain the element.
-     * More formally, returns the highest index {@code i} such that
-     * {@code Objects.equals(o, get(i))},
-     * or -1 if there is no such index.
-     *
-     * @param o element to search for
-     * @return the index of the last occurrence of the specified element in
-     *         this list, or -1 if this list does not contain the element
-     * @throws ClassCastException if the type of the specified element
-     *         is incompatible with this list
-     *         (<a href="Collection.html#optional-restrictions">optional</a>)
-     * @throws NullPointerException if the specified element is null and this
-     *         list does not permit null elements
-     *         (<a href="Collection.html#optional-restrictions">optional</a>)
-     */
-    int lastIndexOf(Object o);
-
-
-    // List Iterators
-
-    /**
-     * Returns a list iterator over the elements in this list (in proper
-     * sequence).
-     *
-     * @return a list iterator over the elements in this list (in proper
-     *         sequence)
-     */
-    ListIterator<E> listIterator();
-
-    /**
-     * Returns a list iterator over the elements in this list (in proper
-     * sequence), starting at the specified position in the list.
-     * The specified index indicates the first element that would be
-     * returned by an initial call to {@link ListIterator#next next}.
-     * An initial call to {@link ListIterator#previous previous} would
-     * return the element with the specified index minus one.
-     *
-     * @param index index of the first element to be returned from the
-     *        list iterator (by a call to {@link ListIterator#next next})
-     * @return a list iterator over the elements in this list (in proper
-     *         sequence), starting at the specified position in the list
-     * @throws IndexOutOfBoundsException if the index is out of range
-     *         ({@code index < 0 || index > size()})
-     */
-    ListIterator<E> listIterator(int index);
-
-    // View
-
-    /**
-     * Returns a view of the portion of this list between the specified
-     * {@code fromIndex}, inclusive, and {@code toIndex}, exclusive.  (If
-     * {@code fromIndex} and {@code toIndex} are equal, the returned list is
-     * empty.)  The returned list is backed by this list, so non-structural
-     * changes in the returned list are reflected in this list, and vice-versa.
-     * The returned list supports all of the optional list operations supported
-     * by this list.<p>
-     *
-     * This method eliminates the need for explicit range operations (of
-     * the sort that commonly exist for arrays).  Any operation that expects
-     * a list can be used as a range operation by passing a subList view
-     * instead of a whole list.  For example, the following idiom
-     * removes a range of elements from a list:
-     * <pre>{@code
-     *      list.subList(from, to).clear();
-     * }</pre>
-     * Similar idioms may be constructed for {@code indexOf} and
-     * {@code lastIndexOf}, and all of the algorithms in the
-     * {@code Collections} class can be applied to a subList.<p>
-     *
-     * The semantics of the list returned by this method become undefined if
-     * the backing list (i.e., this list) is <i>structurally modified</i> in
-     * any way other than via the returned list.  (Structural modifications are
-     * those that change the size of this list, or otherwise perturb it in such
-     * a fashion that iterations in progress may yield incorrect results.)
-     *
-     * @param fromIndex low endpoint (inclusive) of the subList
-     * @param toIndex high endpoint (exclusive) of the subList
-     * @return a view of the specified range within this list
-     * @throws IndexOutOfBoundsException for an illegal endpoint index value
-     *         ({@code fromIndex < 0 || toIndex > size ||
-     *         fromIndex > toIndex})
-     */
-    List<E> subList(int fromIndex, int toIndex);
-
-    /**
-     * Creates a {@link Spliterator} over the elements in this list.
-     *
-     * <p>The {@code Spliterator} reports {@link Spliterator#SIZED} and
-     * {@link Spliterator#ORDERED}.  Implementations should document the
-     * reporting of additional characteristic values.
-     *
-     * @implSpec
-     * The default implementation creates a
-     * <em><a href="Spliterator.html#binding">late-binding</a></em>
-     * spliterator as follows:
-     * <ul>
-     * <li>If the list is an instance of {@link RandomAccess} then the default
-     *     implementation creates a spliterator that traverses elements by
-     *     invoking the method {@link List#get}.  If such invocation results or
-     *     would result in an {@code IndexOutOfBoundsException} then the
-     *     spliterator will <em>fail-fast</em> and throw a
-     *     {@code ConcurrentModificationException}.
-     *     If the list is also an instance of {@link AbstractList} then the
-     *     spliterator will use the list's {@link AbstractList#modCount modCount}
-     *     field to provide additional <em>fail-fast</em> behavior.
-     * <li>Otherwise, the default implementation creates a spliterator from the
-     *     list's {@code Iterator}.  The spliterator inherits the
-     *     <em>fail-fast</em> of the list's iterator.
-     * </ul>
+     * Returns an <a href="#unmodifiable">unmodifiable List</a> containing the elements of
+     * the given Collection, in its iteration order. The given Collection must not be null,
+     * and it must not contain any null elements. If the given Collection is subsequently
+     * modified, the returned List will not reflect such modifications.
      *
      * @implNote
-     * The created {@code Spliterator} additionally reports
-     * {@link Spliterator#SUBSIZED}.
+     * If the given Collection is an <a href="#unmodifiable">unmodifiable List</a>,
+     * calling copyOf will generally not create a copy.
      *
-     * @return a {@code Spliterator} over the elements in this list
-     * @since 1.8
+     * @param <E> the {@code List}'s element type
+     * @param coll a {@code Collection} from which elements are drawn, must be non-null
+     * @return a {@code List} containing the elements of the given {@code Collection}
+     * @throws NullPointerException if coll is null, or if it contains any nulls
+     * @since 10
      */
-    @Override
-    default Spliterator<E> spliterator() {
-        if (this instanceof RandomAccess) {
-            return new AbstractList.RandomAccessSpliterator<>(this);
-        } else {
-            return Spliterators.spliterator(this, Spliterator.ORDERED);
-        }
+    static <E> List<E> copyOf(Collection<? extends E> coll) {
+        return ImmutableCollections.listCopy(coll);
     }
-
+    
+    
     /**
      * Returns an unmodifiable list containing zero elements.
      *
@@ -790,7 +836,7 @@ public interface List<E> extends Collection<E> {
     static <E> List<E> of() {
         return ImmutableCollections.emptyList();
     }
-
+    
     /**
      * Returns an unmodifiable list containing one element.
      *
@@ -806,7 +852,7 @@ public interface List<E> extends Collection<E> {
     static <E> List<E> of(E e1) {
         return new ImmutableCollections.List12<>(e1);
     }
-
+    
     /**
      * Returns an unmodifiable list containing two elements.
      *
@@ -823,7 +869,7 @@ public interface List<E> extends Collection<E> {
     static <E> List<E> of(E e1, E e2) {
         return new ImmutableCollections.List12<>(e1, e2);
     }
-
+    
     /**
      * Returns an unmodifiable list containing three elements.
      *
@@ -841,7 +887,7 @@ public interface List<E> extends Collection<E> {
     static <E> List<E> of(E e1, E e2, E e3) {
         return new ImmutableCollections.ListN<>(e1, e2, e3);
     }
-
+    
     /**
      * Returns an unmodifiable list containing four elements.
      *
@@ -860,7 +906,7 @@ public interface List<E> extends Collection<E> {
     static <E> List<E> of(E e1, E e2, E e3, E e4) {
         return new ImmutableCollections.ListN<>(e1, e2, e3, e4);
     }
-
+    
     /**
      * Returns an unmodifiable list containing five elements.
      *
@@ -880,7 +926,7 @@ public interface List<E> extends Collection<E> {
     static <E> List<E> of(E e1, E e2, E e3, E e4, E e5) {
         return new ImmutableCollections.ListN<>(e1, e2, e3, e4, e5);
     }
-
+    
     /**
      * Returns an unmodifiable list containing six elements.
      *
@@ -900,9 +946,9 @@ public interface List<E> extends Collection<E> {
      */
     static <E> List<E> of(E e1, E e2, E e3, E e4, E e5, E e6) {
         return new ImmutableCollections.ListN<>(e1, e2, e3, e4, e5,
-                                                e6);
+            e6);
     }
-
+    
     /**
      * Returns an unmodifiable list containing seven elements.
      *
@@ -923,9 +969,9 @@ public interface List<E> extends Collection<E> {
      */
     static <E> List<E> of(E e1, E e2, E e3, E e4, E e5, E e6, E e7) {
         return new ImmutableCollections.ListN<>(e1, e2, e3, e4, e5,
-                                                e6, e7);
+            e6, e7);
     }
-
+    
     /**
      * Returns an unmodifiable list containing eight elements.
      *
@@ -947,9 +993,9 @@ public interface List<E> extends Collection<E> {
      */
     static <E> List<E> of(E e1, E e2, E e3, E e4, E e5, E e6, E e7, E e8) {
         return new ImmutableCollections.ListN<>(e1, e2, e3, e4, e5,
-                                                e6, e7, e8);
+            e6, e7, e8);
     }
-
+    
     /**
      * Returns an unmodifiable list containing nine elements.
      *
@@ -972,9 +1018,9 @@ public interface List<E> extends Collection<E> {
      */
     static <E> List<E> of(E e1, E e2, E e3, E e4, E e5, E e6, E e7, E e8, E e9) {
         return new ImmutableCollections.ListN<>(e1, e2, e3, e4, e5,
-                                                e6, e7, e8, e9);
+            e6, e7, e8, e9);
     }
-
+    
     /**
      * Returns an unmodifiable list containing ten elements.
      *
@@ -998,9 +1044,9 @@ public interface List<E> extends Collection<E> {
      */
     static <E> List<E> of(E e1, E e2, E e3, E e4, E e5, E e6, E e7, E e8, E e9, E e10) {
         return new ImmutableCollections.ListN<>(e1, e2, e3, e4, e5,
-                                                e6, e7, e8, e9, e10);
+            e6, e7, e8, e9, e10);
     }
-
+    
     /**
      * Returns an unmodifiable list containing an arbitrary number of elements.
      * See <a href="#unmodifiable">Unmodifiable Lists</a> for details.
@@ -1040,24 +1086,44 @@ public interface List<E> extends Collection<E> {
                 return new ImmutableCollections.ListN<>(elements);
         }
     }
-
+    
+    /*▲ 只读对象 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
     /**
-     * Returns an <a href="#unmodifiable">unmodifiable List</a> containing the elements of
-     * the given Collection, in its iteration order. The given Collection must not be null,
-     * and it must not contain any null elements. If the given Collection is subsequently
-     * modified, the returned List will not reflect such modifications.
+     * Compares the specified object with this list for equality.  Returns
+     * {@code true} if and only if the specified object is also a list, both
+     * lists have the same size, and all corresponding pairs of elements in
+     * the two lists are <i>equal</i>.  (Two elements {@code e1} and
+     * {@code e2} are <i>equal</i> if {@code Objects.equals(e1, e2)}.)
+     * In other words, two lists are defined to be
+     * equal if they contain the same elements in the same order.  This
+     * definition ensures that the equals method works properly across
+     * different implementations of the {@code List} interface.
      *
-     * @implNote
-     * If the given Collection is an <a href="#unmodifiable">unmodifiable List</a>,
-     * calling copyOf will generally not create a copy.
-     *
-     * @param <E> the {@code List}'s element type
-     * @param coll a {@code Collection} from which elements are drawn, must be non-null
-     * @return a {@code List} containing the elements of the given {@code Collection}
-     * @throws NullPointerException if coll is null, or if it contains any nulls
-     * @since 10
+     * @param o the object to be compared for equality with this list
+     * @return {@code true} if the specified object is equal to this list
      */
-    static <E> List<E> copyOf(Collection<? extends E> coll) {
-        return ImmutableCollections.listCopy(coll);
-    }
+    boolean equals(Object o);
+    
+    /**
+     * Returns the hash code value for this list.  The hash code of a list
+     * is defined to be the result of the following calculation:
+     * <pre>{@code
+     *     int hashCode = 1;
+     *     for (E e : list)
+     *         hashCode = 31*hashCode + (e==null ? 0 : e.hashCode());
+     * }</pre>
+     * This ensures that {@code list1.equals(list2)} implies that
+     * {@code list1.hashCode()==list2.hashCode()} for any two lists,
+     * {@code list1} and {@code list2}, as required by the general
+     * contract of {@link Object#hashCode}.
+     *
+     * @return the hash code value for this list
+     * @see Object#equals(Object)
+     * @see #equals(Object)
+     */
+    int hashCode();
+    
 }

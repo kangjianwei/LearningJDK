@@ -35,6 +35,7 @@
 
 package java.util.concurrent;
 
+import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.util.AbstractSet;
 import java.util.Collection;
@@ -92,138 +93,89 @@ import java.util.Spliterator;
  * @param <E> the type of elements maintained by this set
  * @since 1.6
  */
-public class ConcurrentSkipListSet<E>
-    extends AbstractSet<E>
-    implements NavigableSet<E>, Cloneable, java.io.Serializable {
-
+/*
+ * 跳表-集合，利用跳表来存储集合元素
+ *
+ * ConcurrentSkipListSet线程安全，且支持导航，内部直接使用ConcurrentNavigableMap来完成所有功能
+ */
+public class ConcurrentSkipListSet<E> extends AbstractSet<E> implements NavigableSet<E>, Cloneable, Serializable {
     private static final long serialVersionUID = -2479143111061671589L;
-
+    
     /**
      * The underlying map. Uses Boolean.TRUE as value for each
      * element.  This field is declared final for the sake of thread
      * safety, which entails some ugliness in clone().
      */
-    private final ConcurrentNavigableMap<E,Object> m;
-
+    private final ConcurrentNavigableMap<E, Object> m;
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Constructs a new, empty set that orders its elements according to
      * their {@linkplain Comparable natural ordering}.
      */
     public ConcurrentSkipListSet() {
-        m = new ConcurrentSkipListMap<E,Object>();
+        m = new ConcurrentSkipListMap<E, Object>();
     }
-
+    
     /**
      * Constructs a new, empty set that orders its elements according to
      * the specified comparator.
      *
      * @param comparator the comparator that will be used to order this set.
-     *        If {@code null}, the {@linkplain Comparable natural
-     *        ordering} of the elements will be used.
+     *                   If {@code null}, the {@linkplain Comparable natural
+     *                   ordering} of the elements will be used.
      */
     public ConcurrentSkipListSet(Comparator<? super E> comparator) {
-        m = new ConcurrentSkipListMap<E,Object>(comparator);
+        m = new ConcurrentSkipListMap<E, Object>(comparator);
     }
-
+    
     /**
      * Constructs a new set containing the elements in the specified
      * collection, that orders its elements according to their
      * {@linkplain Comparable natural ordering}.
      *
      * @param c The elements that will comprise the new set
-     * @throws ClassCastException if the elements in {@code c} are
-     *         not {@link Comparable}, or are not mutually comparable
+     *
+     * @throws ClassCastException   if the elements in {@code c} are
+     *                              not {@link Comparable}, or are not mutually comparable
      * @throws NullPointerException if the specified collection or any
-     *         of its elements are null
+     *                              of its elements are null
      */
     public ConcurrentSkipListSet(Collection<? extends E> c) {
-        m = new ConcurrentSkipListMap<E,Object>();
+        m = new ConcurrentSkipListMap<E, Object>();
         addAll(c);
     }
-
+    
     /**
      * Constructs a new set containing the same elements and using the
      * same ordering as the specified sorted set.
      *
      * @param s sorted set whose elements will comprise the new set
+     *
      * @throws NullPointerException if the specified sorted set or any
-     *         of its elements are null
+     *                              of its elements are null
      */
     public ConcurrentSkipListSet(SortedSet<E> s) {
-        m = new ConcurrentSkipListMap<E,Object>(s.comparator());
+        m = new ConcurrentSkipListMap<E, Object>(s.comparator());
         addAll(s);
     }
-
+    
     /**
      * For use by submaps
      */
-    ConcurrentSkipListSet(ConcurrentNavigableMap<E,Object> m) {
+    ConcurrentSkipListSet(ConcurrentNavigableMap<E, Object> m) {
         this.m = m;
     }
-
-    /**
-     * Returns a shallow copy of this {@code ConcurrentSkipListSet}
-     * instance. (The elements themselves are not cloned.)
-     *
-     * @return a shallow copy of this set
-     */
-    public ConcurrentSkipListSet<E> clone() {
-        try {
-            @SuppressWarnings("unchecked")
-            ConcurrentSkipListSet<E> clone =
-                (ConcurrentSkipListSet<E>) super.clone();
-            clone.setMap(new ConcurrentSkipListMap<E,Object>(m));
-            return clone;
-        } catch (CloneNotSupportedException e) {
-            throw new InternalError();
-        }
-    }
-
-    /* ---------------- Set operations -------------- */
-
-    /**
-     * Returns the number of elements in this set.  If this set
-     * contains more than {@code Integer.MAX_VALUE} elements, it
-     * returns {@code Integer.MAX_VALUE}.
-     *
-     * <p>Beware that, unlike in most collections, this method is
-     * <em>NOT</em> a constant-time operation. Because of the
-     * asynchronous nature of these sets, determining the current
-     * number of elements requires traversing them all to count them.
-     * Additionally, it is possible for the size to change during
-     * execution of this method, in which case the returned result
-     * will be inaccurate. Thus, this method is typically not very
-     * useful in concurrent applications.
-     *
-     * @return the number of elements in this set
-     */
-    public int size() {
-        return m.size();
-    }
-
-    /**
-     * Returns {@code true} if this set contains no elements.
-     * @return {@code true} if this set contains no elements
-     */
-    public boolean isEmpty() {
-        return m.isEmpty();
-    }
-
-    /**
-     * Returns {@code true} if this set contains the specified element.
-     * More formally, returns {@code true} if and only if this set
-     * contains an element {@code e} such that {@code o.equals(e)}.
-     *
-     * @param o object to be checked for containment in this set
-     * @return {@code true} if this set contains the specified element
-     * @throws ClassCastException if the specified element cannot be
-     *         compared with the elements currently in this set
-     * @throws NullPointerException if the specified element is null
-     */
-    public boolean contains(Object o) {
-        return m.containsKey(o);
-    }
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 存值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Adds the specified element to this set if it is not already present.
      * More formally, adds the specified element {@code e} to this set if
@@ -232,16 +184,83 @@ public class ConcurrentSkipListSet<E>
      * unchanged and returns {@code false}.
      *
      * @param e element to be added to this set
+     *
      * @return {@code true} if this set did not already contain the
-     *         specified element
-     * @throws ClassCastException if {@code e} cannot be compared
-     *         with the elements currently in this set
+     * specified element
+     *
+     * @throws ClassCastException   if {@code e} cannot be compared
+     *                              with the elements currently in this set
      * @throws NullPointerException if the specified element is null
      */
+    // 向Set中添加元素
     public boolean add(E e) {
         return m.putIfAbsent(e, Boolean.TRUE) == null;
     }
-
+    
+    /*▲ 存值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 取值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * @throws java.util.NoSuchElementException {@inheritDoc}
+     */
+    // 返回遍历当前集合时的首个元素
+    public E first() {
+        return m.firstKey();
+    }
+    
+    /**
+     * @throws java.util.NoSuchElementException {@inheritDoc}
+     */
+    // 返回遍历当前集合时的最后一个元素
+    public E last() {
+        return m.lastKey();
+    }
+    
+    /**
+     * @throws ClassCastException   {@inheritDoc}
+     * @throws NullPointerException if the specified element is null
+     */
+    // 〖前驱〗获取遍历当前Set时形参e的前驱
+    public E lower(E e) {
+        return m.lowerKey(e);
+    }
+    
+    /**
+     * @throws ClassCastException   {@inheritDoc}
+     * @throws NullPointerException if the specified element is null
+     */
+    // 〖后继〗获取遍历当前Set时形参e的后继
+    public E higher(E e) {
+        return m.higherKey(e);
+    }
+    
+    /**
+     * @throws ClassCastException   {@inheritDoc}
+     * @throws NullPointerException if the specified element is null
+     */
+    // 【前驱】获取遍历当前Set时形参e的前驱（包括e本身）
+    public E floor(E e) {
+        return m.floorKey(e);
+    }
+    
+    /**
+     * @throws ClassCastException   {@inheritDoc}
+     * @throws NullPointerException if the specified element is null
+     */
+    // 【后继】获取遍历当前Set时形参e的后继（包括e本身）
+    public E ceiling(E e) {
+        return m.ceilingKey(e);
+    }
+    
+    /*▲ 取值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 移除 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Removes the specified element from this set if it is present.
      * More formally, removes an element {@code e} such that
@@ -251,218 +270,158 @@ public class ConcurrentSkipListSet<E>
      * (This set will not contain the element once the call returns.)
      *
      * @param o object to be removed from this set, if present
+     *
      * @return {@code true} if this set contained the specified element
-     * @throws ClassCastException if {@code o} cannot be compared
-     *         with the elements currently in this set
+     *
+     * @throws ClassCastException   if {@code o} cannot be compared
+     *                              with the elements currently in this set
      * @throws NullPointerException if the specified element is null
      */
+    // 移除指定的元素，返回值指示是否移除成功
     public boolean remove(Object o) {
         return m.remove(o, Boolean.TRUE);
     }
-
-    /**
-     * Removes all of the elements from this set.
-     */
-    public void clear() {
-        m.clear();
-    }
-
-    /**
-     * Returns an iterator over the elements in this set in ascending order.
-     *
-     * @return an iterator over the elements in this set in ascending order
-     */
-    public Iterator<E> iterator() {
-        return m.navigableKeySet().iterator();
-    }
-
-    /**
-     * Returns an iterator over the elements in this set in descending order.
-     *
-     * @return an iterator over the elements in this set in descending order
-     */
-    public Iterator<E> descendingIterator() {
-        return m.descendingKeySet().iterator();
-    }
-
-
-    /* ---------------- AbstractSet Overrides -------------- */
-
-    /**
-     * Compares the specified object with this set for equality.  Returns
-     * {@code true} if the specified object is also a set, the two sets
-     * have the same size, and every member of the specified set is
-     * contained in this set (or equivalently, every member of this set is
-     * contained in the specified set).  This definition ensures that the
-     * equals method works properly across different implementations of the
-     * set interface.
-     *
-     * @param o the object to be compared for equality with this set
-     * @return {@code true} if the specified object is equal to this set
-     */
-    public boolean equals(Object o) {
-        // Override AbstractSet version to avoid calling size()
-        if (o == this)
-            return true;
-        if (!(o instanceof Set))
-            return false;
-        Collection<?> c = (Collection<?>) o;
-        try {
-            return containsAll(c) && c.containsAll(this);
-        } catch (ClassCastException | NullPointerException unused) {
-            return false;
-        }
-    }
-
+    
     /**
      * Removes from this set all of its elements that are contained in
      * the specified collection.  If the specified collection is also
      * a set, this operation effectively modifies this set so that its
      * value is the <i>asymmetric set difference</i> of the two sets.
      *
-     * @param  c collection containing elements to be removed from this set
+     * @param c collection containing elements to be removed from this set
+     *
      * @return {@code true} if this set changed as a result of the call
-     * @throws ClassCastException if the class of an element of this set
-     *         is incompatible with the specified collection
-     * (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
+     *
+     * @throws ClassCastException   if the class of an element of this set
+     *                              is incompatible with the specified collection
+     *                              (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
      * @throws NullPointerException if the specified collection or any
-     *         of its elements are null
+     *                              of its elements are null
      */
+    // (匹配则移除)移除当前集合中所有与给定容器中的元素匹配的元素
     public boolean removeAll(Collection<?> c) {
         // Override AbstractSet version to avoid unnecessary call to size()
         boolean modified = false;
-        for (Object e : c)
-            if (remove(e))
+        for(Object e : c)
+            if(remove(e))
                 modified = true;
         return modified;
     }
-
-    /* ---------------- Relational operations -------------- */
-
+    
     /**
-     * @throws ClassCastException {@inheritDoc}
-     * @throws NullPointerException if the specified element is null
+     * Removes all of the elements from this set.
      */
-    public E lower(E e) {
-        return m.lowerKey(e);
+    // 清空当前集合中所有元素
+    public void clear() {
+        m.clear();
     }
-
-    /**
-     * @throws ClassCastException {@inheritDoc}
-     * @throws NullPointerException if the specified element is null
-     */
-    public E floor(E e) {
-        return m.floorKey(e);
-    }
-
-    /**
-     * @throws ClassCastException {@inheritDoc}
-     * @throws NullPointerException if the specified element is null
-     */
-    public E ceiling(E e) {
-        return m.ceilingKey(e);
-    }
-
-    /**
-     * @throws ClassCastException {@inheritDoc}
-     * @throws NullPointerException if the specified element is null
-     */
-    public E higher(E e) {
-        return m.higherKey(e);
-    }
-
+    
+    
+    // 移除遍历当前Set时的首个元素（及其关联的内容）
     public E pollFirst() {
-        Map.Entry<E,Object> e = m.pollFirstEntry();
+        Map.Entry<E, Object> e = m.pollFirstEntry();
         return (e == null) ? null : e.getKey();
     }
-
+    
+    // 移除遍历当前Set时的最后一个元素（及其关联的内容）
     public E pollLast() {
-        Map.Entry<E,Object> e = m.pollLastEntry();
+        Map.Entry<E, Object> e = m.pollLastEntry();
         return (e == null) ? null : e.getKey();
     }
-
-
-    /* ---------------- SortedSet operations -------------- */
-
-    public Comparator<? super E> comparator() {
-        return m.comparator();
-    }
-
+    
+    /*▲ 移除 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 包含查询 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * @throws java.util.NoSuchElementException {@inheritDoc}
+     * Returns {@code true} if this set contains the specified element.
+     * More formally, returns {@code true} if and only if this set
+     * contains an element {@code e} such that {@code o.equals(e)}.
+     *
+     * @param o object to be checked for containment in this set
+     *
+     * @return {@code true} if this set contains the specified element
+     *
+     * @throws ClassCastException   if the specified element cannot be
+     *                              compared with the elements currently in this set
+     * @throws NullPointerException if the specified element is null
      */
-    public E first() {
-        return m.firstKey();
+    // 判断当前集合中是否包含元素o
+    public boolean contains(Object o) {
+        return m.containsKey(o);
     }
-
+    
+    /*▲ 包含查询 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 视图 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * @throws java.util.NoSuchElementException {@inheritDoc}
-     */
-    public E last() {
-        return m.lastKey();
-    }
-
-    /**
-     * @throws ClassCastException {@inheritDoc}
-     * @throws NullPointerException if {@code fromElement} or
-     *         {@code toElement} is null
+     * @throws ClassCastException       {@inheritDoc}
+     * @throws NullPointerException     if {@code fromElement} or
+     *                                  {@code toElement} is null
      * @throws IllegalArgumentException {@inheritDoc}
      */
-    public NavigableSet<E> subSet(E fromElement,
-                                  boolean fromInclusive,
-                                  E toElement,
-                                  boolean toInclusive) {
-        return new ConcurrentSkipListSet<E>
-            (m.subMap(fromElement, fromInclusive,
-                      toElement,   toInclusive));
-    }
-
-    /**
-     * @throws ClassCastException {@inheritDoc}
-     * @throws NullPointerException if {@code toElement} is null
-     * @throws IllegalArgumentException {@inheritDoc}
-     */
-    public NavigableSet<E> headSet(E toElement, boolean inclusive) {
-        return new ConcurrentSkipListSet<E>(m.headMap(toElement, inclusive));
-    }
-
-    /**
-     * @throws ClassCastException {@inheritDoc}
-     * @throws NullPointerException if {@code fromElement} is null
-     * @throws IllegalArgumentException {@inheritDoc}
-     */
-    public NavigableSet<E> tailSet(E fromElement, boolean inclusive) {
-        return new ConcurrentSkipListSet<E>(m.tailMap(fromElement, inclusive));
-    }
-
-    /**
-     * @throws ClassCastException {@inheritDoc}
-     * @throws NullPointerException if {@code fromElement} or
-     *         {@code toElement} is null
-     * @throws IllegalArgumentException {@inheritDoc}
-     */
+    // 获取【理论区间】为[fromElement, toElement)的Set
     public NavigableSet<E> subSet(E fromElement, E toElement) {
         return subSet(fromElement, true, toElement, false);
     }
-
+    
     /**
-     * @throws ClassCastException {@inheritDoc}
-     * @throws NullPointerException if {@code toElement} is null
+     * @throws ClassCastException       {@inheritDoc}
+     * @throws NullPointerException     if {@code fromElement} or
+     *                                  {@code toElement} is null
      * @throws IllegalArgumentException {@inheritDoc}
      */
+    // 获取【理论区间】为〖fromElement, toElement〗的Set，区间下限/上限是否为闭区间由fromInclusive和toInclusive参数决定
+    public NavigableSet<E> subSet(E fromElement, boolean fromInclusive, E toElement, boolean toInclusive) {
+        return new ConcurrentSkipListSet<E>(m.subMap(fromElement, fromInclusive, toElement, toInclusive));
+    }
+    
+    /**
+     * @throws ClassCastException       {@inheritDoc}
+     * @throws NullPointerException     if {@code toElement} is null
+     * @throws IllegalArgumentException {@inheritDoc}
+     */
+    // 获取【理论区间】上限为toElement(不包含)的Set
     public NavigableSet<E> headSet(E toElement) {
         return headSet(toElement, false);
     }
-
+    
     /**
-     * @throws ClassCastException {@inheritDoc}
-     * @throws NullPointerException if {@code fromElement} is null
+     * @throws ClassCastException       {@inheritDoc}
+     * @throws NullPointerException     if {@code toElement} is null
      * @throws IllegalArgumentException {@inheritDoc}
      */
+    // 获取【理论区间】上限为toElement的Set，区间上限是否为闭区间由inclusive参数决定
+    public NavigableSet<E> headSet(E toElement, boolean inclusive) {
+        return new ConcurrentSkipListSet<E>(m.headMap(toElement, inclusive));
+    }
+    
+    /**
+     * @throws ClassCastException       {@inheritDoc}
+     * @throws NullPointerException     if {@code fromElement} is null
+     * @throws IllegalArgumentException {@inheritDoc}
+     */
+    // 获取【理论区间】下限为fromElement(包含)的Set
     public NavigableSet<E> tailSet(E fromElement) {
         return tailSet(fromElement, true);
     }
-
+    
+    /**
+     * @throws ClassCastException       {@inheritDoc}
+     * @throws NullPointerException     if {@code fromElement} is null
+     * @throws IllegalArgumentException {@inheritDoc}
+     */
+    // 获取【理论区间】下限为fromElement的Set，区间下限是否为闭区间由inclusive参数决定
+    public NavigableSet<E> tailSet(E fromElement, boolean inclusive) {
+        return new ConcurrentSkipListSet<E>(m.tailMap(fromElement, inclusive));
+    }
+    
+    
     /**
      * Returns a reverse order view of the elements contained in this set.
      * The descending set is backed by this set, so changes to the set are
@@ -475,10 +434,37 @@ public class ConcurrentSkipListSet<E>
      *
      * @return a reverse order view of this set
      */
+    // 获取【逆序】Set
     public NavigableSet<E> descendingSet() {
         return new ConcurrentSkipListSet<E>(m.descendingMap());
     }
-
+    
+    /*▲ 视图 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 迭代 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns an iterator over the elements in this set in ascending order.
+     *
+     * @return an iterator over the elements in this set in ascending order
+     */
+    // 返回当前集合的迭代器
+    public Iterator<E> iterator() {
+        return m.navigableKeySet().iterator();
+    }
+    
+    /**
+     * Returns an iterator over the elements in this set in descending order.
+     *
+     * @return an iterator over the elements in this set in descending order
+     */
+    // 返回【逆序】Set的Iterator
+    public Iterator<E> descendingIterator() {
+        return m.descendingKeySet().iterator();
+    }
+    
     /**
      * Returns a {@link Spliterator} over the elements in this set.
      *
@@ -495,30 +481,122 @@ public class ConcurrentSkipListSet<E>
      * same total ordering as the set's comparator.
      *
      * @return a {@code Spliterator} over the elements in this set
+     *
      * @since 1.8
      */
+    // 返回描述此集合中元素的Spliterator
     public Spliterator<E> spliterator() {
-        return (m instanceof ConcurrentSkipListMap)
-            ? ((ConcurrentSkipListMap<E,?>)m).keySpliterator()
-            : ((ConcurrentSkipListMap.SubMap<E,?>)m).new SubMapKeyIterator();
+        return (m instanceof ConcurrentSkipListMap) ? ((ConcurrentSkipListMap<E, ?>) m).keySpliterator() : ((ConcurrentSkipListMap.SubMap<E, ?>) m).new SubMapKeyIterator();
     }
-
+    
+    /*▲ 迭代 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the number of elements in this set.  If this set
+     * contains more than {@code Integer.MAX_VALUE} elements, it
+     * returns {@code Integer.MAX_VALUE}.
+     *
+     * <p>Beware that, unlike in most collections, this method is
+     * <em>NOT</em> a constant-time operation. Because of the
+     * asynchronous nature of these sets, determining the current
+     * number of elements requires traversing them all to count them.
+     * Additionally, it is possible for the size to change during
+     * execution of this method, in which case the returned result
+     * will be inaccurate. Thus, this method is typically not very
+     * useful in concurrent applications.
+     *
+     * @return the number of elements in this set
+     */
+    // 返回当前集合的元素数量
+    public int size() {
+        return m.size();
+    }
+    
+    /**
+     * Returns {@code true} if this set contains no elements.
+     *
+     * @return {@code true} if this set contains no elements
+     */
+    // 判断当前集合是否为空
+    public boolean isEmpty() {
+        return m.isEmpty();
+    }
+    
+    // 返回当前集合使用的外部比较器Comparator
+    public Comparator<? super E> comparator() {
+        return m.comparator();
+    }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
     /** Initializes map field; for use in clone. */
-    private void setMap(ConcurrentNavigableMap<E,Object> map) {
-        Field mapField = java.security.AccessController.doPrivileged(
-            (java.security.PrivilegedAction<Field>) () -> {
-                try {
-                    Field f = ConcurrentSkipListSet.class
-                        .getDeclaredField("m");
-                    f.setAccessible(true);
-                    return f;
-                } catch (ReflectiveOperationException e) {
-                    throw new Error(e);
-                }});
+    private void setMap(ConcurrentNavigableMap<E, Object> map) {
+        Field mapField = java.security.AccessController.doPrivileged((java.security.PrivilegedAction<Field>) () -> {
+            try {
+                Field f = ConcurrentSkipListSet.class.getDeclaredField("m");
+                f.setAccessible(true);
+                return f;
+            } catch(ReflectiveOperationException e) {
+                throw new Error(e);
+            }
+        });
         try {
             mapField.set(this, map);
-        } catch (IllegalAccessException e) {
+        } catch(IllegalAccessException e) {
             throw new Error(e);
         }
     }
+    
+    
+    
+    /**
+     * Compares the specified object with this set for equality.  Returns
+     * {@code true} if the specified object is also a set, the two sets
+     * have the same size, and every member of the specified set is
+     * contained in this set (or equivalently, every member of this set is
+     * contained in the specified set).  This definition ensures that the
+     * equals method works properly across different implementations of the
+     * set interface.
+     *
+     * @param o the object to be compared for equality with this set
+     *
+     * @return {@code true} if the specified object is equal to this set
+     */
+    public boolean equals(Object o) {
+        // Override AbstractSet version to avoid calling size()
+        if(o == this)
+            return true;
+        if(!(o instanceof Set))
+            return false;
+        Collection<?> c = (Collection<?>) o;
+        try {
+            return containsAll(c) && c.containsAll(this);
+        } catch(ClassCastException | NullPointerException unused) {
+            return false;
+        }
+    }
+    
+    /**
+     * Returns a shallow copy of this {@code ConcurrentSkipListSet}
+     * instance. (The elements themselves are not cloned.)
+     *
+     * @return a shallow copy of this set
+     */
+    public ConcurrentSkipListSet<E> clone() {
+        try {
+            @SuppressWarnings("unchecked")
+            ConcurrentSkipListSet<E> clone = (ConcurrentSkipListSet<E>) super.clone();
+            clone.setMap(new ConcurrentSkipListMap<E, Object>(m));
+            return clone;
+        } catch(CloneNotSupportedException e) {
+            throw new InternalError();
+        }
+    }
+    
 }

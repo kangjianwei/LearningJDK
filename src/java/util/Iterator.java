@@ -59,12 +59,13 @@ import java.util.function.Consumer;
  * 外部迭代器的特点是：可拔插
  * 其迭代行为可以挂载到待比较对象的外部
  *
- * 此外，外部迭代器往往用来支撑内部迭代器的实现
+ * 此外，外部迭代器往往用来支撑内部迭代器的实现。
  *
  * 注：区别于内部迭代器Iterable
  * 注：区别于枚举器Enumeration
  */
 public interface Iterator<E> {
+    
     /**
      * Returns {@code true} if the iteration has more elements.
      * (In other words, returns {@code true} if {@link #next} would
@@ -72,7 +73,7 @@ public interface Iterator<E> {
      *
      * @return {@code true} if the iteration has more elements
      */
-    // 是否存在未遍历元素
+    // 是否存在下一个未遍历元素
     boolean hasNext();
     
     /**
@@ -107,7 +108,7 @@ public interface Iterator<E> {
      * @implSpec The default implementation throws an instance of
      * {@link UnsupportedOperationException} and performs no other action.
      */
-    // 移除一个元素
+    // 移除上一个遍历的元素
     default void remove() {
         throw new UnsupportedOperationException("remove");
     }

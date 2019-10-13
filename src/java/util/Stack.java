@@ -42,77 +42,62 @@ package java.util;
  * <pre>   {@code
  *   Deque<Integer> stack = new ArrayDeque<Integer>();}</pre>
  *
- * @author  Jonathan Payne
- * @since   1.0
+ * @author Jonathan Payne
+ * @since 1.0
  */
-public
-class Stack<E> extends Vector<E> {
+// 栈：线性表的顺序存储结构，将表头作为栈底，表尾作为栈顶
+public class Stack<E> extends Vector<E> {
+    
+    /** use serialVersionUID from JDK 1.0.2 for interoperability */
+    private static final long serialVersionUID = 1224463164541339165L;
+    
     /**
      * Creates an empty Stack.
      */
     public Stack() {
     }
-
+    
     /**
      * Pushes an item onto the top of this stack. This has exactly
      * the same effect as:
      * <blockquote><pre>
      * addElement(item)</pre></blockquote>
      *
-     * @param   item   the item to be pushed onto this stack.
-     * @return  the {@code item} argument.
-     * @see     java.util.Vector#addElement
+     * @param item the item to be pushed onto this stack.
+     *
+     * @return the {@code item} argument.
+     *
+     * @see java.util.Vector#addElement
      */
+    // 入栈：将元素item追加到栈顶(表尾)
     public E push(E item) {
         addElement(item);
-
+        
         return item;
     }
-
+    
     /**
      * Removes the object at the top of this stack and returns that
      * object as the value of this function.
      *
-     * @return  The object at the top of this stack (the last item
-     *          of the {@code Vector} object).
-     * @throws  EmptyStackException  if this stack is empty.
+     * @return The object at the top of this stack (the last item
+     * of the {@code Vector} object).
+     *
+     * @throws EmptyStackException if this stack is empty.
      */
+    // 出栈：移除栈顶(表尾)元素
     public synchronized E pop() {
-        E       obj;
-        int     len = size();
-
+        E obj;
+        
+        int len = size();
+        
         obj = peek();
+        
         removeElementAt(len - 1);
-
+        
         return obj;
     }
-
-    /**
-     * Looks at the object at the top of this stack without removing it
-     * from the stack.
-     *
-     * @return  the object at the top of this stack (the last item
-     *          of the {@code Vector} object).
-     * @throws  EmptyStackException  if this stack is empty.
-     */
-    public synchronized E peek() {
-        int     len = size();
-
-        if (len == 0)
-            throw new EmptyStackException();
-        return elementAt(len - 1);
-    }
-
-    /**
-     * Tests if this stack is empty.
-     *
-     * @return  {@code true} if and only if this stack contains
-     *          no items; {@code false} otherwise.
-     */
-    public boolean empty() {
-        return size() == 0;
-    }
-
+    
     /**
      * Returns the 1-based position where an object is on this stack.
      * If the object {@code o} occurs as an item in this stack, this
@@ -122,20 +107,51 @@ class Stack<E> extends Vector<E> {
      * method is used to compare {@code o} to the
      * items in this stack.
      *
-     * @param   o   the desired object.
-     * @return  the 1-based position from the top of the stack where
-     *          the object is located; the return value {@code -1}
-     *          indicates that the object is not on the stack.
+     * @param o the desired object.
+     *
+     * @return the 1-based position from the top of the stack where
+     * the object is located; the return value {@code -1}
+     * indicates that the object is not on the stack.
      */
+    // 搜索：从栈顶(表尾)向栈底(表头)搜索指定的元素，返回值表示该元素是线性表中倒数第几个元素
     public synchronized int search(Object o) {
         int i = lastIndexOf(o);
-
-        if (i >= 0) {
+        
+        if(i >= 0) {
             return size() - i;
         }
+        
         return -1;
     }
-
-    /** use serialVersionUID from JDK 1.0.2 for interoperability */
-    private static final long serialVersionUID = 1224463164541339165L;
+    
+    /**
+     * Looks at the object at the top of this stack without removing it
+     * from the stack.
+     *
+     * @return the object at the top of this stack (the last item
+     * of the {@code Vector} object).
+     *
+     * @throws EmptyStackException if this stack is empty.
+     */
+    // 查看栈顶(表尾)元素
+    public synchronized E peek() {
+        int len = size();
+        
+        if(len == 0) {
+            throw new EmptyStackException();
+        }
+        
+        return elementAt(len - 1);
+    }
+    
+    /**
+     * Tests if this stack is empty.
+     *
+     * @return {@code true} if and only if this stack contains
+     * no items; {@code false} otherwise.
+     */
+    // 判断栈是否为空
+    public boolean empty() {
+        return size() == 0;
+    }
 }

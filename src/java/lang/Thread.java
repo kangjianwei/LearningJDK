@@ -185,7 +185,7 @@ public class Thread implements Runnable {
      * The requested stack size for this thread, or 0 if the creator did not specify a stack size.
      * It is up to the VM to do whatever it likes with this number; some VMs will ignore it.
      */
-    private final long stackSize;
+    private final long stackSize;   // 设置当前线程的栈帧深度（不是所有系统都支持）
     
     
     /** For autonumbering anonymous threads. */
@@ -284,7 +284,7 @@ public class Thread implements Runnable {
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Allocates a new {@code Thread} object. This constructor has the same
@@ -634,7 +634,7 @@ public class Thread implements Runnable {
         this.tid = nextThreadID();
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -833,8 +833,9 @@ public class Thread implements Runnable {
     // 获取当前线程（所处的类）的类加载器
     @CallerSensitive
     public ClassLoader getContextClassLoader() {
-        if(contextClassLoader == null)
+        if(contextClassLoader == null) {
             return null;
+        }
         
         SecurityManager sm = System.getSecurityManager();
         if(sm != null) {
@@ -873,7 +874,7 @@ public class Thread implements Runnable {
     }
     
     
-    /* 以下方法用于构造方法的默认行为 */
+    /* 以下方法用于构造器的默认行为 */
     
     // 获取下一个线程编号，用于合成线程名
     private static synchronized int nextThreadNum() {
@@ -957,7 +958,7 @@ public class Thread implements Runnable {
      *                                  <i>interrupted status</i> of the current thread is
      *                                  cleared when this exception is thrown.
      */
-    // 使线程进入TIMED_WAITING状态
+    // 使线程进入TIMED_WAITING状态，millis毫秒后自己醒来（不释放锁）
     public static native void sleep(long millis) throws InterruptedException;
     
     /**
@@ -976,7 +977,10 @@ public class Thread implements Runnable {
      *                                  <i>interrupted status</i> of the current thread is
      *                                  cleared when this exception is thrown.
      */
-    // 使线程进入TIMED_WAITING状态
+    /*
+     * 使线程进入TIMED_WAITING状态
+     * 至少等待millis毫秒，nanos是一个纳秒级的附加时间，用来微调millis参数（不释放锁）
+     */
     public static void sleep(long millis, int nanos) throws InterruptedException {
         if(millis<0) {
             throw new IllegalArgumentException("timeout value is negative");
@@ -996,6 +1000,28 @@ public class Thread implements Runnable {
     }
     
     /**
+     * Waits for this thread to die.
+     *
+     * <p> An invocation of this method behaves in exactly the same
+     * way as the invocation
+     *
+     * <blockquote>
+     * {@linkplain #join(long) join}{@code (0)}
+     * </blockquote>
+     *
+     * @throws InterruptedException if any thread has interrupted the current thread. The
+     *                              <i>interrupted status</i> of the current thread is
+     *                              cleared when this exception is thrown.
+     */
+    /*
+     * 使线程进入WAITING状态
+     * 让join()方法所在线程进入等待，直到调用join()的线程死亡之后，再去执行join()方法所在线程
+     */
+    public final void join() throws InterruptedException {
+        join(0);
+    }
+    
+    /**
      * Waits at most {@code millis} milliseconds for this thread to
      * die. A timeout of {@code 0} means to wait forever.
      *
@@ -1012,52 +1038,7 @@ public class Thread implements Runnable {
      *                                  <i>interrupted status</i> of the current thread is
      *                                  cleared when this exception is thrown.
      */
-    /*
-     * 让调用join的线程对象一直执行，直到它死亡之后，再去执行该线程对象后续启动的线程
-     *
-     * 原理分析，示例如下：
-     *
-     * public static void main(String[] args) {
-     *     Thread t1 = ...;
-     *     Thread t2 = ...;
-     *
-     *     t1.start();   // 持有t1锁
-     *     t1.join();    // 持有main锁
-     *
-     *     t2.start();   // 持有t2锁
-     * }
-     *
-     * 相当于：
-     * 01 public static void main(String[] args) {
-     * 02     Thread t1 = ...;
-     * 03     Thread t2 = ...;
-     * 04
-     * 05     t1.start();   // t1线程
-     * 06
-     * 07     // main线程也持有t1对象锁
-     * 08     synchronized(t1){
-     * 09         while(t1.isAlive()) { // 只要线程t1存活就可以进入循环
-     * 10             t1.wait(0);
-     * 11         }
-     * 12     }
-     * 13
-     * 14     t2.start();   // t2线程
-     * 15 }
-     *
-     * 执行步骤：
-     * 1 main线程执行到第5行后，使t1开始运行，此时还不关线程t2什么事。
-     * 2 接着，main线程执行到第8行，main线程尝试获取t1对象锁，此时分两种情形：
-     * 2.1 main线程刚好抢到了t1对象锁（由CPU分配执行权）
-     * 2.1.1 然后，main方法在第9行进入循环，相当于掉进了陷阱
-     * 2.1.2 随后，如果线程t1仍然存活，main方法执行到第10行，做了两件事：
-     * 2.1.2.1 让main线程释放t1锁
-     * 2.1.2.2 使main线程和t1线程重新抢占CPU时间片（执行权），此时，又分为两种情形：
-     * 2.1.2.2.1 如果接下来是t1抢到了执行权，那么t1继续输出，当然此时main线程也没有放弃抢锁的努力，在运行效果上等同于回到了步骤1
-     * 2.1.2.2.2 如果接下来是main线程抢到了执行权，在执行效果上相当于又回到了步骤2.1
-     * 2.2 如果在第8行main线程没有抢到锁，那么t1继续执行，main线程继续努力抢锁，在执行效果上相当于回到了步骤2
-     * 3 综上，只要t1线程存活，main线程就掉在循环陷阱里，即使抢到了执行权，也待在循环中出不来，这使得线程t2一直没法被调用（一直执行不到第14行）
-     * 4 直到t1执行完，即t1死亡，main线程跳出循环陷阱，此时开始执行线程t2
-     */
+    // 使线程进入WAITING或TIMED_WAITING状态
     public final synchronized void join(long millis) throws InterruptedException {
         long base = System.currentTimeMillis();
         long now = 0;
@@ -1083,25 +1064,6 @@ public class Thread implements Runnable {
                 now = System.currentTimeMillis() - base;
             }
         }
-    }
-    
-    /**
-     * Waits for this thread to die.
-     *
-     * <p> An invocation of this method behaves in exactly the same
-     * way as the invocation
-     *
-     * <blockquote>
-     * {@linkplain #join(long) join}{@code (0)}
-     * </blockquote>
-     *
-     * @throws InterruptedException if any thread has interrupted the current thread. The
-     *                              <i>interrupted status</i> of the current thread is
-     *                              cleared when this exception is thrown.
-     */
-    // 使线程进入WAITING状态
-    public final void join() throws InterruptedException {
-        join(0);
     }
     
     /**
@@ -2059,7 +2021,38 @@ public class Thread implements Runnable {
      * @see #getState
      * @since 1.5
      */
-    // 线程状态标记
+    /*
+     * 线程状态标记
+     *
+     *     ●
+     *     ↓
+     *    NEW
+     *     ↓       ┌→ WAITING
+     *     ↓       |     ↓
+     *  RUNNABLE ←-┼→ BLOCKED
+     *     ↓       |     ↑
+     *     ↓       └→ TIMED_WAITING
+     * TERMINATED
+     *
+     *
+     * 6种状态，10个转换：
+     * -------------------------
+     *  1.NEW      -> RUNNABLE
+     *  2.RUNNABLE -> TERMINATED
+     * -------------------------
+     *  3.RUNNABLE -> BLOCKED
+     *  4.BLOCKED  -> RUNNABLE
+     * -------------------------
+     *  5.RUNNABLE -> WAITING
+     *  6.WAITING  -> RUNNABLE
+     * -------------------------
+     *  7.RUNNABLE      -> TIMED_WAITING
+     *  8.TIMED_WAITING -> RUNNABLE
+     * -------------------------
+     *  9.WAITING       -> BLOCKED
+     * 10.TIMED_WAITING -> BLOCKED
+     * -------------------------
+     */
     public enum State {
         /**
          * Thread state for a thread which has not yet started.
@@ -2120,7 +2113,7 @@ public class Thread implements Runnable {
          * A thread is in the timed waiting state due to calling one of
          * the following methods with a specified positive waiting time:
          * <ul>
-         * <li>{@link #sleep Thread.sleep}</li>
+         * <li>{@link #sleep(long) Thread.sleep}</li>
          * <li>{@link Object#wait(long) Object.wait} with timeout</li>
          * <li>{@link #join(long) Thread.join} with timeout</li>
          * <li>{@link LockSupport#parkNanos LockSupport.parkNanos}</li>

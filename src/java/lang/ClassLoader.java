@@ -2831,8 +2831,9 @@ public abstract class ClassLoader {
      */
     public void setDefaultAssertionStatus(boolean enabled) {
         synchronized(assertionLock) {
-            if(classAssertionStatus == null)
+            if(classAssertionStatus == null) {
                 initializeJavaAssertionMaps();
+            }
             
             defaultAssertionStatus = enabled;
         }
@@ -3010,8 +3011,11 @@ public abstract class ClassLoader {
      */
     // 封装一组并行的加载器类型
     private static class ParallelLoaders {
-        // 一组具有并行能力的累加载器
-        private static final Set<Class<? extends ClassLoader>> loaderTypes = Collections.newSetFromMap(new WeakHashMap<>());
+        // 获取一个弱引用Map，其key被弱引用追踪
+        private static final Map<Class<? extends ClassLoader>, Boolean> map = new WeakHashMap<>();
+        
+        // 存储一组具有并行能力的类加载器
+        private static final Set<Class<? extends ClassLoader>> loaderTypes = Collections.newSetFromMap(map);
         
         static {
             // 注册所有类加载器的祖先ClassLoader为并行

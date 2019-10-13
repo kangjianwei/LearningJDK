@@ -48,30 +48,30 @@ package java.util;
  *
  * <table class="striped">
  * <caption>Summary of Queue methods</caption>
- *  <thead>
- *  <tr>
- *    <td></td>
- *    <th scope="col" style="font-weight:normal; font-style:italic">Throws exception</th>
- *    <th scope="col" style="font-weight:normal; font-style:italic">Returns special value</th>
- *  </tr>
- *  </thead>
- *  <tbody>
- *  <tr>
- *    <th scope="row">Insert</th>
- *    <td>{@link #add(Object) add(e)}</td>
- *    <td>{@link #offer(Object) offer(e)}</td>
- *  </tr>
- *  <tr>
- *    <th scope="row">Remove</th>
- *    <td>{@link #remove() remove()}</td>
- *    <td>{@link #poll() poll()}</td>
- *  </tr>
- *  <tr>
- *    <th scope="row">Examine</th>
- *    <td>{@link #element() element()}</td>
- *    <td>{@link #peek() peek()}</td>
- *  </tr>
- *  </tbody>
+ * <thead>
+ * <tr>
+ * <td></td>
+ * <th scope="col" style="font-weight:normal; font-style:italic">Throws exception</th>
+ * <th scope="col" style="font-weight:normal; font-style:italic">Returns special value</th>
+ * </tr>
+ * </thead>
+ * <tbody>
+ * <tr>
+ * <th scope="row">Insert</th>
+ * <td>{@link #add(Object) add(e)}</td>
+ * <td>{@link #offer(Object) offer(e)}</td>
+ * </tr>
+ * <tr>
+ * <th scope="row">Remove</th>
+ * <td>{@link #remove() remove()}</td>
+ * <td>{@link #poll() poll()}</td>
+ * </tr>
+ * <tr>
+ * <th scope="row">Examine</th>
+ * <td>{@link #element() element()}</td>
+ * <td>{@link #peek() peek()}</td>
+ * </tr>
+ * </tbody>
  * </table>
  *
  * <p>Queues typically, but do not necessarily, order elements in a
@@ -131,30 +131,16 @@ package java.util;
  * <a href="{@docRoot}/java.base/java/util/package-summary.html#CollectionsFramework">
  * Java Collections Framework</a>.
  *
- * @since 1.5
- * @author Doug Lea
  * @param <E> the type of elements held in this queue
+ *
+ * @author Doug Lea
+ * @since 1.5
  */
+// 队列的抽象接口，提供了入队/出队/查看队头元素的方法
 public interface Queue<E> extends Collection<E> {
-    /**
-     * Inserts the specified element into this queue if it is possible to do so
-     * immediately without violating capacity restrictions, returning
-     * {@code true} upon success and throwing an {@code IllegalStateException}
-     * if no space is currently available.
-     *
-     * @param e the element to add
-     * @return {@code true} (as specified by {@link Collection#add})
-     * @throws IllegalStateException if the element cannot be added at this
-     *         time due to capacity restrictions
-     * @throws ClassCastException if the class of the specified element
-     *         prevents it from being added to this queue
-     * @throws NullPointerException if the specified element is null and
-     *         this queue does not permit null elements
-     * @throws IllegalArgumentException if some property of this element
-     *         prevents it from being added to this queue
-     */
-    boolean add(E e);
-
+    
+    /*▼ 入队 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Inserts the specified element into this queue if it is possible to do
      * so immediately without violating capacity restrictions.
@@ -163,50 +149,95 @@ public interface Queue<E> extends Collection<E> {
      * by throwing an exception.
      *
      * @param e the element to add
-     * @return {@code true} if the element was added to this queue, else
-     *         {@code false}
-     * @throws ClassCastException if the class of the specified element
-     *         prevents it from being added to this queue
-     * @throws NullPointerException if the specified element is null and
-     *         this queue does not permit null elements
-     * @throws IllegalArgumentException if some property of this element
-     *         prevents it from being added to this queue
-     */
-    boolean offer(E e);
-
-    /**
-     * Retrieves and removes the head of this queue.  This method differs
-     * from {@link #poll() poll()} only in that it throws an exception if
-     * this queue is empty.
      *
-     * @return the head of this queue
-     * @throws NoSuchElementException if this queue is empty
+     * @return {@code true} if the element was added to this queue, else
+     * {@code false}
+     *
+     * @throws ClassCastException       if the class of the specified element
+     *                                  prevents it from being added to this queue
+     * @throws NullPointerException     if the specified element is null and
+     *                                  this queue does not permit null elements
+     * @throws IllegalArgumentException if some property of this element
+     *                                  prevents it from being added to this queue
      */
-    E remove();
-
+    // 入队，无法入队时扩容或返回false，不阻塞
+    boolean offer(E e);
+    
+    /**
+     * Inserts the specified element into this queue if it is possible to do so
+     * immediately without violating capacity restrictions, returning
+     * {@code true} upon success and throwing an {@code IllegalStateException}
+     * if no space is currently available.
+     *
+     * @param e the element to add
+     *
+     * @return {@code true} (as specified by {@link Collection#add})
+     *
+     * @throws IllegalStateException    if the element cannot be added at this
+     *                                  time due to capacity restrictions
+     * @throws ClassCastException       if the class of the specified element
+     *                                  prevents it from being added to this queue
+     * @throws NullPointerException     if the specified element is null and
+     *                                  this queue does not permit null elements
+     * @throws IllegalArgumentException if some property of this element
+     *                                  prevents it from being added to this queue
+     */
+    // 入队，无法入队时扩容或抛异常，不阻塞
+    boolean add(E e);
+    
+    /*▲ 入队 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 出队 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Retrieves and removes the head of this queue,
      * or returns {@code null} if this queue is empty.
      *
      * @return the head of this queue, or {@code null} if this queue is empty
      */
+    // 出队，无法出队时返回null，不阻塞
     E poll();
-
+    
     /**
-     * Retrieves, but does not remove, the head of this queue.  This method
-     * differs from {@link #peek peek} only in that it throws an exception
-     * if this queue is empty.
+     * Retrieves and removes the head of this queue.  This method differs
+     * from {@link #poll() poll()} only in that it throws an exception if
+     * this queue is empty.
      *
      * @return the head of this queue
+     *
      * @throws NoSuchElementException if this queue is empty
      */
+    // 出队，无法出队时抛异常，不阻塞
+    E remove();
+    
+    /*▲ 出队 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 取值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Retrieves, but does not remove, the head of this queue.
+     * This method differs from {@link #peek peek} only in that it throws an exception if this queue is empty.
+     *
+     * @return the head of this queue
+     *
+     * @throws NoSuchElementException if this queue is empty
+     */
+    // 查看队头元素，如果队列为空，抛出异常
     E element();
-
+    
     /**
      * Retrieves, but does not remove, the head of this queue,
      * or returns {@code null} if this queue is empty.
      *
      * @return the head of this queue, or {@code null} if this queue is empty
      */
+    // 查看队头元素，如果队列为空，返回null
     E peek();
+    
+    /*▲ 取值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }

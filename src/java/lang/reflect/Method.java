@@ -65,7 +65,7 @@ import java.util.StringJoiner;
  * @see java.lang.Class#getDeclaredMethod(String, Class[])
  * @since 1.1
  */
-// 方法
+// 反射元素-方法（在注解中的方法也被称为属性）
 public final class Method extends Executable {
     private volatile MethodAccessor methodAccessor;
     
@@ -99,7 +99,7 @@ public final class Method extends Executable {
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Package-private constructor used by ReflectAccess to enable
@@ -121,7 +121,7 @@ public final class Method extends Executable {
         this.annotationDefault = annotationDefault;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -199,7 +199,7 @@ public final class Method extends Executable {
      * @throws ExceptionInInitializerError if the initialization
      *                                     provoked by this method fails.
      */
-    // 调用对象obj中的参数为args的方法。如果是静态方法，obj为null
+    // 使用obj对象调用当前方法，args为传入的参数。如果是静态方法调用，obj为null
     @CallerSensitive
     @ForceInline
     @HotSpotIntrinsicCandidate
@@ -433,7 +433,7 @@ public final class Method extends Executable {
     /**
      * {@inheritDoc}
      */
-    // 获取形参类型[类型擦除]
+    // 获取所有形参的类型[类型擦除]
     @Override
     public Class<?>[] getParameterTypes() {
         return parameterTypes.clone();
@@ -447,7 +447,7 @@ public final class Method extends Executable {
      * @throws MalformedParameterizedTypeException {@inheritDoc}
      * @since 1.5
      */
-    // 获取形参类型[支持泛型语义]
+    // 获取所有形参的类型[支持泛型语义]
     @Override
     public Type[] getGenericParameterTypes() {
         return super.getGenericParameterTypes();
@@ -553,7 +553,44 @@ public final class Method extends Executable {
      * @jls 13.1 The Form of a Binary
      * @since 1.5
      */
-    // 是否由编译器引入（非人为定义）
+    /*
+     * 是否为合成方法，即由编译器引入（非人为定义）
+     *
+     * 示例一：泛型兼容中引入的方法，参见isBridge()
+     *
+     *
+     * 示例二：外部类和内部类之间的访问
+     *
+     * package com.kang;
+     *
+     * public class Outer {
+     *     private String outer = "outer";
+     *
+     *     public void accessInner(){
+     *         System.out.println(new Inner().inner);
+     *     }
+     *
+     *     class Inner{
+     *         private String inner = "inner";
+     *
+     *         public void accessOuter(){
+     *             System.out.println(outer);
+     *         }
+     *     }
+     * }
+     *
+     * 分别打印Outer和Inner中的方法：
+     *
+     * ==============Outer==============
+     * public void com.kang.Outer.accessInner()
+     * static java.lang.String com.kang.Outer.access$100(com.kang.Outer)
+     *
+     * ==============Inner==============
+     * public void com.kang.Outer$Inner.accessOuter()
+     * static java.lang.String com.kang.Outer$Inner.access$000(com.kang.Outer$Inner)
+     *
+     * 如上，Outer中的access$100和Innter中的access$000就是由编译器引入的方法
+     */
     @Override
     public boolean isSynthetic() {
         return super.isSynthetic();
@@ -567,6 +604,46 @@ public final class Method extends Executable {
      * method as defined by the Java Language Specification.
      *
      * @since 1.5
+     */
+    /*
+     * 是否为桥接方法
+     *
+     * 示例：
+     *
+     * package com.kang;
+     *
+     * public interface Super<T> {
+     *     void print(T t);
+     * }
+     *
+     * public class Sub implements Super<String>{
+     *     public void print(String s) {
+     *         System.out.println(s);
+     *     }
+     * }
+     *
+     * 为了兼容JDK 1.5之前的代码，泛型在编译时会被抹去，这样的话就变为：
+     * public interface Super {
+     *     void print(Object t);
+     * }
+     *
+     * public class Sub implements Super {
+     *     public void print(String s) {
+     *         System.out.println(s);
+     *     }
+     * }
+     *
+     * 但是这样的话，Sub就没有重写到Super中的方法，为了解决这个问题，虚拟机会引入一个桥接方法，即Sub在编译后实际生成的代码为：
+     * public class Sub implements Super{
+     *     public void print(String s) {
+     *         System.out.println(s);
+     *     }
+     *
+     *     // 这就是桥接方法，满足isBridge()==true，也满足isSynthetic()==true
+     *     public void print(Object s) {
+     *         this.print((String)s);
+     *     }
+     * }
      */
     public boolean isBridge() {
         return (getModifiers() & Modifier.BRIDGE) != 0;

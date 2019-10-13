@@ -35,6 +35,7 @@
 
 package java.util.concurrent;
 
+import java.io.Serializable;
 import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Iterator;
@@ -90,73 +91,226 @@ import java.util.function.Predicate;
  * <a href="{@docRoot}/java.base/java/util/package-summary.html#CollectionsFramework">
  * Java Collections Framework</a>.
  *
+ * @param <E> the type of elements held in this set
+ *
+ * @author Doug Lea
  * @see CopyOnWriteArrayList
  * @since 1.5
- * @author Doug Lea
- * @param <E> the type of elements held in this set
  */
-public class CopyOnWriteArraySet<E> extends AbstractSet<E>
-        implements java.io.Serializable {
+// 需要写时复制的Set：内部使用CopyOnWriteArrayList实现
+public class CopyOnWriteArraySet<E> extends AbstractSet<E> implements Serializable {
     private static final long serialVersionUID = 5457747651344034263L;
-
+    
     private final CopyOnWriteArrayList<E> al;
-
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates an empty set.
      */
     public CopyOnWriteArraySet() {
         al = new CopyOnWriteArrayList<E>();
     }
-
+    
     /**
      * Creates a set containing all of the elements of the specified
      * collection.
      *
      * @param c the collection of elements to initially contain
+     *
      * @throws NullPointerException if the specified collection is null
      */
     public CopyOnWriteArraySet(Collection<? extends E> c) {
-        if (c.getClass() == CopyOnWriteArraySet.class) {
-            @SuppressWarnings("unchecked") CopyOnWriteArraySet<E> cc =
-                (CopyOnWriteArraySet<E>)c;
+        if(c.getClass() == CopyOnWriteArraySet.class) {
+            @SuppressWarnings("unchecked")
+            CopyOnWriteArraySet<E> cc = (CopyOnWriteArraySet<E>) c;
             al = new CopyOnWriteArrayList<E>(cc.al);
-        }
-        else {
+        } else {
             al = new CopyOnWriteArrayList<E>();
             al.addAllAbsent(c);
         }
     }
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 存值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns the number of elements in this set.
+     * Adds the specified element to this set if it is not already present.
+     * More formally, adds the specified element {@code e} to this set if
+     * the set contains no element {@code e2} such that
+     * {@code Objects.equals(e, e2)}.
+     * If this set already contains the element, the call leaves the set
+     * unchanged and returns {@code false}.
      *
-     * @return the number of elements in this set
+     * @param e element to be added to this set
+     *
+     * @return {@code true} if this set did not already contain the specified
+     * element
      */
-    public int size() {
-        return al.size();
+    // 向Set中添加元素
+    public boolean add(E e) {
+        return al.addIfAbsent(e);
     }
-
+    
     /**
-     * Returns {@code true} if this set contains no elements.
+     * Adds all of the elements in the specified collection to this set if
+     * they're not already present.  If the specified collection is also a
+     * set, the {@code addAll} operation effectively modifies this set so
+     * that its value is the <i>union</i> of the two sets.  The behavior of
+     * this operation is undefined if the specified collection is modified
+     * while the operation is in progress.
      *
-     * @return {@code true} if this set contains no elements
+     * @param c collection containing elements to be added to this set
+     *
+     * @return {@code true} if this set changed as a result of the call
+     *
+     * @throws NullPointerException if the specified collection is null
+     * @see #add(Object)
      */
-    public boolean isEmpty() {
-        return al.isEmpty();
+    // 将指定集合中的元素添加到当前Set中
+    public boolean addAll(Collection<? extends E> c) {
+        return al.addAllAbsent(c)>0;
     }
-
+    
+    /*▲ 存值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 移除 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Removes the specified element from this set if it is present.
+     * More formally, removes an element {@code e} such that
+     * {@code Objects.equals(o, e)}, if this set contains such an element.
+     * Returns {@code true} if this set contained the element (or
+     * equivalently, if this set changed as a result of the call).
+     * (This set will not contain the element once the call returns.)
+     *
+     * @param o object to be removed from this set, if present
+     *
+     * @return {@code true} if this set contained the specified element
+     */
+    // 移除指定的元素，返回值指示是否移除成功
+    public boolean remove(Object o) {
+        return al.remove(o);
+    }
+    
+    /**
+     * @throws NullPointerException {@inheritDoc}
+     */
+    // 移除满足条件的元素，移除条件由filter决定，返回值指示是否移除成功
+    public boolean removeIf(Predicate<? super E> filter) {
+        return al.removeIf(filter);
+    }
+    
+    /**
+     * Removes from this set all of its elements that are contained in the
+     * specified collection.  If the specified collection is also a set,
+     * this operation effectively modifies this set so that its value is the
+     * <i>asymmetric set difference</i> of the two sets.
+     *
+     * @param c collection containing elements to be removed from this set
+     *
+     * @return {@code true} if this set changed as a result of the call
+     *
+     * @throws ClassCastException   if the class of an element of this set
+     *                              is incompatible with the specified collection
+     *                              (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
+     * @throws NullPointerException if this set contains a null element and the
+     *                              specified collection does not permit null elements
+     *                              (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>),
+     *                              or if the specified collection is null
+     * @see #remove(Object)
+     */
+    // (匹配则移除)移除当前集合中所有与给定容器中的元素匹配的元素
+    public boolean removeAll(Collection<?> c) {
+        return al.removeAll(c);
+    }
+    
+    /**
+     * Retains only the elements in this set that are contained in the
+     * specified collection.  In other words, removes from this set all of
+     * its elements that are not contained in the specified collection.  If
+     * the specified collection is also a set, this operation effectively
+     * modifies this set so that its value is the <i>intersection</i> of the
+     * two sets.
+     *
+     * @param c collection containing elements to be retained in this set
+     *
+     * @return {@code true} if this set changed as a result of the call
+     *
+     * @throws ClassCastException   if the class of an element of this set
+     *                              is incompatible with the specified collection
+     *                              (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
+     * @throws NullPointerException if this set contains a null element and the
+     *                              specified collection does not permit null elements
+     *                              (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>),
+     *                              or if the specified collection is null
+     * @see #remove(Object)
+     */
+    // (不匹配则移除)移除当前集合中所有与给定容器中的元素不匹配的元素
+    public boolean retainAll(Collection<?> c) {
+        return al.retainAll(c);
+    }
+    
+    /**
+     * Removes all of the elements from this set.
+     * The set will be empty after this call returns.
+     */
+    // 清空当前集合中所有元素
+    public void clear() {
+        al.clear();
+    }
+    
+    /*▲ 移除 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 包含查询 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns {@code true} if this set contains the specified element.
      * More formally, returns {@code true} if and only if this set
      * contains an element {@code e} such that {@code Objects.equals(o, e)}.
      *
      * @param o element whose presence in this set is to be tested
+     *
      * @return {@code true} if this set contains the specified element
      */
+    // 判断当前集合中是否包含元素o
     public boolean contains(Object o) {
         return al.contains(o);
     }
-
+    
+    /**
+     * Returns {@code true} if this set contains all of the elements of the
+     * specified collection.  If the specified collection is also a set, this
+     * method returns {@code true} if it is a <i>subset</i> of this set.
+     *
+     * @param c collection to be checked for containment in this set
+     *
+     * @return {@code true} if this set contains all of the elements of the
+     * specified collection
+     *
+     * @throws NullPointerException if the specified collection is null
+     * @see #contains(Object)
+     */
+    // 判读指定容器中的元素是否都包含在当前集合中
+    public boolean containsAll(Collection<?> c) {
+        return (c instanceof Set) ? compareSets(al.getArray(), (Set<?>) c) >= 0 : al.containsAll(c);
+    }
+    
+    /*▲ 包含查询 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 视图 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns an array containing all of the elements in this set.
      * If this set makes any guarantees as to what order its elements
@@ -176,7 +330,7 @@ public class CopyOnWriteArraySet<E> extends AbstractSet<E>
     public Object[] toArray() {
         return al.toArray();
     }
-
+    
     /**
      * Returns an array containing all of the elements in this set; the
      * runtime type of the returned array is that of the specified array.
@@ -210,74 +364,101 @@ public class CopyOnWriteArraySet<E> extends AbstractSet<E>
      * {@code toArray()}.
      *
      * @param a the array into which the elements of this set are to be
-     *        stored, if it is big enough; otherwise, a new array of the same
-     *        runtime type is allocated for this purpose.
+     *          stored, if it is big enough; otherwise, a new array of the same
+     *          runtime type is allocated for this purpose.
+     *
      * @return an array containing all the elements in this set
-     * @throws ArrayStoreException if the runtime type of the specified array
-     *         is not a supertype of the runtime type of every element in this
-     *         set
+     *
+     * @throws ArrayStoreException  if the runtime type of the specified array
+     *                              is not a supertype of the runtime type of every element in this
+     *                              set
      * @throws NullPointerException if the specified array is null
      */
     public <T> T[] toArray(T[] a) {
         return al.toArray(a);
     }
-
+    
+    /*▲ 视图 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 迭代 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Removes all of the elements from this set.
-     * The set will be empty after this call returns.
+     * @throws NullPointerException {@inheritDoc}
      */
-    public void clear() {
-        al.clear();
+    // 流式遍历。遍历每个元素，并对其执行相应的择取操作
+    public void forEach(Consumer<? super E> action) {
+        al.forEach(action);
     }
-
+    
     /**
-     * Removes the specified element from this set if it is present.
-     * More formally, removes an element {@code e} such that
-     * {@code Objects.equals(o, e)}, if this set contains such an element.
-     * Returns {@code true} if this set contained the element (or
-     * equivalently, if this set changed as a result of the call).
-     * (This set will not contain the element once the call returns.)
+     * Returns an iterator over the elements contained in this set
+     * in the order in which these elements were added.
      *
-     * @param o object to be removed from this set, if present
-     * @return {@code true} if this set contained the specified element
-     */
-    public boolean remove(Object o) {
-        return al.remove(o);
-    }
-
-    /**
-     * Adds the specified element to this set if it is not already present.
-     * More formally, adds the specified element {@code e} to this set if
-     * the set contains no element {@code e2} such that
-     * {@code Objects.equals(e, e2)}.
-     * If this set already contains the element, the call leaves the set
-     * unchanged and returns {@code false}.
+     * <p>The returned iterator provides a snapshot of the state of the set
+     * when the iterator was constructed. No synchronization is needed while
+     * traversing the iterator. The iterator does <em>NOT</em> support the
+     * {@code remove} method.
      *
-     * @param e element to be added to this set
-     * @return {@code true} if this set did not already contain the specified
-     *         element
+     * @return an iterator over the elements in this set
      */
-    public boolean add(E e) {
-        return al.addIfAbsent(e);
+    // 返回当前集合的迭代器
+    public Iterator<E> iterator() {
+        return al.iterator();
     }
-
+    
     /**
-     * Returns {@code true} if this set contains all of the elements of the
-     * specified collection.  If the specified collection is also a set, this
-     * method returns {@code true} if it is a <i>subset</i> of this set.
+     * Returns a {@link Spliterator} over the elements in this set in the order
+     * in which these elements were added.
      *
-     * @param  c collection to be checked for containment in this set
-     * @return {@code true} if this set contains all of the elements of the
-     *         specified collection
-     * @throws NullPointerException if the specified collection is null
-     * @see #contains(Object)
+     * <p>The {@code Spliterator} reports {@link Spliterator#IMMUTABLE},
+     * {@link Spliterator#DISTINCT}, {@link Spliterator#SIZED}, and
+     * {@link Spliterator#SUBSIZED}.
+     *
+     * <p>The spliterator provides a snapshot of the state of the set
+     * when the spliterator was constructed. No synchronization is needed while
+     * operating on the spliterator.
+     *
+     * @return a {@code Spliterator} over the elements in this set
+     *
+     * @since 1.8
      */
-    public boolean containsAll(Collection<?> c) {
-        return (c instanceof Set)
-            ? compareSets(al.getArray(), (Set<?>) c) >= 0
-            : al.containsAll(c);
+    // 返回描述此集合中元素的Spliterator
+    public Spliterator<E> spliterator() {
+        return Spliterators.spliterator(al.getArray(), Spliterator.IMMUTABLE | Spliterator.DISTINCT);
     }
-
+    
+    /*▲ 迭代 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the number of elements in this set.
+     *
+     * @return the number of elements in this set
+     */
+    // 返回当前集合的元素数量
+    public int size() {
+        return al.size();
+    }
+    
+    /**
+     * Returns {@code true} if this set contains no elements.
+     *
+     * @return {@code true} if this set contains no elements
+     */
+    // 判断当前集合是否为空
+    public boolean isEmpty() {
+        return al.isEmpty();
+    }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
     /**
      * Tells whether the objects in snapshot (regarded as a set) are a
      * superset of the given set.
@@ -292,19 +473,22 @@ public class CopyOnWriteArraySet<E> extends AbstractSet<E>
         //
         // Optimize up to O(n) if the two sets share a long common prefix,
         // as might happen if one set was created as a copy of the other set.
-
+        
         final int len = snapshot.length;
         // Mark matched elements to avoid re-checking
         final boolean[] matched = new boolean[len];
-
+        
         // j is the largest int with matched[i] true for { i | 0 <= i < j }
         int j = 0;
-        outer: for (Object x : set) {
-            for (int i = j; i < len; i++) {
-                if (!matched[i] && Objects.equals(x, snapshot[i])) {
+outer:
+        for(Object x : set) {
+            for(int i = j; i<len; i++) {
+                if(!matched[i] && Objects.equals(x, snapshot[i])) {
                     matched[i] = true;
-                    if (i == j)
-                        do { j++; } while (j < len && matched[j]);
+                    if(i == j)
+                        do {
+                            j++;
+                        } while(j<len && matched[j]);
                     continue outer;
                 }
             }
@@ -312,83 +496,9 @@ public class CopyOnWriteArraySet<E> extends AbstractSet<E>
         }
         return (j == len) ? 0 : 1;
     }
-
-    /**
-     * Adds all of the elements in the specified collection to this set if
-     * they're not already present.  If the specified collection is also a
-     * set, the {@code addAll} operation effectively modifies this set so
-     * that its value is the <i>union</i> of the two sets.  The behavior of
-     * this operation is undefined if the specified collection is modified
-     * while the operation is in progress.
-     *
-     * @param  c collection containing elements to be added to this set
-     * @return {@code true} if this set changed as a result of the call
-     * @throws NullPointerException if the specified collection is null
-     * @see #add(Object)
-     */
-    public boolean addAll(Collection<? extends E> c) {
-        return al.addAllAbsent(c) > 0;
-    }
-
-    /**
-     * Removes from this set all of its elements that are contained in the
-     * specified collection.  If the specified collection is also a set,
-     * this operation effectively modifies this set so that its value is the
-     * <i>asymmetric set difference</i> of the two sets.
-     *
-     * @param  c collection containing elements to be removed from this set
-     * @return {@code true} if this set changed as a result of the call
-     * @throws ClassCastException if the class of an element of this set
-     *         is incompatible with the specified collection
-     * (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
-     * @throws NullPointerException if this set contains a null element and the
-     *         specified collection does not permit null elements
-     * (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>),
-     *         or if the specified collection is null
-     * @see #remove(Object)
-     */
-    public boolean removeAll(Collection<?> c) {
-        return al.removeAll(c);
-    }
-
-    /**
-     * Retains only the elements in this set that are contained in the
-     * specified collection.  In other words, removes from this set all of
-     * its elements that are not contained in the specified collection.  If
-     * the specified collection is also a set, this operation effectively
-     * modifies this set so that its value is the <i>intersection</i> of the
-     * two sets.
-     *
-     * @param  c collection containing elements to be retained in this set
-     * @return {@code true} if this set changed as a result of the call
-     * @throws ClassCastException if the class of an element of this set
-     *         is incompatible with the specified collection
-     * (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>)
-     * @throws NullPointerException if this set contains a null element and the
-     *         specified collection does not permit null elements
-     * (<a href="{@docRoot}/java.base/java/util/Collection.html#optional-restrictions">optional</a>),
-     *         or if the specified collection is null
-     * @see #remove(Object)
-     */
-    public boolean retainAll(Collection<?> c) {
-        return al.retainAll(c);
-    }
-
-    /**
-     * Returns an iterator over the elements contained in this set
-     * in the order in which these elements were added.
-     *
-     * <p>The returned iterator provides a snapshot of the state of the set
-     * when the iterator was constructed. No synchronization is needed while
-     * traversing the iterator. The iterator does <em>NOT</em> support the
-     * {@code remove} method.
-     *
-     * @return an iterator over the elements in this set
-     */
-    public Iterator<E> iterator() {
-        return al.iterator();
-    }
-
+    
+    
+    
     /**
      * Compares the specified object with this set for equality.
      * Returns {@code true} if the specified object is the same object
@@ -403,45 +513,11 @@ public class CopyOnWriteArraySet<E> extends AbstractSet<E>
      * {@code Objects.equals(e1, e2)}.
      *
      * @param o object to be compared for equality with this set
+     *
      * @return {@code true} if the specified object is equal to this set
      */
     public boolean equals(Object o) {
-        return (o == this)
-            || ((o instanceof Set)
-                && compareSets(al.getArray(), (Set<?>) o) == 0);
+        return (o == this) || ((o instanceof Set) && compareSets(al.getArray(), (Set<?>) o) == 0);
     }
-
-    /**
-     * @throws NullPointerException {@inheritDoc}
-     */
-    public boolean removeIf(Predicate<? super E> filter) {
-        return al.removeIf(filter);
-    }
-
-    /**
-     * @throws NullPointerException {@inheritDoc}
-     */
-    public void forEach(Consumer<? super E> action) {
-        al.forEach(action);
-    }
-
-    /**
-     * Returns a {@link Spliterator} over the elements in this set in the order
-     * in which these elements were added.
-     *
-     * <p>The {@code Spliterator} reports {@link Spliterator#IMMUTABLE},
-     * {@link Spliterator#DISTINCT}, {@link Spliterator#SIZED}, and
-     * {@link Spliterator#SUBSIZED}.
-     *
-     * <p>The spliterator provides a snapshot of the state of the set
-     * when the spliterator was constructed. No synchronization is needed while
-     * operating on the spliterator.
-     *
-     * @return a {@code Spliterator} over the elements in this set
-     * @since 1.8
-     */
-    public Spliterator<E> spliterator() {
-        return Spliterators.spliterator
-            (al.getArray(), Spliterator.IMMUTABLE | Spliterator.DISTINCT);
-    }
+    
 }

@@ -61,7 +61,7 @@ import java.util.StringJoiner;
  * @see java.lang.Class#getDeclaredConstructors()
  * @since 1.1
  */
-// 构造器
+// 反射元素-构造器
 public final class Constructor<T> extends Executable {
     private Class<T> clazz;
     private int slot;
@@ -88,7 +88,7 @@ public final class Constructor<T> extends Executable {
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Package-private constructor used by ReflectAccess to enable
@@ -107,7 +107,7 @@ public final class Constructor<T> extends Executable {
         this.parameterAnnotations = parameterAnnotations;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -387,7 +387,7 @@ public final class Constructor<T> extends Executable {
      * @throws MalformedParameterizedTypeException {@inheritDoc}
      * @since 1.5
      */
-    // 获取形参类型[支持泛型语义]
+    // 获取所有形参的类型[支持泛型语义]
     @Override
     public Type[] getGenericParameterTypes() {
         return super.getGenericParameterTypes();
@@ -526,7 +526,30 @@ public final class Constructor<T> extends Executable {
      * @jls 13.1 The Form of a Binary
      * @since 1.5
      */
-    // 是否由编译器引入（非人为定义）
+    /*
+     * 是否由编译器引入（非人为定义）
+     *
+     * 示例：
+     *
+     * package com.kang;
+     *
+     * public class Outer {
+     *     public void accessInner(){
+     *         Inner inner = new Inner();
+     *     }
+     *
+     *     class Inner{
+     *         private Inner() {
+     *         }
+     *     }
+     * }
+     *
+     * 打印内部类Inner中的构造器，会发现一个特殊的构造器：
+     *
+     * com.kang.Outer$Inner(com.kang.Outer, com.kang.Outer$1)
+     *
+     * 这个构造器用来联结外部类和内部类，其isSynthetic()==true
+     */
     @Override
     public boolean isSynthetic() {
         return super.isSynthetic();

@@ -149,7 +149,7 @@ public class ThreadLocal<T> {
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Creates a thread local variable.
@@ -159,7 +159,8 @@ public class ThreadLocal<T> {
     // 构造ThreadLocal实例前，原始种子也会被一同构造
     public ThreadLocal() {
     }
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -515,7 +516,7 @@ public class ThreadLocal<T> {
                 if(k == null) {
                     /*
                      * 继续从索引index开始遍历map，给ThreadLocal对象安排合适的位置
-                     * 安排完ThreadLocal对象对象后，还会清理一部分垃圾
+                     * 安排完ThreadLocal对象后，还会清理一部分垃圾
                      */
                     replaceStaleEntry(key, value, index);
                     return;
@@ -808,7 +809,7 @@ public class ThreadLocal<T> {
          */
         /*
          * 从索引staleSlot开始遍历map，给ThreadLocal对象安排合适的位置
-         * 安排完ThreadLocal对象对象后，还会清理一部分垃圾
+         * 安排完ThreadLocal对象后，还会清理一部分垃圾
          *
          * key代表待匹配的ThreadLocal对象，value就是键值对里的值
          * staleSlot是遍历连续的元素去匹配ThreadLocal对象的过程中遇到的第一个垃圾值
@@ -969,7 +970,7 @@ public class ThreadLocal<T> {
         // 键值对实体的存储结构
         static class Entry extends WeakReference<ThreadLocal<?>> {
             /** The value associated with this ThreadLocal. */
-            Object value;   // 当前线程关联的value
+            Object value;   // 当前线程关联的value，这个value并没有用弱引用追踪
             
             /*
              * 构造键值对

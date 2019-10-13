@@ -36,30 +36,31 @@ import jdk.internal.vm.annotation.Stable;
  * ({@code ==}), identity hash code, or synchronization) on instances of
  * {@code KeyValueHolder} may have unpredictable results and should be avoided.
  *
- * @apiNote
- * This class is not public. Instances can be created using the
+ * @param <K> the key type
+ * @param <V> the value type
+ *
+ * @apiNote This class is not public. Instances can be created using the
  * {@link Map#entry Map.entry(k, v)} factory method, which is public.
  *
  * <p>This class differs from AbstractMap.SimpleImmutableEntry in the following ways:
  * it is not serializable, it is final, and its key and value must be non-null.
- *
- * @param <K> the key type
- * @param <V> the value type
- *
  * @see Map#ofEntries Map.ofEntries()
  * @since 9
  */
-final class KeyValueHolder<K,V> implements Map.Entry<K,V> {
+// 将指定的非空的键值对包装为只读对象，常用于ImmutableCollections类
+final class KeyValueHolder<K, V> implements Map.Entry<K, V> {
+    
     @Stable
     final K key;
+    
     @Stable
     final V value;
-
+    
     KeyValueHolder(K k, V v) {
         key = Objects.requireNonNull(k);
         value = Objects.requireNonNull(v);
     }
-
+    
     /**
      * Gets the key from this holder.
      *
@@ -69,7 +70,7 @@ final class KeyValueHolder<K,V> implements Map.Entry<K,V> {
     public K getKey() {
         return key;
     }
-
+    
     /**
      * Gets the value from this holder.
      *
@@ -79,18 +80,19 @@ final class KeyValueHolder<K,V> implements Map.Entry<K,V> {
     public V getValue() {
         return value;
     }
-
+    
     /**
      * Throws {@link UnsupportedOperationException}.
      *
      * @param value ignored
+     *
      * @return never returns normally
      */
     @Override
     public V setValue(V value) {
         throw new UnsupportedOperationException("not supported");
     }
-
+    
     /**
      * Compares the specified object with this entry for equality.
      * Returns {@code true} if the given object is also a map entry and
@@ -99,12 +101,13 @@ final class KeyValueHolder<K,V> implements Map.Entry<K,V> {
      */
     @Override
     public boolean equals(Object o) {
-        if (!(o instanceof Map.Entry))
+        if(!(o instanceof Map.Entry)) {
             return false;
-        Map.Entry<?,?> e = (Map.Entry<?,?>)o;
+        }
+        Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
         return key.equals(e.getKey()) && value.equals(e.getValue());
     }
-
+    
     /**
      * Returns the hash code value for this map entry. The hash code
      * is {@code key.hashCode() ^ value.hashCode()}. Note that key and
@@ -114,7 +117,7 @@ final class KeyValueHolder<K,V> implements Map.Entry<K,V> {
     public int hashCode() {
         return key.hashCode() ^ value.hashCode();
     }
-
+    
     /**
      * Returns a String representation of this map entry.  This
      * implementation returns the string representation of this

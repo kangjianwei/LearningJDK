@@ -144,11 +144,6 @@ import jdk.internal.util.xml.PropertiesDefaultHandler;
  */
 public class Properties extends Hashtable<Object,Object> {
     
-    /**
-     * use serialVersionUID from JDK 1.1.X for interoperability
-     */
-    private static final long serialVersionUID = 4112578634029874840L;
-    
     private static final Unsafe UNSAFE = Unsafe.getUnsafe();
     
     /**
@@ -157,6 +152,7 @@ public class Properties extends Hashtable<Object,Object> {
      *
      * @serial
      */
+    // 默认(备用)属性集
     protected volatile Properties defaults;
     
     /**
@@ -255,7 +251,7 @@ public class Properties extends Hashtable<Object,Object> {
      * @throws NullPointerException     if {@code inStream} is null.
      * @since 1.2
      */
-    // 从properties文件加载属性集
+    // 从*.properties文件加载属性集，输入流指向源文件
     public synchronized void load(InputStream inStream) throws IOException {
         Objects.requireNonNull(inStream, "inStream parameter is null");
         
@@ -411,7 +407,7 @@ public class Properties extends Hashtable<Object,Object> {
      * @throws NullPointerException     if {@code reader} is null.
      * @since 1.6
      */
-    // 从properties文件加载属性集
+    // 从*.properties文件加载属性集，输入流指向源文件
     public synchronized void load(Reader reader) throws IOException {
         Objects.requireNonNull(reader, "reader parameter is null");
         
@@ -451,7 +447,7 @@ public class Properties extends Hashtable<Object,Object> {
      * Encoding in Entities</a>
      * @since 1.5
      */
-    // 从xml文件加载属性集
+    // 从*.xml文件加载属性集，输入流指向源文件
     public synchronized void loadFromXML(InputStream in) throws IOException, InvalidPropertiesFormatException {
         Objects.requireNonNull(in);
         PropertiesDefaultHandler handler = new PropertiesDefaultHandler();
@@ -504,7 +500,7 @@ public class Properties extends Hashtable<Object,Object> {
      * @throws NullPointerException if {@code out} is null.
      * @since 1.2
      */
-    // 将属性文件以properties格式写入输出流，comments是将要写入的注释
+    // 将属性集写入*.properties文件，comments是将要写入的注释，输出流指向目标文件
     public void store(OutputStream out, String comments) throws IOException {
         store0(new BufferedWriter(new OutputStreamWriter(out, "8859_1")), comments, true);
     }
@@ -557,7 +553,7 @@ public class Properties extends Hashtable<Object,Object> {
      * @throws NullPointerException if {@code writer} is null.
      * @since 1.6
      */
-    // 将属性文件以properties格式写入输出流，comments是将要写入的注释
+    // 将属性集写入*.properties文件，comments是将要写入的注释，输出流指向目标文件
     public void store(Writer writer, String comments) throws IOException {
         store0((writer instanceof BufferedWriter) ? (BufferedWriter) writer : new BufferedWriter(writer), comments, false);
     }
@@ -583,7 +579,7 @@ public class Properties extends Hashtable<Object,Object> {
      * @see #loadFromXML(InputStream)
      * @since 1.5
      */
-    // 将属性文件以XML格式写入输出流，comments是将要写入的注释
+    // 将属性集写入*.xml文件(默认UTF-8编码)，comments是将要写入的注释，输出流指向目标文件
     public void storeToXML(OutputStream os, String comment) throws IOException {
         storeToXML(os, comment, "UTF-8");
     }
@@ -631,7 +627,7 @@ public class Properties extends Hashtable<Object,Object> {
      * Encoding in Entities</a>
      * @since 1.5
      */
-    // 将属性文件以XML格式写入输出流，comments是将要写入的注释，encoding代表XML编码
+    // 将属性集写入*.xml文件(encoding代表XML编码)，comments是将要写入的注释，输出流指向目标文件
     public void storeToXML(OutputStream os, String comment, String encoding) throws IOException {
         Objects.requireNonNull(os);
         Objects.requireNonNull(encoding);
@@ -680,7 +676,7 @@ public class Properties extends Hashtable<Object,Object> {
      * Encoding in Entities</a>
      * @since 10
      */
-    // 将属性文件以XML格式写入输出流，comments是将要写入的注释，charset代表XML字符集编码
+    // 将属性集写入*.xml文件(charset代表XML编码)，comments是将要写入的注释，输出流指向目标文件
     public void storeToXML(OutputStream os, String comment, Charset charset) throws IOException {
         Objects.requireNonNull(os, "OutputStream");
         Objects.requireNonNull(charset, "Charset");
@@ -704,6 +700,7 @@ public class Properties extends Hashtable<Object,Object> {
      * String comments)} method or the
      * {@code storeToXML(OutputStream os, String comment)} method.
      */
+    // 将属性集写入*.properties文件，comments是将要写入的注释，输出流指向目标文件（已过时，不再建议使用）
     @Deprecated
     public void save(OutputStream out, String comments) {
         try {
@@ -777,31 +774,31 @@ public class Properties extends Hashtable<Object,Object> {
         return map.remove(key);
     }
     
-    // 精确移除键值对
+    // 精确移除键值对，需要校验value
     @Override
     public synchronized boolean remove(Object key, Object value) {
         return map.remove(key, value);
     }
     
-    // 移除所有键值对
+    // 清空所有键值对
     @Override
     public synchronized void clear() {
         map.clear();
     }
     
-    // 是否包含某个key
+    // 是否存在包含指定key的元素
     @Override
     public boolean containsKey(Object key) {
         return map.containsKey(key);
     }
     
-    // 是否包含某个value
+    // 是否存在包含指定value的元素
     @Override
     public boolean contains(Object value) {
         return map.contains(value);
     }
     
-    // 是否包含某个value
+    // 是否存在包含指定value的元素
     @Override
     public boolean containsValue(Object value) {
         return map.containsValue(value);
@@ -820,7 +817,7 @@ public class Properties extends Hashtable<Object,Object> {
      * @see #setProperty
      * @see #defaults
      */
-    // 获取key关联的value，如果没有该key，就从默认的属性文件中获取
+    // 获取key关联的value，如果没有该key，就从默认(备用)属性集中获取
     public String getProperty(String key) {
         Object oval = map.get(key);
         String sval = (oval instanceof String) ? (String) oval : null;
@@ -949,7 +946,9 @@ public class Properties extends Hashtable<Object,Object> {
     /* ====需要理解lambda表达式中各形参的含义==== */
     
     /*
-     * 遍历所有键值对，如打印键值对：
+     * 遍历所有键值对，并对其应用action操作，action的入参是元素的key和value
+     *
+     * 例如打印键值对：
      * properties.forEach((key, value)->System.out.println(key+" "+value));
      */
     @Override
@@ -958,7 +957,9 @@ public class Properties extends Hashtable<Object,Object> {
     }
     
     /*
-     * 批量更新属性值，如将所有value更新为"hello"：
+     * 批量更新属性值，更新策略由function决定，function的入参是元素的key和value
+     *
+     * 例如将所有value更新为"hello"：
      * properties.replaceAll((key, value)->"hello");
      */
     @Override
@@ -967,7 +968,42 @@ public class Properties extends Hashtable<Object,Object> {
     }
     
     /*
-     * 如果key不存在，设置键值对，如name属性不存在，就将"name"重复三遍作为value存入属性：
+     * 插入/删除/替换操作，主要意图：使用备用value和旧value创造的新value来更新旧value
+     *
+     * 例如使用"username"属性的值与"Tom"值计算一个新值来取代"Tom"值
+     * properties.merge("username", "Tom", (oldvalue, bakValue)->oldvalue+"-"+bakValue);
+     */
+    @Override
+    public synchronized Object merge(Object key, Object bakValue, BiFunction<? super Object, ? super Object, ?> remappingFunction) {
+        return map.merge(key, bakValue, remappingFunction);
+    }
+    
+    /*
+     * 插入/删除/替换操作，主要意图：使用key和旧value创造的新value来更新旧value
+     *
+     * 例如使用"username"键名与对应的旧值计算一个新值来取代旧值
+     * properties.compute("username", (key, oldValue)->key+":"+oldValue);
+     */
+    @Override
+    public synchronized Object compute(Object key, BiFunction<? super Object, ? super Object, ?> remappingFunction) {
+        return map.compute(key, remappingFunction);
+    }
+    
+    /*
+     * 删除/替换操作，主要意图：存在同位元素，且旧value不为null时，使用key和旧value创造的新value来更新旧value
+     *
+     * 例如"username"属性存在时，就将其值更新为key:value的形式：
+     * properties.computeIfPresent("username", (key, oldValue)->key+":"+oldValue);
+     */
+    @Override
+    public synchronized Object computeIfPresent(Object key, BiFunction<? super Object, ? super Object, ?> remappingFunction) {
+        return map.computeIfPresent(key, remappingFunction);
+    }
+    
+    /*
+     * 插入/替换操作，主要意图：不存在同位元素，或旧value为null时，使用key创造的新value来更新旧value
+     *
+     * 例如"name"属性不存在时，就将"name"重复三遍作为value存入属性：
      * properties.computeIfAbsent("name", key->key+""+key+""+key);
      */
     @Override
@@ -975,36 +1011,11 @@ public class Properties extends Hashtable<Object,Object> {
         return map.computeIfAbsent(key, mappingFunction);
     }
     
-    /*
-     * 如果key存在，更新键值对，如username属性存在，就将其值更新为key:value的形式：
-     * properties.computeIfPresent("username", (key, value)->key+":"+value);
-     */
-    @Override
-    public synchronized Object computeIfPresent(Object key, BiFunction<? super Object, ? super Object, ?> remappingFunction) {
-        return map.computeIfPresent(key, remappingFunction);
-    }
-    
-    /**
-     * properties.compute("username", (key, value)->key+":"+value);
-     * 更新key对应的键值对，如果key不存在，就设置一个新的键值对
-     */
-    @Override
-    public synchronized Object compute(Object key, BiFunction<? super Object, ? super Object, ?> remappingFunction) {
-        return map.compute(key, remappingFunction);
-    }
-    
-    /**
-     * 使用给定的value更新key对应的键值对，如果key不存在，就设置一个新的键值对
-     * properties.merge("username", "Tom", (oldvalue, newvalue)->oldvalue+"-"+newvalue);
-     */
-    @Override
-    public synchronized Object merge(Object key, Object value, BiFunction<? super Object, ? super Object, ?> remappingFunction) {
-        return map.merge(key, value, remappingFunction);
-    }
-    
     /*▲ 流式操作 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     // 返回属性数量
     @Override
@@ -1027,9 +1038,10 @@ public class Properties extends Hashtable<Object,Object> {
      * @throws ClassCastException if any key in this property list
      *                            is not a string.
      */
-    // 列出所有属性的键值对
+    // 列出所有属性的键值对(由out打印)
     public void list(PrintStream out) {
         out.println("-- listing properties --");
+        
         Map<String, Object> h = new HashMap<>();
         enumerate(h);
         for(Map.Entry<String, Object> e : h.entrySet()) {
@@ -1055,9 +1067,10 @@ public class Properties extends Hashtable<Object,Object> {
      * Rather than use an anonymous inner class to share common code,
      * this method is duplicated in order to ensure that a non-1.1 compiler can compile this file.
      */
-    // 列出所有属性的键值对
+    // 列出所有属性的键值对(由out打印)
     public void list(PrintWriter out) {
         out.println("-- listing properties --");
+        
         Map<String, Object> h = new HashMap<>();
         enumerate(h);
         for(Map.Entry<String, Object> e : h.entrySet()) {
@@ -1070,38 +1083,24 @@ public class Properties extends Hashtable<Object,Object> {
         }
     }
     
-    
-    
     @Override
-    public synchronized String toString() {
-        return map.toString();
+    protected void rehash() {
+        /* no-op */
     }
     
-    @Override
-    public synchronized boolean equals(Object o) {
-        return map.equals(o);
-    }
-    
-    @Override
-    public synchronized int hashCode() {
-        return map.hashCode();
-    }
-    
-    @Override
-    public synchronized Object clone() {
-        Properties clone = (Properties) cloneHashtable();
-        clone.map = new ConcurrentHashMap<>(map);
-        return clone;
-    }
-    
-    @Override
-    protected void rehash() { /* no-op */ }
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     // Hashtable serialization overrides (these should emit and consume Hashtable-compatible stream)
+    
+    /**
+     * use serialVersionUID from JDK 1.1.X for interoperability
+     */
+    private static final long serialVersionUID = 4112578634029874840L;
+    
     
     @Override
     void writeHashtable(ObjectOutputStream s) throws IOException {
@@ -1491,12 +1490,37 @@ public class Properties extends Hashtable<Object,Object> {
     
     
     
+    @Override
+    public synchronized String toString() {
+        return map.toString();
+    }
+    
+    @Override
+    public synchronized boolean equals(Object o) {
+        return map.equals(o);
+    }
+    
+    @Override
+    public synchronized int hashCode() {
+        return map.hashCode();
+    }
+    
+    @Override
+    public synchronized Object clone() {
+        Properties clone = (Properties) cloneHashtable();
+        clone.map = new ConcurrentHashMap<>(map);
+        return clone;
+    }
+    
+    
+    
     /**
      * Read in a "logical line" from an InputStream/Reader,
      * skip all comment and blank lines and filter out those leading whitespace characters
      * (\u0020, \u0009 and \u000c) from the beginning of a "natural line".
      * Method returns the char length of the "logical line" and stores the line in "lineBuf".
      */
+    // 行阅读器
     class LineReader {
         InputStream inStream;   // 字节输入流
         byte[] inByteBuf;       // 缓存字节数据
@@ -1674,6 +1698,7 @@ public class Properties extends Hashtable<Object,Object> {
      * ConcurrentHashMap.entrySet() provides add/addAll.  This class wraps the
      * Set returned from CHM, changing add/addAll to throw UOE.
      */
+    // 键值对的集合
     private static class EntrySet implements Set<Map.Entry<Object, Object>> {
         private Set<Map.Entry<Object, Object>> entrySet;
         

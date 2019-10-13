@@ -104,19 +104,35 @@ package java.util;
  * @see ClassCastException
  * @since 1.2
  */
-
+// 有序的Set接口
 public interface SortedSet<E> extends Set<E> {
+    
+    /*▼ 取值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns the comparator used to order the elements in this set,
-     * or {@code null} if this set uses the {@linkplain Comparable
-     * natural ordering} of its elements.
+     * Returns the first (lowest) element currently in this set.
      *
-     * @return the comparator used to order the elements in this set,
-     *         or {@code null} if this set uses the natural ordering
-     *         of its elements
+     * @return the first (lowest) element currently in this set
+     * @throws NoSuchElementException if this set is empty
      */
-    Comparator<? super E> comparator();
-
+    // 返回遍历当前集合时的首个元素
+    E first();
+    
+    /**
+     * Returns the last (highest) element currently in this set.
+     *
+     * @return the last (highest) element currently in this set
+     * @throws NoSuchElementException if this set is empty
+     */
+    // 返回遍历当前集合时的最后一个元素
+    E last();
+    
+    /*▲ 取值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 视图 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns a view of the portion of this set whose elements range
      * from {@code fromElement}, inclusive, to {@code toElement},
@@ -148,8 +164,9 @@ public interface SortedSet<E> extends Set<E> {
      *         has a restricted range, and {@code fromElement} or
      *         {@code toElement} lies outside the bounds of the range
      */
+    // 获取【理论区间】为[fromElement, toElement)的Set
     SortedSet<E> subSet(E fromElement, E toElement);
-
+    
     /**
      * Returns a view of the portion of this set whose elements are
      * strictly less than {@code toElement}.  The returned set is
@@ -175,8 +192,9 @@ public interface SortedSet<E> extends Set<E> {
      *         restricted range, and {@code toElement} lies outside the
      *         bounds of the range
      */
+    // 获取【理论区间】上限为toElement(不包含)的Set
     SortedSet<E> headSet(E toElement);
-
+    
     /**
      * Returns a view of the portion of this set whose elements are
      * greater than or equal to {@code fromElement}.  The returned
@@ -202,24 +220,15 @@ public interface SortedSet<E> extends Set<E> {
      *         restricted range, and {@code fromElement} lies outside the
      *         bounds of the range
      */
+    // 获取【理论区间】下限为fromElement(包含)的Set
     SortedSet<E> tailSet(E fromElement);
-
-    /**
-     * Returns the first (lowest) element currently in this set.
-     *
-     * @return the first (lowest) element currently in this set
-     * @throws NoSuchElementException if this set is empty
-     */
-    E first();
-
-    /**
-     * Returns the last (highest) element currently in this set.
-     *
-     * @return the last (highest) element currently in this set
-     * @throws NoSuchElementException if this set is empty
-     */
-    E last();
-
+    
+    /*▲ 视图 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 迭代 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates a {@code Spliterator} over the elements in this sorted set.
      *
@@ -251,14 +260,35 @@ public interface SortedSet<E> extends Set<E> {
      * @return a {@code Spliterator} over the elements in this sorted set
      * @since 1.8
      */
+    // 返回当前Set的Spliterator
     @Override
     default Spliterator<E> spliterator() {
-        return new Spliterators.IteratorSpliterator<E>(
-                this, Spliterator.DISTINCT | Spliterator.SORTED | Spliterator.ORDERED) {
+        return new Spliterators.IteratorSpliterator<E>(this, Spliterator.DISTINCT | Spliterator.SORTED | Spliterator.ORDERED) {
             @Override
             public Comparator<? super E> getComparator() {
                 return SortedSet.this.comparator();
             }
         };
     }
+    
+    /*▲ 迭代 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the comparator used to order the elements in this set,
+     * or {@code null} if this set uses the {@linkplain Comparable
+     * natural ordering} of its elements.
+     *
+     * @return the comparator used to order the elements in this set,
+     *         or {@code null} if this set uses the natural ordering
+     *         of its elements
+     */
+    // 返回当前集合使用的外部比较器Comparator
+    Comparator<? super E> comparator();
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }

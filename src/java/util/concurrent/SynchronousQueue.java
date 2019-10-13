@@ -36,6 +36,9 @@
 
 package java.util.concurrent;
 
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.AbstractQueue;
@@ -87,10 +90,18 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author Doug Lea and Bill Scherer and Michael Scott
  * @param <E> the type of elements held in this queue
  */
-public class SynchronousQueue<E> extends AbstractQueue<E>
-    implements BlockingQueue<E>, java.io.Serializable {
-    private static final long serialVersionUID = -3223113410248163686L;
-
+/*
+ * 链式有界（不能无限存储）单向阻塞队列，线程安全（CAS）
+ *
+ * SynchronousQueue的侧重点是存储【操作】，换个角度讲是【交换】数据，而不是存储【数据】，
+ * 【同类操作】到达时，它们会被存储在该队列中，
+ * 【互补操作】到来时，它们之间先是“传递”/“交换”数据，随后，两个【操作】互相抵消。
+ *
+ * 使用SynchronousQueue的时候，如果一个线程的put()操作找不到互补的take()操作时，它将陷入阻塞，
+ * 这一点上与LinkedTransferQueue不同。
+ */
+public class SynchronousQueue<E> extends AbstractQueue<E> implements BlockingQueue<E>, Serializable {
+    
     /*
      * This class implements extensions of the dual stack and dual
      * queue algorithms described in "Nonblocking Concurrent Objects
@@ -167,10 +178,543 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
      * aggressively forgotten to avoid reachability of everything any
      * node has ever referred to since arrival.
      */
-
+    
+    /**
+     * The number of times to spin before blocking in timed waits.
+     * The value is empirically derived -- it works well across a
+     * variety of processors and OSes. Empirically, the best value
+     * seems not to vary with number of CPUs (beyond 2) so is just
+     * a constant.
+     */
+    // 带有超时标记时的自旋次数
+    static final int MAX_TIMED_SPINS = (Runtime.getRuntime().availableProcessors()<2) ? 0 : 32;
+    
+    /**
+     * The number of times to spin before blocking in untimed waits.
+     * This is greater than timed value because untimed waits spin
+     * faster since they don't need to check times on each spin.
+     */
+    // 不带有超时标记时的自旋次数
+    static final int MAX_UNTIMED_SPINS = MAX_TIMED_SPINS * 16;
+    
+    /**
+     * The number of nanoseconds for which it is faster to spin rather than to use timed park. A rough estimate suffices.
+     */
+    // 进入阻塞的最小时间阙值，当剩余阻塞时间小于这个值时，不再进入阻塞，而是使用自旋
+    static final long SPIN_FOR_TIMEOUT_THRESHOLD = 1000L;
+    
+    /**
+     * The transferer. Set only in constructor, but cannot be declared
+     * as final without further complicating serialization.  Since
+     * this is accessed only at most once per public method, there
+     * isn't a noticeable performance penalty for using volatile
+     * instead of final here.
+     */
+    // 传递者
+    private transient volatile Transferer<E> transferer;
+    
+    
+    static {
+        // Reduce the risk of rare disastrous classloading in first call to
+        // LockSupport.park: https://bugs.openjdk.java.net/browse/JDK-8074773
+        Class<?> ensureLoaded = LockSupport.class;
+    }
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Creates a {@code SynchronousQueue} with nonfair access policy.
+     */
+    // 默认构造"非公平模式"的同步阻塞队列
+    public SynchronousQueue() {
+        this(false);
+    }
+    
+    /**
+     * Creates a {@code SynchronousQueue} with the specified fairness policy.
+     *
+     * @param fair if true, waiting threads contend in FIFO order for
+     *             access; otherwise the order is unspecified.
+     */
+    // 构造同步阻塞队列，可在参数中设置"公平模式"或"非公平模式"
+    public SynchronousQueue(boolean fair) {
+        transferer = fair ? new TransferQueue<E>() : new TransferStack<E>();
+    }
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 入队 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Inserts the specified element into this queue, if another thread is
+     * waiting to receive it.
+     *
+     * @param e the element to add
+     *
+     * @return {@code true} if the element was added to this queue, else
+     * {@code false}
+     *
+     * @throws NullPointerException if the specified element is null
+     */
+    // 入队，线程安全，没有互补操作/结点时不阻塞，直接返回false
+    public boolean offer(E e) {
+        if(e == null) {
+            throw new NullPointerException();
+        }
+        
+        // 需要等待超时，但超时时间为0
+        return transferer.transfer(e, true, 0) != null;
+    }
+    
+    /**
+     * Inserts the specified element into this queue, waiting if necessary
+     * up to the specified wait time for another thread to receive it.
+     *
+     * @return {@code true} if successful, or {@code false} if the
+     * specified waiting time elapses before a consumer appears
+     *
+     * @throws InterruptedException {@inheritDoc}
+     * @throws NullPointerException {@inheritDoc}
+     */
+    // 入队，线程安全，没有互补操作/结点时阻塞一段时间，如果在指定的时间内没有成功传递元素，则返回false
+    public boolean offer(E e, long timeout, TimeUnit unit) throws InterruptedException {
+        if(e == null) {
+            throw new NullPointerException();
+        }
+        
+        // 需要等待超时
+        if(transferer.transfer(e, true, unit.toNanos(timeout)) != null) {
+            return true;
+        }
+        
+        if(!Thread.interrupted()) {
+            return false;
+        }
+        
+        throw new InterruptedException();
+    }
+    
+    
+    /**
+     * Adds the specified element to this queue,
+     * waiting if necessary for another thread to receive it.
+     *
+     * @throws InterruptedException {@inheritDoc}
+     * @throws NullPointerException {@inheritDoc}
+     */
+    // 入队，线程安全，没有互补操作/结点时，线程被阻塞
+    public void put(E e) throws InterruptedException {
+        if(e == null) {
+            throw new NullPointerException();
+        }
+        
+        // 无需等待超时
+        if(transferer.transfer(e, false, 0) == null) {
+            // 清除线程的中断状态
+            Thread.interrupted();
+            throw new InterruptedException();
+        }
+    }
+    
+    /*▲ 入队 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 出队 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Retrieves and removes the head of this queue, if another thread
+     * is currently making an element available.
+     *
+     * @return the head of this queue, or {@code null} if no
+     * element is available
+     */
+    // 出队，线程安全，没有互补操作/结点时不阻塞，直接返回null
+    public E poll() {
+        // 需要等待超时，但超时时间为0
+        return transferer.transfer(null, true, 0);
+    }
+    
+    /**
+     * Retrieves and removes the head of this queue, waiting
+     * if necessary up to the specified wait time, for another thread
+     * to insert it.
+     *
+     * @return the head of this queue, or {@code null} if the
+     * specified waiting time elapses before an element is present
+     *
+     * @throws InterruptedException {@inheritDoc}
+     */
+    // 出队，线程安全，没有互补操作/结点时阻塞一段时间，如果在指定的时间内没有成功传递元素，则返回null
+    public E poll(long timeout, TimeUnit unit) throws InterruptedException {
+        // 需要等待超时
+        E e = transferer.transfer(null, true, unit.toNanos(timeout));
+        
+        if(e != null || !Thread.interrupted()) {
+            return e;
+        }
+        
+        throw new InterruptedException();
+    }
+    
+    
+    /**
+     * Retrieves and removes the head of this queue, waiting if necessary
+     * for another thread to insert it.
+     *
+     * @return the head of this queue
+     *
+     * @throws InterruptedException {@inheritDoc}
+     */
+    // 出队，线程安全，没有互补操作/结点时，线程被阻塞
+    public E take() throws InterruptedException {
+        // 无需等待超时
+        E e = transferer.transfer(null, false, 0);
+        
+        if(e != null) {
+            return e;
+        }
+        
+        Thread.interrupted();
+        
+        throw new InterruptedException();
+    }
+    
+    
+    /**
+     * Always returns {@code false}.
+     * A {@code SynchronousQueue} has no internal capacity.
+     *
+     * @param o the element to remove
+     *
+     * @return {@code false}
+     */
+    // 总是返回false，该结构不用于存储数据，所以没有可被移除的数据
+    public boolean remove(Object o) {
+        return false;
+    }
+    
+    
+    /**
+     * Always returns {@code false}.
+     * A {@code SynchronousQueue} has no internal capacity.
+     *
+     * @param c the collection
+     *
+     * @return {@code false}
+     */
+    // 总是返回false，该结构不用于存储数据，所以没有可被移除的数据
+    public boolean removeAll(Collection<?> c) {
+        return false;
+    }
+    
+    /**
+     * Always returns {@code false}.
+     * A {@code SynchronousQueue} has no internal capacity.
+     *
+     * @param c the collection
+     *
+     * @return {@code false}
+     */
+    // 总是返回false，该结构不用于存储数据，所以没有可保留的数据
+    public boolean retainAll(Collection<?> c) {
+        return false;
+    }
+    
+    
+    /**
+     * Does nothing.
+     * A {@code SynchronousQueue} has no internal capacity.
+     */
+    // 清空，这里是空实现，该结构不用于存储数据，所以无需清理
+    public void clear() {
+    }
+    
+    
+    /**
+     * @throws UnsupportedOperationException {@inheritDoc}
+     * @throws ClassCastException            {@inheritDoc}
+     * @throws NullPointerException          {@inheritDoc}
+     * @throws IllegalArgumentException      {@inheritDoc}
+     */
+    // 取出之前所有阻塞的"存"操作中的数据，存入给定的容器
+    public int drainTo(Collection<? super E> c) {
+        Objects.requireNonNull(c);
+        if(c == this) {
+            throw new IllegalArgumentException();
+        }
+        int n = 0;
+        for(E e; (e = poll()) != null; n++) {
+            c.add(e);
+        }
+        return n;
+    }
+    
+    /**
+     * @throws UnsupportedOperationException {@inheritDoc}
+     * @throws ClassCastException            {@inheritDoc}
+     * @throws NullPointerException          {@inheritDoc}
+     * @throws IllegalArgumentException      {@inheritDoc}
+     */
+    // 取出之前阻塞的"存"操作中的数据，存入给定的容器，最多取maxElements个数据
+    public int drainTo(Collection<? super E> c, int maxElements) {
+        Objects.requireNonNull(c);
+        if(c == this) {
+            throw new IllegalArgumentException();
+        }
+        int n = 0;
+        for(E e; n<maxElements && (e = poll()) != null; n++) {
+            c.add(e);
+        }
+        return n;
+    }
+    
+    /*▲ 出队 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 取值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Always returns {@code null}.
+     * A {@code SynchronousQueue} does not return elements
+     * unless actively waited on.
+     *
+     * @return {@code null}
+     */
+    // 总是返回null，代表该结构不用于保存数据
+    public E peek() {
+        return null;
+    }
+    
+    /*▲ 取值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 包含查询 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Always returns {@code false}.
+     * A {@code SynchronousQueue} has no internal capacity.
+     *
+     * @param o the element
+     *
+     * @return {@code false}
+     */
+    // 总是返回false，代表该结构不用于保存数据
+    public boolean contains(Object o) {
+        return false;
+    }
+    
+    /**
+     * Returns {@code false} unless the given collection is empty.
+     * A {@code SynchronousQueue} has no internal capacity.
+     *
+     * @param c the collection
+     *
+     * @return {@code false} unless given collection is empty
+     */
+    // 返回值表示给定的容器是否为null，与同步阻塞队列自身的结构无关
+    public boolean containsAll(Collection<?> c) {
+        return c.isEmpty();
+    }
+    
+    /*▲ 包含查询 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 视图 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a zero-length array.
+     *
+     * @return a zero-length array
+     */
+    // 返回一个无容量的数组
+    public Object[] toArray() {
+        return new Object[0];
+    }
+    
+    /**
+     * Sets the zeroth element of the specified array to {@code null}
+     * (if the array has non-zero length) and returns it.
+     *
+     * @param a the array
+     *
+     * @return the specified array
+     *
+     * @throws NullPointerException if the specified array is null
+     */
+    // 返回只包含一个null元素的数组
+    public <T> T[] toArray(T[] a) {
+        if(a.length>0) {
+            a[0] = null;
+        }
+        
+        return a;
+    }
+    
+    /*▲ 视图 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 迭代 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns an empty iterator in which {@code hasNext} always returns
+     * {@code false}.
+     *
+     * @return an empty iterator
+     */
+    // 返回一个空的迭代器
+    public Iterator<E> iterator() {
+        return Collections.emptyIterator();
+    }
+    
+    /**
+     * Returns an empty spliterator in which calls to
+     * {@link Spliterator#trySplit() trySplit} always return {@code null}.
+     *
+     * @return an empty spliterator
+     *
+     * @since 1.8
+     */
+    // 返回一个空的迭代器
+    public Spliterator<E> spliterator() {
+        return Spliterators.emptySpliterator();
+    }
+    
+    /*▲ 迭代 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Always returns zero.
+     * A {@code SynchronousQueue} has no internal capacity.
+     *
+     * @return zero
+     */
+    // 总是返回0，因为该结构不用于保存数据
+    public int size() {
+        return 0;
+    }
+    
+    /**
+     * Always returns zero.
+     * A {@code SynchronousQueue} has no internal capacity.
+     *
+     * @return zero
+     */
+    // 总是返回0，因为该结构不用于保存数据
+    public int remainingCapacity() {
+        return 0;
+    }
+    
+    /**
+     * Always returns {@code true}.
+     * A {@code SynchronousQueue} has no internal capacity.
+     *
+     * @return {@code true}
+     */
+    // 总是返回true，因为该结构不用于保存数据
+    public boolean isEmpty() {
+        return true;
+    }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /*
+     * To cope with serialization strategy in the 1.5 version of
+     * SynchronousQueue, we declare some unused classes and fields
+     * that exist solely to enable serializability across versions.
+     * These fields are never used, so are initialized only if this
+     * object is ever serialized or deserialized.
+     */
+    
+    private static final long serialVersionUID = -3223113410248163686L;
+    
+    private ReentrantLock qlock;
+    private WaitQueue waitingProducers;
+    private WaitQueue waitingConsumers;
+    
+    /**
+     * Saves this queue to a stream (that is, serializes it).
+     *
+     * @param s the stream
+     *
+     * @throws java.io.IOException if an I/O error occurs
+     */
+    private void writeObject(ObjectOutputStream s) throws java.io.IOException {
+        boolean fair = transferer instanceof TransferQueue;
+        if(fair) {
+            qlock = new ReentrantLock(true);
+            waitingProducers = new FifoWaitQueue();
+            waitingConsumers = new FifoWaitQueue();
+        } else {
+            qlock = new ReentrantLock();
+            waitingProducers = new LifoWaitQueue();
+            waitingConsumers = new LifoWaitQueue();
+        }
+        s.defaultWriteObject();
+    }
+    
+    /**
+     * Reconstitutes this queue from a stream (that is, deserializes it).
+     *
+     * @param s the stream
+     *
+     * @throws ClassNotFoundException if the class of a serialized object
+     *                                could not be found
+     * @throws java.io.IOException    if an I/O error occurs
+     */
+    private void readObject(ObjectInputStream s) throws java.io.IOException, ClassNotFoundException {
+        s.defaultReadObject();
+        if(waitingProducers instanceof FifoWaitQueue)
+            transferer = new TransferQueue<E>();
+        else
+            transferer = new TransferStack<E>();
+    }
+    
+    @SuppressWarnings("serial")
+    static class WaitQueue implements Serializable {
+    }
+    
+    static class LifoWaitQueue extends WaitQueue {
+        private static final long serialVersionUID = -3633113410248163686L;
+    }
+    
+    static class FifoWaitQueue extends WaitQueue {
+        private static final long serialVersionUID = -3623113410248163686L;
+    }
+    
+    /*▲ 序列化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /**
+     * Always returns {@code "[]"}.
+     *
+     * @return {@code "[]"}
+     */
+    public String toString() {
+        return "[]";
+    }
+    
+    
+    
     /**
      * Shared internal API for dual stacks and queues.
      */
+    // 数据"传递"接口，用于不同类型操作之间传递数据
     abstract static class Transferer<E> {
         /**
          * Performs a put or take.
@@ -185,33 +729,448 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
          *         the caller can distinguish which of these occurred
          *         by checking Thread.interrupted.
          */
+        // "传递"数据，匹配/抵消操作
         abstract E transfer(E e, boolean timed, long nanos);
     }
-
-    /**
-     * The number of times to spin before blocking in timed waits.
-     * The value is empirically derived -- it works well across a
-     * variety of processors and OSes. Empirically, the best value
-     * seems not to vary with number of CPUs (beyond 2) so is just
-     * a constant.
+    
+    /** Dual Queue */
+    /*
+     * "公平模式"的同步阻塞队列的实现
+     *
+     * 使用链队来模拟，这意味着先来的操作先被执行
+     * 注：该结构会在队头之前设置一个空结点，以标记队列为null
      */
-    static final int MAX_TIMED_SPINS =
-        (Runtime.getRuntime().availableProcessors() < 2) ? 0 : 32;
-
-    /**
-     * The number of times to spin before blocking in untimed waits.
-     * This is greater than timed value because untimed waits spin
-     * faster since they don't need to check times on each spin.
-     */
-    static final int MAX_UNTIMED_SPINS = MAX_TIMED_SPINS * 16;
-
-    /**
-     * The number of nanoseconds for which it is faster to spin
-     * rather than to use timed park. A rough estimate suffices.
-     */
-    static final long SPIN_FOR_TIMEOUT_THRESHOLD = 1000L;
-
+    static final class TransferQueue<E> extends Transferer<E> {
+        /*
+         * This extends Scherer-Scott dual queue algorithm, differing,
+         * among other ways, by using modes within nodes rather than
+         * marked pointers. The algorithm is a little simpler than
+         * that for stacks because fulfillers do not need explicit
+         * nodes, and matching is done by CAS'ing QNode.item field
+         * from non-null to null (for put) or vice versa (for take).
+         */
+        
+        /** Head of queue */
+        // 队头
+        transient volatile QNode head;
+        
+        /** Tail of queue */
+        // 队尾
+        transient volatile QNode tail;
+        
+        /**
+         * Reference to a cancelled node that might not yet have been
+         * unlinked from queue because it was the last inserted node
+         * when it was cancelled.
+         */
+        transient volatile QNode cleanMe;
+        
+        // VarHandle mechanics
+        private static final VarHandle QHEAD;
+        private static final VarHandle QTAIL;
+        private static final VarHandle QCLEANME;
+        static {
+            try {
+                MethodHandles.Lookup l = MethodHandles.lookup();
+                QHEAD = l.findVarHandle(TransferQueue.class, "head", QNode.class);
+                QTAIL = l.findVarHandle(TransferQueue.class, "tail", QNode.class);
+                QCLEANME = l.findVarHandle(TransferQueue.class, "cleanMe", QNode.class);
+            } catch(ReflectiveOperationException e) {
+                throw new ExceptionInInitializerError(e);
+            }
+        }
+        
+        TransferQueue() {
+            QNode h = new QNode(null, false); // initialize to dummy node.
+            head = h;
+            tail = h;
+        }
+        
+        /**
+         * Puts or takes an item.
+         */
+        // "传递"数据，匹配/抵消操作
+        @SuppressWarnings("unchecked")
+        E transfer(E e, boolean timed, long nanos) {
+            /* Basic algorithm is to loop trying to take either of two actions:
+             *
+             * 1. If queue apparently empty or holding same-mode nodes,
+             *    try to add node to queue of waiters, wait to be
+             *    fulfilled (or cancelled) and return matching item.
+             *
+             * 2. If queue apparently contains waiting items, and this
+             *    call is of complementary mode, try to fulfill by CAS'ing
+             *    item field of waiting node and dequeuing it, and then
+             *    returning matching item.
+             *
+             * In each case, along the way, check for and try to help
+             * advance head and tail on behalf of other stalled/slow
+             * threads.
+             *
+             * The loop starts off with a null check guarding against
+             * seeing uninitialized head or tail values. This never
+             * happens in current SynchronousQueue, but could if
+             * callers held non-volatile/final ref to the
+             * transferer. The check is here anyway because it places
+             * null checks at top of loop, which is usually faster
+             * than having them implicitly interspersed.
+             */
+            
+            QNode s = null; // constructed/reused as needed
+            
+            // 当前结点是否为数据结点。当遇到"存"操作时，该结点成为数据结点
+            boolean isData = (e != null);
+            
+            for(; ; ) {
+                // 每次进入循环都要重置h和t
+                QNode t = tail;
+                QNode h = head;
+                
+                // saw uninitialized value
+                if(t == null || h == null) {
+                    // spin
+                    continue;
+                }
+                
+                // 队列为空，或者队尾结点与当前结点的数据模式一致
+                if(h == t || t.isData == isData) { // empty or same-mode
+                    // 指向队尾之后的结点
+                    QNode tn = t.next;
+                    
+                    // 队尾已被别的线程修改
+                    if(t != tail) {                 // inconsistent read
+                        continue;
+                    }
+                    
+                    // 队尾处于滞后状态，则先更新队尾
+                    if(tn != null) {               // lagging tail
+                        // 原子地将队尾更新为tn
+                        advanceTail(t, tn);
+                        continue;
+                    }
+                    
+                    // 需要等待，但超时了，不必再等
+                    if(timed && nanos<=0L) {       // can't wait
+                        return null;
+                    }
+                    
+                    // 首次到达这里，构建新结点
+                    if(s == null) {
+                        s = new QNode(e, isData);
+                    }
+                    
+                    // 队尾没有滞后时，原子地更新队尾的next域为s
+                    if(!t.casNext(null, s)) {       // failed to link in
+                        continue;
+                    }
+                    
+                    // 原子地将队尾更新为s
+                    advanceTail(t, s);              // swing tail and wait
+                    
+                    // 尝试阻塞当前线程（操作），直到匹配的操作到来后唤醒它，返回数据域
+                    Object x = awaitFulfill(s, e, timed, nanos);
+                    
+                    // 如果结点已经被标记为取消
+                    if(x == s) {                   // wait was cancelled
+                        clean(t, s);
+                        return null;
+                    }
+                    
+                    // 如果s.next!=s，即s仍在队列中
+                    if(!s.isOffList()) {           // not already unlinked
+                        advanceHead(t, s);          // unlink if head
+                        
+                        // 遗忘数据域，跟取消的效果一样
+                        if(x != null) {             // and forget fields
+                            s.item = s;
+                        }
+                        
+                        s.waiter = null;
+                    }
+                    
+                    return (x != null) ? (E) x : e;
+                    
+                } else {                            // complementary-mode
+                    
+                    /*
+                     * 至此：h!=t && t.isData!=isData
+                     * 说明队列不为null，且队尾结点与当前结点的数据模式不一致
+                     * 这时候该进行匹配操作了（进入互补模式）
+                     */
+                    
+                    // 取出队头结点
+                    QNode m = h.next;               // node to fulfill
+                    // 确保队列不为null，且头尾结点未被修改
+                    if(t != tail || m == null || h != head) {
+                        continue;                   // inconsistent read
+                    }
+                    
+                    // 取出队头数据（这里可能出现线程争用）
+                    Object x = m.item;
+                    if(isData == (x != null) ||    // m already fulfilled（该结点已被其它线程处理了）
+                        x == m ||                  // m cancelled（该结点已经被取消了）
+                        !m.casItem(x, e)) {        // lost CAS（更新数据域，以便awaitFulfill()方法被唤醒后退出）
+                        
+                        /* 线程争用失败的线程到这里 */
+                        
+                        /*
+                         * 至此，说明队头结点已经被处理/取消，则可以跳过它了
+                         * （也可能是线程争用失败了，此时起到加速作用）
+                         */
+                        advanceHead(h, m);         // dequeue and retry
+                        continue;
+                    }
+                    
+                    /* 线程争用成功的线程到这里 */
+                    
+                    // 原子地将队头更新为m
+                    advanceHead(h, m);              // successfully fulfilled
+                    
+                    // 唤醒阻塞的操作/结点/线程
+                    LockSupport.unpark(m.waiter);
+                    
+                    // 返回数据
+                    return (x != null) ? (E) x : e;
+                }
+            }
+        }
+        
+        /**
+         * Spins/blocks until node s is fulfilled.
+         *
+         * @param s     the waiting node
+         * @param e     the comparison value for checking match
+         * @param timed true if timed wait
+         * @param nanos timeout value
+         *
+         * @return matched item, or s if cancelled
+         */
+        // 尝试阻塞当前线程（操作），直到匹配的操作到来后唤醒它，返回数据域
+        Object awaitFulfill(QNode s, E e, boolean timed, long nanos) {
+            /* Same idea as TransferStack.awaitFulfill */
+            // 计算截止时间
+            final long deadline = timed ? System.nanoTime() + nanos : 0L;
+            
+            Thread w = Thread.currentThread();
+            
+            // 设置自旋次数
+            int spins = (head.next == s) ? (timed ? MAX_TIMED_SPINS : MAX_UNTIMED_SPINS) : 0;
+            
+            for(; ; ) {
+                // 如果当前线程带有中断标记，则取消操作
+                if(w.isInterrupted()) {
+                    s.tryCancel(e);
+                }
+                
+                // 操作已经被取消，或者该结点已被处理（数据域会发生变化）
+                Object x = s.item;
+                if(x != e) {
+                    return x;
+                }
+                
+                // 如果需要等待
+                if(timed) {
+                    // 计算等待时长
+                    nanos = deadline - System.nanoTime();
+                    
+                    // 如果等待超时，则取消该操作
+                    if(nanos<=0L) {
+                        s.tryCancel(e);
+                        continue;
+                    }
+                }
+                
+                // 如果需要自旋，自旋次数减一
+                if(spins>0) {
+                    --spins;
+                    // 如果需要自旋，则进入"忙等待"状态
+                    Thread.onSpinWait();
+                } else if(s.waiter == null) {
+                    // 记录将要被阻塞线程
+                    s.waiter = w;
+                } else if(!timed) {
+                    // 阻塞当前线程，并用当前对象本身作为阻塞标记
+                    LockSupport.park(this);
+                } else if(nanos>SPIN_FOR_TIMEOUT_THRESHOLD) {
+                    // 带超时的阻塞
+                    LockSupport.parkNanos(this, nanos);
+                }
+            }
+        }
+        
+        /**
+         * Tries to cas nh as new head; if successful, unlink
+         * old head's next node to avoid garbage retention.
+         */
+        // 原子地将队头更新为nh，并且旧的队头结点的next域将指向自身
+        void advanceHead(QNode h, QNode nh) {
+            if(h == head && QHEAD.compareAndSet(this, h, nh)) {
+                // 使队头结点彻底脱离队列，辅助GC
+                h.next = h; // forget old next
+            }
+        }
+        
+        /**
+         * Tries to cas nt as new tail.
+         */
+        // 原子地将队尾更新为nt
+        void advanceTail(QNode t, QNode nt) {
+            if(tail == t) {
+                QTAIL.compareAndSet(this, t, nt);
+            }
+        }
+        
+        /**
+         * Tries to CAS cleanMe slot.
+         */
+        // 原子地更新cleanMe域为val
+        boolean casCleanMe(QNode cmp, QNode val) {
+            return cleanMe == cmp && QCLEANME.compareAndSet(this, cmp, val);
+        }
+        
+        /**
+         * Gets rid of cancelled node s with original predecessor pred.
+         */
+        // 借助原始前驱pred去除被取消的结点s
+        void clean(QNode pred, QNode s) {
+            s.waiter = null; // forget thread
+            
+            /*
+             * At any given time, exactly one node on list cannot be
+             * deleted -- the last inserted node. To accommodate this,
+             * if we cannot delete s, we save its predecessor as
+             * "cleanMe", deleting the previously saved version
+             * first. At least one of node s or the node previously
+             * saved can always be deleted, so this always terminates.
+             */
+            while(pred.next == s) { // Return early if already unlinked
+                QNode h = head;
+                QNode hn = h.next;   // Absorb cancelled first node as head
+                if(hn != null && hn.isCancelled()) {
+                    advanceHead(h, hn);
+                    continue;
+                }
+                
+                QNode t = tail;      // Ensure consistent read for tail
+                if(t == h) {
+                    return;
+                }
+                
+                QNode tn = t.next;
+                if(t != tail) {
+                    continue;
+                }
+                
+                if(tn != null) {
+                    advanceTail(t, tn);
+                    continue;
+                }
+                
+                if(s != t) {        // If not tail, try to unsplice
+                    QNode sn = s.next;
+                    if(sn == s || pred.casNext(s, sn)) {
+                        return;
+                    }
+                }
+                
+                QNode dp = cleanMe;
+                if(dp != null) {    // Try unlinking previous cancelled node
+                    QNode d = dp.next;
+                    QNode dn;
+                    if(d == null ||                     // d is gone or
+                        d == dp ||                      // d is off list or
+                        !d.isCancelled() ||             // d not cancelled or
+                        (d != t &&                      // d not tail and
+                            (dn = d.next) != null &&    //   has successor
+                            dn != d &&                  //   that is on list
+                            dp.casNext(d, dn))) {       // d unspliced
+                        casCleanMe(dp, null);
+                    }
+                    
+                    if(dp == pred) {
+                        return;      // s is already saved node
+                    }
+                } else if(casCleanMe(null, pred)) {
+                    return;          // Postpone cleaning s
+                }
+            }
+        }
+        
+        /** Node class for TransferQueue. */
+        // 链队结点，用于"公平模式"的同步阻塞队列
+        static final class QNode {
+            
+            // 指向下一个结点（朝着队尾方向）
+            volatile QNode next;          // next node in queue
+            
+            // 当前结点的数据模式，遇到"存"操作时，isData==null
+            final boolean isData;
+            
+            // 数据域（生产者存数据，消费者存null。取消操作时指向自身）
+            volatile Object item;         // CAS'ed to or from null
+            
+            // 被阻塞的操作/线程/结点
+            volatile Thread waiter;       // to control park/unpark
+            
+            // VarHandle mechanics
+            private static final VarHandle QITEM;
+            private static final VarHandle QNEXT;
+            static {
+                try {
+                    MethodHandles.Lookup l = MethodHandles.lookup();
+                    QITEM = l.findVarHandle(QNode.class, "item", Object.class);
+                    QNEXT = l.findVarHandle(QNode.class, "next", QNode.class);
+                } catch(ReflectiveOperationException e) {
+                    throw new ExceptionInInitializerError(e);
+                }
+            }
+            
+            QNode(Object item, boolean isData) {
+                this.item = item;
+                this.isData = isData;
+            }
+            
+            // 原子地更新当前结点的next域为val
+            boolean casNext(QNode cmp, QNode val) {
+                return next == cmp && QNEXT.compareAndSet(this, cmp, val);
+            }
+            
+            // 原子地更新当前结点的数据域为val
+            boolean casItem(Object cmp, Object val) {
+                return item == cmp && QITEM.compareAndSet(this, cmp, val);
+            }
+            
+            /**
+             * Tries to cancel by CAS'ing ref to this as item.
+             */
+            // 取消操作：原子地更新item为当前结点自身
+            void tryCancel(Object cmp) {
+                QITEM.compareAndSet(this, cmp, this);
+            }
+            
+            // 当前操作/结点/线程是否已被取消
+            boolean isCancelled() {
+                return item == this;
+            }
+            
+            /**
+             * Returns true if this node is known to be off the queue
+             * because its next pointer has been forgotten due to
+             * an advanceHead operation.
+             */
+            // 判断s是否脱离了队列，由调用advanceHead()方法导致
+            boolean isOffList() {
+                return next == this;
+            }
+        }
+    }
+    
     /** Dual stack */
+    /*
+     * "非公平模式"的同步阻塞队列的实现
+     * 使用链栈来模拟，这意味着先来的操作不一定先执行
+     * 注意：这里的实现中，栈顶游标会指向一个有效的结点（操作）
+     */
     static final class TransferStack<E> extends Transferer<E> {
         /*
          * This extends Scherer-Scott dual stack algorithm, differing,
@@ -220,109 +1179,40 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
          * nodes (with FULFILLING bit set in mode) to reserve a spot
          * to match a waiting node.
          */
-
+        
         /* Modes for SNodes, ORed together in node fields */
+        
         /** Node represents an unfulfilled consumer */
-        static final int REQUEST    = 0;
+        // "取"，消费者标记，请求数据
+        static final int REQUEST = 0;
+        
         /** Node represents an unfulfilled producer */
-        static final int DATA       = 1;
+        // "存"，生产者标记，提供数据
+        static final int DATA = 1;
+        
         /** Node is fulfilling another unfulfilled DATA or REQUEST */
+        // 锁定栈顶操作的标记，接下来就要尝试匹配了
         static final int FULFILLING = 2;
-
-        /** Returns true if m has fulfilling bit set. */
-        static boolean isFulfilling(int m) { return (m & FULFILLING) != 0; }
-
-        /** Node class for TransferStacks. */
-        static final class SNode {
-            volatile SNode next;        // next node in stack
-            volatile SNode match;       // the node matched to this
-            volatile Thread waiter;     // to control park/unpark
-            Object item;                // data; or null for REQUESTs
-            int mode;
-            // Note: item and mode fields don't need to be volatile
-            // since they are always written before, and read after,
-            // other volatile/atomic operations.
-
-            SNode(Object item) {
-                this.item = item;
-            }
-
-            boolean casNext(SNode cmp, SNode val) {
-                return cmp == next &&
-                    SNEXT.compareAndSet(this, cmp, val);
-            }
-
-            /**
-             * Tries to match node s to this node, if so, waking up thread.
-             * Fulfillers call tryMatch to identify their waiters.
-             * Waiters block until they have been matched.
-             *
-             * @param s the node to match
-             * @return true if successfully matched to s
-             */
-            boolean tryMatch(SNode s) {
-                if (match == null &&
-                    SMATCH.compareAndSet(this, null, s)) {
-                    Thread w = waiter;
-                    if (w != null) {    // waiters need at most one unpark
-                        waiter = null;
-                        LockSupport.unpark(w);
-                    }
-                    return true;
-                }
-                return match == s;
-            }
-
-            /**
-             * Tries to cancel a wait by matching node to itself.
-             */
-            void tryCancel() {
-                SMATCH.compareAndSet(this, null, this);
-            }
-
-            boolean isCancelled() {
-                return match == this;
-            }
-
-            // VarHandle mechanics
-            private static final VarHandle SMATCH;
-            private static final VarHandle SNEXT;
-            static {
-                try {
-                    MethodHandles.Lookup l = MethodHandles.lookup();
-                    SMATCH = l.findVarHandle(SNode.class, "match", SNode.class);
-                    SNEXT = l.findVarHandle(SNode.class, "next", SNode.class);
-                } catch (ReflectiveOperationException e) {
-                    throw new ExceptionInInitializerError(e);
-                }
-            }
-        }
-
+        
         /** The head (top) of the stack */
+        // 栈顶游标，指向最近一个被阻塞的结点（操作）
         volatile SNode head;
-
-        boolean casHead(SNode h, SNode nh) {
-            return h == head &&
-                SHEAD.compareAndSet(this, h, nh);
+        
+        // VarHandle mechanics
+        private static final VarHandle SHEAD;
+        static {
+            try {
+                MethodHandles.Lookup l = MethodHandles.lookup();
+                SHEAD = l.findVarHandle(TransferStack.class, "head", SNode.class);
+            } catch(ReflectiveOperationException e) {
+                throw new ExceptionInInitializerError(e);
+            }
         }
-
-        /**
-         * Creates or resets fields of a node. Called only from transfer
-         * where the node to push on stack is lazily created and
-         * reused when possible to help reduce intervals between reads
-         * and CASes of head and to avoid surges of garbage when CASes
-         * to push nodes fail due to contention.
-         */
-        static SNode snode(SNode s, Object e, SNode next, int mode) {
-            if (s == null) s = new SNode(e);
-            s.mode = mode;
-            s.next = next;
-            return s;
-        }
-
+        
         /**
          * Puts or takes an item.
          */
+        // "传递"数据，匹配/抵消操作
         @SuppressWarnings("unchecked")
         E transfer(E e, boolean timed, long nanos) {
             /*
@@ -345,70 +1235,188 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
              *    is essentially the same as for fulfilling, except
              *    that it doesn't return the item.
              */
-
+            
             SNode s = null; // constructed/reused as needed
-            int mode = (e == null) ? REQUEST : DATA;
-
-            for (;;) {
+            
+            // 设置操作标记，REQUEST代表"取"操作，DATA代表"存"操作
+            int mode = (e==null) ? REQUEST : DATA;
+            
+            for(; ; ) {
+                // 每次开始循环前都更新head
                 SNode h = head;
-                if (h == null || h.mode == mode) {  // empty or same-mode
-                    if (timed && nanos <= 0L) {     // can't wait
-                        if (h != null && h.isCancelled())
+                
+                /*
+                 * 如果栈顶没有阻塞的操作(h==null)，
+                 * 或者当前操作与栈顶阻塞的操作一致(h.mode==mode)
+                 * 此种情形下需要将当前操作阻塞，并等待匹配的操作出现
+                 */
+                if(h == null || h.mode == mode) {  // empty or same-mode
+                    // 有超时标记，且已经超时
+                    if(timed && nanos<=0L) {     // can't wait
+                        // 如果h结点代表的操作已经被取消了，则弹出该结点
+                        if(h != null && h.isCancelled()) {
                             casHead(h, h.next);     // pop cancelled node
-                        else
-                            return null;
-                    } else if (casHead(h, s = snode(s, e, h, mode))) {
-                        SNode m = awaitFulfill(s, timed, nanos);
-                        if (m == s) {               // wait was cancelled
-                            clean(s);
+                        } else {
+                            // 这种情形参见offer()和poll()方法
                             return null;
                         }
-                        if ((h = head) != null && h.next == s)
-                            casHead(h, s.next);     // help s's fulfiller
-                        return (E) ((mode == REQUEST) ? m.item : s.item);
-                    }
-                } else if (!isFulfilling(h.mode)) { // try to fulfill
-                    if (h.isCancelled())            // already cancelled
-                        casHead(h, h.next);         // pop and retry
-                    else if (casHead(h, s=snode(s, e, h, FULFILLING|mode))) {
-                        for (;;) { // loop until matched or waiters disappear
-                            SNode m = s.next;       // m is s's match
-                            if (m == null) {        // all waiters are gone
-                                casHead(s, null);   // pop fulfill node
-                                s = null;           // use new node next time
-                                break;              // restart main loop
+                    } else {
+                        // (创建s结点)，将s结点入栈（当前栈顶结点是h）
+                        s = snode(s, e, h, mode);
+                        
+                        /*
+                         * 如果h仍与head相等，原子地更新栈顶游标head，使其指向结点s
+                         * 如果casHead()返回fasle，说明在此期间，head被别的线程修改了，
+                         * 进一步说明有其他线程执行了存/取操作
+                         */
+                        if(casHead(h, s)) {
+                            /*
+                             * 尝试阻塞当前线程（操作），直到匹配的操作到来后唤醒它
+                             * 被唤醒后，返回当前结点（操作）match域中存储的【待匹配结点】
+                             */
+                            SNode m = awaitFulfill(s, timed, nanos);
+                            
+                            // 如果【待匹配结点】就是自身，说明当前操作被取消了
+                            if(m == s) {               // wait was cancelled
+                                // 剔除被取消的操作（结点）（会剔除一段范围内的所有被取消结点）
+                                clean(s);
+                                return null;
                             }
-                            SNode mn = m.next;
-                            if (m.tryMatch(s)) {
-                                casHead(s, mn);     // pop both s and m
-                                return (E) ((mode == REQUEST) ? m.item : s.item);
-                            } else                  // lost match
-                                s.casNext(m, mn);   // help unlink
+                            
+                            // 原子地更新head，这里相当于连续弹出两个结点，因为匹配是成对出现的
+                            if((h = head) != null && h.next == s) {
+                                // 更新栈顶游标【加速】
+                                casHead(h, s.next);     // help s's fulfiller
+                            }
+                            
+                            // 如果当前操作（之前被阻塞，现在被唤醒）需要数据
+                            if(mode == REQUEST) {
+                                // 返回【待匹配结点】提供的数据
+                                return (E) m.item;
+                                
+                                // 如果当前操作（之前被阻塞，现在被唤醒）提供数据
+                            } else {
+                                // 返回当前结点中的数据
+                                return (E) s.item;
+                            }
                         }
                     }
-                } else {                            // help a fulfiller
-                    SNode m = h.next;               // m is h's match
-                    if (m == null)                  // waiter is gone
-                        casHead(h, null);           // pop fulfilling node
-                    else {
-                        SNode mn = m.next;
-                        if (m.tryMatch(h))          // help match
-                            casHead(h, mn);         // pop both h and m
-                        else                        // lost match
-                            h.casNext(m, mn);       // help unlink
+                } else {
+                    /*
+                     * 至此：h!=null && h.mode!=mode，
+                     * 说明栈顶存在已阻塞的操作，且与当前操作模式不一致（可以匹配）
+                     */
+                    
+                    // 判断是否有别的线程在处理栈顶操作
+                    if(!isFulfilling(h.mode)) { // try to fulfill
+                        // 判断栈顶操作是否被取消（阻塞超时）
+                        if(h.isCancelled()) {   // already cancelled
+                            // 尝试出栈，且更新栈顶游标
+                            casHead(h, h.next); // pop and retry
+                        } else {
+                            /*
+                             * 调整s的位置，将其放在栈顶游标head之上
+                             * 为结点s添加FULFILLING标记，标记s进入处理状态
+                             */
+                            s = snode(s, e, h, FULFILLING | mode);
+                            
+                            /*
+                             * 原子地更新栈顶游标head到s的位置
+                             * 更新完成后，栈顶的结点带有了FULFILLING标记（栈顶操作被锁定）
+                             *
+                             * 经过这一步，栈顶操作会被锁定，否则，栈顶操作还是可能会被其他线程抢走
+                             */
+                            if(casHead(h, s)) {
+                                // 开始处理栈顶操作（尝试匹配）
+                                for(; ; ) { // loop until matched or waiters disappear
+                                    SNode m = s.next;       // m is s's match
+                                    
+                                    /*
+                                     * m==null意味着已经没有排队的操作（结点）了
+                                     * 出现这种情形原因可能是：
+                                     * 另一个线程在帮助加速完成匹配时，
+                                     * 发现先前next域的操作（结点）被取消了，
+                                     * 那么紧接着这个next域就会被更新为next的next域，
+                                     * 而这个next的next域可能为null，
+                                     * 这就导致这里获取到的s.next为null
+                                     */
+                                    if(m == null) {        // all waiters are gone
+                                        // 设置栈顶游标为null
+                                        casHead(s, null);   // pop fulfill node
+                                        s = null;           // use new node next time
+                                        break;              // restart main loop
+                                    }
+                                    
+                                    SNode mn = m.next;
+                                    
+                                    // 尝试为当前被阻塞的操作（结点m）设置一个【待匹配结点】s，并唤醒被阻塞的操作
+                                    if(m.tryMatch(s)) {
+                                        // 更新栈顶游标（连续弹出两个结点：m和s）
+                                        casHead(s, mn);     // pop both s and m
+                                        
+                                        // 返回数据
+                                        return (mode==REQUEST) ? (E) m.item : (E) s.item;
+                                    } else {                // lost match
+                                        /* 至此，说明阻塞操作(结点)被取消了 */
+                                        
+                                        // 更新next域，会导致里一个线程中获取到的m为null
+                                        s.casNext(m, mn);   // help unlink
+                                    }
+                                }// for(; ; )
+                            }
+                        }
+                    } else {                            // help a fulfiller
+                        /*
+                         * 至此，说明有别的线程正在处理栈顶操作（正在尝试匹配）
+                         * 本着不浪费的原则，既然当前线程抢到执行权后，
+                         * 发现栈顶操作被别的线程锁定了，但还没执行完，
+                         * 那么这里就会加速完成栈顶操作的匹配
+                         */
+                        
+                        // 获取栈顶操作下面的操作（结点）
+                        SNode m = h.next;               // m is h's match
+                        
+                        /*
+                         * m==null意味着已经没有排队的操作（结点）了
+                         * 出现这种情形原因可能是：
+                         * 当前线程在帮助加速完成匹配时，没有立即执行加速动作，
+                         * 这个时候，原先执行匹配动作的线程照旧执行匹配，
+                         * 但是在匹配过程中，发现先前next域的操作（结点）被取消了，
+                         * 那么紧接着next域就会被更新为next的next域，
+                         * 而这个next的next域可能为null，
+                         * 这就导致这里获取到的s.next为null
+                         */
+                        if(m == null) { // waiter is gone
+                            // 设置栈顶游标为null
+                            casHead(h, null);           // pop fulfilling node
+                        } else {
+                            SNode mn = m.next;
+                            
+                            // 加速匹配过程
+                            if(m.tryMatch(h)) {         // help match
+                                casHead(h, mn);         // pop both h and m
+                            } else {                    // lost match
+                                /* 至此，说明阻塞操作(结点)被取消了 */
+                                
+                                // 更新next域，会导致里一个线程中获取到的m为null
+                                h.casNext(m, mn);       // help unlink
+                            }
+                        }
                     }
                 }
-            }
+            } // for(; ; )
         }
-
+        
         /**
          * Spins/blocks until node s is matched by a fulfill operation.
          *
-         * @param s the waiting node
+         * @param s     the waiting node
          * @param timed true if timed wait
          * @param nanos timeout value
+         *
          * @return matched node, or s if cancelled
          */
+        // 尝试阻塞当前线程（操作），直到匹配的操作到来后唤醒它
         SNode awaitFulfill(SNode s, boolean timed, long nanos) {
             /*
              * When a node/thread is about to block, it sets its waiter
@@ -432,53 +1440,107 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
              * and don't wait at all, so are trapped in transfer
              * method rather than calling awaitFulfill.
              */
+            
+            // 计算截止时间
             final long deadline = timed ? System.nanoTime() + nanos : 0L;
+            
             Thread w = Thread.currentThread();
-            int spins = shouldSpin(s)
-                ? (timed ? MAX_TIMED_SPINS : MAX_UNTIMED_SPINS)
-                : 0;
-            for (;;) {
-                if (w.isInterrupted())
+            
+            // 设置自旋次数
+            int spins = shouldSpin(s) ? (timed ? MAX_TIMED_SPINS : MAX_UNTIMED_SPINS) : 0;
+            
+            for(; ; ) {
+                // 如果当前线程带有中断标记，则取消操作
+                if(w.isInterrupted()) {
                     s.tryCancel();
+                }
+                
+                // 【待匹配结点】，初始时未null，被唤醒后不为null
                 SNode m = s.match;
-                if (m != null)
+                if(m != null) {
                     return m;
-                if (timed) {
+                }
+                
+                // 如果需要等待
+                if(timed) {
+                    // 计算等待时长
                     nanos = deadline - System.nanoTime();
-                    if (nanos <= 0L) {
+                    
+                    // 如果等待超时，则取消该操作
+                    if(nanos<=0L) {
                         s.tryCancel();
                         continue;
                     }
                 }
-                if (spins > 0) {
+                
+                // 如果需要自旋，则进入"忙等待"状态
+                if(spins>0) {
                     Thread.onSpinWait();
+                    // 如果需要自旋，自旋次数减一
                     spins = shouldSpin(s) ? (spins - 1) : 0;
-                }
-                else if (s.waiter == null)
+                } else if(s.waiter == null) {
+                    // 记录将要被阻塞线程
                     s.waiter = w; // establish waiter so can park next iter
-                else if (!timed)
+                } else if(!timed) {
+                    // 阻塞当前线程，并用当前对象本身作为阻塞标记
                     LockSupport.park(this);
-                else if (nanos > SPIN_FOR_TIMEOUT_THRESHOLD)
+                } else if(nanos>SPIN_FOR_TIMEOUT_THRESHOLD) {
+                    // 带超时的阻塞
                     LockSupport.parkNanos(this, nanos);
+                }
             }
         }
-
+        
         /**
-         * Returns true if node s is at head or there is an active
-         * fulfiller.
+         * Creates or resets fields of a node. Called only from transfer
+         * where the node to push on stack is lazily created and
+         * reused when possible to help reduce intervals between reads
+         * and CASes of head and to avoid surges of garbage when CASes
+         * to push nodes fail due to contention.
          */
+        // 创建结点s（结点代表当前的操作），并将s入栈（插入到next的上面）
+        static SNode snode(SNode s, Object e, SNode next, int mode) {
+            if(s == null) {
+                s = new SNode(e);
+            }
+            s.mode = mode;
+            s.next = next;
+            return s;
+        }
+        
+        /** Returns true if m has fulfilling bit set. */
+        // 判断栈顶结点（操作）是否被锁定
+        static boolean isFulfilling(int m) {
+            return (m & FULFILLING) != 0;
+        }
+        
+        /*
+         * 原子地更新head，使其指向nh
+         *
+         * 如果在此期间，head被别的线程修改了，即有其他线程执行了存/取操作，
+         * 那么该方法返回false（这里不考虑ABA问题，因为只要结点状态一致就可以）
+         */
+        boolean casHead(SNode h, SNode nh) {
+            return h == head && SHEAD.compareAndSet(this, h, nh);
+        }
+        
+        /**
+         * Returns true if node s is at head or there is an active fulfiller.
+         */
+        // 判断是否需要通过自旋进入"忙等待"状态
         boolean shouldSpin(SNode s) {
             SNode h = head;
             return (h == s || h == null || isFulfilling(h.mode));
         }
-
+        
         /**
          * Unlinks s from the stack.
          */
+        // 清除s结点，以及清理head到s之前的一段距离上的结点
         void clean(SNode s) {
             s.item = null;   // forget item
             s.waiter = null; // forget thread
-
+            
             /*
              * At worst we may need to traverse entire stack to unlink
              * s. If there are multiple concurrent calls to clean, we
@@ -489,714 +1551,117 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
              * further because we don't want to doubly traverse just to
              * find sentinel.
              */
-
+            
+            // past游标向栈底移动，直到遇到一个未取消的结点
             SNode past = s.next;
-            if (past != null && past.isCancelled())
+            if(past != null && past.isCancelled()) {
                 past = past.next;
-
-            // Absorb cancelled nodes at head
+            }
+            
+            /* Absorb cancelled nodes at head */
             SNode p;
-            while ((p = head) != null && p != past && p.isCancelled())
+            // p游标从head向栈底移动，直到遇到一个未取消的结点（中途被取消的结点会从队列中剔除）
+            while((p = head) != null && p != past && p.isCancelled()) {
                 casHead(p, p.next);
-
-            // Unsplice embedded nodes
-            while (p != null && p != past) {
+            }
+            
+            /* Unsplice embedded nodes */
+            // 继续剔除past到p之间所有被取消的结点
+            while(p != null && p != past) {
                 SNode n = p.next;
-                if (n != null && n.isCancelled())
+                if(n != null && n.isCancelled()) {
                     p.casNext(n, n.next);
-                else
+                } else {
                     p = n;
+                }
             }
         }
-
-        // VarHandle mechanics
-        private static final VarHandle SHEAD;
-        static {
-            try {
-                MethodHandles.Lookup l = MethodHandles.lookup();
-                SHEAD = l.findVarHandle(TransferStack.class, "head", SNode.class);
-            } catch (ReflectiveOperationException e) {
-                throw new ExceptionInInitializerError(e);
-            }
-        }
-    }
-
-    /** Dual Queue */
-    static final class TransferQueue<E> extends Transferer<E> {
-        /*
-         * This extends Scherer-Scott dual queue algorithm, differing,
-         * among other ways, by using modes within nodes rather than
-         * marked pointers. The algorithm is a little simpler than
-         * that for stacks because fulfillers do not need explicit
-         * nodes, and matching is done by CAS'ing QNode.item field
-         * from non-null to null (for put) or vice versa (for take).
-         */
-
-        /** Node class for TransferQueue. */
-        static final class QNode {
-            volatile QNode next;          // next node in queue
-            volatile Object item;         // CAS'ed to or from null
-            volatile Thread waiter;       // to control park/unpark
-            final boolean isData;
-
-            QNode(Object item, boolean isData) {
-                this.item = item;
-                this.isData = isData;
-            }
-
-            boolean casNext(QNode cmp, QNode val) {
-                return next == cmp &&
-                    QNEXT.compareAndSet(this, cmp, val);
-            }
-
-            boolean casItem(Object cmp, Object val) {
-                return item == cmp &&
-                    QITEM.compareAndSet(this, cmp, val);
-            }
-
-            /**
-             * Tries to cancel by CAS'ing ref to this as item.
+        
+        /** Node class for TransferStacks. */
+        // 链栈结点，用于"非公平模式"的同步阻塞队列
+        static final class SNode {
+            // 指向下一个阻塞的结点（操作），方向朝着栈底
+            volatile SNode next;        // next node in stack
+            
+            /*
+             * 指向与当前结点（操作）匹配的结点（操作），方向朝着栈顶
+             * 当设置了match域后，意味着当前结点马上要被处理了
              */
-            void tryCancel(Object cmp) {
-                QITEM.compareAndSet(this, cmp, this);
-            }
-
-            boolean isCancelled() {
-                return item == this;
-            }
-
-            /**
-             * Returns true if this node is known to be off the queue
-             * because its next pointer has been forgotten due to
-             * an advanceHead operation.
-             */
-            boolean isOffList() {
-                return next == this;
-            }
-
+            volatile SNode match;       // the node matched to this
+            
+            // 持有当前结点（操作）的线程
+            volatile Thread waiter;     // to control park/unpark
+            
+            /* Note: item and mode fields don't need to be volatile since they are always written before, and read after, other volatile/atomic operations. */
+            
+            // 对于"存"操作来说，item存储数据；对于"取"(REQUEST)操作来说，item存储0
+            Object item;                // data; or null for REQUESTs
+            
+            // 记录当前操作是"存"(DATA)还是"取"(REQUEST)
+            int mode;
+            
             // VarHandle mechanics
-            private static final VarHandle QITEM;
-            private static final VarHandle QNEXT;
+            private static final VarHandle SMATCH;
+            private static final VarHandle SNEXT;
             static {
                 try {
                     MethodHandles.Lookup l = MethodHandles.lookup();
-                    QITEM = l.findVarHandle(QNode.class, "item", Object.class);
-                    QNEXT = l.findVarHandle(QNode.class, "next", QNode.class);
-                } catch (ReflectiveOperationException e) {
+                    SMATCH = l.findVarHandle(SNode.class, "match", SNode.class);
+                    SNEXT = l.findVarHandle(SNode.class, "next", SNode.class);
+                } catch(ReflectiveOperationException e) {
                     throw new ExceptionInInitializerError(e);
                 }
             }
-        }
-
-        /** Head of queue */
-        transient volatile QNode head;
-        /** Tail of queue */
-        transient volatile QNode tail;
-        /**
-         * Reference to a cancelled node that might not yet have been
-         * unlinked from queue because it was the last inserted node
-         * when it was cancelled.
-         */
-        transient volatile QNode cleanMe;
-
-        TransferQueue() {
-            QNode h = new QNode(null, false); // initialize to dummy node.
-            head = h;
-            tail = h;
-        }
-
-        /**
-         * Tries to cas nh as new head; if successful, unlink
-         * old head's next node to avoid garbage retention.
-         */
-        void advanceHead(QNode h, QNode nh) {
-            if (h == head &&
-                QHEAD.compareAndSet(this, h, nh))
-                h.next = h; // forget old next
-        }
-
-        /**
-         * Tries to cas nt as new tail.
-         */
-        void advanceTail(QNode t, QNode nt) {
-            if (tail == t)
-                QTAIL.compareAndSet(this, t, nt);
-        }
-
-        /**
-         * Tries to CAS cleanMe slot.
-         */
-        boolean casCleanMe(QNode cmp, QNode val) {
-            return cleanMe == cmp &&
-                QCLEANME.compareAndSet(this, cmp, val);
-        }
-
-        /**
-         * Puts or takes an item.
-         */
-        @SuppressWarnings("unchecked")
-        E transfer(E e, boolean timed, long nanos) {
-            /* Basic algorithm is to loop trying to take either of
-             * two actions:
+            
+            SNode(Object item) {
+                this.item = item;
+            }
+            
+            // 原子地更新next域为val
+            boolean casNext(SNode cmp, SNode val) {
+                return cmp == next && SNEXT.compareAndSet(this, cmp, val);
+            }
+            
+            /**
+             * Tries to match node s to this node, if so, waking up thread.
+             * Fulfillers call tryMatch to identify their waiters.
+             * Waiters block until they have been matched.
              *
-             * 1. If queue apparently empty or holding same-mode nodes,
-             *    try to add node to queue of waiters, wait to be
-             *    fulfilled (or cancelled) and return matching item.
+             * @param s the node to match
              *
-             * 2. If queue apparently contains waiting items, and this
-             *    call is of complementary mode, try to fulfill by CAS'ing
-             *    item field of waiting node and dequeuing it, and then
-             *    returning matching item.
-             *
-             * In each case, along the way, check for and try to help
-             * advance head and tail on behalf of other stalled/slow
-             * threads.
-             *
-             * The loop starts off with a null check guarding against
-             * seeing uninitialized head or tail values. This never
-             * happens in current SynchronousQueue, but could if
-             * callers held non-volatile/final ref to the
-             * transferer. The check is here anyway because it places
-             * null checks at top of loop, which is usually faster
-             * than having them implicitly interspersed.
+             * @return true if successfully matched to s
              */
-
-            QNode s = null; // constructed/reused as needed
-            boolean isData = (e != null);
-
-            for (;;) {
-                QNode t = tail;
-                QNode h = head;
-                if (t == null || h == null)         // saw uninitialized value
-                    continue;                       // spin
-
-                if (h == t || t.isData == isData) { // empty or same-mode
-                    QNode tn = t.next;
-                    if (t != tail)                  // inconsistent read
-                        continue;
-                    if (tn != null) {               // lagging tail
-                        advanceTail(t, tn);
-                        continue;
-                    }
-                    if (timed && nanos <= 0L)       // can't wait
-                        return null;
-                    if (s == null)
-                        s = new QNode(e, isData);
-                    if (!t.casNext(null, s))        // failed to link in
-                        continue;
-
-                    advanceTail(t, s);              // swing tail and wait
-                    Object x = awaitFulfill(s, e, timed, nanos);
-                    if (x == s) {                   // wait was cancelled
-                        clean(t, s);
-                        return null;
-                    }
-
-                    if (!s.isOffList()) {           // not already unlinked
-                        advanceHead(t, s);          // unlink if head
-                        if (x != null)              // and forget fields
-                            s.item = s;
-                        s.waiter = null;
-                    }
-                    return (x != null) ? (E)x : e;
-
-                } else {                            // complementary-mode
-                    QNode m = h.next;               // node to fulfill
-                    if (t != tail || m == null || h != head)
-                        continue;                   // inconsistent read
-
-                    Object x = m.item;
-                    if (isData == (x != null) ||    // m already fulfilled
-                        x == m ||                   // m cancelled
-                        !m.casItem(x, e)) {         // lost CAS
-                        advanceHead(h, m);          // dequeue and retry
-                        continue;
-                    }
-
-                    advanceHead(h, m);              // successfully fulfilled
-                    LockSupport.unpark(m.waiter);
-                    return (x != null) ? (E)x : e;
-                }
-            }
-        }
-
-        /**
-         * Spins/blocks until node s is fulfilled.
-         *
-         * @param s the waiting node
-         * @param e the comparison value for checking match
-         * @param timed true if timed wait
-         * @param nanos timeout value
-         * @return matched item, or s if cancelled
-         */
-        Object awaitFulfill(QNode s, E e, boolean timed, long nanos) {
-            /* Same idea as TransferStack.awaitFulfill */
-            final long deadline = timed ? System.nanoTime() + nanos : 0L;
-            Thread w = Thread.currentThread();
-            int spins = (head.next == s)
-                ? (timed ? MAX_TIMED_SPINS : MAX_UNTIMED_SPINS)
-                : 0;
-            for (;;) {
-                if (w.isInterrupted())
-                    s.tryCancel(e);
-                Object x = s.item;
-                if (x != e)
-                    return x;
-                if (timed) {
-                    nanos = deadline - System.nanoTime();
-                    if (nanos <= 0L) {
-                        s.tryCancel(e);
-                        continue;
-                    }
-                }
-                if (spins > 0) {
-                    --spins;
-                    Thread.onSpinWait();
-                }
-                else if (s.waiter == null)
-                    s.waiter = w;
-                else if (!timed)
-                    LockSupport.park(this);
-                else if (nanos > SPIN_FOR_TIMEOUT_THRESHOLD)
-                    LockSupport.parkNanos(this, nanos);
-            }
-        }
-
-        /**
-         * Gets rid of cancelled node s with original predecessor pred.
-         */
-        void clean(QNode pred, QNode s) {
-            s.waiter = null; // forget thread
             /*
-             * At any given time, exactly one node on list cannot be
-             * deleted -- the last inserted node. To accommodate this,
-             * if we cannot delete s, we save its predecessor as
-             * "cleanMe", deleting the previously saved version
-             * first. At least one of node s or the node previously
-             * saved can always be deleted, so this always terminates.
+             * 将结点s作为【待匹配结点】，赋值给当前被阻塞结点的match域，尝试让当前结点与s匹配
+             * 在这个过程中，当前被阻塞的线程（结点）会被唤醒
+             * 如果当前被阻塞结点的match域不为空，则需要判断它与【待匹配结点】是否一致
              */
-            while (pred.next == s) { // Return early if already unlinked
-                QNode h = head;
-                QNode hn = h.next;   // Absorb cancelled first node as head
-                if (hn != null && hn.isCancelled()) {
-                    advanceHead(h, hn);
-                    continue;
+            boolean tryMatch(SNode s) {
+                if(match == null && SMATCH.compareAndSet(this, null, s)) {
+                    Thread w = waiter;
+                    // 如果w==null，说明该操作（结点）被取消了
+                    if(w != null) {    // waiters need at most one unpark
+                        waiter = null;
+                        LockSupport.unpark(w);
+                    }
+                    return true;
                 }
-                QNode t = tail;      // Ensure consistent read for tail
-                if (t == h)
-                    return;
-                QNode tn = t.next;
-                if (t != tail)
-                    continue;
-                if (tn != null) {
-                    advanceTail(t, tn);
-                    continue;
-                }
-                if (s != t) {        // If not tail, try to unsplice
-                    QNode sn = s.next;
-                    if (sn == s || pred.casNext(s, sn))
-                        return;
-                }
-                QNode dp = cleanMe;
-                if (dp != null) {    // Try unlinking previous cancelled node
-                    QNode d = dp.next;
-                    QNode dn;
-                    if (d == null ||               // d is gone or
-                        d == dp ||                 // d is off list or
-                        !d.isCancelled() ||        // d not cancelled or
-                        (d != t &&                 // d not tail and
-                         (dn = d.next) != null &&  //   has successor
-                         dn != d &&                //   that is on list
-                         dp.casNext(d, dn)))       // d unspliced
-                        casCleanMe(dp, null);
-                    if (dp == pred)
-                        return;      // s is already saved node
-                } else if (casCleanMe(null, pred))
-                    return;          // Postpone cleaning s
+                
+                return match == s;
+            }
+            
+            /**
+             * Tries to cancel a wait by matching node to itself.
+             */
+            // 取消操作（将结点的match域设置为自身）
+            void tryCancel() {
+                SMATCH.compareAndSet(this, null, this);
+            }
+            
+            // 判断当前操作是否被取消
+            boolean isCancelled() {
+                return match == this;
             }
         }
-
-        // VarHandle mechanics
-        private static final VarHandle QHEAD;
-        private static final VarHandle QTAIL;
-        private static final VarHandle QCLEANME;
-        static {
-            try {
-                MethodHandles.Lookup l = MethodHandles.lookup();
-                QHEAD = l.findVarHandle(TransferQueue.class, "head",
-                                        QNode.class);
-                QTAIL = l.findVarHandle(TransferQueue.class, "tail",
-                                        QNode.class);
-                QCLEANME = l.findVarHandle(TransferQueue.class, "cleanMe",
-                                           QNode.class);
-            } catch (ReflectiveOperationException e) {
-                throw new ExceptionInInitializerError(e);
-            }
-        }
-    }
-
-    /**
-     * The transferer. Set only in constructor, but cannot be declared
-     * as final without further complicating serialization.  Since
-     * this is accessed only at most once per public method, there
-     * isn't a noticeable performance penalty for using volatile
-     * instead of final here.
-     */
-    private transient volatile Transferer<E> transferer;
-
-    /**
-     * Creates a {@code SynchronousQueue} with nonfair access policy.
-     */
-    public SynchronousQueue() {
-        this(false);
-    }
-
-    /**
-     * Creates a {@code SynchronousQueue} with the specified fairness policy.
-     *
-     * @param fair if true, waiting threads contend in FIFO order for
-     *        access; otherwise the order is unspecified.
-     */
-    public SynchronousQueue(boolean fair) {
-        transferer = fair ? new TransferQueue<E>() : new TransferStack<E>();
-    }
-
-    /**
-     * Adds the specified element to this queue, waiting if necessary for
-     * another thread to receive it.
-     *
-     * @throws InterruptedException {@inheritDoc}
-     * @throws NullPointerException {@inheritDoc}
-     */
-    public void put(E e) throws InterruptedException {
-        if (e == null) throw new NullPointerException();
-        if (transferer.transfer(e, false, 0) == null) {
-            Thread.interrupted();
-            throw new InterruptedException();
-        }
-    }
-
-    /**
-     * Inserts the specified element into this queue, waiting if necessary
-     * up to the specified wait time for another thread to receive it.
-     *
-     * @return {@code true} if successful, or {@code false} if the
-     *         specified waiting time elapses before a consumer appears
-     * @throws InterruptedException {@inheritDoc}
-     * @throws NullPointerException {@inheritDoc}
-     */
-    public boolean offer(E e, long timeout, TimeUnit unit)
-        throws InterruptedException {
-        if (e == null) throw new NullPointerException();
-        if (transferer.transfer(e, true, unit.toNanos(timeout)) != null)
-            return true;
-        if (!Thread.interrupted())
-            return false;
-        throw new InterruptedException();
-    }
-
-    /**
-     * Inserts the specified element into this queue, if another thread is
-     * waiting to receive it.
-     *
-     * @param e the element to add
-     * @return {@code true} if the element was added to this queue, else
-     *         {@code false}
-     * @throws NullPointerException if the specified element is null
-     */
-    public boolean offer(E e) {
-        if (e == null) throw new NullPointerException();
-        return transferer.transfer(e, true, 0) != null;
-    }
-
-    /**
-     * Retrieves and removes the head of this queue, waiting if necessary
-     * for another thread to insert it.
-     *
-     * @return the head of this queue
-     * @throws InterruptedException {@inheritDoc}
-     */
-    public E take() throws InterruptedException {
-        E e = transferer.transfer(null, false, 0);
-        if (e != null)
-            return e;
-        Thread.interrupted();
-        throw new InterruptedException();
-    }
-
-    /**
-     * Retrieves and removes the head of this queue, waiting
-     * if necessary up to the specified wait time, for another thread
-     * to insert it.
-     *
-     * @return the head of this queue, or {@code null} if the
-     *         specified waiting time elapses before an element is present
-     * @throws InterruptedException {@inheritDoc}
-     */
-    public E poll(long timeout, TimeUnit unit) throws InterruptedException {
-        E e = transferer.transfer(null, true, unit.toNanos(timeout));
-        if (e != null || !Thread.interrupted())
-            return e;
-        throw new InterruptedException();
-    }
-
-    /**
-     * Retrieves and removes the head of this queue, if another thread
-     * is currently making an element available.
-     *
-     * @return the head of this queue, or {@code null} if no
-     *         element is available
-     */
-    public E poll() {
-        return transferer.transfer(null, true, 0);
-    }
-
-    /**
-     * Always returns {@code true}.
-     * A {@code SynchronousQueue} has no internal capacity.
-     *
-     * @return {@code true}
-     */
-    public boolean isEmpty() {
-        return true;
-    }
-
-    /**
-     * Always returns zero.
-     * A {@code SynchronousQueue} has no internal capacity.
-     *
-     * @return zero
-     */
-    public int size() {
-        return 0;
-    }
-
-    /**
-     * Always returns zero.
-     * A {@code SynchronousQueue} has no internal capacity.
-     *
-     * @return zero
-     */
-    public int remainingCapacity() {
-        return 0;
-    }
-
-    /**
-     * Does nothing.
-     * A {@code SynchronousQueue} has no internal capacity.
-     */
-    public void clear() {
-    }
-
-    /**
-     * Always returns {@code false}.
-     * A {@code SynchronousQueue} has no internal capacity.
-     *
-     * @param o the element
-     * @return {@code false}
-     */
-    public boolean contains(Object o) {
-        return false;
-    }
-
-    /**
-     * Always returns {@code false}.
-     * A {@code SynchronousQueue} has no internal capacity.
-     *
-     * @param o the element to remove
-     * @return {@code false}
-     */
-    public boolean remove(Object o) {
-        return false;
-    }
-
-    /**
-     * Returns {@code false} unless the given collection is empty.
-     * A {@code SynchronousQueue} has no internal capacity.
-     *
-     * @param c the collection
-     * @return {@code false} unless given collection is empty
-     */
-    public boolean containsAll(Collection<?> c) {
-        return c.isEmpty();
-    }
-
-    /**
-     * Always returns {@code false}.
-     * A {@code SynchronousQueue} has no internal capacity.
-     *
-     * @param c the collection
-     * @return {@code false}
-     */
-    public boolean removeAll(Collection<?> c) {
-        return false;
-    }
-
-    /**
-     * Always returns {@code false}.
-     * A {@code SynchronousQueue} has no internal capacity.
-     *
-     * @param c the collection
-     * @return {@code false}
-     */
-    public boolean retainAll(Collection<?> c) {
-        return false;
-    }
-
-    /**
-     * Always returns {@code null}.
-     * A {@code SynchronousQueue} does not return elements
-     * unless actively waited on.
-     *
-     * @return {@code null}
-     */
-    public E peek() {
-        return null;
-    }
-
-    /**
-     * Returns an empty iterator in which {@code hasNext} always returns
-     * {@code false}.
-     *
-     * @return an empty iterator
-     */
-    public Iterator<E> iterator() {
-        return Collections.emptyIterator();
-    }
-
-    /**
-     * Returns an empty spliterator in which calls to
-     * {@link Spliterator#trySplit() trySplit} always return {@code null}.
-     *
-     * @return an empty spliterator
-     * @since 1.8
-     */
-    public Spliterator<E> spliterator() {
-        return Spliterators.emptySpliterator();
-    }
-
-    /**
-     * Returns a zero-length array.
-     * @return a zero-length array
-     */
-    public Object[] toArray() {
-        return new Object[0];
-    }
-
-    /**
-     * Sets the zeroth element of the specified array to {@code null}
-     * (if the array has non-zero length) and returns it.
-     *
-     * @param a the array
-     * @return the specified array
-     * @throws NullPointerException if the specified array is null
-     */
-    public <T> T[] toArray(T[] a) {
-        if (a.length > 0)
-            a[0] = null;
-        return a;
-    }
-
-    /**
-     * Always returns {@code "[]"}.
-     * @return {@code "[]"}
-     */
-    public String toString() {
-        return "[]";
-    }
-
-    /**
-     * @throws UnsupportedOperationException {@inheritDoc}
-     * @throws ClassCastException            {@inheritDoc}
-     * @throws NullPointerException          {@inheritDoc}
-     * @throws IllegalArgumentException      {@inheritDoc}
-     */
-    public int drainTo(Collection<? super E> c) {
-        Objects.requireNonNull(c);
-        if (c == this)
-            throw new IllegalArgumentException();
-        int n = 0;
-        for (E e; (e = poll()) != null; n++)
-            c.add(e);
-        return n;
-    }
-
-    /**
-     * @throws UnsupportedOperationException {@inheritDoc}
-     * @throws ClassCastException            {@inheritDoc}
-     * @throws NullPointerException          {@inheritDoc}
-     * @throws IllegalArgumentException      {@inheritDoc}
-     */
-    public int drainTo(Collection<? super E> c, int maxElements) {
-        Objects.requireNonNull(c);
-        if (c == this)
-            throw new IllegalArgumentException();
-        int n = 0;
-        for (E e; n < maxElements && (e = poll()) != null; n++)
-            c.add(e);
-        return n;
-    }
-
-    /*
-     * To cope with serialization strategy in the 1.5 version of
-     * SynchronousQueue, we declare some unused classes and fields
-     * that exist solely to enable serializability across versions.
-     * These fields are never used, so are initialized only if this
-     * object is ever serialized or deserialized.
-     */
-
-    @SuppressWarnings("serial")
-    static class WaitQueue implements java.io.Serializable { }
-    static class LifoWaitQueue extends WaitQueue {
-        private static final long serialVersionUID = -3633113410248163686L;
-    }
-    static class FifoWaitQueue extends WaitQueue {
-        private static final long serialVersionUID = -3623113410248163686L;
-    }
-    private ReentrantLock qlock;
-    private WaitQueue waitingProducers;
-    private WaitQueue waitingConsumers;
-
-    /**
-     * Saves this queue to a stream (that is, serializes it).
-     * @param s the stream
-     * @throws java.io.IOException if an I/O error occurs
-     */
-    private void writeObject(java.io.ObjectOutputStream s)
-        throws java.io.IOException {
-        boolean fair = transferer instanceof TransferQueue;
-        if (fair) {
-            qlock = new ReentrantLock(true);
-            waitingProducers = new FifoWaitQueue();
-            waitingConsumers = new FifoWaitQueue();
-        }
-        else {
-            qlock = new ReentrantLock();
-            waitingProducers = new LifoWaitQueue();
-            waitingConsumers = new LifoWaitQueue();
-        }
-        s.defaultWriteObject();
-    }
-
-    /**
-     * Reconstitutes this queue from a stream (that is, deserializes it).
-     * @param s the stream
-     * @throws ClassNotFoundException if the class of a serialized object
-     *         could not be found
-     * @throws java.io.IOException if an I/O error occurs
-     */
-    private void readObject(java.io.ObjectInputStream s)
-        throws java.io.IOException, ClassNotFoundException {
-        s.defaultReadObject();
-        if (waitingProducers instanceof FifoWaitQueue)
-            transferer = new TransferQueue<E>();
-        else
-            transferer = new TransferStack<E>();
-    }
-
-    static {
-        // Reduce the risk of rare disastrous classloading in first call to
-        // LockSupport.park: https://bugs.openjdk.java.net/browse/JDK-8074773
-        Class<?> ensureLoaded = LockSupport.class;
     }
 }

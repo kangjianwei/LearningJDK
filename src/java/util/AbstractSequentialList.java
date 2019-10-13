@@ -57,70 +57,24 @@ package java.util;
  * <a href="{@docRoot}/java.base/java/util/package-summary.html#CollectionsFramework">
  * Java Collections Framework</a>.
  *
- * @author  Josh Bloch
- * @author  Neal Gafter
+ * @author Josh Bloch
+ * @author Neal Gafter
  * @see Collection
  * @see List
  * @see AbstractList
  * @see AbstractCollection
  * @since 1.2
  */
-
+// 对抽象线性表的进一步实现
 public abstract class AbstractSequentialList<E> extends AbstractList<E> {
+    
     /**
      * Sole constructor.  (For invocation by subclass constructors, typically
      * implicit.)
      */
     protected AbstractSequentialList() {
     }
-
-    /**
-     * Returns the element at the specified position in this list.
-     *
-     * <p>This implementation first gets a list iterator pointing to the
-     * indexed element (with {@code listIterator(index)}).  Then, it gets
-     * the element using {@code ListIterator.next} and returns it.
-     *
-     * @throws IndexOutOfBoundsException {@inheritDoc}
-     */
-    public E get(int index) {
-        try {
-            return listIterator(index).next();
-        } catch (NoSuchElementException exc) {
-            throw new IndexOutOfBoundsException("Index: "+index);
-        }
-    }
-
-    /**
-     * Replaces the element at the specified position in this list with the
-     * specified element (optional operation).
-     *
-     * <p>This implementation first gets a list iterator pointing to the
-     * indexed element (with {@code listIterator(index)}).  Then, it gets
-     * the current element using {@code ListIterator.next} and replaces it
-     * with {@code ListIterator.set}.
-     *
-     * <p>Note that this implementation will throw an
-     * {@code UnsupportedOperationException} if the list iterator does not
-     * implement the {@code set} operation.
-     *
-     * @throws UnsupportedOperationException {@inheritDoc}
-     * @throws ClassCastException            {@inheritDoc}
-     * @throws NullPointerException          {@inheritDoc}
-     * @throws IllegalArgumentException      {@inheritDoc}
-     * @throws IndexOutOfBoundsException     {@inheritDoc}
-     */
-    public E set(int index, E element) {
-        try {
-            ListIterator<E> e = listIterator(index);
-            E oldVal = e.next();
-            e.set(element);
-            return oldVal;
-        } catch (NoSuchElementException exc) {
-            throw new IndexOutOfBoundsException("Index: "+index);
-        }
-    }
-
+    
     /**
      * Inserts the specified element at the specified position in this list
      * (optional operation).  Shifts the element currently at that position
@@ -141,45 +95,15 @@ public abstract class AbstractSequentialList<E> extends AbstractList<E> {
      * @throws IllegalArgumentException      {@inheritDoc}
      * @throws IndexOutOfBoundsException     {@inheritDoc}
      */
+    // 将元素element添加到线性表index处
     public void add(int index, E element) {
         try {
             listIterator(index).add(element);
-        } catch (NoSuchElementException exc) {
-            throw new IndexOutOfBoundsException("Index: "+index);
+        } catch(NoSuchElementException exc) {
+            throw new IndexOutOfBoundsException("Index: " + index);
         }
     }
-
-    /**
-     * Removes the element at the specified position in this list (optional
-     * operation).  Shifts any subsequent elements to the left (subtracts one
-     * from their indices).  Returns the element that was removed from the
-     * list.
-     *
-     * <p>This implementation first gets a list iterator pointing to the
-     * indexed element (with {@code listIterator(index)}).  Then, it removes
-     * the element with {@code ListIterator.remove}.
-     *
-     * <p>Note that this implementation will throw an
-     * {@code UnsupportedOperationException} if the list iterator does not
-     * implement the {@code remove} operation.
-     *
-     * @throws UnsupportedOperationException {@inheritDoc}
-     * @throws IndexOutOfBoundsException     {@inheritDoc}
-     */
-    public E remove(int index) {
-        try {
-            ListIterator<E> e = listIterator(index);
-            E outCast = e.next();
-            e.remove();
-            return outCast;
-        } catch (NoSuchElementException exc) {
-            throw new IndexOutOfBoundsException("Index: "+index);
-        }
-    }
-
-
-    // Bulk Operations
-
+    
     /**
      * Inserts all of the elements in the specified collection into this
      * list at the specified position (optional operation).  Shifts the
@@ -209,23 +133,99 @@ public abstract class AbstractSequentialList<E> extends AbstractList<E> {
      * @throws IllegalArgumentException      {@inheritDoc}
      * @throws IndexOutOfBoundsException     {@inheritDoc}
      */
+    // 将指定容器中的元素添加到当前线性表的index处
     public boolean addAll(int index, Collection<? extends E> c) {
         try {
             boolean modified = false;
             ListIterator<E> e1 = listIterator(index);
-            for (E e : c) {
+            for(E e : c) {
                 e1.add(e);
                 modified = true;
             }
             return modified;
-        } catch (NoSuchElementException exc) {
-            throw new IndexOutOfBoundsException("Index: "+index);
+        } catch(NoSuchElementException exc) {
+            throw new IndexOutOfBoundsException("Index: " + index);
         }
     }
-
-
-    // Iterators
-
+    
+    /**
+     * Returns the element at the specified position in this list.
+     *
+     * <p>This implementation first gets a list iterator pointing to the
+     * indexed element (with {@code listIterator(index)}).  Then, it gets
+     * the element using {@code ListIterator.next} and returns it.
+     *
+     * @throws IndexOutOfBoundsException {@inheritDoc}
+     */
+    // 获取指定索引处的元素
+    public E get(int index) {
+        try {
+            return listIterator(index).next();
+        } catch(NoSuchElementException exc) {
+            throw new IndexOutOfBoundsException("Index: " + index);
+        }
+    }
+    
+    /**
+     * Removes the element at the specified position in this list (optional
+     * operation).  Shifts any subsequent elements to the left (subtracts one
+     * from their indices).  Returns the element that was removed from the
+     * list.
+     *
+     * <p>This implementation first gets a list iterator pointing to the
+     * indexed element (with {@code listIterator(index)}).  Then, it removes
+     * the element with {@code ListIterator.remove}.
+     *
+     * <p>Note that this implementation will throw an
+     * {@code UnsupportedOperationException} if the list iterator does not
+     * implement the {@code remove} operation.
+     *
+     * @throws UnsupportedOperationException {@inheritDoc}
+     * @throws IndexOutOfBoundsException     {@inheritDoc}
+     */
+    // 移除索引index处的元素，返回被移除的元素
+    public E remove(int index) {
+        try {
+            ListIterator<E> e = listIterator(index);
+            E outCast = e.next();
+            e.remove();
+            return outCast;
+        } catch(NoSuchElementException exc) {
+            throw new IndexOutOfBoundsException("Index: " + index);
+        }
+    }
+    
+    /**
+     * Replaces the element at the specified position in this list with the
+     * specified element (optional operation).
+     *
+     * <p>This implementation first gets a list iterator pointing to the
+     * indexed element (with {@code listIterator(index)}).  Then, it gets
+     * the current element using {@code ListIterator.next} and replaces it
+     * with {@code ListIterator.set}.
+     *
+     * <p>Note that this implementation will throw an
+     * {@code UnsupportedOperationException} if the list iterator does not
+     * implement the {@code set} operation.
+     *
+     * @throws UnsupportedOperationException {@inheritDoc}
+     * @throws ClassCastException            {@inheritDoc}
+     * @throws NullPointerException          {@inheritDoc}
+     * @throws IllegalArgumentException      {@inheritDoc}
+     * @throws IndexOutOfBoundsException     {@inheritDoc}
+     */
+    // 将index处的元素更新为element，并返回旧元素
+    public E set(int index, E element) {
+        try {
+            ListIterator<E> e = listIterator(index);
+            E oldVal = e.next();
+            e.set(element);
+            return oldVal;
+        } catch(NoSuchElementException exc) {
+            throw new IndexOutOfBoundsException("Index: " + index);
+        }
+    }
+    
     /**
      * Returns an iterator over the elements in this list (in proper
      * sequence).<p>
@@ -234,19 +234,24 @@ public abstract class AbstractSequentialList<E> extends AbstractList<E> {
      *
      * @return an iterator over the elements in this list (in proper sequence)
      */
+    // 返回当前线性表的一个迭代器
     public Iterator<E> iterator() {
         return listIterator();
     }
-
+    
     /**
      * Returns a list iterator over the elements in this list (in proper
      * sequence).
      *
-     * @param  index index of first element to be returned from the list
-     *         iterator (by a call to the {@code next} method)
+     * @param index index of first element to be returned from the list
+     *              iterator (by a call to the {@code next} method)
+     *
      * @return a list iterator over the elements in this list (in proper
-     *         sequence)
+     * sequence)
+     *
      * @throws IndexOutOfBoundsException {@inheritDoc}
      */
+    // 返回当前线性表的一个增强的迭代器，且设定下一个待遍历元素为索引index处的元素
     public abstract ListIterator<E> listIterator(int index);
+    
 }

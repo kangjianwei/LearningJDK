@@ -25,6 +25,8 @@
 
 package java.util;
 
+import java.io.Serializable;
+import java.lang.reflect.Array;
 import jdk.internal.misc.SharedSecrets;
 
 /**
@@ -48,7 +50,7 @@ import jdk.internal.misc.SharedSecrets;
  * throw {@link NullPointerException}.  Attempts to test for the
  * presence of a null key or to remove one will, however, function properly.
  * Null values are permitted.
-
+ *
  * <P>Like most collection implementations {@code EnumMap} is not
  * synchronized. If multiple threads access an enum map concurrently, and at
  * least one of the threads modifies the map, it should be synchronized
@@ -75,33 +77,14 @@ import jdk.internal.misc.SharedSecrets;
  * @see EnumSet
  * @since 1.5
  */
-public class EnumMap<K extends Enum<K>, V> extends AbstractMap<K, V>
-    implements java.io.Serializable, Cloneable
-{
-    /**
-     * The {@code Class} object for the enum type of all the keys of this map.
-     *
-     * @serial
-     */
-    private final Class<K> keyType;
 
-    /**
-     * All of the values comprising K.  (Cached for performance.)
-     */
-    private transient K[] keyUniverse;
-
-    /**
-     * Array representation of this map.  The ith element is the value
-     * to which universe[i] is currently mapped, or null if it isn't
-     * mapped to anything, or NULL if it's mapped to null.
-     */
-    private transient Object[] vals;
-
-    /**
-     * The number of mappings in this map.
-     */
-    private transient int size = 0;
-
+/*
+ * EnumMap结构：数组(不可扩容)。key不能为null，但value可以为null
+ *
+ * 注：key必须为Enum类型或其子类
+ */
+public class EnumMap<K extends Enum<K>, V> extends AbstractMap<K, V> implements Serializable, Cloneable {
+    
     /**
      * Distinguished non-null value for representing null values.
      */
@@ -109,38 +92,67 @@ public class EnumMap<K extends Enum<K>, V> extends AbstractMap<K, V>
         public int hashCode() {
             return 0;
         }
-
+        
         public String toString() {
             return "java.util.EnumMap.NULL";
         }
-    };
-
-    private Object maskNull(Object value) {
-        return (value == null ? NULL : value);
-    }
-
-    @SuppressWarnings("unchecked")
-    private V unmaskNull(Object value) {
-        return (V)(value == NULL ? null : value);
-    }
-
+    };  // 专用空值
+    
+    /**
+     * The {@code Class} object for the enum type of all the keys of this map.
+     *
+     * @serial
+     */
+    private final Class<K> keyType;     // key的类型，必须是枚举类型。该类型(包含的枚举常量的数量)决定了哈希数组的容量
+    
+    /**
+     * All of the values comprising K.  (Cached for performance.)
+     */
+    private transient K[] keyUniverse;  // key的集合
+    
+    /**
+     * Array representation of this map.  The ith element is the value
+     * to which universe[i] is currently mapped, or null if it isn't
+     * mapped to anything, or NULL if it's mapped to null.
+     */
+    private transient Object[] vals;    // value的集合
+    
+    /**
+     * This field is initialized to contain an instance of the entry set
+     * view the first time this view is requested.  The view is stateless,
+     * so there's no reason to create more than one.
+     */
+    private transient Set<Map.Entry<K, V>> entrySet;    // entry的集合
+    
+    /**
+     * The number of mappings in this map.
+     */
+    private transient int size = 0;     // 当前Map中元素的数量
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates an empty enum map with the specified key type.
      *
      * @param keyType the class object of the key type for this enum map
+     *
      * @throws NullPointerException if {@code keyType} is null
      */
     public EnumMap(Class<K> keyType) {
         this.keyType = keyType;
+        // 获取枚举类keyType中所有常量元素的集合（将作为EnumMap的key使用）
         keyUniverse = getKeyUniverse(keyType);
         vals = new Object[keyUniverse.length];
     }
-
+    
     /**
      * Creates an enum map with the same key type as the specified enum
      * map, initially containing the same mappings (if any).
      *
      * @param m the enum map from which to initialize this enum map
+     *
      * @throws NullPointerException if {@code m} is null
      */
     public EnumMap(EnumMap<K, ? extends V> m) {
@@ -149,7 +161,7 @@ public class EnumMap<K extends Enum<K>, V> extends AbstractMap<K, V>
         vals = m.vals.clone();
         size = m.size;
     }
-
+    
     /**
      * Creates an enum map initialized from the specified map.  If the
      * specified map is an {@code EnumMap} instance, this constructor behaves
@@ -158,72 +170,125 @@ public class EnumMap<K extends Enum<K>, V> extends AbstractMap<K, V>
      * enum map's key type).
      *
      * @param m the map from which to initialize this enum map
+     *
      * @throws IllegalArgumentException if {@code m} is not an
-     *     {@code EnumMap} instance and contains no mappings
-     * @throws NullPointerException if {@code m} is null
+     *                                  {@code EnumMap} instance and contains no mappings
+     * @throws NullPointerException     if {@code m} is null
      */
     public EnumMap(Map<K, ? extends V> m) {
-        if (m instanceof EnumMap) {
+        if(m instanceof EnumMap) {
             EnumMap<K, ? extends V> em = (EnumMap<K, ? extends V>) m;
             keyType = em.keyType;
             keyUniverse = em.keyUniverse;
             vals = em.vals.clone();
             size = em.size;
         } else {
-            if (m.isEmpty())
+            if(m.isEmpty()) {
                 throw new IllegalArgumentException("Specified map is empty");
+            }
+            
             keyType = m.keySet().iterator().next().getDeclaringClass();
+            
+            // 获取枚举类keyType中所有常量元素的集合（将作为EnumMap的key使用）
             keyUniverse = getKeyUniverse(keyType);
+            
             vals = new Object[keyUniverse.length];
+            
             putAll(m);
         }
     }
-
-    // Query Operations
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 存值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns the number of key-value mappings in this map.
+     * Associates the specified value with the specified key in this map.
+     * If the map previously contained a mapping for this key, the old
+     * value is replaced.
      *
-     * @return the number of key-value mappings in this map
+     * @param key   the key with which the specified value is to be associated
+     * @param value the value to be associated with the specified key
+     *
+     * @return the previous value associated with specified key, or
+     * {@code null} if there was no mapping for key.  (A {@code null}
+     * return can also indicate that the map previously associated
+     * {@code null} with the specified key.)
+     *
+     * @throws NullPointerException if the specified key is null
      */
-    public int size() {
-        return size;
+    // 将指定的元素（key-value）存入EnumMap，并返回旧值，允许覆盖
+    public V put(K key, V value) {
+        typeCheck(key);
+        
+        // 获取枚举实例的值（索引）
+        int index = key.ordinal();
+        
+        // 获取旧值
+        Object oldValue = vals[index];
+        
+        // (包装空值)如果value是null，返回一个专用空值。否则，原样返回
+        vals[index] = maskNull(value);
+        
+        // 如果此处没有元素，则计数增一(刚刚插入了新元素)
+        if(oldValue == null) {
+            size++;
+        }
+        
+        // (解析空值)如果oldValue是一个专用空值，返回null。否则，原样返回
+        return unmaskNull(oldValue);
     }
-
+    
     /**
-     * Returns {@code true} if this map maps one or more keys to the
-     * specified value.
+     * Copies all of the mappings from the specified map to this map.
+     * These mappings will replace any mappings that this map had for
+     * any of the keys currently in the specified map.
      *
-     * @param value the value whose presence in this map is to be tested
-     * @return {@code true} if this map maps one or more keys to this value
-     */
-    public boolean containsValue(Object value) {
-        value = maskNull(value);
-
-        for (Object val : vals)
-            if (value.equals(val))
-                return true;
-
-        return false;
-    }
-
-    /**
-     * Returns {@code true} if this map contains a mapping for the specified
-     * key.
+     * @param m the mappings to be stored in this map
      *
-     * @param key the key whose presence in this map is to be tested
-     * @return {@code true} if this map contains a mapping for the specified
-     *            key
+     * @throws NullPointerException the specified map is null, or if
+     *                              one or more keys in the specified map are null
      */
-    public boolean containsKey(Object key) {
-        return isValidKey(key) && vals[((Enum<?>)key).ordinal()] != null;
+    // 将指定Map中的元素存入到当前Map（允许覆盖）
+    public void putAll(Map<? extends K, ? extends V> m) {
+        if(m instanceof EnumMap) {
+            EnumMap<?, ?> em = (EnumMap<?, ?>) m;
+            
+            if(em.keyType != keyType) {
+                // 虽然key的类型不一致，但给定的Map为空，所以直接返回
+                if(em.isEmpty()) {
+                    return;
+                }
+                
+                // 类型不同，抛异常
+                throw new ClassCastException(em.keyType + " != " + keyType);
+            }
+            
+            // 将指定Map中的键值对复制到当前Map中
+            for(int i = 0; i<keyUniverse.length; i++) {
+                Object emValue = em.vals[i];
+                if(emValue != null) {
+                    if(vals[i] == null) {
+                        size++;
+                    }
+                    
+                    vals[i] = emValue;
+                }
+            }
+        } else {
+            // 对于普通的Map，需要使用普通的put方式
+            super.putAll(m);
+        }
     }
-
-    private boolean containsMapping(Object key, Object value) {
-        return isValidKey(key) &&
-            maskNull(value).equals(vals[((Enum<?>)key).ordinal()]);
-    }
-
+    
+    /*▲ 存值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 取值 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns the value to which the specified key is mapped,
      * or {@code null} if this map contains no mapping for the key.
@@ -239,133 +304,136 @@ public class EnumMap<K extends Enum<K>, V> extends AbstractMap<K, V>
      * The {@link #containsKey containsKey} operation may be used to
      * distinguish these two cases.
      */
+    // 根据指定的key获取对应的value，如果不存在，则返回null
     public V get(Object key) {
-        return (isValidKey(key) ?
-                unmaskNull(vals[((Enum<?>)key).ordinal()]) : null);
+        // 如果key不合规，返回null
+        if(!isValidKey(key)) {
+            return null;
+        }
+        
+        // 获取枚举实例的值（索引）
+        int index = ((Enum<?>) key).ordinal();
+        
+        // 获取key对应的value
+        Object value = vals[index];
+        
+        // (解析空值)如果value是一个专用空值，返回null。否则，原样返回
+        return unmaskNull(value);
     }
-
-    // Modification Operations
-
-    /**
-     * Associates the specified value with the specified key in this map.
-     * If the map previously contained a mapping for this key, the old
-     * value is replaced.
-     *
-     * @param key the key with which the specified value is to be associated
-     * @param value the value to be associated with the specified key
-     *
-     * @return the previous value associated with specified key, or
-     *     {@code null} if there was no mapping for key.  (A {@code null}
-     *     return can also indicate that the map previously associated
-     *     {@code null} with the specified key.)
-     * @throws NullPointerException if the specified key is null
-     */
-    public V put(K key, V value) {
-        typeCheck(key);
-
-        int index = key.ordinal();
-        Object oldValue = vals[index];
-        vals[index] = maskNull(value);
-        if (oldValue == null)
-            size++;
-        return unmaskNull(oldValue);
-    }
-
+    
+    /*▲ 取值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 移除 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Removes the mapping for this key from this map if present.
      *
      * @param key the key whose mapping is to be removed from the map
+     *
      * @return the previous value associated with specified key, or
-     *     {@code null} if there was no entry for key.  (A {@code null}
-     *     return can also indicate that the map previously associated
-     *     {@code null} with the specified key.)
+     * {@code null} if there was no entry for key.  (A {@code null}
+     * return can also indicate that the map previously associated
+     * {@code null} with the specified key.)
      */
+    // 移除拥有指定key的元素，并返回刚刚移除的元素的值
     public V remove(Object key) {
-        if (!isValidKey(key))
+        // 如果key不合规，返回null
+        if(!isValidKey(key)) {
             return null;
-        int index = ((Enum<?>)key).ordinal();
+        }
+        
+        // 获取枚举实例的值（索引）
+        int index = ((Enum<?>) key).ordinal();
+        
+        // 获取key对应的value
         Object oldValue = vals[index];
+        
+        // 置空当前位置
         vals[index] = null;
-        if (oldValue != null)
+        
+        // 计数递减
+        if(oldValue != null) {
             size--;
+        }
+        
         return unmaskNull(oldValue);
     }
-
-    private boolean removeMapping(Object key, Object value) {
-        if (!isValidKey(key))
-            return false;
-        int index = ((Enum<?>)key).ordinal();
-        if (maskNull(value).equals(vals[index])) {
-            vals[index] = null;
-            size--;
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Returns true if key is of the proper type to be a key in this
-     * enum map.
-     */
-    private boolean isValidKey(Object key) {
-        if (key == null)
-            return false;
-
-        // Cheaper than instanceof Enum followed by getDeclaringClass
-        Class<?> keyClass = key.getClass();
-        return keyClass == keyType || keyClass.getSuperclass() == keyType;
-    }
-
-    // Bulk Operations
-
-    /**
-     * Copies all of the mappings from the specified map to this map.
-     * These mappings will replace any mappings that this map had for
-     * any of the keys currently in the specified map.
-     *
-     * @param m the mappings to be stored in this map
-     * @throws NullPointerException the specified map is null, or if
-     *     one or more keys in the specified map are null
-     */
-    public void putAll(Map<? extends K, ? extends V> m) {
-        if (m instanceof EnumMap) {
-            EnumMap<?, ?> em = (EnumMap<?, ?>)m;
-            if (em.keyType != keyType) {
-                if (em.isEmpty())
-                    return;
-                throw new ClassCastException(em.keyType + " != " + keyType);
-            }
-
-            for (int i = 0; i < keyUniverse.length; i++) {
-                Object emValue = em.vals[i];
-                if (emValue != null) {
-                    if (vals[i] == null)
-                        size++;
-                    vals[i] = emValue;
-                }
-            }
-        } else {
-            super.putAll(m);
-        }
-    }
-
+    
+    
     /**
      * Removes all mappings from this map.
      */
+    // 清空EnumMap中所有元素
     public void clear() {
         Arrays.fill(vals, null);
         size = 0;
     }
-
-    // Views
-
+    
+    /*▲ 移除 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 替换 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /*▲ 替换 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 包含查询 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * This field is initialized to contain an instance of the entry set
-     * view the first time this view is requested.  The view is stateless,
-     * so there's no reason to create more than one.
+     * Returns {@code true} if this map contains a mapping for the specified
+     * key.
+     *
+     * @param key the key whose presence in this map is to be tested
+     *
+     * @return {@code true} if this map contains a mapping for the specified
+     * key
      */
-    private transient Set<Map.Entry<K,V>> entrySet;
-
+    // 判断EnumMap中是否存在指定key的元素
+    public boolean containsKey(Object key) {
+        // 如果key不合规，返回false
+        if(!isValidKey(key)) {
+            return false;
+        }
+        
+        // 获取枚举实例的值（索引）
+        int index = ((Enum<?>) key).ordinal();
+        
+        return vals[index] != null;
+    }
+    
+    /**
+     * Returns {@code true} if this map maps one or more keys to the
+     * specified value.
+     *
+     * @param value the value whose presence in this map is to be tested
+     *
+     * @return {@code true} if this map maps one or more keys to this value
+     */
+    // 判断EnumMap中是否存在指定value的元素
+    public boolean containsValue(Object value) {
+        // (包装空值)如果value是null，返回一个专用空值。否则，原样返回
+        value = maskNull(value);
+        
+        // 遍历所有值
+        for(Object val : vals) {
+            if(value.equals(val)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /*▲ 包含查询 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 视图 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns a {@link Set} view of the keys contained in this map.
      * The returned set obeys the general contract outlined in
@@ -375,35 +443,12 @@ public class EnumMap<K extends Enum<K>, V> extends AbstractMap<K, V>
      *
      * @return a set view of the keys contained in this enum map
      */
+    // 获取EnumMap中key的集合
     public Set<K> keySet() {
         Set<K> ks = keySet;
-        if (ks == null) {
-            ks = new KeySet();
-            keySet = ks;
-        }
-        return ks;
+        return ks!=null ? ks : (keySet= new KeySet());
     }
-
-    private class KeySet extends AbstractSet<K> {
-        public Iterator<K> iterator() {
-            return new KeyIterator();
-        }
-        public int size() {
-            return size;
-        }
-        public boolean contains(Object o) {
-            return containsKey(o);
-        }
-        public boolean remove(Object o) {
-            int oldSize = size;
-            EnumMap.this.remove(o);
-            return size != oldSize;
-        }
-        public void clear() {
-            EnumMap.this.clear();
-        }
-    }
-
+    
     /**
      * Returns a {@link Collection} view of the values contained in this map.
      * The returned collection obeys the general contract outlined in
@@ -414,42 +459,12 @@ public class EnumMap<K extends Enum<K>, V> extends AbstractMap<K, V>
      *
      * @return a collection view of the values contained in this map
      */
+    // 获取EnumMap中value的集合
     public Collection<V> values() {
         Collection<V> vs = values;
-        if (vs == null) {
-            vs = new Values();
-            values = vs;
-        }
-        return vs;
+        return vs!=null ? vs : (values= new Values());
     }
-
-    private class Values extends AbstractCollection<V> {
-        public Iterator<V> iterator() {
-            return new ValueIterator();
-        }
-        public int size() {
-            return size;
-        }
-        public boolean contains(Object o) {
-            return containsValue(o);
-        }
-        public boolean remove(Object o) {
-            o = maskNull(o);
-
-            for (int i = 0; i < vals.length; i++) {
-                if (o.equals(vals[i])) {
-                    vals[i] = null;
-                    size--;
-                    return true;
-                }
-            }
-            return false;
-        }
-        public void clear() {
-            EnumMap.this.clear();
-        }
-    }
-
+    
     /**
      * Returns a {@link Set} view of the mappings contained in this map.
      * The returned set obeys the general contract outlined in
@@ -459,188 +474,102 @@ public class EnumMap<K extends Enum<K>, V> extends AbstractMap<K, V>
      *
      * @return a set view of the mappings contained in this enum map
      */
-    public Set<Map.Entry<K,V>> entrySet() {
-        Set<Map.Entry<K,V>> es = entrySet;
-        if (es != null)
-            return es;
-        else
-            return entrySet = new EntrySet();
+    // 获取EnumMap中key-value对的集合
+    public Set<Map.Entry<K, V>> entrySet() {
+        Set<Map.Entry<K, V>> es = entrySet;
+        return es != null ? es : (entrySet = new EntrySet());
     }
-
-    private class EntrySet extends AbstractSet<Map.Entry<K,V>> {
-        public Iterator<Map.Entry<K,V>> iterator() {
-            return new EntryIterator();
-        }
-
-        public boolean contains(Object o) {
-            if (!(o instanceof Map.Entry))
-                return false;
-            Map.Entry<?,?> entry = (Map.Entry<?,?>)o;
-            return containsMapping(entry.getKey(), entry.getValue());
-        }
-        public boolean remove(Object o) {
-            if (!(o instanceof Map.Entry))
-                return false;
-            Map.Entry<?,?> entry = (Map.Entry<?,?>)o;
-            return removeMapping(entry.getKey(), entry.getValue());
-        }
-        public int size() {
-            return size;
-        }
-        public void clear() {
-            EnumMap.this.clear();
-        }
-        public Object[] toArray() {
-            return fillEntryArray(new Object[size]);
-        }
-        @SuppressWarnings("unchecked")
-        public <T> T[] toArray(T[] a) {
-            int size = size();
-            if (a.length < size)
-                a = (T[])java.lang.reflect.Array
-                    .newInstance(a.getClass().getComponentType(), size);
-            if (a.length > size)
-                a[size] = null;
-            return (T[]) fillEntryArray(a);
-        }
-        private Object[] fillEntryArray(Object[] a) {
-            int j = 0;
-            for (int i = 0; i < vals.length; i++)
-                if (vals[i] != null)
-                    a[j++] = new AbstractMap.SimpleEntry<>(
-                        keyUniverse[i], unmaskNull(vals[i]));
-            return a;
-        }
+    
+    /*▲ 视图 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 遍历 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /*▲ 遍历 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 重新映射 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /*▲ 重新映射 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the number of key-value mappings in this map.
+     *
+     * @return the number of key-value mappings in this map
+     */
+    // 获取EnumMap中的元素数量
+    public int size() {
+        return size;
     }
-
-    private abstract class EnumMapIterator<T> implements Iterator<T> {
-        // Lower bound on index of next element to return
-        int index = 0;
-
-        // Index of last returned element, or -1 if none
-        int lastReturnedIndex = -1;
-
-        public boolean hasNext() {
-            while (index < vals.length && vals[index] == null)
-                index++;
-            return index != vals.length;
-        }
-
-        public void remove() {
-            checkLastReturnedIndex();
-
-            if (vals[lastReturnedIndex] != null) {
-                vals[lastReturnedIndex] = null;
-                size--;
-            }
-            lastReturnedIndex = -1;
-        }
-
-        private void checkLastReturnedIndex() {
-            if (lastReturnedIndex < 0)
-                throw new IllegalStateException();
-        }
-    }
-
-    private class KeyIterator extends EnumMapIterator<K> {
-        public K next() {
-            if (!hasNext())
-                throw new NoSuchElementException();
-            lastReturnedIndex = index++;
-            return keyUniverse[lastReturnedIndex];
-        }
-    }
-
-    private class ValueIterator extends EnumMapIterator<V> {
-        public V next() {
-            if (!hasNext())
-                throw new NoSuchElementException();
-            lastReturnedIndex = index++;
-            return unmaskNull(vals[lastReturnedIndex]);
-        }
-    }
-
-    private class EntryIterator extends EnumMapIterator<Map.Entry<K,V>> {
-        private Entry lastReturnedEntry;
-
-        public Map.Entry<K,V> next() {
-            if (!hasNext())
-                throw new NoSuchElementException();
-            lastReturnedEntry = new Entry(index++);
-            return lastReturnedEntry;
-        }
-
-        public void remove() {
-            lastReturnedIndex =
-                ((null == lastReturnedEntry) ? -1 : lastReturnedEntry.index);
-            super.remove();
-            lastReturnedEntry.index = lastReturnedIndex;
-            lastReturnedEntry = null;
-        }
-
-        private class Entry implements Map.Entry<K,V> {
-            private int index;
-
-            private Entry(int index) {
-                this.index = index;
-            }
-
-            public K getKey() {
-                checkIndexForEntryUse();
-                return keyUniverse[index];
-            }
-
-            public V getValue() {
-                checkIndexForEntryUse();
-                return unmaskNull(vals[index]);
-            }
-
-            public V setValue(V value) {
-                checkIndexForEntryUse();
-                V oldValue = unmaskNull(vals[index]);
-                vals[index] = maskNull(value);
-                return oldValue;
-            }
-
-            public boolean equals(Object o) {
-                if (index < 0)
-                    return o == this;
-
-                if (!(o instanceof Map.Entry))
-                    return false;
-
-                Map.Entry<?,?> e = (Map.Entry<?,?>)o;
-                V ourValue = unmaskNull(vals[index]);
-                Object hisValue = e.getValue();
-                return (e.getKey() == keyUniverse[index] &&
-                        (ourValue == hisValue ||
-                         (ourValue != null && ourValue.equals(hisValue))));
-            }
-
-            public int hashCode() {
-                if (index < 0)
-                    return super.hashCode();
-
-                return entryHashCode(index);
-            }
-
-            public String toString() {
-                if (index < 0)
-                    return super.toString();
-
-                return keyUniverse[index] + "="
-                    + unmaskNull(vals[index]);
-            }
-
-            private void checkIndexForEntryUse() {
-                if (index < 0)
-                    throw new IllegalStateException("Entry was removed");
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    private static final long serialVersionUID = 458661240069192865L;
+    
+    /**
+     * Save the state of the {@code EnumMap} instance to a stream (i.e.,
+     * serialize it).
+     *
+     * @serialData The <i>size</i> of the enum map (the number of key-value
+     * mappings) is emitted (int), followed by the key (Object)
+     * and value (Object) for each key-value mapping represented
+     * by the enum map.
+     */
+    private void writeObject(java.io.ObjectOutputStream s) throws java.io.IOException {
+        // Write out the key type and any hidden stuff
+        s.defaultWriteObject();
+        
+        // Write out size (number of Mappings)
+        s.writeInt(size);
+        
+        // Write out keys and values (alternating)
+        int entriesToBeWritten = size;
+        for(int i = 0; entriesToBeWritten>0; i++) {
+            if(null != vals[i]) {
+                s.writeObject(keyUniverse[i]);
+                s.writeObject(unmaskNull(vals[i]));
+                entriesToBeWritten--;
             }
         }
     }
-
-    // Comparison and hashing
-
+    
+    /**
+     * Reconstitute the {@code EnumMap} instance from a stream (i.e.,
+     * deserialize it).
+     */
+    @SuppressWarnings("unchecked")
+    private void readObject(java.io.ObjectInputStream s) throws java.io.IOException, ClassNotFoundException {
+        // Read in the key type and any hidden stuff
+        s.defaultReadObject();
+        
+        keyUniverse = getKeyUniverse(keyType);
+        vals = new Object[keyUniverse.length];
+        
+        // Read in size (number of Mappings)
+        int size = s.readInt();
+        
+        // Read the keys and values, and put the mappings in the HashMap
+        for(int i = 0; i<size; i++) {
+            K key = (K) s.readObject();
+            V value = (V) s.readObject();
+            put(key, value);
+        }
+    }
+    
+    /*▲ 序列化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
     /**
      * Compares the specified object with this map for equality.  Returns
      * {@code true} if the given object is also a map and the two maps
@@ -648,75 +577,62 @@ public class EnumMap<K extends Enum<K>, V> extends AbstractMap<K, V>
      * Map#equals(Object)} contract.
      *
      * @param o the object to be compared for equality with this map
+     *
      * @return {@code true} if the specified object is equal to this map
      */
     public boolean equals(Object o) {
-        if (this == o)
+        if(this == o) {
             return true;
-        if (o instanceof EnumMap)
-            return equals((EnumMap<?,?>)o);
-        if (!(o instanceof Map))
+        }
+        
+        if(o instanceof EnumMap) {
+            return equals((EnumMap<?, ?>) o);
+        }
+        
+        if(!(o instanceof Map)) {
             return false;
-
-        Map<?,?> m = (Map<?,?>)o;
-        if (size != m.size())
+        }
+        
+        Map<?, ?> m = (Map<?, ?>) o;
+        if(size != m.size()) {
             return false;
-
-        for (int i = 0; i < keyUniverse.length; i++) {
-            if (null != vals[i]) {
+        }
+        
+        for(int i = 0; i<keyUniverse.length; i++) {
+            if(null != vals[i]) {
                 K key = keyUniverse[i];
                 V value = unmaskNull(vals[i]);
-                if (null == value) {
-                    if (!((null == m.get(key)) && m.containsKey(key)))
-                       return false;
+                if(null == value) {
+                    if(!((null == m.get(key)) && m.containsKey(key))) {
+                        return false;
+                    }
                 } else {
-                   if (!value.equals(m.get(key)))
-                      return false;
+                    if(!value.equals(m.get(key))) {
+                        return false;
+                    }
                 }
             }
         }
-
+        
         return true;
     }
-
-    private boolean equals(EnumMap<?,?> em) {
-        if (em.size != size)
-            return false;
-
-        if (em.keyType != keyType)
-            return size == 0;
-
-        // Key types match, compare each value
-        for (int i = 0; i < keyUniverse.length; i++) {
-            Object ourValue =    vals[i];
-            Object hisValue = em.vals[i];
-            if (hisValue != ourValue &&
-                (hisValue == null || !hisValue.equals(ourValue)))
-                return false;
-        }
-        return true;
-    }
-
+    
     /**
      * Returns the hash code value for this map.  The hash code of a map is
      * defined to be the sum of the hash codes of each entry in the map.
      */
     public int hashCode() {
         int h = 0;
-
-        for (int i = 0; i < keyUniverse.length; i++) {
-            if (null != vals[i]) {
+        
+        for(int i = 0; i<keyUniverse.length; i++) {
+            if(null != vals[i]) {
                 h += entryHashCode(i);
             }
         }
-
+        
         return h;
     }
-
-    private int entryHashCode(int index) {
-        return (keyUniverse[index].hashCode() ^ vals[index].hashCode());
-    }
-
+    
     /**
      * Returns a shallow copy of this enum map. The values themselves
      * are not cloned.
@@ -735,78 +651,387 @@ public class EnumMap<K extends Enum<K>, V> extends AbstractMap<K, V>
         result.entrySet = null;
         return result;
     }
-
+    
+    
+    
+    /**
+     * Returns all of the values comprising K.
+     * The result is uncloned, cached, and shared by all callers.
+     */
+    // 获取枚举类keyType中所有常量元素的集合（将作为EnumMap的key使用）
+    private static <K extends Enum<K>> K[] getKeyUniverse(Class<K> keyType) {
+        return SharedSecrets.getJavaLangAccess().getEnumConstantsShared(keyType);
+    }
+    
+    // (包装空值)如果value是null，返回一个专用空值。否则，原样返回
+    private Object maskNull(Object value) {
+        return (value == null ? NULL : value);
+    }
+    
+    // (解析空值)如果value是一个专用空值，返回null。否则，原样返回
+    @SuppressWarnings("unchecked")
+    private V unmaskNull(Object value) {
+        return (V) (value == NULL ? null : value);
+    }
+    
+    // 判断当前Map中是否包含指定的键值对
+    private boolean containsMapping(Object key, Object value) {
+        if(!isValidKey(key)) {
+            return false;
+        }
+        
+        // 获取枚举实例的值（索引）
+        int index = ((Enum<?>) key).ordinal();
+        
+        // 获取key对应的value
+        Object oldValue = vals[index];
+        
+        return maskNull(value).equals(oldValue);
+    }
+    
+    // 移除指定的键值对，返回值指示是否成功移除
+    private boolean removeMapping(Object key, Object value) {
+        if(!isValidKey(key)) {
+            return false;
+        }
+        
+        // 获取枚举实例的值（索引）
+        int index = ((Enum<?>) key).ordinal();
+        
+        // 如果当前Map中包含指定的键值对，则将其移除
+        if(maskNull(value).equals(vals[index])) {
+            vals[index] = null;
+            size--;
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Returns true if key is of the proper type to be a key in this
+     * enum map.
+     */
+    // 验证key是否有效
+    private boolean isValidKey(Object key) {
+        if(key == null) {
+            return false;
+        }
+        
+        // Cheaper than instanceof Enum followed by getDeclaringClass
+        Class<?> keyClass = key.getClass();
+        return keyClass == keyType || keyClass.getSuperclass() == keyType;
+    }
+    
+    private boolean equals(EnumMap<?, ?> em) {
+        if(em.size != size)
+            return false;
+        
+        if(em.keyType != keyType)
+            return size == 0;
+        
+        // Key types match, compare each value
+        for(int i = 0; i<keyUniverse.length; i++) {
+            Object ourValue = vals[i];
+            Object hisValue = em.vals[i];
+            if(hisValue != ourValue && (hisValue == null || !hisValue.equals(ourValue)))
+                return false;
+        }
+        return true;
+    }
+    
+    private int entryHashCode(int index) {
+        return (keyUniverse[index].hashCode() ^ vals[index].hashCode());
+    }
+    
     /**
      * Throws an exception if e is not of the correct type for this enum set.
      */
     private void typeCheck(K key) {
         Class<?> keyClass = key.getClass();
-        if (keyClass != keyType && keyClass.getSuperclass() != keyType)
+        if(keyClass != keyType && keyClass.getSuperclass() != keyType) {
             throw new ClassCastException(keyClass + " != " + keyType);
+        }
     }
-
-    /**
-     * Returns all of the values comprising K.
-     * The result is uncloned, cached, and shared by all callers.
-     */
-    private static <K extends Enum<K>> K[] getKeyUniverse(Class<K> keyType) {
-        return SharedSecrets.getJavaLangAccess()
-                                        .getEnumConstantsShared(keyType);
+    
+    
+    
+    
+    
+    
+    // key的集合
+    private class KeySet extends AbstractSet<K> {
+        public Iterator<K> iterator() {
+            return new KeyIterator();
+        }
+        
+        public int size() {
+            return size;
+        }
+        
+        public boolean contains(Object o) {
+            return containsKey(o);
+        }
+        
+        public boolean remove(Object o) {
+            int oldSize = size;
+            EnumMap.this.remove(o);
+            return size != oldSize;
+        }
+        
+        public void clear() {
+            EnumMap.this.clear();
+        }
     }
-
-    private static final long serialVersionUID = 458661240069192865L;
-
-    /**
-     * Save the state of the {@code EnumMap} instance to a stream (i.e.,
-     * serialize it).
-     *
-     * @serialData The <i>size</i> of the enum map (the number of key-value
-     *             mappings) is emitted (int), followed by the key (Object)
-     *             and value (Object) for each key-value mapping represented
-     *             by the enum map.
-     */
-    private void writeObject(java.io.ObjectOutputStream s)
-        throws java.io.IOException
-    {
-        // Write out the key type and any hidden stuff
-        s.defaultWriteObject();
-
-        // Write out size (number of Mappings)
-        s.writeInt(size);
-
-        // Write out keys and values (alternating)
-        int entriesToBeWritten = size;
-        for (int i = 0; entriesToBeWritten > 0; i++) {
-            if (null != vals[i]) {
-                s.writeObject(keyUniverse[i]);
-                s.writeObject(unmaskNull(vals[i]));
-                entriesToBeWritten--;
+    
+    // value的集合
+    private class Values extends AbstractCollection<V> {
+        public Iterator<V> iterator() {
+            return new ValueIterator();
+        }
+        
+        public int size() {
+            return size;
+        }
+        
+        public boolean contains(Object o) {
+            return containsValue(o);
+        }
+        
+        public boolean remove(Object o) {
+            o = maskNull(o);
+            
+            for(int i = 0; i<vals.length; i++) {
+                if(o.equals(vals[i])) {
+                    vals[i] = null;
+                    size--;
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        public void clear() {
+            EnumMap.this.clear();
+        }
+    }
+    
+    // key-value的集合
+    private class EntrySet extends AbstractSet<Map.Entry<K, V>> {
+        public Iterator<Map.Entry<K, V>> iterator() {
+            return new EntryIterator();
+        }
+        
+        public boolean contains(Object o) {
+            if(!(o instanceof Map.Entry)) {
+                return false;
+            }
+            
+            Map.Entry<?, ?> entry = (Map.Entry<?, ?>) o;
+            
+            // 判断当前Map中是否包含指定的键值对
+            return containsMapping(entry.getKey(), entry.getValue());
+        }
+        
+        public boolean remove(Object o) {
+            if(!(o instanceof Map.Entry)) {
+                return false;
+            }
+            
+            Map.Entry<?, ?> entry = (Map.Entry<?, ?>) o;
+            
+            // 移除指定的键值对，返回值指示是否成功移除
+            return removeMapping(entry.getKey(), entry.getValue());
+        }
+        
+        public int size() {
+            return size;
+        }
+        
+        public void clear() {
+            EnumMap.this.clear();
+        }
+        
+        public Object[] toArray() {
+            return fillEntryArray(new Object[size]);
+        }
+        
+        @SuppressWarnings("unchecked")
+        public <T> T[] toArray(T[] a) {
+            int size = size();
+            
+            if(a.length<size) {
+                a = (T[]) Array.newInstance(a.getClass().getComponentType(), size);
+            }
+            
+            if(a.length>size) {
+                a[size] = null;
+            }
+            
+            return (T[]) fillEntryArray(a);
+        }
+        
+        private Object[] fillEntryArray(Object[] a) {
+            int j = 0;
+            
+            for(int i = 0; i<vals.length; i++) {
+                if(vals[i] != null) {
+                    a[j++] = new SimpleEntry<>(keyUniverse[i], unmaskNull(vals[i]));
+                }
+            }
+            
+            return a;
+        }
+    }
+    
+    
+    
+    // 迭代器，用来遍历EnumMap中的key、value、entry
+    private abstract class EnumMapIterator<T> implements Iterator<T> {
+        // Lower bound on index of next element to return
+        int index = 0;  // 指向下一个未遍历元素(可能指向空槽)
+        
+        // Index of last returned element, or -1 if none
+        int lastReturnedIndex = -1;     // 记录上次遍历命中的元素
+        
+        // 是否存在下一个未遍历元素
+        public boolean hasNext() {
+            // 跳过没有值的空槽
+            while(index<vals.length && vals[index] == null) {
+                index++;
+            }
+            
+            return index != vals.length;
+        }
+        
+        // 移除上一个遍历的元素
+        public void remove() {
+            checkLastReturnedIndex();
+            
+            if(vals[lastReturnedIndex] != null) {
+                vals[lastReturnedIndex] = null;
+                size--;
+            }
+            
+            lastReturnedIndex = -1;
+        }
+        
+        private void checkLastReturnedIndex() {
+            if(lastReturnedIndex<0) {
+                throw new IllegalStateException();
             }
         }
     }
-
-    /**
-     * Reconstitute the {@code EnumMap} instance from a stream (i.e.,
-     * deserialize it).
-     */
-    @SuppressWarnings("unchecked")
-    private void readObject(java.io.ObjectInputStream s)
-        throws java.io.IOException, ClassNotFoundException
-    {
-        // Read in the key type and any hidden stuff
-        s.defaultReadObject();
-
-        keyUniverse = getKeyUniverse(keyType);
-        vals = new Object[keyUniverse.length];
-
-        // Read in size (number of Mappings)
-        int size = s.readInt();
-
-        // Read the keys and values, and put the mappings in the HashMap
-        for (int i = 0; i < size; i++) {
-            K key = (K) s.readObject();
-            V value = (V) s.readObject();
-            put(key, value);
+    
+    // key的迭代器
+    private class KeyIterator extends EnumMapIterator<K> {
+        // 返回下一个key
+        public K next() {
+            if(!hasNext()) {
+                throw new NoSuchElementException();
+            }
+            
+            lastReturnedIndex = index++;
+            return keyUniverse[lastReturnedIndex];
         }
     }
+    
+    // value的迭代器
+    private class ValueIterator extends EnumMapIterator<V> {
+        // 返回下一个value
+        public V next() {
+            if(!hasNext()) {
+                throw new NoSuchElementException();
+            }
+            
+            lastReturnedIndex = index++;
+            return unmaskNull(vals[lastReturnedIndex]);
+        }
+    }
+    
+    // entry的迭代器
+    private class EntryIterator extends EnumMapIterator<Map.Entry<K, V>> {
+        private Entry lastReturnedEntry;
+        
+        // 返回下一个entry
+        public Map.Entry<K, V> next() {
+            if(!hasNext()) {
+                throw new NoSuchElementException();
+            }
+            
+            lastReturnedEntry = new Entry(index++);
+            return lastReturnedEntry;
+        }
+        
+        // 移除上一个遍历的元素
+        public void remove() {
+            lastReturnedIndex = ((null == lastReturnedEntry) ? -1 : lastReturnedEntry.index);
+            super.remove();
+            lastReturnedEntry.index = lastReturnedIndex;
+            lastReturnedEntry = null;
+        }
+        
+        private class Entry implements Map.Entry<K, V> {
+            private int index;
+            
+            private Entry(int index) {
+                this.index = index;
+            }
+            
+            public K getKey() {
+                checkIndexForEntryUse();
+                return keyUniverse[index];
+            }
+            
+            public V getValue() {
+                checkIndexForEntryUse();
+                return unmaskNull(vals[index]);
+            }
+            
+            public V setValue(V value) {
+                checkIndexForEntryUse();
+                V oldValue = unmaskNull(vals[index]);
+                vals[index] = maskNull(value);
+                return oldValue;
+            }
+            
+            public boolean equals(Object o) {
+                if(index<0) {
+                    return o == this;
+                }
+                
+                if(!(o instanceof Map.Entry)) {
+                    return false;
+                }
+                
+                Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
+                V ourValue = unmaskNull(vals[index]);
+                Object hisValue = e.getValue();
+                return (e.getKey() == keyUniverse[index] && (ourValue == hisValue || (ourValue != null && ourValue.equals(hisValue))));
+            }
+            
+            public int hashCode() {
+                if(index<0) {
+                    return super.hashCode();
+                }
+                
+                return entryHashCode(index);
+            }
+            
+            public String toString() {
+                if(index<0) {
+                    return super.toString();
+                }
+                
+                return keyUniverse[index] + "=" + unmaskNull(vals[index]);
+            }
+            
+            private void checkIndexForEntryUse() {
+                if(index<0) {
+                    throw new IllegalStateException("Entry was removed");
+                }
+            }
+        }
+    }
+    
 }
