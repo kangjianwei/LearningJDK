@@ -29,22 +29,19 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * A {@code ByteArrayInputStream} contains
- * an internal buffer that contains bytes that
- * may be read from the stream. An internal
- * counter keeps track of the next byte to
- * be supplied by the {@code read} method.
+ * A {@code ByteArrayInputStream} contains an internal buffer that contains bytes that may be read from the stream.
+ * An internal counter keeps track of the next byte to be supplied by the {@code read} method.
  * <p>
- * Closing a {@code ByteArrayInputStream} has no effect. The methods in
- * this class can be called after the stream has been closed without
- * generating an {@code IOException}.
+ * Closing a {@code ByteArrayInputStream} has no effect.
+ * The methods in this class can be called after the stream has been closed without generating an {@code IOException}.
  *
- * @author  Arthur van Hoff
- * @see     java.io.StringBufferInputStream
- * @since   1.0
+ * @author Arthur van Hoff
+ * @see java.io.StringBufferInputStream
+ * @since 1.0
  */
+// 字节数组输入流：将字节数组作为输入源
 public class ByteArrayInputStream extends InputStream {
-
+    
     /**
      * An array of bytes that was provided
      * by the creator of the stream. Elements {@code buf[0]}
@@ -53,8 +50,19 @@ public class ByteArrayInputStream extends InputStream {
      * stream;  element {@code buf[pos]} is
      * the next byte to be read.
      */
-    protected byte buf[];
-
+    protected byte[] buf;   // 提供输入源的字节数组
+    
+    /**
+     * The index one greater than the last valid character in the input
+     * stream buffer.
+     * This value should always be nonnegative
+     * and not larger than the length of {@code buf}.
+     * It  is one greater than the position of
+     * the last byte within {@code buf} that
+     * can ever be read  from the input stream buffer.
+     */
+    protected int count;    // 可读数据的上界
+    
     /**
      * The index of the next character to read from the input stream buffer.
      * This value should always be nonnegative
@@ -62,8 +70,8 @@ public class ByteArrayInputStream extends InputStream {
      * The next byte to be read from the input stream buffer
      * will be {@code buf[pos]}.
      */
-    protected int pos;
-
+    protected int pos;      // "读游标"
+    
     /**
      * The currently marked position in the stream.
      * ByteArrayInputStream objects are marked at position zero by
@@ -75,21 +83,14 @@ public class ByteArrayInputStream extends InputStream {
      * If no mark has been set, then the value of mark is the offset
      * passed to the constructor (or 0 if the offset was not supplied).
      *
-     * @since   1.1
+     * @since 1.1
      */
-    protected int mark = 0;
-
-    /**
-     * The index one greater than the last valid character in the input
-     * stream buffer.
-     * This value should always be nonnegative
-     * and not larger than the length of {@code buf}.
-     * It  is one greater than the position of
-     * the last byte within {@code buf} that
-     * can ever be read  from the input stream buffer.
-     */
-    protected int count;
-
+    protected int mark = 0; // 存档标记
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates a {@code ByteArrayInputStream}
      * so that it  uses {@code buf} as its
@@ -100,14 +101,14 @@ public class ByteArrayInputStream extends InputStream {
      * of  {@code count} is the length of
      * {@code buf}.
      *
-     * @param   buf   the input buffer.
+     * @param buf the input buffer.
      */
-    public ByteArrayInputStream(byte buf[]) {
+    public ByteArrayInputStream(byte[] buf) {
         this.buf = buf;
         this.pos = 0;
         this.count = buf.length;
     }
-
+    
     /**
      * Creates {@code ByteArrayInputStream}
      * that uses {@code buf} as its
@@ -118,17 +119,23 @@ public class ByteArrayInputStream extends InputStream {
      * The buffer array is not copied. The buffer's mark is
      * set to the specified offset.
      *
-     * @param   buf      the input buffer.
-     * @param   offset   the offset in the buffer of the first byte to read.
-     * @param   length   the maximum number of bytes to read from the buffer.
+     * @param buf    the input buffer.
+     * @param offset the offset in the buffer of the first byte to read.
+     * @param length the maximum number of bytes to read from the buffer.
      */
-    public ByteArrayInputStream(byte buf[], int offset, int length) {
+    public ByteArrayInputStream(byte[] buf, int offset, int length) {
         this.buf = buf;
         this.pos = offset;
         this.count = Math.min(offset + length, buf.length);
         this.mark = offset;
     }
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 读 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Reads the next byte of data from this input stream. The value
      * byte is returned as an {@code int} in the range
@@ -139,13 +146,16 @@ public class ByteArrayInputStream extends InputStream {
      * This {@code read} method
      * cannot block.
      *
-     * @return  the next byte of data, or {@code -1} if the end of the
-     *          stream has been reached.
+     * @return the next byte of data, or {@code -1} if the end of the
+     * stream has been reached.
+     */
+    /*
+     * 尝试从当前输入流读取一个字节，读取成功直接返回，读取失败返回-1
      */
     public synchronized int read() {
-        return (pos < count) ? (buf[pos++] & 0xff) : -1;
+        return (pos<count) ? (buf[pos++] & 0xff) : -1;
     }
-
+    
     /**
      * Reads up to {@code len} bytes of data into an array of bytes from this
      * input stream.  If {@code pos} equals {@code count}, then {@code -1} is
@@ -158,101 +168,84 @@ public class ByteArrayInputStream extends InputStream {
      * <p>
      * This {@code read} method cannot block.
      *
-     * @param   b     the buffer into which the data is read.
-     * @param   off   the start offset in the destination array {@code b}
-     * @param   len   the maximum number of bytes read.
-     * @return  the total number of bytes read into the buffer, or
-     *          {@code -1} if there is no more data because the end of
-     *          the stream has been reached.
-     * @throws  NullPointerException If {@code b} is {@code null}.
-     * @throws  IndexOutOfBoundsException If {@code off} is negative,
-     * {@code len} is negative, or {@code len} is greater than
-     * {@code b.length - off}
+     * @param b   the buffer into which the data is read.
+     * @param off the start offset in the destination array {@code b}
+     * @param len the maximum number of bytes read.
+     *
+     * @return the total number of bytes read into the buffer, or
+     * {@code -1} if there is no more data because the end of
+     * the stream has been reached.
+     *
+     * @throws NullPointerException      If {@code b} is {@code null}.
+     * @throws IndexOutOfBoundsException If {@code off} is negative,
+     *                                   {@code len} is negative, or {@code len} is greater than
+     *                                   {@code b.length - off}
      */
-    public synchronized int read(byte b[], int off, int len) {
+    /*
+     * 尝试从当前输入流读取len个字节，并将读到的内容插入到字节数组b的off索引处
+     * 返回值表示成功读取的字节数量(可能小于预期值)，返回-1表示已经没有可读内容了
+     */
+    public synchronized int read(byte[] b, int off, int len) {
         Objects.checkFromIndexSize(off, len, b.length);
-
-        if (pos >= count) {
+        
+        if(pos >= count) {
             return -1;
         }
-
+        
         int avail = count - pos;
-        if (len > avail) {
+        if(len>avail) {
             len = avail;
         }
-        if (len <= 0) {
+        
+        if(len<=0) {
             return 0;
         }
+        
+        // 复制数据
         System.arraycopy(buf, pos, b, off, len);
+        
         pos += len;
+        
         return len;
     }
-
+    
+    // 尝试从输入流读取全部字节，成功读取到的内容(可能少于预期)会被存入字节数组后返回
     public synchronized byte[] readAllBytes() {
         byte[] result = Arrays.copyOfRange(buf, pos, count);
         pos = count;
         return result;
     }
-
+    
+    /*
+     * 从当前输入流读取len个字节，并将读到的内容插入到字节数组b的off索引处
+     * 返回值表示成功读取的字节数量(可能小于预期值)，返回0表示已经没有可读内容了
+     *
+     * 与read(byte[], int, int)不同的是，在遇到IO异常时，read方法会直接退出，
+     * 而readNBytes方法会忽略该异常，继续读取，直到读够len个字节，除非，已经没有可读数据后才会结束。
+     */
     public int readNBytes(byte[] b, int off, int len) {
         int n = read(b, off, len);
         return n == -1 ? 0 : n;
     }
-
-    public synchronized long transferTo(OutputStream out) throws IOException {
-        int len = count - pos;
-        out.write(buf, pos, len);
-        pos = count;
-        return len;
-    }
-
-    /**
-     * Skips {@code n} bytes of input from this input stream. Fewer
-     * bytes might be skipped if the end of the input stream is reached.
-     * The actual number {@code k}
-     * of bytes to be skipped is equal to the smaller
-     * of {@code n} and  {@code count-pos}.
-     * The value {@code k} is added into {@code pos}
-     * and {@code k} is returned.
-     *
-     * @param   n   the number of bytes to be skipped.
-     * @return  the actual number of bytes skipped.
-     */
-    public synchronized long skip(long n) {
-        long k = count - pos;
-        if (n < k) {
-            k = n < 0 ? 0 : n;
-        }
-
-        pos += k;
-        return k;
-    }
-
-    /**
-     * Returns the number of remaining bytes that can be read (or skipped over)
-     * from this input stream.
-     * <p>
-     * The value returned is {@code count - pos},
-     * which is the number of bytes remaining to be read from the input buffer.
-     *
-     * @return  the number of remaining bytes that can be read (or skipped
-     *          over) from this input stream without blocking.
-     */
-    public synchronized int available() {
-        return count - pos;
-    }
-
+    
+    /*▲ 读 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 存档 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Tests if this {@code InputStream} supports mark/reset. The
      * {@code markSupported} method of {@code ByteArrayInputStream}
      * always returns {@code true}.
      *
-     * @since   1.1
+     * @since 1.1
      */
+    // 判断当前输入流是否支持存档标记
     public boolean markSupported() {
         return true;
     }
-
+    
     /**
      * Set the current marked position in the stream.
      * ByteArrayInputStream objects are marked at position zero by
@@ -264,29 +257,93 @@ public class ByteArrayInputStream extends InputStream {
      * supplied).
      *
      * <p> Note: The {@code readAheadLimit} for this class
-     *  has no meaning.
+     * has no meaning.
      *
-     * @since   1.1
+     * @since 1.1
      */
+    // 设置存档标记，此处未设存档上限
     public void mark(int readAheadLimit) {
         mark = pos;
     }
-
+    
     /**
      * Resets the buffer to the marked position.  The marked position
      * is 0 unless another position was marked or an offset was specified
      * in the constructor.
      */
+    // 重置"读游标"到存档区的起始位置
     public synchronized void reset() {
         pos = mark;
     }
-
+    
+    /*▲ 存档 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 转移 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 将当前输入流中的字节转移到输出流中，返回值表示成功转移的字节数
+    public synchronized long transferTo(OutputStream out) throws IOException {
+        int len = count - pos;
+        out.write(buf, pos, len);
+        pos = count;
+        return len;
+    }
+    
+    /*▲ 转移 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Closing a {@code ByteArrayInputStream} has no effect. The methods in
      * this class can be called after the stream has been closed without
      * generating an {@code IOException}.
      */
+    // 关闭输入流
     public void close() throws IOException {
     }
-
+    
+    /**
+     * Returns the number of remaining bytes that can be read (or skipped over)
+     * from this input stream.
+     * <p>
+     * The value returned is {@code count - pos},
+     * which is the number of bytes remaining to be read from the input buffer.
+     *
+     * @return the number of remaining bytes that can be read (or skipped
+     * over) from this input stream without blocking.
+     */
+    // 返回可读的字节数量
+    public synchronized int available() {
+        return count - pos;
+    }
+    
+    /**
+     * Skips {@code n} bytes of input from this input stream. Fewer
+     * bytes might be skipped if the end of the input stream is reached.
+     * The actual number {@code k}
+     * of bytes to be skipped is equal to the smaller
+     * of {@code n} and  {@code count-pos}.
+     * The value {@code k} is added into {@code pos}
+     * and {@code k} is returned.
+     *
+     * @param n the number of bytes to be skipped.
+     *
+     * @return the actual number of bytes skipped.
+     */
+    // 读取中跳过n个字节，返回实际跳过的字节数
+    public synchronized long skip(long n) {
+        long k = count - pos;
+        if(n<k) {
+            k = n<0 ? 0 : n;
+        }
+        
+        pos += k;
+        return k;
+    }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }
