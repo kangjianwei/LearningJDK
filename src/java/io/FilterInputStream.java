@@ -39,29 +39,40 @@ package java.io;
  * and may also provide additional methods
  * and fields.
  *
- * @author  Jonathan Payne
- * @since   1.0
+ * @author Jonathan Payne
+ * @since 1.0
  */
-public
-class FilterInputStream extends InputStream {
+// 对输入流的简单包装，由子类实现具体的包装行为
+public class FilterInputStream extends InputStream {
+    
     /**
      * The input stream to be filtered.
      */
-    protected volatile InputStream in;
-
+    protected volatile InputStream in;      // 包装的输入流
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates a <code>FilterInputStream</code>
      * by assigning the  argument <code>in</code>
      * to the field <code>this.in</code> so as
      * to remember it for later use.
      *
-     * @param   in   the underlying input stream, or <code>null</code> if
-     *          this instance is to be created without an underlying stream.
+     * @param in the underlying input stream, or <code>null</code> if
+     *           this instance is to be created without an underlying stream.
      */
     protected FilterInputStream(InputStream in) {
         this.in = in;
     }
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 读 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Reads the next byte of data from this input stream. The value
      * byte is returned as an <code>int</code> in the range
@@ -74,15 +85,19 @@ class FilterInputStream extends InputStream {
      * This method
      * simply performs <code>in.read()</code> and returns the result.
      *
-     * @return     the next byte of data, or <code>-1</code> if the end of the
-     *             stream is reached.
-     * @exception  IOException  if an I/O error occurs.
-     * @see        java.io.FilterInputStream#in
+     * @return the next byte of data, or <code>-1</code> if the end of the
+     * stream is reached.
+     *
+     * @throws IOException if an I/O error occurs.
+     * @see java.io.FilterInputStream#in
+     */
+    /*
+     * 尝试从当前输入流读取一个字节，读取成功直接返回，读取失败返回-1
      */
     public int read() throws IOException {
         return in.read();
     }
-
+    
     /**
      * Reads up to <code>b.length</code> bytes of data from this
      * input stream into an array of bytes. This method blocks until some
@@ -96,17 +111,23 @@ class FilterInputStream extends InputStream {
      * depend on the implementation strategy actually
      * used.
      *
-     * @param      b   the buffer into which the data is read.
-     * @return     the total number of bytes read into the buffer, or
-     *             <code>-1</code> if there is no more data because the end of
-     *             the stream has been reached.
-     * @exception  IOException  if an I/O error occurs.
-     * @see        java.io.FilterInputStream#read(byte[], int, int)
+     * @param b the buffer into which the data is read.
+     *
+     * @return the total number of bytes read into the buffer, or
+     * <code>-1</code> if there is no more data because the end of
+     * the stream has been reached.
+     *
+     * @throws IOException if an I/O error occurs.
+     * @see java.io.FilterInputStream#read(byte[], int, int)
      */
-    public int read(byte b[]) throws IOException {
+    /*
+     * 尝试从当前输入流读取dst.length个字节，并将读到的内容插入到dst的起点处
+     * 返回值表示成功读取的字节数量(可能小于预期值)，返回-1表示已经没有可读内容了
+     */
+    public int read(byte[] b) throws IOException {
         return read(b, 0, b.length);
     }
-
+    
     /**
      * Reads up to <code>len</code> bytes of data from this input stream
      * into an array of bytes. If <code>len</code> is not zero, the method
@@ -116,70 +137,54 @@ class FilterInputStream extends InputStream {
      * This method simply performs <code>in.read(b, off, len)</code>
      * and returns the result.
      *
-     * @param      b     the buffer into which the data is read.
-     * @param      off   the start offset in the destination array <code>b</code>
-     * @param      len   the maximum number of bytes read.
-     * @return     the total number of bytes read into the buffer, or
-     *             <code>-1</code> if there is no more data because the end of
-     *             the stream has been reached.
-     * @exception  NullPointerException If <code>b</code> is <code>null</code>.
-     * @exception  IndexOutOfBoundsException If <code>off</code> is negative,
-     * <code>len</code> is negative, or <code>len</code> is greater than
-     * <code>b.length - off</code>
-     * @exception  IOException  if an I/O error occurs.
-     * @see        java.io.FilterInputStream#in
+     * @param b   the buffer into which the data is read.
+     * @param off the start offset in the destination array <code>b</code>
+     * @param len the maximum number of bytes read.
+     *
+     * @return the total number of bytes read into the buffer, or
+     * <code>-1</code> if there is no more data because the end of
+     * the stream has been reached.
+     *
+     * @throws NullPointerException      If <code>b</code> is <code>null</code>.
+     * @throws IndexOutOfBoundsException If <code>off</code> is negative,
+     *                                   <code>len</code> is negative, or <code>len</code> is greater than
+     *                                   <code>b.length - off</code>
+     * @throws IOException               if an I/O error occurs.
+     * @see java.io.FilterInputStream#in
      */
-    public int read(byte b[], int off, int len) throws IOException {
+    /*
+     * 尝试从当前输入流读取len个字节，并将读到的内容插入到字节数组b的off索引处
+     * 返回值表示成功读取的字节数量(可能小于预期值)，返回-1表示已经没有可读内容了
+     */
+    public int read(byte[] b, int off, int len) throws IOException {
         return in.read(b, off, len);
     }
-
+    
+    /*▲ 读 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 存档 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Skips over and discards <code>n</code> bytes of data from the
-     * input stream. The <code>skip</code> method may, for a variety of
-     * reasons, end up skipping over some smaller number of bytes,
-     * possibly <code>0</code>. The actual number of bytes skipped is
-     * returned.
-     * <p>
-     * This method simply performs <code>in.skip(n)</code>.
+     * Tests if this input stream supports the <code>mark</code>
+     * and <code>reset</code> methods.
+     * This method
+     * simply performs <code>in.markSupported()</code>.
      *
-     * @param      n   the number of bytes to be skipped.
-     * @return     the actual number of bytes skipped.
-     * @throws     IOException  if {@code in.skip(n)} throws an IOException.
-     */
-    public long skip(long n) throws IOException {
-        return in.skip(n);
-    }
-
-    /**
-     * Returns an estimate of the number of bytes that can be read (or
-     * skipped over) from this input stream without blocking by the next
-     * caller of a method for this input stream. The next caller might be
-     * the same thread or another thread.  A single read or skip of this
-     * many bytes will not block, but may read or skip fewer bytes.
-     * <p>
-     * This method returns the result of {@link #in in}.available().
+     * @return <code>true</code> if this stream type supports the
+     * <code>mark</code> and <code>reset</code> method;
+     * <code>false</code> otherwise.
      *
-     * @return     an estimate of the number of bytes that can be read (or skipped
-     *             over) from this input stream without blocking.
-     * @exception  IOException  if an I/O error occurs.
+     * @see java.io.FilterInputStream#in
+     * @see java.io.InputStream#mark(int)
+     * @see java.io.InputStream#reset()
      */
-    public int available() throws IOException {
-        return in.available();
+    // 判断当前输入流是否支持存档标记
+    public boolean markSupported() {
+        return in.markSupported();
     }
-
-    /**
-     * Closes this input stream and releases any system resources
-     * associated with the stream.
-     * This
-     * method simply performs <code>in.close()</code>.
-     *
-     * @exception  IOException  if an I/O error occurs.
-     * @see        java.io.FilterInputStream#in
-     */
-    public void close() throws IOException {
-        in.close();
-    }
-
+    
     /**
      * Marks the current position in this input stream. A subsequent
      * call to the <code>reset</code> method repositions this stream at
@@ -191,15 +196,17 @@ class FilterInputStream extends InputStream {
      * <p>
      * This method simply performs <code>in.mark(readlimit)</code>.
      *
-     * @param   readlimit   the maximum limit of bytes that can be read before
-     *                      the mark position becomes invalid.
-     * @see     java.io.FilterInputStream#in
-     * @see     java.io.FilterInputStream#reset()
+     * @param readlimit the maximum limit of bytes that can be read before
+     *                  the mark position becomes invalid.
+     *
+     * @see java.io.FilterInputStream#in
+     * @see java.io.FilterInputStream#reset()
      */
+    // 设置存档标记，readlimit是存档上限
     public synchronized void mark(int readlimit) {
         in.mark(readlimit);
     }
-
+    
     /**
      * Repositions this stream to the position at the time the
      * <code>mark</code> method was last called on this input stream.
@@ -216,29 +223,75 @@ class FilterInputStream extends InputStream {
      * If this happens within readlimit bytes, it allows the outer
      * code to reset the stream and try another parser.
      *
-     * @exception  IOException  if the stream has not been marked or if the
-     *               mark has been invalidated.
-     * @see        java.io.FilterInputStream#in
-     * @see        java.io.FilterInputStream#mark(int)
+     * @throws IOException if the stream has not been marked or if the
+     *                     mark has been invalidated.
+     * @see java.io.FilterInputStream#in
+     * @see java.io.FilterInputStream#mark(int)
      */
+    // 对于支持设置存档的输入流，可以重置其"读游标"到存档区的起始位置
     public synchronized void reset() throws IOException {
         in.reset();
     }
-
+    
+    /*▲ 存档 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Tests if this input stream supports the <code>mark</code>
-     * and <code>reset</code> methods.
-     * This method
-     * simply performs <code>in.markSupported()</code>.
+     * Closes this input stream and releases any system resources
+     * associated with the stream.
+     * This
+     * method simply performs <code>in.close()</code>.
      *
-     * @return  <code>true</code> if this stream type supports the
-     *          <code>mark</code> and <code>reset</code> method;
-     *          <code>false</code> otherwise.
-     * @see     java.io.FilterInputStream#in
-     * @see     java.io.InputStream#mark(int)
-     * @see     java.io.InputStream#reset()
+     * @throws IOException if an I/O error occurs.
+     * @see java.io.FilterInputStream#in
      */
-    public boolean markSupported() {
-        return in.markSupported();
+    // 关闭输入流
+    public void close() throws IOException {
+        in.close();
     }
+    
+    /**
+     * Returns an estimate of the number of bytes that can be read (or
+     * skipped over) from this input stream without blocking by the next
+     * caller of a method for this input stream. The next caller might be
+     * the same thread or another thread.  A single read or skip of this
+     * many bytes will not block, but may read or skip fewer bytes.
+     * <p>
+     * This method returns the result of {@link #in in}.available().
+     *
+     * @return an estimate of the number of bytes that can be read (or skipped
+     * over) from this input stream without blocking.
+     *
+     * @throws IOException if an I/O error occurs.
+     */
+    // 返回剩余可不被阻塞地读取（或跳过）的字节数（估计值）
+    public int available() throws IOException {
+        return in.available();
+    }
+    
+    /**
+     * Skips over and discards <code>n</code> bytes of data from the
+     * input stream. The <code>skip</code> method may, for a variety of
+     * reasons, end up skipping over some smaller number of bytes,
+     * possibly <code>0</code>. The actual number of bytes skipped is
+     * returned.
+     * <p>
+     * This method simply performs <code>in.skip(n)</code>.
+     *
+     * @param n the number of bytes to be skipped.
+     *
+     * @return the actual number of bytes skipped.
+     *
+     * @throws IOException if {@code in.skip(n)} throws an IOException.
+     */
+    // 读取中跳过n个字节，返回实际跳过的字节数
+    public long skip(long n) throws IOException {
+        return in.skip(n);
+    }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }
