@@ -45,36 +45,47 @@ package java.io;
  * can read until it  sees the operator and
  * then push the operator back to be re-read.
  *
- * @author  David Connelly
- * @author  Jonathan Payne
- * @since   1.0
+ * @author David Connelly
+ * @author Jonathan Payne
+ * @since 1.0
  */
-public
-class PushbackInputStream extends FilterInputStream {
+// 回推输入流，可以将一些字节暂时填充到回推缓冲区以便后续读取
+public class PushbackInputStream extends FilterInputStream {
+    
     /**
      * The pushback buffer.
-     * @since   1.1
+     *
+     * @since 1.1
      */
-    protected byte[] buf;
-
+    protected byte[] buf;   // 回推缓冲区
+    
     /**
      * The position within the pushback buffer from which the next byte will
      * be read.  When the buffer is empty, <code>pos</code> is equal to
      * <code>buf.length</code>; when the buffer is full, <code>pos</code> is
      * equal to zero.
      *
-     * @since   1.1
+     * @since 1.1
      */
-    protected int pos;
-
+    protected int pos;      // 指向回退数据的起点
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Check to make sure that this stream has not been closed
+     * Creates a <code>PushbackInputStream</code>
+     * with a 1-byte pushback buffer, and saves its argument, the input stream
+     * <code>in</code>, for later use. Initially,
+     * the pushback buffer is empty.
+     *
+     * @param in the input stream from which bytes will be read.
      */
-    private void ensureOpen() throws IOException {
-        if (in == null)
-            throw new IOException("Stream closed");
+    // 构造带有容量为1的回推缓冲区的回推输入流
+    public PushbackInputStream(InputStream in) {
+        this(in, 1);
     }
-
+    
     /**
      * Creates a <code>PushbackInputStream</code>
      * with a pushback buffer of the specified <code>size</code>,
@@ -82,32 +93,30 @@ class PushbackInputStream extends FilterInputStream {
      * <code>in</code>, for later use. Initially,
      * the pushback buffer is empty.
      *
-     * @param  in    the input stream from which bytes will be read.
-     * @param  size  the size of the pushback buffer.
-     * @exception IllegalArgumentException if {@code size <= 0}
-     * @since  1.1
+     * @param in   the input stream from which bytes will be read.
+     * @param size the size of the pushback buffer.
+     *
+     * @throws IllegalArgumentException if {@code size <= 0}
+     * @since 1.1
      */
+    // 构造带有容量为size的回推缓冲区的回推输入流
     public PushbackInputStream(InputStream in, int size) {
         super(in);
-        if (size <= 0) {
+        
+        if(size<=0) {
             throw new IllegalArgumentException("size <= 0");
         }
+        
         this.buf = new byte[size];
         this.pos = size;
     }
-
-    /**
-     * Creates a <code>PushbackInputStream</code>
-     * with a 1-byte pushback buffer, and saves its argument, the input stream
-     * <code>in</code>, for later use. Initially,
-     * the pushback buffer is empty.
-     *
-     * @param   in   the input stream from which bytes will be read.
-     */
-    public PushbackInputStream(InputStream in) {
-        this(in, 1);
-    }
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 读 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Reads the next byte of data from this input stream. The value
      * byte is returned as an <code>int</code> in the range
@@ -121,21 +130,28 @@ class PushbackInputStream extends FilterInputStream {
      * one, and otherwise calls the <code>read</code> method of its underlying
      * input stream and returns whatever value that method returns.
      *
-     * @return     the next byte of data, or <code>-1</code> if the end of the
-     *             stream has been reached.
-     * @exception  IOException  if this input stream has been closed by
-     *             invoking its {@link #close()} method,
-     *             or an I/O error occurs.
-     * @see        java.io.InputStream#read()
+     * @return the next byte of data, or <code>-1</code> if the end of the
+     * stream has been reached.
+     *
+     * @throws IOException if this input stream has been closed by
+     *                     invoking its {@link #close()} method,
+     *                     or an I/O error occurs.
+     * @see java.io.InputStream#read()
      */
+    // 从回推输入流读取一个字节并返回
     public int read() throws IOException {
         ensureOpen();
-        if (pos < buf.length) {
+        
+        // 如果回推缓冲区不为空，则从回推缓冲区读取数据
+        if(pos<buf.length) {
             return buf[pos++] & 0xff;
+            
+            // 从包装的输入流读取数据
+        } else {
+            return super.read();
         }
-        return super.read();
     }
-
+    
     /**
      * Reads up to <code>len</code> bytes of data from this input stream into
      * an array of bytes.  This method first reads any pushed-back bytes; after
@@ -144,34 +160,40 @@ class PushbackInputStream extends FilterInputStream {
      * blocks until at least 1 byte of input is available; otherwise, no
      * bytes are read and <code>0</code> is returned.
      *
-     * @param      b     the buffer into which the data is read.
-     * @param      off   the start offset in the destination array <code>b</code>
-     * @param      len   the maximum number of bytes read.
-     * @return     the total number of bytes read into the buffer, or
-     *             <code>-1</code> if there is no more data because the end of
-     *             the stream has been reached.
-     * @exception  NullPointerException If <code>b</code> is <code>null</code>.
-     * @exception  IndexOutOfBoundsException If <code>off</code> is negative,
-     * <code>len</code> is negative, or <code>len</code> is greater than
-     * <code>b.length - off</code>
-     * @exception  IOException  if this input stream has been closed by
-     *             invoking its {@link #close()} method,
-     *             or an I/O error occurs.
-     * @see        java.io.InputStream#read(byte[], int, int)
+     * @param b   the buffer into which the data is read.
+     * @param off the start offset in the destination array <code>b</code>
+     * @param len the maximum number of bytes read.
+     *
+     * @return the total number of bytes read into the buffer, or
+     * <code>-1</code> if there is no more data because the end of
+     * the stream has been reached.
+     *
+     * @throws NullPointerException      If <code>b</code> is <code>null</code>.
+     * @throws IndexOutOfBoundsException If <code>off</code> is negative,
+     *                                   <code>len</code> is negative, or <code>len</code> is greater than
+     *                                   <code>b.length - off</code>
+     * @throws IOException               if this input stream has been closed by
+     *                                   invoking its {@link #close()} method,
+     *                                   or an I/O error occurs.
+     * @see java.io.InputStream#read(byte[], int, int)
      */
+    // 从回推输入流读取len个字节存入字节数组b的off处，返回读取到的字节数
     public int read(byte[] b, int off, int len) throws IOException {
         ensureOpen();
-        if (b == null) {
+        
+        if(b == null) {
             throw new NullPointerException();
-        } else if (off < 0 || len < 0 || len > b.length - off) {
+        } else if(off<0 || len<0 || len>b.length - off) {
             throw new IndexOutOfBoundsException();
-        } else if (len == 0) {
+        } else if(len == 0) {
             return 0;
         }
-
+        
         int avail = buf.length - pos;
-        if (avail > 0) {
-            if (len < avail) {
+        
+        // 如果回推缓冲区不为空，则从回推缓冲区读取数据
+        if(avail>0) {
+            if(len<avail) {
                 avail = len;
             }
             System.arraycopy(buf, pos, b, off, avail);
@@ -179,59 +201,50 @@ class PushbackInputStream extends FilterInputStream {
             off += avail;
             len -= avail;
         }
-        if (len > 0) {
+        
+        // 没有读够指定数量的字节
+        if(len>0) {
+            // 继续从包装的输入流中读取
             len = super.read(b, off, len);
-            if (len == -1) {
+            if(len == -1) {
                 return avail == 0 ? -1 : avail;
             }
+            
             return avail + len;
         }
+        
         return avail;
     }
-
+    
+    /*▲ 读 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 回推 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Pushes back a byte by copying it to the front of the pushback buffer.
      * After this method returns, the next byte to be read will have the value
      * <code>(byte)b</code>.
      *
-     * @param      b   the <code>int</code> value whose low-order
-     *                  byte is to be pushed back.
-     * @exception IOException If there is not enough room in the pushback
-     *            buffer for the byte, or this input stream has been closed by
-     *            invoking its {@link #close()} method.
+     * @param b the <code>int</code> value whose low-order
+     *          byte is to be pushed back.
+     *
+     * @throws IOException If there is not enough room in the pushback
+     *                     buffer for the byte, or this input stream has been closed by
+     *                     invoking its {@link #close()} method.
      */
+    // 将指定的字节存入回推缓冲区
     public void unread(int b) throws IOException {
         ensureOpen();
-        if (pos == 0) {
+        
+        if(pos == 0) {
             throw new IOException("Push back buffer is full");
         }
-        buf[--pos] = (byte)b;
+        
+        buf[--pos] = (byte) b;
     }
-
-    /**
-     * Pushes back a portion of an array of bytes by copying it to the front
-     * of the pushback buffer.  After this method returns, the next byte to be
-     * read will have the value <code>b[off]</code>, the byte after that will
-     * have the value <code>b[off+1]</code>, and so forth.
-     *
-     * @param b the byte array to push back.
-     * @param off the start offset of the data.
-     * @param len the number of bytes to push back.
-     * @exception IOException If there is not enough room in the pushback
-     *            buffer for the specified number of bytes,
-     *            or this input stream has been closed by
-     *            invoking its {@link #close()} method.
-     * @since     1.1
-     */
-    public void unread(byte[] b, int off, int len) throws IOException {
-        ensureOpen();
-        if (len > pos) {
-            throw new IOException("Push back buffer is full");
-        }
-        pos -= len;
-        System.arraycopy(b, off, buf, pos, len);
-    }
-
+    
     /**
      * Pushes back an array of bytes by copying it to the front of the
      * pushback buffer.  After this method returns, the next byte to be read
@@ -239,16 +252,125 @@ class PushbackInputStream extends FilterInputStream {
      * value <code>b[1]</code>, and so forth.
      *
      * @param b the byte array to push back
-     * @exception IOException If there is not enough room in the pushback
-     *            buffer for the specified number of bytes,
-     *            or this input stream has been closed by
-     *            invoking its {@link #close()} method.
-     * @since     1.1
+     *
+     * @throws IOException If there is not enough room in the pushback
+     *                     buffer for the specified number of bytes,
+     *                     or this input stream has been closed by
+     *                     invoking its {@link #close()} method.
+     * @since 1.1
      */
+    // 将字节数组b中所有字节存入回推缓冲区
     public void unread(byte[] b) throws IOException {
         unread(b, 0, b.length);
     }
-
+    
+    /**
+     * Pushes back a portion of an array of bytes by copying it to the front
+     * of the pushback buffer.  After this method returns, the next byte to be
+     * read will have the value <code>b[off]</code>, the byte after that will
+     * have the value <code>b[off+1]</code>, and so forth.
+     *
+     * @param b   the byte array to push back.
+     * @param off the start offset of the data.
+     * @param len the number of bytes to push back.
+     *
+     * @throws IOException If there is not enough room in the pushback
+     *                     buffer for the specified number of bytes,
+     *                     or this input stream has been closed by
+     *                     invoking its {@link #close()} method.
+     * @since 1.1
+     */
+    // 将字节数组b中off处起的len个字节存入回推缓冲区
+    public void unread(byte[] b, int off, int len) throws IOException {
+        ensureOpen();
+        
+        if(len>pos) {
+            throw new IOException("Push back buffer is full");
+        }
+        
+        pos -= len;
+        
+        System.arraycopy(b, off, buf, pos, len);
+    }
+    
+    /*▲ 回推 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 存档 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Tests if this input stream supports the <code>mark</code> and
+     * <code>reset</code> methods, which it does not.
+     *
+     * @return <code>false</code>, since this class does not support the
+     * <code>mark</code> and <code>reset</code> methods.
+     *
+     * @see java.io.InputStream#mark(int)
+     * @see java.io.InputStream#reset()
+     */
+    // 判断当前输入流是否支持存档标记：默认不支持
+    public boolean markSupported() {
+        return false;
+    }
+    
+    /**
+     * Marks the current position in this input stream.
+     *
+     * <p> The <code>mark</code> method of <code>PushbackInputStream</code>
+     * does nothing.
+     *
+     * @param readlimit the maximum limit of bytes that can be read before
+     *                  the mark position becomes invalid.
+     *
+     * @see java.io.InputStream#reset()
+     */
+    // 设置存档标记，当前输入流不支持标记行为，所以也不会设置存档标记
+    public synchronized void mark(int readlimit) {
+    }
+    
+    /**
+     * Repositions this stream to the position at the time the
+     * <code>mark</code> method was last called on this input stream.
+     *
+     * <p> The method <code>reset</code> for class
+     * <code>PushbackInputStream</code> does nothing except throw an
+     * <code>IOException</code>.
+     *
+     * @throws IOException if this method is invoked.
+     * @see java.io.InputStream#mark(int)
+     * @see java.io.IOException
+     */
+    // 对于支持设置存档的输入流，可以重置其"读游标"到存档区的起始位置，此处默认不支持重置操作
+    public synchronized void reset() throws IOException {
+        throw new IOException("mark/reset not supported");
+    }
+    
+    /*▲ 存档 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Closes this input stream and releases any system resources
+     * associated with the stream.
+     * Once the stream has been closed, further read(), unread(),
+     * available(), reset(), or skip() invocations will throw an IOException.
+     * Closing a previously closed stream has no effect.
+     *
+     * @throws IOException if an I/O error occurs.
+     */
+    // 关闭内部包装的输入流，且置空回推缓冲区
+    public synchronized void close() throws IOException {
+        if(in == null) {
+            return;
+        }
+        in.close();
+        in = null;
+        buf = null;
+    }
+    
     /**
      * Returns an estimate of the number of bytes that can be read (or
      * skipped over) from this input stream without blocking by the next
@@ -260,23 +382,28 @@ class PushbackInputStream extends FilterInputStream {
      * pushed back and the value returned by {@link
      * java.io.FilterInputStream#available available}.
      *
-     * @return     the number of bytes that can be read (or skipped over) from
-     *             the input stream without blocking.
-     * @exception  IOException  if this input stream has been closed by
-     *             invoking its {@link #close()} method,
-     *             or an I/O error occurs.
-     * @see        java.io.FilterInputStream#in
-     * @see        java.io.InputStream#available()
+     * @return the number of bytes that can be read (or skipped over) from
+     * the input stream without blocking.
+     *
+     * @throws IOException if this input stream has been closed by
+     *                     invoking its {@link #close()} method,
+     *                     or an I/O error occurs.
+     * @see java.io.FilterInputStream#in
+     * @see java.io.InputStream#available()
      */
+    // 返回当前回推输入流中未读(可用)的字节数量
     public int available() throws IOException {
         ensureOpen();
+        
+        // 先获取回推缓冲区中剩余的字节数量
         int n = buf.length - pos;
+        
+        // 再获取包装的输入流中的字节数量
         int avail = super.available();
-        return n > (Integer.MAX_VALUE - avail)
-                    ? Integer.MAX_VALUE
-                    : n + avail;
+        
+        return n>(Integer.MAX_VALUE - avail) ? Integer.MAX_VALUE : n + avail;
     }
-
+    
     /**
      * Skips over and discards <code>n</code> bytes of data from this
      * input stream. The <code>skip</code> method may, for a variety of
@@ -289,92 +416,54 @@ class PushbackInputStream extends FilterInputStream {
      * more bytes need to be skipped.  The actual number of bytes skipped
      * is returned.
      *
-     * @param      n  {@inheritDoc}
-     * @return     {@inheritDoc}
-     * @throws     IOException  if the stream has been closed by
-     *             invoking its {@link #close()} method,
-     *             {@code in.skip(n)} throws an IOException,
-     *             or an I/O error occurs.
-     * @see        java.io.FilterInputStream#in
-     * @see        java.io.InputStream#skip(long n)
-     * @since      1.2
+     * @param n {@inheritDoc}
+     *
+     * @return {@inheritDoc}
+     *
+     * @throws IOException if the stream has been closed by
+     *                     invoking its {@link #close()} method,
+     *                     {@code in.skip(n)} throws an IOException,
+     *                     or an I/O error occurs.
+     * @see java.io.FilterInputStream#in
+     * @see java.io.InputStream#skip(long n)
+     * @since 1.2
      */
+    // 跳过n个字节
     public long skip(long n) throws IOException {
         ensureOpen();
-        if (n <= 0) {
+        
+        if(n<=0) {
             return 0;
         }
-
+        
         long pskip = buf.length - pos;
-        if (pskip > 0) {
-            if (n < pskip) {
+        if(pskip>0) {
+            if(n<pskip) {
                 pskip = n;
             }
             pos += pskip;
             n -= pskip;
         }
-        if (n > 0) {
+        
+        if(n>0) {
             pskip += super.skip(n);
         }
+        
         return pskip;
     }
-
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
     /**
-     * Tests if this input stream supports the <code>mark</code> and
-     * <code>reset</code> methods, which it does not.
-     *
-     * @return   <code>false</code>, since this class does not support the
-     *           <code>mark</code> and <code>reset</code> methods.
-     * @see     java.io.InputStream#mark(int)
-     * @see     java.io.InputStream#reset()
+     * Check to make sure that this stream has not been closed
      */
-    public boolean markSupported() {
-        return false;
+    // 确保包装的输入流未关闭
+    private void ensureOpen() throws IOException {
+        if(in == null) {
+            throw new IOException("Stream closed");
+        }
     }
-
-    /**
-     * Marks the current position in this input stream.
-     *
-     * <p> The <code>mark</code> method of <code>PushbackInputStream</code>
-     * does nothing.
-     *
-     * @param   readlimit   the maximum limit of bytes that can be read before
-     *                      the mark position becomes invalid.
-     * @see     java.io.InputStream#reset()
-     */
-    public synchronized void mark(int readlimit) {
-    }
-
-    /**
-     * Repositions this stream to the position at the time the
-     * <code>mark</code> method was last called on this input stream.
-     *
-     * <p> The method <code>reset</code> for class
-     * <code>PushbackInputStream</code> does nothing except throw an
-     * <code>IOException</code>.
-     *
-     * @exception  IOException  if this method is invoked.
-     * @see     java.io.InputStream#mark(int)
-     * @see     java.io.IOException
-     */
-    public synchronized void reset() throws IOException {
-        throw new IOException("mark/reset not supported");
-    }
-
-    /**
-     * Closes this input stream and releases any system resources
-     * associated with the stream.
-     * Once the stream has been closed, further read(), unread(),
-     * available(), reset(), or skip() invocations will throw an IOException.
-     * Closing a previously closed stream has no effect.
-     *
-     * @exception  IOException  if an I/O error occurs.
-     */
-    public synchronized void close() throws IOException {
-        if (in == null)
-            return;
-        in.close();
-        in = null;
-        buf = null;
-    }
+    
 }
