@@ -40,61 +40,19 @@ import java.util.Objects;
  * this class can be called after the stream has been closed without
  * generating an {@code IOException}.
  *
- * @author  Arthur van Hoff
- * @since   1.0
+ * @author Arthur van Hoff
+ * @since 1.0
  */
-
+/*
+ * 字节数组输出流
+ *
+ * 写入的内容会先存入内部字节缓存区，这一点与BufferedOutputStream是相似的。
+ * 不同点在于，BufferedOutputStream中包装了输出流，当缓冲区满时，会将其中的数据自动刷新到输出流。
+ * 而ByteArrayOutputStream中没有包装输出流，所有写入的数据都会存入内部缓存区，直到被动地调用writeTo后，
+ * 才会将内部缓存区的数据转移到指定的输出流。
+ */
 public class ByteArrayOutputStream extends OutputStream {
-
-    /**
-     * The buffer where data is stored.
-     */
-    protected byte buf[];
-
-    /**
-     * The number of valid bytes in the buffer.
-     */
-    protected int count;
-
-    /**
-     * Creates a new {@code ByteArrayOutputStream}. The buffer capacity is
-     * initially 32 bytes, though its size increases if necessary.
-     */
-    public ByteArrayOutputStream() {
-        this(32);
-    }
-
-    /**
-     * Creates a new {@code ByteArrayOutputStream}, with a buffer capacity of
-     * the specified size, in bytes.
-     *
-     * @param  size   the initial size.
-     * @throws IllegalArgumentException if size is negative.
-     */
-    public ByteArrayOutputStream(int size) {
-        if (size < 0) {
-            throw new IllegalArgumentException("Negative initial size: "
-                                               + size);
-        }
-        buf = new byte[size];
-    }
-
-    /**
-     * Increases the capacity if necessary to ensure that it can hold
-     * at least the number of elements specified by the minimum
-     * capacity argument.
-     *
-     * @param  minCapacity the desired minimum capacity
-     * @throws OutOfMemoryError if {@code minCapacity < 0}.  This is
-     * interpreted as a request for the unsatisfiably large capacity
-     * {@code (long) Integer.MAX_VALUE + (minCapacity - Integer.MAX_VALUE)}.
-     */
-    private void ensureCapacity(int minCapacity) {
-        // overflow-conscious code
-        if (minCapacity - buf.length > 0)
-            grow(minCapacity);
-    }
-
+    
     /**
      * The maximum size of array to allocate.
      * Some VMs reserve some header words in an array.
@@ -102,126 +60,174 @@ public class ByteArrayOutputStream extends OutputStream {
      * OutOfMemoryError: Requested array size exceeds VM limit
      */
     private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
-
+    
     /**
-     * Increases the capacity to ensure that it can hold at least the
-     * number of elements specified by the minimum capacity argument.
-     *
-     * @param minCapacity the desired minimum capacity
+     * The buffer where data is stored.
      */
-    private void grow(int minCapacity) {
-        // overflow-conscious code
-        int oldCapacity = buf.length;
-        int newCapacity = oldCapacity << 1;
-        if (newCapacity - minCapacity < 0)
-            newCapacity = minCapacity;
-        if (newCapacity - MAX_ARRAY_SIZE > 0)
-            newCapacity = hugeCapacity(minCapacity);
-        buf = Arrays.copyOf(buf, newCapacity);
+    protected byte[] buf;   // 内部缓冲区
+    
+    /**
+     * The number of valid bytes in the buffer.
+     */
+    protected int count;    // 记录写入缓冲区的字节数
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Creates a new {@code ByteArrayOutputStream}. The buffer capacity is
+     * initially 32 bytes, though its size increases if necessary.
+     */
+    public ByteArrayOutputStream() {
+        this(32);
     }
-
-    private static int hugeCapacity(int minCapacity) {
-        if (minCapacity < 0) // overflow
-            throw new OutOfMemoryError();
-        return (minCapacity > MAX_ARRAY_SIZE) ?
-            Integer.MAX_VALUE :
-            MAX_ARRAY_SIZE;
+    
+    /**
+     * Creates a new {@code ByteArrayOutputStream}, with a buffer capacity of
+     * the specified size, in bytes.
+     *
+     * @param size the initial size.
+     *
+     * @throws IllegalArgumentException if size is negative.
+     */
+    public ByteArrayOutputStream(int size) {
+        if(size<0) {
+            throw new IllegalArgumentException("Negative initial size: " + size);
+        }
+        buf = new byte[size];
     }
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 写 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Writes the specified byte to this {@code ByteArrayOutputStream}.
      *
-     * @param   b   the byte to be written.
+     * @param b the byte to be written.
      */
+    // 将指定的字节写入到内部缓存区
     public synchronized void write(int b) {
         ensureCapacity(count + 1);
         buf[count] = (byte) b;
         count += 1;
     }
-
+    
+    /**
+     * Writes the complete contents of the specified byte array
+     * to this {@code ByteArrayOutputStream}.
+     *
+     * @param b the data.
+     *
+     * @throws NullPointerException if {@code b} is {@code null}.
+     * @apiNote This method is equivalent to {@link #write(byte[], int, int)
+     * write(b, 0, b.length)}.
+     * @since 11
+     */
+    // 将字节数组b的内容写入到内部缓存区
+    public void writeBytes(byte[] b) {
+        write(b, 0, b.length);
+    }
+    
     /**
      * Writes {@code len} bytes from the specified byte array
      * starting at offset {@code off} to this {@code ByteArrayOutputStream}.
      *
-     * @param   b     the data.
-     * @param   off   the start offset in the data.
-     * @param   len   the number of bytes to write.
-     * @throws  NullPointerException if {@code b} is {@code null}.
-     * @throws  IndexOutOfBoundsException if {@code off} is negative,
-     * {@code len} is negative, or {@code len} is greater than
-     * {@code b.length - off}
+     * @param b   the data.
+     * @param off the start offset in the data.
+     * @param len the number of bytes to write.
+     *
+     * @throws NullPointerException      if {@code b} is {@code null}.
+     * @throws IndexOutOfBoundsException if {@code off} is negative,
+     *                                   {@code len} is negative, or {@code len} is greater than
+     *                                   {@code b.length - off}
      */
-    public synchronized void write(byte b[], int off, int len) {
+    // 将字节数组b中off处起的len个字节写入到输出流
+    public synchronized void write(byte[] b, int off, int len) {
         Objects.checkFromIndexSize(off, len, b.length);
         ensureCapacity(count + len);
         System.arraycopy(b, off, buf, count, len);
         count += len;
     }
-
-    /**
-     * Writes the complete contents of the specified byte array
-     * to this {@code ByteArrayOutputStream}.
-     *
-     * @apiNote
-     * This method is equivalent to {@link #write(byte[],int,int)
-     * write(b, 0, b.length)}.
-     *
-     * @param   b     the data.
-     * @throws  NullPointerException if {@code b} is {@code null}.
-     * @since   11
-     */
-    public void writeBytes(byte b[]) {
-        write(b, 0, b.length);
-    }
-
+    
     /**
      * Writes the complete contents of this {@code ByteArrayOutputStream} to
      * the specified output stream argument, as if by calling the output
      * stream's write method using {@code out.write(buf, 0, count)}.
      *
-     * @param   out   the output stream to which to write the data.
-     * @throws  NullPointerException if {@code out} is {@code null}.
-     * @throws  IOException if an I/O error occurs.
+     * @param out the output stream to which to write the data.
+     *
+     * @throws NullPointerException if {@code out} is {@code null}.
+     * @throws IOException          if an I/O error occurs.
      */
+    // 将内部缓冲区的数据写入到指定的输出流中（不会清空内部缓存区）
     public synchronized void writeTo(OutputStream out) throws IOException {
+        // 从字节数组buf中选取count个字节，然后将其写入到输出流
         out.write(buf, 0, count);
     }
-
+    
+    /*▲ 写 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Closing a {@code ByteArrayOutputStream} has no effect. The methods in
+     * this class can be called after the stream has been closed without
+     * generating an {@code IOException}.
+     */
+    // 关闭输出流（此处无效）
+    public void close() throws IOException {
+    }
+    
     /**
      * Resets the {@code count} field of this {@code ByteArrayOutputStream}
      * to zero, so that all currently accumulated output in the
      * output stream is discarded. The output stream can be used again,
      * reusing the already allocated buffer space.
      *
-     * @see     java.io.ByteArrayInputStream#count
+     * @see java.io.ByteArrayInputStream#count
      */
+    // 清空内部字节缓存区
     public synchronized void reset() {
         count = 0;
     }
-
+    
+    /**
+     * Returns the current size of the buffer.
+     *
+     * @return the value of the {@code count} field, which is the number
+     * of valid bytes in this output stream.
+     *
+     * @see java.io.ByteArrayOutputStream#count
+     */
+    // 返回内部字节缓存区中的字节数量
+    public synchronized int size() {
+        return count;
+    }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
     /**
      * Creates a newly allocated byte array. Its size is the current
      * size of this output stream and the valid contents of the buffer
      * have been copied into it.
      *
-     * @return  the current contents of this output stream, as a byte array.
-     * @see     java.io.ByteArrayOutputStream#size()
+     * @return the current contents of this output stream, as a byte array.
+     *
+     * @see java.io.ByteArrayOutputStream#size()
      */
+    // 返回内部字节缓冲区中的数据
     public synchronized byte[] toByteArray() {
         return Arrays.copyOf(buf, count);
     }
-
-    /**
-     * Returns the current size of the buffer.
-     *
-     * @return  the value of the {@code count} field, which is the number
-     *          of valid bytes in this output stream.
-     * @see     java.io.ByteArrayOutputStream#count
-     */
-    public synchronized int size() {
-        return count;
-    }
-
+    
     /**
      * Converts the buffer's contents into a string decoding bytes using the
      * platform's default character set. The length of the new {@code String}
@@ -235,12 +241,14 @@ public class ByteArrayOutputStream extends OutputStream {
      * required.
      *
      * @return String decoded from the buffer's contents.
-     * @since  1.1
+     *
+     * @since 1.1
      */
+    // 以JVM默认字符集格式解析内部字节缓冲区中的数据，进而构造String
     public synchronized String toString() {
         return new String(buf, 0, count);
     }
-
+    
     /**
      * Converts the buffer's contents into a string by decoding the bytes using
      * the named {@link java.nio.charset.Charset charset}.
@@ -264,20 +272,19 @@ public class ByteArrayOutputStream extends OutputStream {
      *      }
      * </pre>
      *
+     * @param charsetName the name of a supported
+     *                    {@link java.nio.charset.Charset charset}
      *
-     * @param  charsetName  the name of a supported
-     *         {@link java.nio.charset.Charset charset}
      * @return String decoded from the buffer's contents.
-     * @throws UnsupportedEncodingException
-     *         If the named charset is not supported
-     * @since  1.1
+     *
+     * @throws UnsupportedEncodingException If the named charset is not supported
+     * @since 1.1
      */
-    public synchronized String toString(String charsetName)
-        throws UnsupportedEncodingException
-    {
+    // 以charsetName格式的字符集解析内部字节缓冲区中的数据，进而构造String
+    public synchronized String toString(String charsetName) throws UnsupportedEncodingException {
         return new String(buf, 0, count, charsetName);
     }
-
+    
     /**
      * Converts the buffer's contents into a string by decoding the bytes using
      * the specified {@link java.nio.charset.Charset charset}. The length of the new
@@ -289,15 +296,18 @@ public class ByteArrayOutputStream extends OutputStream {
      * java.nio.charset.CharsetDecoder} class should be used when more control
      * over the decoding process is required.
      *
-     * @param      charset  the {@linkplain java.nio.charset.Charset charset}
-     *             to be used to decode the {@code bytes}
-     * @return     String decoded from the buffer's contents.
-     * @since      10
+     * @param charset the {@linkplain java.nio.charset.Charset charset}
+     *                to be used to decode the {@code bytes}
+     *
+     * @return String decoded from the buffer's contents.
+     *
+     * @since 10
      */
+    // 以charset字符集格式解析内部字节缓冲区中的数据，进而构造String
     public synchronized String toString(Charset charset) {
         return new String(buf, 0, count, charset);
     }
-
+    
     /**
      * Creates a newly allocated string. Its size is the current size of
      * the output stream and the valid contents of the buffer have been
@@ -308,30 +318,73 @@ public class ByteArrayOutputStream extends OutputStream {
      *     c == (char)(((hibyte & 0xff) << 8) | (b & 0xff))
      * }</pre></blockquote>
      *
+     * @param hibyte the high byte of each resulting Unicode character.
+     *
+     * @return the current contents of the output stream, as a string.
+     *
+     * @see java.io.ByteArrayOutputStream#size()
+     * @see java.io.ByteArrayOutputStream#toString(String)
+     * @see java.io.ByteArrayOutputStream#toString()
      * @deprecated This method does not properly convert bytes into characters.
      * As of JDK&nbsp;1.1, the preferred way to do this is via the
      * {@link #toString(String charsetName)} or {@link #toString(Charset charset)}
      * method, which takes an encoding-name or charset argument,
      * or the {@code toString()} method, which uses the platform's default
      * character encoding.
-     *
-     * @param      hibyte    the high byte of each resulting Unicode character.
-     * @return     the current contents of the output stream, as a string.
-     * @see        java.io.ByteArrayOutputStream#size()
-     * @see        java.io.ByteArrayOutputStream#toString(String)
-     * @see        java.io.ByteArrayOutputStream#toString()
      */
+    // ▶ 9 ※ 过时
     @Deprecated
     public synchronized String toString(int hibyte) {
         return new String(buf, hibyte, 0, count);
     }
-
+    
+    
+    
     /**
-     * Closing a {@code ByteArrayOutputStream} has no effect. The methods in
-     * this class can be called after the stream has been closed without
-     * generating an {@code IOException}.
+     * Increases the capacity if necessary to ensure that it can hold
+     * at least the number of elements specified by the minimum
+     * capacity argument.
+     *
+     * @param minCapacity the desired minimum capacity
+     *
+     * @throws OutOfMemoryError if {@code minCapacity < 0}.  This is
+     *                          interpreted as a request for the unsatisfiably large capacity
+     *                          {@code (long) Integer.MAX_VALUE + (minCapacity - Integer.MAX_VALUE)}.
      */
-    public void close() throws IOException {
+    // 确保内部缓存区容量足够大
+    private void ensureCapacity(int minCapacity) {
+        // overflow-conscious code
+        if(minCapacity - buf.length>0) {
+            grow(minCapacity);
+        }
     }
-
+    
+    /**
+     * Increases the capacity to ensure that it can hold at least the
+     * number of elements specified by the minimum capacity argument.
+     *
+     * @param minCapacity the desired minimum capacity
+     */
+    // 对内部缓存区进行扩容
+    private void grow(int minCapacity) {
+        // overflow-conscious code
+        int oldCapacity = buf.length;
+        int newCapacity = oldCapacity << 1;
+        if(newCapacity - minCapacity<0) {
+            newCapacity = minCapacity;
+        }
+        if(newCapacity - MAX_ARRAY_SIZE>0) {
+            newCapacity = hugeCapacity(minCapacity);
+        }
+        buf = Arrays.copyOf(buf, newCapacity);
+    }
+    
+    private static int hugeCapacity(int minCapacity) {
+        // overflow
+        if(minCapacity<0) {
+            throw new OutOfMemoryError();
+        }
+        return (minCapacity>MAX_ARRAY_SIZE) ? Integer.MAX_VALUE : MAX_ARRAY_SIZE;
+    }
+    
 }
