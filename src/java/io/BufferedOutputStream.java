@@ -31,72 +31,88 @@ package java.io;
  * output stream without necessarily causing a call to the underlying
  * system for each byte written.
  *
- * @author  Arthur van Hoff
- * @since   1.0
+ * @author Arthur van Hoff
+ * @since 1.0
+ */
+/*
+ * 带有内部缓存区的字节输出流
+ *
+ * 写入数据时，会先将数据存入缓冲区。待缓存区满时，才批量将数据写入到输出流。
  */
 public class BufferedOutputStream extends FilterOutputStream {
+    
     /**
      * The internal buffer where data is stored.
      */
-    protected byte buf[];
-
+    protected byte[] buf;   // 内部缓冲区
+    
     /**
      * The number of valid bytes in the buffer. This value is always
      * in the range {@code 0} through {@code buf.length}; elements
      * {@code buf[0]} through {@code buf[count-1]} contain valid
      * byte data.
      */
-    protected int count;
-
+    protected int count;    // 记录缓冲区buf中的字节数
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates a new buffered output stream to write data to the
      * specified underlying output stream.
      *
-     * @param   out   the underlying output stream.
+     * @param out the underlying output stream.
      */
     public BufferedOutputStream(OutputStream out) {
         this(out, 8192);
     }
-
+    
     /**
      * Creates a new buffered output stream to write data to the
      * specified underlying output stream with the specified buffer
      * size.
      *
-     * @param   out    the underlying output stream.
-     * @param   size   the buffer size.
-     * @exception IllegalArgumentException if size &lt;= 0.
+     * @param out  the underlying output stream.
+     * @param size the buffer size.
+     *
+     * @throws IllegalArgumentException if size &lt;= 0.
      */
     public BufferedOutputStream(OutputStream out, int size) {
         super(out);
-        if (size <= 0) {
+        
+        if(size<=0) {
             throw new IllegalArgumentException("Buffer size <= 0");
         }
+        
         buf = new byte[size];
     }
-
-    /** Flush the internal buffer */
-    private void flushBuffer() throws IOException {
-        if (count > 0) {
-            out.write(buf, 0, count);
-            count = 0;
-        }
-    }
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 写 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Writes the specified byte to this buffered output stream.
      *
-     * @param      b   the byte to be written.
-     * @exception  IOException  if an I/O error occurs.
+     * @param b the byte to be written.
+     *
+     * @throws IOException if an I/O error occurs.
      */
+    // 将指定的字节写入到输出流
     @Override
     public synchronized void write(int b) throws IOException {
-        if (count >= buf.length) {
+        // 如果缓冲区已满，会先清空缓冲区
+        if(count >= buf.length) {
             flushBuffer();
         }
-        buf[count++] = (byte)b;
+        
+        // 把字符暂存到缓冲区
+        buf[count++] = (byte) b;
     }
-
+    
     /**
      * Writes <code>len</code> bytes from the specified byte array
      * starting at offset <code>off</code> to this buffered output stream.
@@ -108,38 +124,72 @@ public class BufferedOutputStream extends FilterOutputStream {
      * bytes directly to the underlying output stream.  Thus redundant
      * <code>BufferedOutputStream</code>s will not copy data unnecessarily.
      *
-     * @param      b     the data.
-     * @param      off   the start offset in the data.
-     * @param      len   the number of bytes to write.
-     * @exception  IOException  if an I/O error occurs.
+     * @param b   the data.
+     * @param off the start offset in the data.
+     * @param len the number of bytes to write.
+     *
+     * @throws IOException if an I/O error occurs.
      */
+    // 将字节数组b中off处起的len个字节写入到输出流
     @Override
-    public synchronized void write(byte b[], int off, int len) throws IOException {
-        if (len >= buf.length) {
-            /* If the request length exceeds the size of the output buffer,
-               flush the output buffer and then write the data directly.
-               In this way buffered streams will cascade harmlessly. */
+    public synchronized void write(byte[] b, int off, int len) throws IOException {
+        // 如果待写入数据量大于缓存区【总容量】，则需要先刷新缓冲区
+        if(len >= buf.length) {
+            /*
+             *
+             * If the request length exceeds the size of the output buffer,
+             * flush the output buffer and then write the data directly.
+             * In this way buffered streams will cascade harmlessly.
+             */
             flushBuffer();
+            
+            // 直接向输出流写入，不再经过缓存区
             out.write(b, off, len);
             return;
         }
-        if (len > buf.length - count) {
+        
+        // 如果缓存区【剩余容量】不足以容纳待写入的数据，则刷新缓冲区
+        if(len>buf.length - count) {
             flushBuffer();
         }
+        
+        // 将待写数据存入缓冲区
         System.arraycopy(b, off, buf, count, len);
+        
         count += len;
     }
-
+    
+    /*▲ 写 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Flushes this buffered output stream. This forces any buffered
      * output bytes to be written out to the underlying output stream.
      *
-     * @exception  IOException  if an I/O error occurs.
-     * @see        java.io.FilterOutputStream#out
+     * @throws IOException if an I/O error occurs.
+     * @see java.io.FilterOutputStream#out
      */
+    // 将缓冲区中的字节刷新到输出流
     @Override
     public synchronized void flush() throws IOException {
         flushBuffer();
         out.flush();
     }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /** Flush the internal buffer */
+    // 将缓存区内的数据写入输出流
+    private void flushBuffer() throws IOException {
+        if(count>0) {
+            out.write(buf, 0, count);
+            count = 0;
+        }
+    }
+    
 }
