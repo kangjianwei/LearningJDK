@@ -41,61 +41,14 @@ package java.io;
  * a byte cannot be written for any reason,
  * an <code>IOException</code> is thrown.
  *
- * @author  Frank Yellin
- * @see     java.io.DataInput
- * @see     java.io.DataOutputStream
- * @since   1.0
+ * @author Frank Yellin
+ * @see java.io.DataInput
+ * @see java.io.DataOutputStream
+ * @since 1.0
  */
-public
-interface DataOutput {
-    /**
-     * Writes to the output stream the eight
-     * low-order bits of the argument <code>b</code>.
-     * The 24 high-order  bits of <code>b</code>
-     * are ignored.
-     *
-     * @param      b   the byte to be written.
-     * @throws     IOException  if an I/O error occurs.
-     */
-    void write(int b) throws IOException;
-
-    /**
-     * Writes to the output stream all the bytes in array <code>b</code>.
-     * If <code>b</code> is <code>null</code>,
-     * a <code>NullPointerException</code> is thrown.
-     * If <code>b.length</code> is zero, then
-     * no bytes are written. Otherwise, the byte
-     * <code>b[0]</code> is written first, then
-     * <code>b[1]</code>, and so on; the last byte
-     * written is <code>b[b.length-1]</code>.
-     *
-     * @param      b   the data.
-     * @throws     IOException  if an I/O error occurs.
-     */
-    void write(byte b[]) throws IOException;
-
-    /**
-     * Writes <code>len</code> bytes from array
-     * <code>b</code>, in order,  to
-     * the output stream.  If <code>b</code>
-     * is <code>null</code>, a <code>NullPointerException</code>
-     * is thrown.  If <code>off</code> is negative,
-     * or <code>len</code> is negative, or <code>off+len</code>
-     * is greater than the length of the array
-     * <code>b</code>, then an <code>IndexOutOfBoundsException</code>
-     * is thrown.  If <code>len</code> is zero,
-     * then no bytes are written. Otherwise, the
-     * byte <code>b[off]</code> is written first,
-     * then <code>b[off+1]</code>, and so on; the
-     * last byte written is <code>b[off+len-1]</code>.
-     *
-     * @param      b     the data.
-     * @param      off   the start offset in the data.
-     * @param      len   the number of bytes to write.
-     * @throws     IOException  if an I/O error occurs.
-     */
-    void write(byte b[], int off, int len) throws IOException;
-
+// 字节数据输出接口
+public interface DataOutput {
+    
     /**
      * Writes a <code>boolean</code> value to this output stream.
      * If the argument <code>v</code>
@@ -108,48 +61,13 @@ interface DataOutput {
      * which will then return a <code>boolean</code>
      * equal to <code>v</code>.
      *
-     * @param      v   the boolean to be written.
-     * @throws     IOException  if an I/O error occurs.
+     * @param v the boolean to be written.
+     *
+     * @throws IOException if an I/O error occurs.
      */
+    // 向包装的输出流写入boolean值
     void writeBoolean(boolean v) throws IOException;
-
-    /**
-     * Writes to the output stream the eight low-
-     * order bits of the argument <code>v</code>.
-     * The 24 high-order bits of <code>v</code>
-     * are ignored. (This means  that <code>writeByte</code>
-     * does exactly the same thing as <code>write</code>
-     * for an integer argument.) The byte written
-     * by this method may be read by the <code>readByte</code>
-     * method of interface <code>DataInput</code>,
-     * which will then return a <code>byte</code>
-     * equal to <code>(byte)v</code>.
-     *
-     * @param      v   the byte value to be written.
-     * @throws     IOException  if an I/O error occurs.
-     */
-    void writeByte(int v) throws IOException;
-
-    /**
-     * Writes two bytes to the output
-     * stream to represent the value of the argument.
-     * The byte values to be written, in the  order
-     * shown, are:
-     * <pre>{@code
-     * (byte)(0xff & (v >> 8))
-     * (byte)(0xff & v)
-     * }</pre> <p>
-     * The bytes written by this method may be
-     * read by the <code>readShort</code> method
-     * of interface <code>DataInput</code> , which
-     * will then return a <code>short</code> equal
-     * to <code>(short)v</code>.
-     *
-     * @param      v   the <code>short</code> value to be written.
-     * @throws     IOException  if an I/O error occurs.
-     */
-    void writeShort(int v) throws IOException;
-
+    
     /**
      * Writes a <code>char</code> value, which
      * is comprised of two bytes, to the
@@ -166,11 +84,54 @@ interface DataOutput {
      * will then return a <code>char</code> equal
      * to <code>(char)v</code>.
      *
-     * @param      v   the <code>char</code> value to be written.
-     * @throws     IOException  if an I/O error occurs.
+     * @param v the <code>char</code> value to be written.
+     *
+     * @throws IOException if an I/O error occurs.
      */
+    // 向包装的输出流写入char值（按大端法写入）
     void writeChar(int v) throws IOException;
-
+    
+    /**
+     * Writes to the output stream the eight low-
+     * order bits of the argument <code>v</code>.
+     * The 24 high-order bits of <code>v</code>
+     * are ignored. (This means  that <code>writeByte</code>
+     * does exactly the same thing as <code>write</code>
+     * for an integer argument.) The byte written
+     * by this method may be read by the <code>readByte</code>
+     * method of interface <code>DataInput</code>,
+     * which will then return a <code>byte</code>
+     * equal to <code>(byte)v</code>.
+     *
+     * @param v the byte value to be written.
+     *
+     * @throws IOException if an I/O error occurs.
+     */
+    // 向包装的输出流写入byte值
+    void writeByte(int v) throws IOException;
+    
+    /**
+     * Writes two bytes to the output
+     * stream to represent the value of the argument.
+     * The byte values to be written, in the  order
+     * shown, are:
+     * <pre>{@code
+     * (byte)(0xff & (v >> 8))
+     * (byte)(0xff & v)
+     * }</pre> <p>
+     * The bytes written by this method may be
+     * read by the <code>readShort</code> method
+     * of interface <code>DataInput</code> , which
+     * will then return a <code>short</code> equal
+     * to <code>(short)v</code>.
+     *
+     * @param v the <code>short</code> value to be written.
+     *
+     * @throws IOException if an I/O error occurs.
+     */
+    // 向包装的输出流写入short值（按大端法写入）
+    void writeShort(int v) throws IOException;
+    
     /**
      * Writes an <code>int</code> value, which is
      * comprised of four bytes, to the output stream.
@@ -187,11 +148,13 @@ interface DataOutput {
      * <code>DataInput</code> , which will then
      * return an <code>int</code> equal to <code>v</code>.
      *
-     * @param      v   the <code>int</code> value to be written.
-     * @throws     IOException  if an I/O error occurs.
+     * @param v the <code>int</code> value to be written.
+     *
+     * @throws IOException if an I/O error occurs.
      */
+    // 向包装的输出流写入int值（按大端法写入）
     void writeInt(int v) throws IOException;
-
+    
     /**
      * Writes a <code>long</code> value, which is
      * comprised of eight bytes, to the output stream.
@@ -213,11 +176,13 @@ interface DataOutput {
      * will then return a <code>long</code> equal
      * to <code>v</code>.
      *
-     * @param      v   the <code>long</code> value to be written.
-     * @throws     IOException  if an I/O error occurs.
+     * @param v the <code>long</code> value to be written.
+     *
+     * @throws IOException if an I/O error occurs.
      */
+    // 向包装的输出流写入long值（按大端法写入）
     void writeLong(long v) throws IOException;
-
+    
     /**
      * Writes a <code>float</code> value,
      * which is comprised of four bytes, to the output stream.
@@ -232,11 +197,13 @@ interface DataOutput {
      * which will then return a <code>float</code>
      * equal to <code>v</code>.
      *
-     * @param      v   the <code>float</code> value to be written.
-     * @throws     IOException  if an I/O error occurs.
+     * @param v the <code>float</code> value to be written.
+     *
+     * @throws IOException if an I/O error occurs.
      */
+    // 向包装的输出流写入float值（先转为二进制，再按大端法写入）
     void writeFloat(float v) throws IOException;
-
+    
     /**
      * Writes a <code>double</code> value,
      * which is comprised of eight bytes, to the output stream.
@@ -251,11 +218,13 @@ interface DataOutput {
      * which will then return a <code>double</code>
      * equal to <code>v</code>.
      *
-     * @param      v   the <code>double</code> value to be written.
-     * @throws     IOException  if an I/O error occurs.
+     * @param v the <code>double</code> value to be written.
+     *
+     * @throws IOException if an I/O error occurs.
      */
+    // 向包装的输出流写入double值（先转为二进制，按大端法写入）
     void writeDouble(double v) throws IOException;
-
+    
     /**
      * Writes a string to the output stream.
      * For every character in the string
@@ -273,11 +242,13 @@ interface DataOutput {
      * high-order eight bits of each character
      * in the string are ignored.
      *
-     * @param      s   the string of bytes to be written.
-     * @throws     IOException  if an I/O error occurs.
+     * @param s the string of bytes to be written.
+     *
+     * @throws IOException if an I/O error occurs.
      */
+    // 向包装的输出流写入String值(按字节写入)
     void writeBytes(String s) throws IOException;
-
+    
     /**
      * Writes every character in the string <code>s</code>,
      * to the output stream, in order,
@@ -293,11 +264,13 @@ interface DataOutput {
      * byte first, in exactly the manner of the
      * <code>writeChar</code> method.
      *
-     * @param      s   the string value to be written.
-     * @throws     IOException  if an I/O error occurs.
+     * @param s the string value to be written.
+     *
+     * @throws IOException if an I/O error occurs.
      */
+    // 向包装的输出流写入String值(按字符写入)
     void writeChars(String s) throws IOException;
-
+    
     /**
      * Writes two bytes of length information
      * to the output stream, followed
@@ -347,8 +320,66 @@ interface DataOutput {
      * <code>DataInput</code> , which will then
      * return a <code>String</code> equal to <code>s</code>.
      *
-     * @param      s   the string value to be written.
-     * @throws     IOException  if an I/O error occurs.
+     * @param s the string value to be written.
+     *
+     * @throws IOException if an I/O error occurs.
      */
+    // 将String按UTF8编码后写入当前输出流
     void writeUTF(String s) throws IOException;
+    
+    
+    /**
+     * Writes to the output stream the eight
+     * low-order bits of the argument <code>b</code>.
+     * The 24 high-order  bits of <code>b</code>
+     * are ignored.
+     *
+     * @param b the byte to be written.
+     *
+     * @throws IOException if an I/O error occurs.
+     */
+    // 向包装的输出流写入一个byte
+    void write(int b) throws IOException;
+    
+    /**
+     * Writes to the output stream all the bytes in array <code>b</code>.
+     * If <code>b</code> is <code>null</code>,
+     * a <code>NullPointerException</code> is thrown.
+     * If <code>b.length</code> is zero, then
+     * no bytes are written. Otherwise, the byte
+     * <code>b[0]</code> is written first, then
+     * <code>b[1]</code>, and so on; the last byte
+     * written is <code>b[b.length-1]</code>.
+     *
+     * @param b the data.
+     *
+     * @throws IOException if an I/O error occurs.
+     */
+    // 向包装的输出流写入b中全部字节
+    void write(byte[] b) throws IOException;
+    
+    /**
+     * Writes <code>len</code> bytes from array
+     * <code>b</code>, in order,  to
+     * the output stream.  If <code>b</code>
+     * is <code>null</code>, a <code>NullPointerException</code>
+     * is thrown.  If <code>off</code> is negative,
+     * or <code>len</code> is negative, or <code>off+len</code>
+     * is greater than the length of the array
+     * <code>b</code>, then an <code>IndexOutOfBoundsException</code>
+     * is thrown.  If <code>len</code> is zero,
+     * then no bytes are written. Otherwise, the
+     * byte <code>b[off]</code> is written first,
+     * then <code>b[off+1]</code>, and so on; the
+     * last byte written is <code>b[off+len-1]</code>.
+     *
+     * @param b   the data.
+     * @param off the start offset in the data.
+     * @param len the number of bytes to write.
+     *
+     * @throws IOException if an I/O error occurs.
+     */
+    // 向包装的输出流写入b中off处起的len个byte
+    void write(byte[] b, int off, int len) throws IOException;
+    
 }
