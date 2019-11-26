@@ -25,7 +25,6 @@
 
 package java.io;
 
-
 /**
  * Abstract class for reading filtered character streams.
  * The abstract class <code>FilterReader</code> itself
@@ -34,92 +33,123 @@ package java.io;
  * should override some of these methods and may also provide
  * additional methods and fields.
  *
- * @author      Mark Reinhold
- * @since       1.1
+ * @author Mark Reinhold
+ * @since 1.1
  */
-
+// 对输入流的简单包装，由子类实现具体的包装行为
 public abstract class FilterReader extends Reader {
-
+    
     /**
      * The underlying character-input stream.
      */
-    protected Reader in;
-
+    protected Reader in;    // 包装的输入流
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates a new filtered reader.
      *
-     * @param in  a Reader object providing the underlying stream.
+     * @param in a Reader object providing the underlying stream.
+     *
      * @throws NullPointerException if <code>in</code> is <code>null</code>
      */
     protected FilterReader(Reader in) {
         super(in);
         this.in = in;
     }
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 读 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Reads a single character.
      *
-     * @exception  IOException  If an I/O error occurs
+     * @throws IOException If an I/O error occurs
      */
     public int read() throws IOException {
         return in.read();
     }
-
+    
     /**
      * Reads characters into a portion of an array.
      *
-     * @exception  IOException  If an I/O error occurs
-     * @exception  IndexOutOfBoundsException {@inheritDoc}
+     * @throws IOException               If an I/O error occurs
+     * @throws IndexOutOfBoundsException {@inheritDoc}
      */
-    public int read(char cbuf[], int off, int len) throws IOException {
+    public int read(char[] cbuf, int off, int len) throws IOException {
         return in.read(cbuf, off, len);
     }
-
-    /**
-     * Skips characters.
-     *
-     * @exception  IOException  If an I/O error occurs
-     */
-    public long skip(long n) throws IOException {
-        return in.skip(n);
-    }
-
-    /**
-     * Tells whether this stream is ready to be read.
-     *
-     * @exception  IOException  If an I/O error occurs
-     */
-    public boolean ready() throws IOException {
-        return in.ready();
-    }
-
+    
+    /*▲ 读 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 存档 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Tells whether this stream supports the mark() operation.
      */
+    // 判断当前输入流是否支持存档标记
     public boolean markSupported() {
         return in.markSupported();
     }
-
+    
     /**
      * Marks the present position in the stream.
      *
-     * @exception  IOException  If an I/O error occurs
+     * @throws IOException If an I/O error occurs
      */
+    // 设置存档标记，readAheadLimit是存档区预读上限
     public void mark(int readAheadLimit) throws IOException {
         in.mark(readAheadLimit);
     }
-
+    
     /**
      * Resets the stream.
      *
-     * @exception  IOException  If an I/O error occurs
+     * @throws IOException If an I/O error occurs
      */
+    // 对于支持设置存档的输入流，可以重置其"读游标"到存档区的起始位置
     public void reset() throws IOException {
         in.reset();
     }
-
+    
+    /*▲ 存档 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 关闭输入流
     public void close() throws IOException {
         in.close();
     }
-
+    
+    /**
+     * Skips characters.
+     *
+     * @throws IOException If an I/O error occurs
+     */
+    // 读取中跳过n个字符，返回实际跳过的字符数
+    public long skip(long n) throws IOException {
+        return in.skip(n);
+    }
+    
+    /**
+     * Tells whether this stream is ready to be read.
+     *
+     * @throws IOException If an I/O error occurs
+     */
+    // 判断当前流是否已准备好被读取
+    public boolean ready() throws IOException {
+        return in.ready();
+    }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }
