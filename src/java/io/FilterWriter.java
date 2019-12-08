@@ -25,7 +25,6 @@
 
 package java.io;
 
-
 /**
  * Abstract class for writing filtered character streams.
  * The abstract class <code>FilterWriter</code> itself
@@ -34,84 +33,104 @@ package java.io;
  * should override some of these methods and may also
  * provide additional methods and fields.
  *
- * @author      Mark Reinhold
- * @since       1.1
+ * @author Mark Reinhold
+ * @since 1.1
  */
-
+// 对输出流的简单包装，由子类实现具体的包装行为
 public abstract class FilterWriter extends Writer {
-
+    
     /**
      * The underlying character-output stream.
      */
-    protected Writer out;
-
+    protected Writer out;   // 包装的输出流
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Create a new filtered writer.
      *
-     * @param out  a Writer object to provide the underlying stream.
+     * @param out a Writer object to provide the underlying stream.
+     *
      * @throws NullPointerException if <code>out</code> is <code>null</code>
      */
     protected FilterWriter(Writer out) {
         super(out);
         this.out = out;
     }
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 写 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Writes a single character.
      *
-     * @exception  IOException  If an I/O error occurs
+     * @throws IOException If an I/O error occurs
      */
+    // 将指定的字符写入到输出流
     public void write(int c) throws IOException {
         out.write(c);
     }
-
+    
     /**
      * Writes a portion of an array of characters.
      *
-     * @param  cbuf  Buffer of characters to be written
-     * @param  off   Offset from which to start reading characters
-     * @param  len   Number of characters to be written
+     * @param cbuf Buffer of characters to be written
+     * @param off  Offset from which to start reading characters
+     * @param len  Number of characters to be written
      *
-     * @throws  IndexOutOfBoundsException
-     *          If the values of the {@code off} and {@code len} parameters
-     *          cause the corresponding method of the underlying {@code Writer}
-     *          to throw an {@code IndexOutOfBoundsException}
-     *
-     * @throws  IOException  If an I/O error occurs
+     * @throws IndexOutOfBoundsException If the values of the {@code off} and {@code len} parameters
+     *                                   cause the corresponding method of the underlying {@code Writer}
+     *                                   to throw an {@code IndexOutOfBoundsException}
+     * @throws IOException               If an I/O error occurs
      */
-    public void write(char cbuf[], int off, int len) throws IOException {
+    // 将字符数组cbuf中off处起的len个字符写入到输出流
+    public void write(char[] cbuf, int off, int len) throws IOException {
         out.write(cbuf, off, len);
     }
-
+    
     /**
      * Writes a portion of a string.
      *
-     * @param  str  String to be written
-     * @param  off  Offset from which to start reading characters
-     * @param  len  Number of characters to be written
+     * @param str String to be written
+     * @param off Offset from which to start reading characters
+     * @param len Number of characters to be written
      *
-     * @throws  IndexOutOfBoundsException
-     *          If the values of the {@code off} and {@code len} parameters
-     *          cause the corresponding method of the underlying {@code Writer}
-     *          to throw an {@code IndexOutOfBoundsException}
-     *
-     * @throws  IOException  If an I/O error occurs
+     * @throws IndexOutOfBoundsException If the values of the {@code off} and {@code len} parameters
+     *                                   cause the corresponding method of the underlying {@code Writer}
+     *                                   to throw an {@code IndexOutOfBoundsException}
+     * @throws IOException               If an I/O error occurs
      */
+    // 将字符串str中off处起的len个字符写入到输出流
     public void write(String str, int off, int len) throws IOException {
         out.write(str, off, len);
     }
-
+    
+    /*▲ 写 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Flushes the stream.
      *
-     * @exception  IOException  If an I/O error occurs
+     * @throws IOException If an I/O error occurs
      */
+    // 将内部缓冲区中的字符写入到输出流
     public void flush() throws IOException {
         out.flush();
     }
-
+    
+    // 关闭输出流
     public void close() throws IOException {
         out.close();
     }
-
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }
