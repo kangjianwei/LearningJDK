@@ -30,7 +30,6 @@ import java.nio.charset.Charset;
 import java.nio.charset.CharsetEncoder;
 import sun.nio.cs.StreamEncoder;
 
-
 /**
  * An OutputStreamWriter is a bridge from character streams to byte streams:
  * Characters written to it are encoded into bytes using a specified {@link
@@ -65,92 +64,213 @@ import sun.nio.cs.StreamEncoder;
  * The {@linkplain java.nio.charset.CharsetEncoder} class should be used when more
  * control over the encoding process is required.
  *
+ * @author Mark Reinhold
  * @see BufferedWriter
  * @see OutputStream
  * @see java.nio.charset.Charset
- *
- * @author      Mark Reinhold
- * @since       1.1
+ * @since 1.1
  */
-
+/*
+ * 带有编码器的字符输出流：将指定的字符序列转换为字节后输出到最终输出流
+ *
+ * 注：该类只是对输出流编码器的简单包装
+ */
 public class OutputStreamWriter extends Writer {
-
-    private final StreamEncoder se;
-
-    /**
-     * Creates an OutputStreamWriter that uses the named charset.
-     *
-     * @param  out
-     *         An OutputStream
-     *
-     * @param  charsetName
-     *         The name of a supported
-     *         {@link java.nio.charset.Charset charset}
-     *
-     * @exception  UnsupportedEncodingException
-     *             If the named encoding is not supported
-     */
-    public OutputStreamWriter(OutputStream out, String charsetName)
-        throws UnsupportedEncodingException
-    {
-        super(out);
-        if (charsetName == null)
-            throw new NullPointerException("charsetName");
-        se = StreamEncoder.forOutputStreamWriter(out, this, charsetName);
-    }
-
+    
+    // 字符输出流编码器：将字符序列编码为字节后，写入到字节输出流
+    private final StreamEncoder streamEncoder;
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates an OutputStreamWriter that uses the default character encoding.
      *
-     * @param  out  An OutputStream
+     * @param out An OutputStream
      */
+    // out：最终输出流，是字节最终写入的地方
     public OutputStreamWriter(OutputStream out) {
         super(out);
+        
         try {
-            se = StreamEncoder.forOutputStreamWriter(out, this, (String)null);
-        } catch (UnsupportedEncodingException e) {
+            streamEncoder = StreamEncoder.forOutputStreamWriter(out, this, (String) null);
+        } catch(UnsupportedEncodingException e) {
             throw new Error(e);
         }
     }
-
+    
+    /**
+     * Creates an OutputStreamWriter that uses the named charset.
+     *
+     * @param out         An OutputStream
+     * @param charsetName The name of a supported
+     *                    {@link java.nio.charset.Charset charset}
+     *
+     * @throws UnsupportedEncodingException If the named encoding is not supported
+     */
+    /*
+     * out：最终输出流，是字节最终写入的地方
+     * charsetName：编码字节流时用到的字符集
+     */
+    public OutputStreamWriter(OutputStream out, String charsetName) throws UnsupportedEncodingException {
+        super(out);
+        
+        if(charsetName == null) {
+            throw new NullPointerException("charsetName");
+        }
+        
+        streamEncoder = StreamEncoder.forOutputStreamWriter(out, this, charsetName);
+    }
+    
     /**
      * Creates an OutputStreamWriter that uses the given charset.
      *
-     * @param  out
-     *         An OutputStream
+     * @param out An OutputStream
+     * @param cs  A charset
      *
-     * @param  cs
-     *         A charset
-     *
-     * @since 1.4
      * @spec JSR-51
+     * @since 1.4
      */
-    public OutputStreamWriter(OutputStream out, Charset cs) {
+    /*
+     * out：最终输出流，是字节最终写入的地方
+     * charsetName：编码字节流时用到的字符集
+     */
+    public OutputStreamWriter(OutputStream out, Charset charsetName) {
         super(out);
-        if (cs == null)
+        
+        if(charsetName == null) {
             throw new NullPointerException("charset");
-        se = StreamEncoder.forOutputStreamWriter(out, this, cs);
+        }
+        
+        streamEncoder = StreamEncoder.forOutputStreamWriter(out, this, charsetName);
     }
-
+    
     /**
      * Creates an OutputStreamWriter that uses the given charset encoder.
      *
-     * @param  out
-     *         An OutputStream
+     * @param out An OutputStream
+     * @param enc A charset encoder
      *
-     * @param  enc
-     *         A charset encoder
-     *
-     * @since 1.4
      * @spec JSR-51
+     * @since 1.4
+     */
+    /*
+     * out：最终输出流，是字节最终写入的地方
+     * enc：编码字节流时用到的编码器
      */
     public OutputStreamWriter(OutputStream out, CharsetEncoder enc) {
         super(out);
-        if (enc == null)
+        
+        if(enc == null) {
             throw new NullPointerException("charset encoder");
-        se = StreamEncoder.forOutputStreamWriter(out, this, enc);
+        }
+        
+        streamEncoder = StreamEncoder.forOutputStreamWriter(out, this, enc);
     }
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 写 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Writes a single character.
+     *
+     * @throws IOException If an I/O error occurs
+     */
+    // 将指定的字符写入到输出流
+    public void write(int c) throws IOException {
+        streamEncoder.write(c);
+    }
+    
+    /**
+     * Writes a portion of an array of characters.
+     *
+     * @param cbuf Buffer of characters
+     * @param off  Offset from which to start writing characters
+     * @param len  Number of characters to write
+     *
+     * @throws IndexOutOfBoundsException If {@code off} is negative, or {@code len} is negative,
+     *                                   or {@code off + len} is negative or greater than the length of the given array
+     * @throws IOException               If an I/O error occurs
+     */
+    // 将字符数组cbuf中off处起的len个字符写入到输出流
+    public void write(char[] cbuf, int off, int len) throws IOException {
+        streamEncoder.write(cbuf, off, len);
+    }
+    
+    /**
+     * Writes a portion of a string.
+     *
+     * @param str A String
+     * @param off Offset from which to start writing characters
+     * @param len Number of characters to write
+     *
+     * @throws IndexOutOfBoundsException If {@code off} is negative, or {@code len} is negative,
+     *                                   or {@code off + len} is negative or greater than the length
+     *                                   of the given string
+     * @throws IOException               If an I/O error occurs
+     */
+    // 将字符串str中off处起的len个字符写入到输出流
+    public void write(String str, int off, int len) throws IOException {
+        streamEncoder.write(str, off, len);
+    }
+    
+    
+    // 将字符序列csq的字符写入到输出流
+    @Override
+    public Writer append(CharSequence csq) throws IOException {
+        if(csq instanceof CharBuffer) {
+            streamEncoder.write((CharBuffer) csq);
+        } else {
+            streamEncoder.write(String.valueOf(csq));
+        }
+        return this;
+    }
+    
+    // 将字符序列csq[start, end)范围的字符写入到输出流
+    @Override
+    public Writer append(CharSequence csq, int start, int end) throws IOException {
+        if(csq == null) {
+            csq = "null";
+        }
+        return append(csq.subSequence(start, end));
+    }
+    
+    /*▲ 写 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Flushes the output buffer to the underlying byte stream, without flushing
+     * the byte stream itself.  This method is non-private only so that it may
+     * be invoked by PrintStream.
+     */
+    // 刷新缓冲区：将输出流编码器内部缓冲区中的字节写到最终输出流中(该操作不会刷新输出流编码器内的最终输出流)
+    void flushBuffer() throws IOException {
+        streamEncoder.flushBuffer();
+    }
+    
+    /**
+     * Flushes the stream.
+     *
+     * @throws IOException If an I/O error occurs
+     */
+    // 刷新当前输出流：不仅刷新输出流编码器的内部缓冲区，还刷新输出流编码器内最终字节输出流的内部缓冲区(如果存在)
+    public void flush() throws IOException {
+        streamEncoder.flush();
+    }
+    
+    // 关闭当前输出流，其实是关闭输出流编码器
+    public void close() throws IOException {
+        streamEncoder.close();
+    }
+    
+    
     /**
      * Returns the name of the character encoding being used by this stream.
      *
@@ -164,97 +284,17 @@ public class OutputStreamWriter extends Writer {
      * been closed. </p>
      *
      * @return The historical name of this encoding, or possibly
-     *         <code>null</code> if the stream has been closed
-     *
-     * @see java.nio.charset.Charset
+     * <code>null</code> if the stream has been closed
      *
      * @revised 1.4
      * @spec JSR-51
+     * @see java.nio.charset.Charset
      */
+    // 返回字节编码器使用的字符集名称
     public String getEncoding() {
-        return se.getEncoding();
+        return streamEncoder.getEncoding();
     }
-
-    /**
-     * Flushes the output buffer to the underlying byte stream, without flushing
-     * the byte stream itself.  This method is non-private only so that it may
-     * be invoked by PrintStream.
-     */
-    void flushBuffer() throws IOException {
-        se.flushBuffer();
-    }
-
-    /**
-     * Writes a single character.
-     *
-     * @exception  IOException  If an I/O error occurs
-     */
-    public void write(int c) throws IOException {
-        se.write(c);
-    }
-
-    /**
-     * Writes a portion of an array of characters.
-     *
-     * @param  cbuf  Buffer of characters
-     * @param  off   Offset from which to start writing characters
-     * @param  len   Number of characters to write
-     *
-     * @throws  IndexOutOfBoundsException
-     *          If {@code off} is negative, or {@code len} is negative,
-     *          or {@code off + len} is negative or greater than the length
-     *          of the given array
-     *
-     * @throws  IOException  If an I/O error occurs
-     */
-    public void write(char cbuf[], int off, int len) throws IOException {
-        se.write(cbuf, off, len);
-    }
-
-    /**
-     * Writes a portion of a string.
-     *
-     * @param  str  A String
-     * @param  off  Offset from which to start writing characters
-     * @param  len  Number of characters to write
-     *
-     * @throws  IndexOutOfBoundsException
-     *          If {@code off} is negative, or {@code len} is negative,
-     *          or {@code off + len} is negative or greater than the length
-     *          of the given string
-     *
-     * @throws  IOException  If an I/O error occurs
-     */
-    public void write(String str, int off, int len) throws IOException {
-        se.write(str, off, len);
-    }
-
-    @Override
-    public Writer append(CharSequence csq, int start, int end) throws IOException {
-        if (csq == null) csq = "null";
-        return append(csq.subSequence(start, end));
-    }
-
-    @Override
-    public Writer append(CharSequence csq) throws IOException {
-        if (csq instanceof CharBuffer) {
-            se.write((CharBuffer) csq);
-        } else {
-            se.write(String.valueOf(csq));
-        }
-        return this;
-    }
-
-    /**
-     * Flushes the stream.
-     *
-     * @exception  IOException  If an I/O error occurs
-     */
-    public void flush() throws IOException {
-        se.flush();
-    }
-
-    public void close() throws IOException {
-        se.close();
-    }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }
