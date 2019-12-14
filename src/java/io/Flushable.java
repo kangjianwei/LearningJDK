@@ -25,22 +25,21 @@
 
 package java.io;
 
-import java.io.IOException;
-
 /**
- * A {@code Flushable} is a destination of data that can be flushed.  The
- * flush method is invoked to write any buffered output to the underlying
- * stream.
+ * A {@code Flushable} is a destination of data that can be flushed.
+ * The flush method is invoked to write any buffered output to the underlying stream.
  *
  * @since 1.5
  */
+// "可刷新"接口，常用在带有缓冲区的流中
 public interface Flushable {
-
+    
     /**
-     * Flushes this stream by writing any buffered output to the underlying
-     * stream.
+     * Flushes this stream by writing any buffered output to the underlying stream.
      *
      * @throws IOException If an I/O error occurs
      */
+    // 将缓冲区中的数据刷新(写入)到输出终点
     void flush() throws IOException;
+    
 }
