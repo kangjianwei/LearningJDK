@@ -27,19 +27,20 @@ package java.io;
 
 /**
  * Callback interface to allow validation of objects within a graph.
- * Allows an object to be called when a complete graph of objects has
- * been deserialized.
+ * Allows an object to be called when a complete graph of objects has been deserialized.
  *
  * @author  unascribed
  * @see     ObjectInputStream
  * @see     ObjectInputStream#registerValidation(java.io.ObjectInputValidation, int)
  * @since   1.1
  */
+// 反序列化的校验回调
 public interface ObjectInputValidation {
     /**
      * Validates the object.
      *
      * @exception InvalidObjectException If the object cannot validate itself.
      */
+    // 反序列化完成后，对反序列化的对象进行验证
     public void validateObject() throws InvalidObjectException;
 }
