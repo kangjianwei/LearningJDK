@@ -25,12 +25,6 @@
 
 package java.util.jar;
 
-import jdk.internal.misc.SharedSecrets;
-import jdk.internal.misc.JavaUtilZipFileAccess;
-import sun.security.action.GetPropertyAction;
-import sun.security.util.ManifestEntryVerifier;
-import sun.security.util.SignatureFileVerifier;
-
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.File;
@@ -53,6 +47,11 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
+import jdk.internal.misc.JavaUtilZipFileAccess;
+import jdk.internal.misc.SharedSecrets;
+import sun.security.action.GetPropertyAction;
+import sun.security.util.ManifestEntryVerifier;
+import sun.security.util.SignatureFileVerifier;
 
 /**
  * The {@code JarFile} class is used to read the contents of a jar file
@@ -108,8 +107,8 @@ import java.util.zip.ZipFile;
  * or method in this class will cause a {@link NullPointerException} to be
  * thrown.
  *
- * @implNote
- * <div class="block">
+ * @author David Connelly
+ * @implNote <div class="block">
  * If the API can not be used to configure a {@code JarFile} (e.g. to override
  * the configuration of a compiled application or library), two {@code System}
  * properties are available.
@@ -138,56 +137,110 @@ import java.util.zip.ZipFile;
  * </li>
  * </ul>
  * </div>
- *
- * @author  David Connelly
- * @see     Manifest
- * @see     java.util.zip.ZipFile
- * @see     java.util.jar.JarEntry
- * @since   1.2
+ * @see Manifest
+ * @see java.util.zip.ZipFile
+ * @see java.util.jar.JarEntry
+ * @since 1.2
  */
-public
-class JarFile extends ZipFile {
-    private final static Runtime.Version BASE_VERSION;
-    private final static int BASE_VERSION_FEATURE;
-    private final static Runtime.Version RUNTIME_VERSION;
-    private final static boolean MULTI_RELEASE_ENABLED;
-    private final static boolean MULTI_RELEASE_FORCED;
-    private SoftReference<Manifest> manRef;
-    private JarEntry manEntry;
-    private JarVerifier jv;
-    private boolean jvInitialized;
-    private boolean verify;
-    private final Runtime.Version version;  // current version
-    private final int versionFeature;         // version.feature()
-    private boolean isMultiRelease;         // is jar multi-release?
-
-    // indicates if Class-Path attribute present
-    private boolean hasClassPathAttribute;
+// jar文件，适用于读取具有规范jar结构的压缩文件
+public class JarFile extends ZipFile {
+    
+    private static final String META_INF = "META-INF/";
+    
+    /**
+     * The JAR manifest file name.
+     */
+    public static final String MANIFEST_NAME = META_INF + "MANIFEST.MF";
+    
+    private static final String META_INF_VERSIONS = META_INF + "versions/";
+    
+    /** Statics for hand-coded Boyer-Moore search */
+    // "class-path: "
+    private static final byte[] CLASSPATH_CHARS = {'C', 'L', 'A', 'S', 'S', '-', 'P', 'A', 'T', 'H', ':', ' '};
+    
+    /** The bad character shift for "class-path: " */
+    private static final byte[] CLASSPATH_LASTOCC;
+    
+    /** The good suffix shift for "class-path: " */
+    private static final byte[] CLASSPATH_OPTOSFT;
+    
+    // "multi-release: true"
+    private static final byte[] MULTIRELEASE_CHARS = {'M', 'U', 'L', 'T', 'I', '-', 'R', 'E', 'L', 'E', 'A', 'S', 'E', ':', ' ', 'T', 'R', 'U', 'E'};
+    
+    /** The bad character shift for "multi-release: true" */
+    private static final byte[] MULTIRELEASE_LASTOCC;
+    
+    /** The good suffix shift for "multi-release: true" */
+    private static final byte[] MULTIRELEASE_OPTOSFT;
+    
+    private final static Runtime.Version BASE_VERSION;  // 基础版本(最低兼容版本)
+    private final static int BASE_VERSION_FEATURE;      // 基础版本(最低兼容版本)的主版本号
+    
+    private final static Runtime.Version RUNTIME_VERSION;   // 当前运行(兼容)的JDK版本，介于基础版本和当前JDK版本(默认)之间
+    
+    private final static boolean MULTI_RELEASE_ENABLED; // 是否允许支持multi-release jar
+    
+    private final static boolean MULTI_RELEASE_FORCED;  // 是否需要强制支持multi-release jar
+    
+    // current version
+    private final Runtime.Version version;  // 当前使用的发行版本
+    
+    // version.feature()
+    private final int versionFeature;   // 当前使用的发行版本号
+    
     // true if manifest checked for special attributes
-    private volatile boolean hasCheckedSpecialAttributes;
-
+    private volatile boolean hasCheckedSpecialAttributes;   // 是否已对Class-Path和Multi-Release属性进行了检查
+    
+    private JarEntry manEntry;  // "META-INF/MANIFEST.MF"实体
+    
+    private SoftReference<Manifest> manRef; // jar中的"META-INF/MANIFEST.MF"文件(对象)
+    
+    // is jar multi-release?
+    private boolean isMultiRelease; // 当前jar是否为multi-release
+    
+    // indicates if Class-Path attribute present
+    private boolean hasClassPathAttribute;  // 是否包含"class-path: "属性
+    
+    private boolean verify; // 是否需要校验jar
+    
+    private JarVerifier jv;
+    
+    private boolean jvInitialized;
+    
     private static final JavaUtilZipFileAccess JUZFA;
-
+    
+    
+    
     static {
         // Set up JavaUtilJarAccess in SharedSecrets
         SharedSecrets.setJavaUtilJarAccess(new JavaUtilJarAccessImpl());
+        
         // Get JavaUtilZipFileAccess from SharedSecrets
         JUZFA = jdk.internal.misc.SharedSecrets.getJavaUtilZipFileAccess();
+        
         // multi-release jar file versions >= 9
-        BASE_VERSION = Runtime.Version.parse(Integer.toString(8));
-        BASE_VERSION_FEATURE = BASE_VERSION.feature();
+        BASE_VERSION = Runtime.Version.parse(Integer.toString(8));  // 基础版本(最低兼容版本)
+        BASE_VERSION_FEATURE = BASE_VERSION.feature();  // 基础版本(最低兼容版本)的主版本号
+        
+        
+        int runtimeVersion = Runtime.version().feature();   // 当前运行的JDK版本
+        
+        // 从运行参数中解析出期望版本
         String jarVersion = GetPropertyAction.privilegedGetProperty("jdk.util.jar.version");
-        int runtimeVersion = Runtime.version().feature();
-        if (jarVersion != null) {
+        if(jarVersion != null) {
+            // 期望版本的主版本号
             int jarVer = Integer.parseInt(jarVersion);
-            runtimeVersion = (jarVer > runtimeVersion)
-                    ? runtimeVersion
-                    : Math.max(jarVer, BASE_VERSION_FEATURE);
+            runtimeVersion = (jarVer>runtimeVersion)
+                ? runtimeVersion    // 期望版本大于实际运行的JDK版本，则取实际版本
+                : Math.max(jarVer, BASE_VERSION_FEATURE);   // 期望版本小于实际运行的版本，则取期望版本与基础版本的最大值
         }
+        
+        // 记录当前运行(兼容)的JDK版本，介于基础版本和当前JDK版本之间
         RUNTIME_VERSION = Runtime.Version.parse(Integer.toString(runtimeVersion));
-        String enableMultiRelease = GetPropertyAction
-                .privilegedGetProperty("jdk.util.jar.enableMultiRelease", "true");
-        switch (enableMultiRelease) {
+        
+        // 是否允许支持multi-release jar
+        String enableMultiRelease = GetPropertyAction.privilegedGetProperty("jdk.util.jar.enableMultiRelease", "true");
+        switch(enableMultiRelease) {
             case "true":
             default:
                 MULTI_RELEASE_ENABLED = true;
@@ -203,16 +256,197 @@ class JarFile extends ZipFile {
                 break;
         }
     }
-
-    private static final String META_INF = "META-INF/";
-
-    private static final String META_INF_VERSIONS = META_INF + "versions/";
-
+    
+    static {
+        CLASSPATH_LASTOCC = new byte[65];
+        CLASSPATH_OPTOSFT = new byte[12];
+        
+        CLASSPATH_LASTOCC[(int) 'C' - 32] = 1;
+        CLASSPATH_LASTOCC[(int) 'L' - 32] = 2;
+        CLASSPATH_LASTOCC[(int) 'S' - 32] = 5;
+        CLASSPATH_LASTOCC[(int) '-' - 32] = 6;
+        CLASSPATH_LASTOCC[(int) 'P' - 32] = 7;
+        CLASSPATH_LASTOCC[(int) 'A' - 32] = 8;
+        CLASSPATH_LASTOCC[(int) 'T' - 32] = 9;
+        CLASSPATH_LASTOCC[(int) 'H' - 32] = 10;
+        CLASSPATH_LASTOCC[(int) ':' - 32] = 11;
+        CLASSPATH_LASTOCC[(int) ' ' - 32] = 12;
+        for(int i = 0; i<11; i++) {
+            CLASSPATH_OPTOSFT[i] = 12;
+        }
+        CLASSPATH_OPTOSFT[11] = 1;
+        
+        MULTIRELEASE_LASTOCC = new byte[65];
+        MULTIRELEASE_OPTOSFT = new byte[19];
+        
+        MULTIRELEASE_LASTOCC[(int) 'M' - 32] = 1;
+        MULTIRELEASE_LASTOCC[(int) 'I' - 32] = 5;
+        MULTIRELEASE_LASTOCC[(int) '-' - 32] = 6;
+        MULTIRELEASE_LASTOCC[(int) 'L' - 32] = 9;
+        MULTIRELEASE_LASTOCC[(int) 'A' - 32] = 11;
+        MULTIRELEASE_LASTOCC[(int) 'S' - 32] = 12;
+        MULTIRELEASE_LASTOCC[(int) ':' - 32] = 14;
+        MULTIRELEASE_LASTOCC[(int) ' ' - 32] = 15;
+        MULTIRELEASE_LASTOCC[(int) 'T' - 32] = 16;
+        MULTIRELEASE_LASTOCC[(int) 'R' - 32] = 17;
+        MULTIRELEASE_LASTOCC[(int) 'U' - 32] = 18;
+        MULTIRELEASE_LASTOCC[(int) 'E' - 32] = 19;
+        for(int i = 0; i<17; i++) {
+            MULTIRELEASE_OPTOSFT[i] = 19;
+        }
+        MULTIRELEASE_OPTOSFT[17] = 6;
+        MULTIRELEASE_OPTOSFT[18] = 1;
+    }
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * The JAR manifest file name.
+     * Creates a new {@code JarFile} to read from the specified
+     * file {@code name}. The {@code JarFile} will be verified if
+     * it is signed.
+     *
+     * @param name the name of the jar file to be opened for reading
+     *
+     * @throws IOException       if an I/O error has occurred
+     * @throws SecurityException if access to the file is denied
+     *                           by the SecurityManager
      */
-    public static final String MANIFEST_NAME = META_INF + "MANIFEST.MF";
-
+    // 打开指定名称的JarFile，需要验证
+    public JarFile(String name) throws IOException {
+        this(new File(name), true, ZipFile.OPEN_READ);
+    }
+    
+    /**
+     * Creates a new {@code JarFile} to read from the specified
+     * file {@code name}.
+     *
+     * @param name   the name of the jar file to be opened for reading
+     * @param verify whether or not to verify the jar file if it is signed.
+     *
+     * @throws IOException       if an I/O error has occurred
+     * @throws SecurityException if access to the file is denied
+     *                           by the SecurityManager
+     */
+    // 打开指定名称的JarFile，verify指示是否需要验证
+    public JarFile(String name, boolean verify) throws IOException {
+        this(new File(name), verify, ZipFile.OPEN_READ);
+    }
+    
+    /**
+     * Creates a new {@code JarFile} to read from the specified
+     * {@code File} object. The {@code JarFile} will be verified if
+     * it is signed.
+     *
+     * @param file the jar file to be opened for reading
+     *
+     * @throws IOException       if an I/O error has occurred
+     * @throws SecurityException if access to the file is denied
+     *                           by the SecurityManager
+     */
+    // 打开指定的JarFile，需要验证
+    public JarFile(File file) throws IOException {
+        this(file, true, ZipFile.OPEN_READ);
+    }
+    
+    /**
+     * Creates a new {@code JarFile} to read from the specified
+     * {@code File} object.
+     *
+     * @param file   the jar file to be opened for reading
+     * @param verify whether or not to verify the jar file if
+     *               it is signed.
+     *
+     * @throws IOException       if an I/O error has occurred
+     * @throws SecurityException if access to the file is denied
+     *                           by the SecurityManager.
+     */
+    // 打开指定的JarFile，verify指示是否需要验证
+    public JarFile(File file, boolean verify) throws IOException {
+        this(file, verify, ZipFile.OPEN_READ);
+    }
+    
+    /**
+     * Creates a new {@code JarFile} to read from the specified
+     * {@code File} object in the specified mode.  The mode argument
+     * must be either {@code OPEN_READ} or {@code OPEN_READ | OPEN_DELETE}.
+     *
+     * @param file   the jar file to be opened for reading
+     * @param verify whether or not to verify the jar file if
+     *               it is signed.
+     * @param mode   the mode in which the file is to be opened
+     *
+     * @throws IOException              if an I/O error has occurred
+     * @throws IllegalArgumentException if the {@code mode} argument is invalid
+     * @throws SecurityException        if access to the file is denied
+     *                                  by the SecurityManager
+     * @since 1.3
+     */
+    public JarFile(File file, boolean verify, int mode) throws IOException {
+        this(file, verify, mode, BASE_VERSION);
+    }
+    
+    /**
+     * Creates a new {@code JarFile} to read from the specified
+     * {@code File} object in the specified mode.  The mode argument
+     * must be either {@code OPEN_READ} or {@code OPEN_READ | OPEN_DELETE}.
+     * The version argument, after being converted to a canonical form, is
+     * used to configure the {@code JarFile} for processing
+     * multi-release jar files.
+     * <p>
+     * The canonical form derived from the version parameter is
+     * {@code Runtime.Version.parse(Integer.toString(n))} where {@code n} is
+     * {@code Math.max(version.feature(), JarFile.baseVersion().feature())}.
+     *
+     * @param file    the jar file to be opened for reading
+     * @param verify  whether or not to verify the jar file if
+     *                it is signed.
+     * @param mode    the mode in which the file is to be opened
+     * @param version specifies the release version for a multi-release jar file
+     *
+     * @throws IOException              if an I/O error has occurred
+     * @throws IllegalArgumentException if the {@code mode} argument is invalid
+     * @throws SecurityException        if access to the file is denied by the SecurityManager
+     * @throws NullPointerException     if {@code version} is {@code null}
+     * @since 9
+     */
+    /*
+     * 打开指定的JarFile，使用UTF8编码作为解压字符集。
+     *
+     * verify  - 是否需要校验jar。
+     * mode    - 打开模式，一般为OPEN_READ或OPEN_READ|OPEN_DELETE。
+     * version - 指定jar的发行版本
+     */
+    public JarFile(File file, boolean verify, int mode, Runtime.Version version) throws IOException {
+        super(file, mode);
+        
+        Objects.requireNonNull(version);
+        
+        this.verify = verify;
+        
+        /* BASE_VERSION -- RUNTIME_VERSION -- JDK_VERSION */
+        
+        if(MULTI_RELEASE_FORCED || version.feature() == RUNTIME_VERSION.feature()) {
+            // This deals with the common case where the value from JarFile.runtimeVersion() is passed
+            this.version = RUNTIME_VERSION;
+        } else if(version.feature()<=BASE_VERSION_FEATURE) {
+            // This also deals with the common case where the value from JarFile.baseVersion() is passed
+            this.version = BASE_VERSION;
+        } else {
+            // Canonicalize
+            this.version = Runtime.Version.parse(Integer.toString(version.feature()));
+        }
+        
+        this.versionFeature = this.version.feature();
+    }
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ get ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns the version that represents the unversioned configuration of a
      * multi-release jar file.
@@ -221,10 +455,11 @@ class JarFile extends ZipFile {
      *
      * @since 9
      */
+    // 返回基础版本(最低兼容版本)
     public static Runtime.Version baseVersion() {
         return BASE_VERSION;
     }
-
+    
     /**
      * Returns the version that represents the effective runtime versioned
      * configuration of a multi-release jar file.
@@ -239,126 +474,11 @@ class JarFile extends ZipFile {
      *
      * @since 9
      */
+    // 返回当前运行(兼容)的JDK版本，介于基础版本和当前JDK版本(默认)之间
     public static Runtime.Version runtimeVersion() {
         return RUNTIME_VERSION;
     }
-
-    /**
-     * Creates a new {@code JarFile} to read from the specified
-     * file {@code name}. The {@code JarFile} will be verified if
-     * it is signed.
-     * @param name the name of the jar file to be opened for reading
-     * @throws IOException if an I/O error has occurred
-     * @throws SecurityException if access to the file is denied
-     *         by the SecurityManager
-     */
-    public JarFile(String name) throws IOException {
-        this(new File(name), true, ZipFile.OPEN_READ);
-    }
-
-    /**
-     * Creates a new {@code JarFile} to read from the specified
-     * file {@code name}.
-     * @param name the name of the jar file to be opened for reading
-     * @param verify whether or not to verify the jar file if
-     * it is signed.
-     * @throws IOException if an I/O error has occurred
-     * @throws SecurityException if access to the file is denied
-     *         by the SecurityManager
-     */
-    public JarFile(String name, boolean verify) throws IOException {
-        this(new File(name), verify, ZipFile.OPEN_READ);
-    }
-
-    /**
-     * Creates a new {@code JarFile} to read from the specified
-     * {@code File} object. The {@code JarFile} will be verified if
-     * it is signed.
-     * @param file the jar file to be opened for reading
-     * @throws IOException if an I/O error has occurred
-     * @throws SecurityException if access to the file is denied
-     *         by the SecurityManager
-     */
-    public JarFile(File file) throws IOException {
-        this(file, true, ZipFile.OPEN_READ);
-    }
-
-    /**
-     * Creates a new {@code JarFile} to read from the specified
-     * {@code File} object.
-     * @param file the jar file to be opened for reading
-     * @param verify whether or not to verify the jar file if
-     * it is signed.
-     * @throws IOException if an I/O error has occurred
-     * @throws SecurityException if access to the file is denied
-     *         by the SecurityManager.
-     */
-    public JarFile(File file, boolean verify) throws IOException {
-        this(file, verify, ZipFile.OPEN_READ);
-    }
-
-    /**
-     * Creates a new {@code JarFile} to read from the specified
-     * {@code File} object in the specified mode.  The mode argument
-     * must be either {@code OPEN_READ} or {@code OPEN_READ | OPEN_DELETE}.
-     *
-     * @param file the jar file to be opened for reading
-     * @param verify whether or not to verify the jar file if
-     * it is signed.
-     * @param mode the mode in which the file is to be opened
-     * @throws IOException if an I/O error has occurred
-     * @throws IllegalArgumentException
-     *         if the {@code mode} argument is invalid
-     * @throws SecurityException if access to the file is denied
-     *         by the SecurityManager
-     * @since 1.3
-     */
-    public JarFile(File file, boolean verify, int mode) throws IOException {
-        this(file, verify, mode, BASE_VERSION);
-    }
-
-    /**
-     * Creates a new {@code JarFile} to read from the specified
-     * {@code File} object in the specified mode.  The mode argument
-     * must be either {@code OPEN_READ} or {@code OPEN_READ | OPEN_DELETE}.
-     * The version argument, after being converted to a canonical form, is
-     * used to configure the {@code JarFile} for processing
-     * multi-release jar files.
-     * <p>
-     * The canonical form derived from the version parameter is
-     * {@code Runtime.Version.parse(Integer.toString(n))} where {@code n} is
-     * {@code Math.max(version.feature(), JarFile.baseVersion().feature())}.
-     *
-     * @param file the jar file to be opened for reading
-     * @param verify whether or not to verify the jar file if
-     * it is signed.
-     * @param mode the mode in which the file is to be opened
-     * @param version specifies the release version for a multi-release jar file
-     * @throws IOException if an I/O error has occurred
-     * @throws IllegalArgumentException
-     *         if the {@code mode} argument is invalid
-     * @throws SecurityException if access to the file is denied
-     *         by the SecurityManager
-     * @throws NullPointerException if {@code version} is {@code null}
-     * @since 9
-     */
-    public JarFile(File file, boolean verify, int mode, Runtime.Version version) throws IOException {
-        super(file, mode);
-        this.verify = verify;
-        Objects.requireNonNull(version);
-        if (MULTI_RELEASE_FORCED || version.feature() == RUNTIME_VERSION.feature()) {
-            // This deals with the common case where the value from JarFile.runtimeVersion() is passed
-            this.version = RUNTIME_VERSION;
-        } else if (version.feature() <= BASE_VERSION_FEATURE) {
-            // This also deals with the common case where the value from JarFile.baseVersion() is passed
-            this.version = BASE_VERSION;
-        } else {
-            // Canonicalize
-            this.version = Runtime.Version.parse(Integer.toString(version.feature()));
-        }
-        this.versionFeature = this.version.feature();
-    }
-
+    
     /**
      * Returns the maximum version used when searching for versioned entries.
      * <p>
@@ -367,73 +487,27 @@ class JarFile extends ZipFile {
      * same as that returned from {@link #baseVersion()}.
      *
      * @return the maximum version
+     *
      * @since 9
      */
+    // 如果当前jar为multi-release，返回当前使用的发行版本，否则，返回基础版本(最低兼容版本)
     public final Runtime.Version getVersion() {
         return isMultiRelease() ? this.version : BASE_VERSION;
     }
-
-    /**
-     * Indicates whether or not this jar file is a multi-release jar file.
-     *
-     * @return true if this JarFile is a multi-release jar file
-     * @since 9
-     */
-    public final boolean isMultiRelease() {
-        if (isMultiRelease) {
-            return true;
-        }
-        if (MULTI_RELEASE_ENABLED) {
-            try {
-                checkForSpecialAttributes();
-            } catch (IOException io) {
-                isMultiRelease = false;
-            }
-        }
-        return isMultiRelease;
-    }
-
+    
     /**
      * Returns the jar file manifest, or {@code null} if none.
      *
      * @return the jar file manifest, or {@code null} if none
      *
-     * @throws IllegalStateException
-     *         may be thrown if the jar file has been closed
-     * @throws IOException  if an I/O error has occurred
+     * @throws IllegalStateException may be thrown if the jar file has been closed
+     * @throws IOException           if an I/O error has occurred
      */
+    // 返回jar中的"META-INF/MANIFEST.MF"文件(对象)
     public Manifest getManifest() throws IOException {
         return getManifestFromReference();
     }
-
-    private Manifest getManifestFromReference() throws IOException {
-        Manifest man = manRef != null ? manRef.get() : null;
-
-        if (man == null) {
-
-            JarEntry manEntry = getManEntry();
-
-            // If found then load the manifest
-            if (manEntry != null) {
-                if (verify) {
-                    byte[] b = getBytes(manEntry);
-                    man = new Manifest(new ByteArrayInputStream(b));
-                    if (!jvInitialized) {
-                        jv = new JarVerifier(b);
-                    }
-                } else {
-                    man = new Manifest(super.getInputStream(manEntry));
-                }
-                manRef = new SoftReference<>(man);
-            }
-        }
-        return man;
-    }
-
-    private String[] getMetaInfEntryNames() {
-        return JUZFA.getMetaInfEntryNames((ZipFile)this);
-    }
-
+    
     /**
      * Returns the {@code JarEntry} for the given base entry name or
      * {@code null} if not found.
@@ -451,23 +525,21 @@ class JarFile extends ZipFile {
      * {@link JarFile#getVersion()}.
      *
      * @param name the jar file entry name
+     *
      * @return the {@code JarEntry} for the given entry name, or
-     *         the versioned entry name, or {@code null} if not found
+     * the versioned entry name, or {@code null} if not found
      *
-     * @throws IllegalStateException
-     *         may be thrown if the jar file has been closed
-     *
-     * @see java.util.jar.JarEntry
-     *
-     * @implSpec
-     * <div class="block">
+     * @throws IllegalStateException may be thrown if the jar file has been closed
+     * @implSpec <div class="block">
      * This implementation invokes {@link JarFile#getEntry(String)}.
      * </div>
+     * @see java.util.jar.JarEntry
      */
+    // 返回指定名称的jar(在multi-release jar下，会结合发行版本信息)
     public JarEntry getJarEntry(String name) {
-        return (JarEntry)getEntry(name);
+        return (JarEntry) getEntry(name);
     }
-
+    
     /**
      * Returns the {@code ZipEntry} for the given base entry name or
      * {@code null} if not found.
@@ -485,55 +557,112 @@ class JarFile extends ZipFile {
      * {@link JarFile#getVersion()}.
      *
      * @param name the jar file entry name
+     *
      * @return the {@code ZipEntry} for the given entry name or
-     *         the versioned entry name or {@code null} if not found
+     * the versioned entry name or {@code null} if not found
      *
-     * @throws IllegalStateException
-     *         may be thrown if the jar file has been closed
-     *
-     * @see java.util.zip.ZipEntry
-     *
-     * @implSpec
-     * <div class="block">
+     * @throws IllegalStateException may be thrown if the jar file has been closed
+     * @implSpec <div class="block">
      * This implementation may return a versioned entry for the requested name
      * even if there is not a corresponding base entry.  This can occur
      * if there is a private or package-private versioned entry that matches.
      * If a subclass overrides this method, assure that the override method
      * invokes {@code super.getEntry(name)} to obtain all versioned entries.
      * </div>
+     * @see java.util.zip.ZipEntry
      */
+    // 返回指定名称的jar(在multi-release jar下，会结合发行版本信息)
     public ZipEntry getEntry(String name) {
+        // 返回给定名称的实体
         JarFileEntry je = getEntry0(name);
-        if (isMultiRelease()) {
+        
+        // 如果当前jar为multi-release
+        if(isMultiRelease()) {
+            // 返回当前发行版本下的指定名称的实体
             return getVersionedEntry(name, je);
         }
+        
         return je;
     }
-
+    
+    /**
+     * Returns an input stream for reading the contents of the specified
+     * zip file entry.
+     *
+     * @param ze the zip file entry
+     *
+     * @return an input stream for reading the contents of the specified
+     * zip file entry
+     *
+     * @throws ZipException          if a zip file format error has occurred
+     * @throws IOException           if an I/O error has occurred
+     * @throws SecurityException     if any of the jar file entries
+     *                               are incorrectly signed.
+     * @throws IllegalStateException may be thrown if the jar file has been closed
+     */
+    // 返回指定jar实体的输入流，以便后续对该jar进行解压(读取)
+    public synchronized InputStream getInputStream(ZipEntry entry) throws IOException {
+        maybeInstantiateVerifier();
+        
+        if(jv == null) {
+            return super.getInputStream(entry);
+        }
+        
+        if(!jvInitialized) {
+            initializeVerifier();
+            
+            jvInitialized = true;
+            
+            // could be set to null after a call to initializeVerifier if we have nothing to verify
+            if(jv == null) {
+                return super.getInputStream(entry);
+            }
+        }
+        
+        // 获取jar中的"META-INF/MANIFEST.MF"文件(对象)
+        Manifest manifest = getManifestFromReference();
+        // 返回指定的jar实体
+        JarEntry jarEntry = verifiableEntry(entry);
+        // 返回针对指定ZipEntry条目的(解压)输入流，可从中读取解压后的数据
+        InputStream inputStream = super.getInputStream(entry);
+        
+        /* wrap a verifier stream around the real stream */
+        return new JarVerifier.VerifierStream(manifest, jarEntry, inputStream, jv);
+    }
+    
+    /*▲ get ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 集合 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns an enumeration of the jar file entries.
      *
      * @return an enumeration of the jar file entries
-     * @throws IllegalStateException
-     *         may be thrown if the jar file has been closed
+     *
+     * @throws IllegalStateException may be thrown if the jar file has been closed
      */
+    // 返回一个JarEntry实体迭代器
     public Enumeration<JarEntry> entries() {
         return JUZFA.entries(this, JarFileEntry::new);
     }
-
+    
     /**
      * Returns an ordered {@code Stream} over the jar file entries.
      * Entries appear in the {@code Stream} in the order they appear in
      * the central directory of the jar file.
      *
      * @return an ordered {@code Stream} of entries in this jar file
+     *
      * @throws IllegalStateException if the jar file has been closed
      * @since 1.8
      */
+    // 返回JarEntry实体流
     public Stream<JarEntry> stream() {
         return JUZFA.stream(this, JarFileEntry::new);
     }
-
+    
     /**
      * Returns a {@code Stream} of the versioned jar file entries.
      *
@@ -548,23 +677,287 @@ class JarFile extends ZipFile {
      * same stream that {@link #stream()} returns.
      *
      * @return stream of versioned entries
+     *
      * @since 10
      */
+    // 返回JarEntry实体流(在multi-release jar下，会结合发行版本信息)
     public Stream<JarEntry> versionedStream() {
-
-        if (isMultiRelease()) {
-            return JUZFA.entryNameStream(this).map(this::getBasename)
-                                              .filter(Objects::nonNull)
-                                              .distinct()
-                                              .map(this::getJarEntry);
+        // 如果当前jar为multi-release
+        if(isMultiRelease()) {
+            return JUZFA.entryNameStream(this)  // 实体名称流
+                .map(this::getBasename)         // 获取jar实体的基础名称(去掉前面的目录)
+                .filter(Objects::nonNull)       // 只保留非空的数据
+                .distinct()                     // 去重
+                .map(this::getJarEntry);        // 构造指定名称的jar(在multi-release jar下，会结合发行版本信息)
         }
+        
         return stream();
     }
-
-    /*
-     * Invokes {@ZipFile}'s getEntry to Return a {@code JarFileEntry} for the
-     * given entry name or {@code null} if not found.
+    
+    /*▲ 集合 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼  ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Indicates whether or not this jar file is a multi-release jar file.
+     *
+     * @return true if this JarFile is a multi-release jar file
+     *
+     * @since 9
      */
+    // 判断当前jar是否为multi-release
+    public final boolean isMultiRelease() {
+        if(isMultiRelease) {
+            return true;
+        }
+        
+        // 是否允许支持multi-release jar，在JDK9之后默认是支持的
+        if(MULTI_RELEASE_ENABLED) {
+            try {
+                // 检验Class-Path属性和Multi-Release属性
+                checkForSpecialAttributes();
+            } catch(IOException io) {
+                isMultiRelease = false;
+            }
+        }
+        
+        return isMultiRelease;
+    }
+    
+    /*▲  ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /** placeholder for now */
+    // 返回指定的实体的名称
+    String getRealName(JarEntry entry) {
+        return entry.getRealName();
+    }
+    
+    /**
+     * Returns {@code true} iff this JAR file has a manifest with the Class-Path attribute
+     */
+    // 判断是否包含"class-path: "属性
+    boolean hasClassPathAttribute() throws IOException {
+        // 检验Class-Path属性和Multi-Release属性
+        checkForSpecialAttributes();
+        return hasClassPathAttribute;
+    }
+    
+    /**
+     * Returns a versioned {@code JarFileEntry} for the given entry,
+     * if there is one. Otherwise returns the original entry.
+     * This is invoked by the {@code entries2} for verifier.
+     */
+    // 返回指定的jar实体(在multi-release jar下，会结合发行版本信息)
+    JarEntry newEntry(JarEntry je) {
+        // 判断当前jar是否为multi-release
+        if(isMultiRelease()) {
+            String name = je.getName();
+            // 返回当前发行版本下的指定名称的实体
+            return getVersionedEntry(name, je);
+        }
+        
+        return je;
+    }
+    
+    /**
+     * Returns a versioned {@code JarFileEntry} for the given entry name,
+     * if there is one. Otherwise returns a {@code JarFileEntry} with the given name.
+     * It is invoked from JarVerifier's entries2 for {@code singers}.
+     */
+    // 返回指定名称的jar实体(在multi-release jar下，会结合发行版本信息)
+    JarEntry newEntry(String name) {
+        // 判断当前jar是否为multi-release
+        if(isMultiRelease()) {
+            // 返回当前发行版本下的指定名称的实体
+            JarEntry vje = getVersionedEntry(name, null);
+            if(vje != null) {
+                return vje;
+            }
+        }
+        
+        return new JarFileEntry(name);
+    }
+    
+    /**
+     * Returns an enumeration of the zip file entries
+     * excluding internal JAR mechanism entries and including
+     * signed entries missing from the ZIP directory.
+     */
+    // 返回JarEntry实体枚举器(在multi-release jar下，会结合发行版本信息)
+    Enumeration<JarEntry> entries2() {
+        ensureInitialization();
+        
+        if(jv != null) {
+            return jv.entries2(this, JUZFA.entries(JarFile.this, JarFileEntry::new));
+        }
+        
+        /* screen out entries which are never signed */
+        // 返回一个JarEntry实体迭代器
+        final var unfilteredEntries = JUZFA.entries(JarFile.this, JarFileEntry::new);
+        
+        return new Enumeration<>() {
+            
+            JarEntry entry;
+            
+            // 是否包含更多未访问的jar实体
+            public boolean hasMoreElements() {
+                if(entry != null) {
+                    return true;
+                }
+                
+                while(unfilteredEntries.hasMoreElements()) {
+                    JarEntry je = unfilteredEntries.nextElement();
+                    if(JarVerifier.isSigningRelated(je.getName())) {
+                        continue;
+                    }
+                    entry = je;
+                    return true;
+                }
+                
+                return false;
+            }
+            
+            // 获取下一个jar实体(在multi-release jar下，会结合发行版本信息)
+            public JarEntry nextElement() {
+                if(hasMoreElements()) {
+                    JarEntry je = entry;
+                    entry = null;
+                    // 返回指定的jar实体(在multi-release jar下，会结合发行版本信息)
+                    return newEntry(je);
+                }
+                
+                throw new NoSuchElementException();
+            }
+        };
+    }
+    
+    Enumeration<String> entryNames(CodeSource[] cs) {
+        ensureInitialization();
+        
+        if(jv != null) {
+            return jv.entryNames(this, cs);
+        }
+        
+        /*
+         * JAR file has no signed content. Is there a non-signing
+         * code source?
+         */
+        boolean includeUnsigned = false;
+        
+        for(CodeSource c : cs) {
+            if(c.getCodeSigners() == null) {
+                includeUnsigned = true;
+                break;
+            }
+        }
+        
+        if(includeUnsigned) {
+            return unsignedEntryNames();
+        } else {
+            return Collections.emptyEnumeration();
+        }
+    }
+    
+    CodeSource[] getCodeSources(URL url) {
+        ensureInitialization();
+        if(jv != null) {
+            return jv.getCodeSources(this, url);
+        }
+        
+        /*
+         * JAR file has no signed content. Is there a non-signing
+         * code source?
+         */
+        Enumeration<String> unsigned = unsignedEntryNames();
+        if(unsigned.hasMoreElements()) {
+            return new CodeSource[]{JarVerifier.getUnsignedCS(url)};
+        } else {
+            return null;
+        }
+    }
+    
+    CodeSource getCodeSource(URL url, String name) {
+        ensureInitialization();
+        if(jv != null) {
+            if(jv.eagerValidation) {
+                CodeSource cs = null;
+                JarEntry je = getJarEntry(name);
+                if(je != null) {
+                    cs = jv.getCodeSource(url, this, je);
+                } else {
+                    cs = jv.getCodeSource(url, name);
+                }
+                return cs;
+            } else {
+                return jv.getCodeSource(url, name);
+            }
+        }
+        
+        return JarVerifier.getUnsignedCS(url);
+    }
+    
+    void setEagerValidation(boolean eager) {
+        try {
+            maybeInstantiateVerifier();
+        } catch(IOException e) {
+            throw new RuntimeException(e);
+        }
+        if(jv != null) {
+            jv.setEagerValidation(eager);
+        }
+    }
+    
+    List<Object> getManifestDigests() {
+        ensureInitialization();
+        
+        if(jv != null) {
+            return jv.getManifestDigests();
+        }
+        
+        return new ArrayList<>();
+    }
+    
+    // 返回jar中的"META-INF/MANIFEST.MF"文件(对象)
+    private Manifest getManifestFromReference() throws IOException {
+        Manifest man = manRef != null ? manRef.get() : null;
+        
+        if(man == null) {
+            // 获取"META-INF/MANIFEST.MF"实体
+            JarEntry manEntry = getManEntry();
+            
+            /* If found then load the manifest */
+            if(manEntry != null) {
+                if(verify) {
+                    // 将指定的ZipEntry实体解压后存入byte[]中返回
+                    byte[] b = getBytes(manEntry);
+                    man = new Manifest(new ByteArrayInputStream(b));
+                    if(!jvInitialized) {
+                        jv = new JarVerifier(b);
+                    }
+                } else {
+                    man = new Manifest(super.getInputStream(manEntry));
+                }
+                
+                manRef = new SoftReference<>(man);
+            }
+        }
+        
+        return man;
+    }
+    
+    // 返回元数据名称(路径)列表(即META-INF(子)目录内的文件名称)
+    private String[] getMetaInfEntryNames() {
+        return JUZFA.getMetaInfEntryNames(this);
+    }
+    
+    /**
+     * Invokes {@ZipFile}'s getEntry to Return a {@code JarFileEntry} for the given entry name or {@code null} if not found.
+     */
+    // 返回给定名称的实体
     private JarFileEntry getEntry0(String name) {
         // Not using a lambda/method reference here to optimize startup time
         Function<String, JarEntry> newJarFileEntryFn = new Function<>() {
@@ -573,146 +966,88 @@ class JarFile extends ZipFile {
                 return new JarFileEntry(name);
             }
         };
-        return (JarFileEntry)JUZFA.getEntry(this, name, newJarFileEntryFn);
+        
+        return (JarFileEntry) JUZFA.getEntry(this, name, newJarFileEntryFn);
     }
-
+    
+    // 获取jar实体的基础名称(去掉前面的目录)
     private String getBasename(String name) {
-        if (name.startsWith(META_INF_VERSIONS)) {
+        // 如果name以"META-INF/versions/"开头
+        if(name.startsWith(META_INF_VERSIONS)) {
             int off = META_INF_VERSIONS.length();
             int index = name.indexOf('/', off);
             try {
-                // filter out dir META-INF/versions/ and META-INF/versions/*/
-                // and any entry with version > 'version'
-                if (index == -1 || index == (name.length() - 1) ||
-                    Integer.parseInt(name, off, index, 10) > versionFeature) {
+                // filter out dir META-INF/versions/ and META-INF/versions/*/ and any entry with version > 'version'
+                if(index == -1 || index == (name.length() - 1) || Integer.parseInt(name, off, index, 10)>versionFeature) {
                     return null;
                 }
-            } catch (NumberFormatException x) {
+            } catch(NumberFormatException x) {
                 return null; // remove malformed entries silently
             }
+            
             // map to its base name
             return name.substring(index + 1);
         }
+        
         return name;
     }
-
+    
+    /*
+     * 返回当前发行版本下的指定名称的实体
+     *
+     * 比如查找com/example/A.class，但是当前使用的发行版本为9，
+     * 那么则需要去查找META-INF/versions/9/com/example/A.class
+     *
+     * ├── META-INF
+     * │   ├── MANIFEST.MF
+     * │   └── versions
+     * │       └── 9
+     * │           ├── com
+     * │           │   └── example
+     * │           │       └── A.class
+     * │           └── module-info.class
+     * └── com
+     *     └── example
+     *             └── A.class
+     */
     private JarEntry getVersionedEntry(String name, JarEntry je) {
-        if (BASE_VERSION_FEATURE < versionFeature) {
-            if (!name.startsWith(META_INF)) {
+        
+        if(BASE_VERSION_FEATURE<versionFeature) {
+            // 如果name不是以"META-INF/"开头
+            if(!name.startsWith(META_INF)) {
                 // search for versioned entry
                 int v = versionFeature;
-                while (v > BASE_VERSION_FEATURE) {
+                
+                while(v>BASE_VERSION_FEATURE) {
+                    // 获取名称为"META-INF/versions/versionFeature/name"的实体
                     JarFileEntry vje = getEntry0(META_INF_VERSIONS + v + "/" + name);
-                    if (vje != null) {
+                    if(vje != null) {
                         return vje.withBasename(name);
                     }
                     v--;
                 }
             }
         }
+        
         return je;
     }
-
-    // placeholder for now
-    String getRealName(JarEntry entry) {
-        return entry.getRealName();
-    }
-
-    private class JarFileEntry extends JarEntry {
-        private String basename;
-
-        JarFileEntry(String name) {
-            super(name);
-            this.basename = name;
-        }
-
-        JarFileEntry(String name, ZipEntry vze) {
-            super(vze);
-            this.basename = name;
-        }
-
-        @Override
-        public Attributes getAttributes() throws IOException {
-            Manifest man = JarFile.this.getManifest();
-            if (man != null) {
-                return man.getAttributes(super.getName());
-            } else {
-                return null;
-            }
-        }
-
-        @Override
-        public Certificate[] getCertificates() {
-            try {
-                maybeInstantiateVerifier();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            if (certs == null && jv != null) {
-                certs = jv.getCerts(JarFile.this, realEntry());
-            }
-            return certs == null ? null : certs.clone();
-        }
-
-        @Override
-        public CodeSigner[] getCodeSigners() {
-            try {
-                maybeInstantiateVerifier();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            if (signers == null && jv != null) {
-                signers = jv.getCodeSigners(JarFile.this, realEntry());
-            }
-            return signers == null ? null : signers.clone();
-        }
-
-        @Override
-        public String getRealName() {
-            return super.getName();
-        }
-
-        @Override
-        public String getName() {
-            return basename;
-        }
-
-        JarFileEntry realEntry() {
-            if (isMultiRelease() && versionFeature != BASE_VERSION_FEATURE) {
-                String entryName = super.getName();
-                return entryName == basename || entryName.equals(basename) ?
-                        this : new JarFileEntry(entryName, this);
-            }
-            return this;
-        }
-
-        // changes the basename, returns "this"
-        JarFileEntry withBasename(String name) {
-            basename = name;
-            return this;
-        }
-    }
-
-    /*
-     * Ensures that the JarVerifier has been created if one is
-     * necessary (i.e., the jar appears to be signed.) This is done as
-     * a quick check to avoid processing of the manifest for unsigned
-     * jars.
+    
+    /**
+     * Ensures that the JarVerifier has been created if one is necessary (i.e., the jar appears to be signed.)
+     * This is done as a quick check to avoid processing of the manifest for unsigned jars.
      */
     private void maybeInstantiateVerifier() throws IOException {
-        if (jv != null) {
+        if(jv != null) {
             return;
         }
-
-        if (verify) {
+        
+        if(verify) {
+            // 返回元数据名称(路径)列表(即META-INF(子)目录内的文件名称)
             String[] names = getMetaInfEntryNames();
-            if (names != null) {
-                for (String nameLower : names) {
+            if(names != null) {
+                for(String nameLower : names) {
                     String name = nameLower.toUpperCase(Locale.ENGLISH);
-                    if (name.endsWith(".DSA") ||
-                        name.endsWith(".RSA") ||
-                        name.endsWith(".EC") ||
-                        name.endsWith(".SF")) {
+                    if(name.endsWith(".DSA") || name.endsWith(".RSA") || name.endsWith(".EC") || name.endsWith(".SF")) {
                         // Assume since we found a signature-related file
                         // that the jar is signed and that we therefore
                         // need a JarVerifier and Manifest
@@ -726,32 +1061,35 @@ class JarFile extends ZipFile {
             verify = false;
         }
     }
-
-    /*
+    
+    /**
      * Initializes the verifier object by reading all the manifest
      * entries and passing them to the verifier.
      */
     private void initializeVerifier() {
         ManifestEntryVerifier mev = null;
-
+        
         // Verify "META-INF/" entries...
         try {
+            // 返回元数据名称(路径)列表(即META-INF(子)目录内的文件名称)
             String[] names = getMetaInfEntryNames();
-            if (names != null) {
-                for (String name : names) {
+            if(names != null) {
+                for(String name : names) {
                     String uname = name.toUpperCase(Locale.ENGLISH);
-                    if (MANIFEST_NAME.equals(uname)
-                            || SignatureFileVerifier.isBlockOrSF(uname)) {
+                    if(MANIFEST_NAME.equals(uname) || SignatureFileVerifier.isBlockOrSF(uname)) {
                         JarEntry e = getJarEntry(name);
-                        if (e == null) {
+                        if(e == null) {
                             throw new JarException("corrupted jar file");
                         }
-                        if (mev == null) {
-                            mev = new ManifestEntryVerifier
-                                (getManifestFromReference());
+                        if(mev == null) {
+                            // 获取jar中的"META-INF/MANIFEST.MF"文件(对象)
+                            Manifest manifest = getManifestFromReference();
+                            mev = new ManifestEntryVerifier(manifest);
                         }
+                        
+                        // 将指定的ZipEntry实体解压后存入byte[]中返回
                         byte[] b = getBytes(e);
-                        if (b != null && b.length > 0) {
+                        if(b != null && b.length>0) {
                             jv.beginEntry(e, mev);
                             jv.update(b.length, b, 0, b.length, mev);
                             jv.update(-1, null, 0, 0, mev);
@@ -759,29 +1097,29 @@ class JarFile extends ZipFile {
                     }
                 }
             }
-        } catch (IOException ex) {
+        } catch(IOException ex) {
             // if we had an error parsing any blocks, just
             // treat the jar file as being unsigned
             jv = null;
             verify = false;
-            if (JarVerifier.debug != null) {
+            if(JarVerifier.debug != null) {
                 JarVerifier.debug.println("jarfile parsing error!");
                 ex.printStackTrace();
             }
         }
-
+        
         // if after initializing the verifier we have nothing
         // signed, we null it out.
-
-        if (jv != null) {
-
+        
+        if(jv != null) {
+            
             jv.doneWithMeta();
-            if (JarVerifier.debug != null) {
+            if(JarVerifier.debug != null) {
                 JarVerifier.debug.println("done with meta!");
             }
-
-            if (jv.nothingToVerify()) {
-                if (JarVerifier.debug != null) {
+            
+            if(jv.nothingToVerify()) {
+                if(JarVerifier.debug != null) {
                     JarVerifier.debug.println("nothing to verify!");
                 }
                 jv = null;
@@ -789,189 +1127,103 @@ class JarFile extends ZipFile {
             }
         }
     }
-
+    
     /*
-     * Reads all the bytes for a given entry. Used to process the
-     * META-INF files.
+     * Reads all the bytes for a given entry. Used to process the META-INF files.
      */
+    // 将指定的ZipEntry实体解压后存入byte[]中返回
     private byte[] getBytes(ZipEntry ze) throws IOException {
-        try (InputStream is = super.getInputStream(ze)) {
-            int len = (int)ze.getSize();
+        // 返回针对指定ZipEntry条目的(解压)输入流，可从中读取解压后的数据
+        try(InputStream is = super.getInputStream(ze)) {
+            int len = (int) ze.getSize();
             int bytesRead;
             byte[] b;
+            
             // trust specified entry sizes when reasonably small
-            if (len != -1 && len <= 65535) {
+            if(len != -1 && len<=65535) {
                 b = new byte[len];
                 bytesRead = is.readNBytes(b, 0, len);
             } else {
                 b = is.readAllBytes();
                 bytesRead = b.length;
             }
-            if (len != -1 && len != bytesRead) {
+            
+            if(len != -1 && len != bytesRead) {
                 throw new EOFException("Expected:" + len + ", read:" + bytesRead);
             }
+            
             return b;
         }
     }
-
-    /**
-     * Returns an input stream for reading the contents of the specified
-     * zip file entry.
-     * @param ze the zip file entry
-     * @return an input stream for reading the contents of the specified
-     *         zip file entry
-     * @throws ZipException if a zip file format error has occurred
-     * @throws IOException if an I/O error has occurred
-     * @throws SecurityException if any of the jar file entries
-     *         are incorrectly signed.
-     * @throws IllegalStateException
-     *         may be thrown if the jar file has been closed
-     */
-    public synchronized InputStream getInputStream(ZipEntry ze)
-        throws IOException
-    {
-        maybeInstantiateVerifier();
-        if (jv == null) {
-            return super.getInputStream(ze);
-        }
-        if (!jvInitialized) {
-            initializeVerifier();
-            jvInitialized = true;
-            // could be set to null after a call to
-            // initializeVerifier if we have nothing to
-            // verify
-            if (jv == null)
-                return super.getInputStream(ze);
-        }
-
-        // wrap a verifier stream around the real stream
-        return new JarVerifier.VerifierStream(
-            getManifestFromReference(),
-            verifiableEntry(ze),
-            super.getInputStream(ze),
-            jv);
-    }
-
+    
+    // 返回指定的jar实体
     private JarEntry verifiableEntry(ZipEntry ze) {
-        if (ze instanceof JarFileEntry) {
+        if(ze instanceof JarFileEntry) {
             // assure the name and entry match for verification
-            return ((JarFileEntry)ze).realEntry();
+            return ((JarFileEntry) ze).realEntry();
         }
-        ze = getJarEntry(ze.getName());
-        if (ze instanceof JarFileEntry) {
-            return ((JarFileEntry)ze).realEntry();
+        
+        String name = ze.getName();
+        
+        // 返回指定名称的jar(在multi-release jar下，会结合发行版本信息)
+        ze = getJarEntry(name);
+        if(ze instanceof JarFileEntry) {
+            return ((JarFileEntry) ze).realEntry();
         }
-        return (JarEntry)ze;
+        
+        return (JarEntry) ze;
     }
-
-    // Statics for hand-coded Boyer-Moore search
-    private static final byte[] CLASSPATH_CHARS =
-            {'C','L','A','S','S','-','P','A','T','H', ':', ' '};
-
-    // The bad character shift for "class-path: "
-    private static final byte[] CLASSPATH_LASTOCC;
-
-    // The good suffix shift for "class-path: "
-    private static final byte[] CLASSPATH_OPTOSFT;
-
-    private static final byte[] MULTIRELEASE_CHARS =
-            {'M','U','L','T','I','-','R','E','L','E', 'A', 'S', 'E', ':',
-                    ' ', 'T', 'R', 'U', 'E'};
-
-    // The bad character shift for "multi-release: true"
-    private static final byte[] MULTIRELEASE_LASTOCC;
-
-    // The good suffix shift for "multi-release: true"
-    private static final byte[] MULTIRELEASE_OPTOSFT;
-
-    static {
-        CLASSPATH_LASTOCC = new byte[65];
-        CLASSPATH_OPTOSFT = new byte[12];
-        CLASSPATH_LASTOCC[(int)'C' - 32] = 1;
-        CLASSPATH_LASTOCC[(int)'L' - 32] = 2;
-        CLASSPATH_LASTOCC[(int)'S' - 32] = 5;
-        CLASSPATH_LASTOCC[(int)'-' - 32] = 6;
-        CLASSPATH_LASTOCC[(int)'P' - 32] = 7;
-        CLASSPATH_LASTOCC[(int)'A' - 32] = 8;
-        CLASSPATH_LASTOCC[(int)'T' - 32] = 9;
-        CLASSPATH_LASTOCC[(int)'H' - 32] = 10;
-        CLASSPATH_LASTOCC[(int)':' - 32] = 11;
-        CLASSPATH_LASTOCC[(int)' ' - 32] = 12;
-        for (int i = 0; i < 11; i++) {
-            CLASSPATH_OPTOSFT[i] = 12;
-        }
-        CLASSPATH_OPTOSFT[11] = 1;
-
-        MULTIRELEASE_LASTOCC = new byte[65];
-        MULTIRELEASE_OPTOSFT = new byte[19];
-        MULTIRELEASE_LASTOCC[(int)'M' - 32] = 1;
-        MULTIRELEASE_LASTOCC[(int)'I' - 32] = 5;
-        MULTIRELEASE_LASTOCC[(int)'-' - 32] = 6;
-        MULTIRELEASE_LASTOCC[(int)'L' - 32] = 9;
-        MULTIRELEASE_LASTOCC[(int)'A' - 32] = 11;
-        MULTIRELEASE_LASTOCC[(int)'S' - 32] = 12;
-        MULTIRELEASE_LASTOCC[(int)':' - 32] = 14;
-        MULTIRELEASE_LASTOCC[(int)' ' - 32] = 15;
-        MULTIRELEASE_LASTOCC[(int)'T' - 32] = 16;
-        MULTIRELEASE_LASTOCC[(int)'R' - 32] = 17;
-        MULTIRELEASE_LASTOCC[(int)'U' - 32] = 18;
-        MULTIRELEASE_LASTOCC[(int)'E' - 32] = 19;
-        for (int i = 0; i < 17; i++) {
-            MULTIRELEASE_OPTOSFT[i] = 19;
-        }
-        MULTIRELEASE_OPTOSFT[17] = 6;
-        MULTIRELEASE_OPTOSFT[18] = 1;
-    }
-
+    
+    // 返回"META-INF/MANIFEST.MF"实体
     private JarEntry getManEntry() {
-        if (manEntry == null) {
-            // First look up manifest entry using standard name
+        if(manEntry == null) {
+            /* First look up manifest entry using standard name */
+            // 获取"META-INF/MANIFEST.MF"实体
             JarEntry manEntry = getEntry0(MANIFEST_NAME);
-            if (manEntry == null) {
-                // If not found, then iterate through all the "META-INF/"
-                // entries to find a match.
+            
+            // 如果没找到"META-INF/MANIFEST.MF"实体
+            if(manEntry == null) {
+                /* If not found, then iterate through all the "META-INF/" entries to find a match. */
+                // 返回元数据名称(路径)列表(即META-INF(子)目录内的文件名称)
                 String[] names = getMetaInfEntryNames();
-                if (names != null) {
-                    for (String name : names) {
-                        if (MANIFEST_NAME.equals(name.toUpperCase(Locale.ENGLISH))) {
+                if(names != null) {
+                    // 遍历元数据
+                    for(String name : names) {
+                        // 查找"META-INF/MANIFEST.MF"实体
+                        if(MANIFEST_NAME.equals(name.toUpperCase(Locale.ENGLISH))) {
                             manEntry = getEntry0(name);
                             break;
                         }
                     }
                 }
             }
+            
             this.manEntry = manEntry;
         }
+        
         return manEntry;
     }
-
-   /**
-    * Returns {@code true} iff this JAR file has a manifest with the
-    * Class-Path attribute
-    */
-    boolean hasClassPathAttribute() throws IOException {
-        checkForSpecialAttributes();
-        return hasClassPathAttribute;
-    }
-
+    
     /**
      * Returns true if the pattern {@code src} is found in {@code b}.
      * The {@code lastOcc} array is the precomputed bad character shifts.
      * Since there are no repeated substring in our search strings,
      * the good suffix shifts can be replaced with a comparison.
      */
+    // 如果在b中找到了src，则返回其位置，否则返回-1
     private int match(byte[] src, byte[] b, byte[] lastOcc, byte[] optoSft) {
         int len = src.length;
         int last = b.length - len;
         int i = 0;
-        next:
-        while (i <= last) {
-            for (int j = (len - 1); j >= 0; j--) {
+next:
+        while(i<=last) {
+            for(int j = (len - 1); j >= 0; j--) {
                 byte c = b[i + j];
-                if (c >= ' ' && c <= 'z') {
-                    if (c >= 'a') c -= 32; // Canonicalize
-
-                    if (c != src[j]) {
+                if(c >= ' ' && c<='z') {
+                    if(c >= 'a')
+                        c -= 32; // Canonicalize
+                    
+                    if(c != src[j]) {
                         // no match
                         int badShift = lastOcc[c - 32];
                         i += Math.max(j + 1 - badShift, optoSft[j]);
@@ -985,207 +1237,30 @@ class JarFile extends ZipFile {
             }
             return i;
         }
+        
         return -1;
     }
-
-    /**
-     * On first invocation, check if the JAR file has the Class-Path
-     * and the Multi-Release attribute. A no-op on subsequent calls.
-     */
-    private void checkForSpecialAttributes() throws IOException {
-        if (hasCheckedSpecialAttributes) {
-            return;
-        }
-        synchronized (this) {
-            if (hasCheckedSpecialAttributes) {
-                return;
-            }
-            JarEntry manEntry = getManEntry();
-            if (manEntry != null) {
-                byte[] b = getBytes(manEntry);
-                hasClassPathAttribute = match(CLASSPATH_CHARS, b,
-                        CLASSPATH_LASTOCC, CLASSPATH_OPTOSFT) != -1;
-                // is this a multi-release jar file
-                if (MULTI_RELEASE_ENABLED) {
-                    int i = match(MULTIRELEASE_CHARS, b, MULTIRELEASE_LASTOCC,
-                            MULTIRELEASE_OPTOSFT);
-                    if (i != -1) {
-                        i += MULTIRELEASE_CHARS.length;
-                        if (i < b.length) {
-                            byte c = b[i++];
-                            // Check that the value is followed by a newline
-                            // and does not have a continuation
-                            if (c == '\n' &&
-                                    (i == b.length || b[i] != ' ')) {
-                                isMultiRelease = true;
-                            } else if (c == '\r') {
-                                if (i == b.length) {
-                                    isMultiRelease = true;
-                                } else {
-                                    c = b[i++];
-                                    if (c == '\n') {
-                                        if (i == b.length || b[i] != ' ') {
-                                            isMultiRelease = true;
-                                        }
-                                    } else if (c != ' ') {
-                                        isMultiRelease = true;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            hasCheckedSpecialAttributes = true;
-        }
-    }
-
-    private synchronized void ensureInitialization() {
-        try {
-            maybeInstantiateVerifier();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        if (jv != null && !jvInitialized) {
-            initializeVerifier();
-            jvInitialized = true;
-        }
-    }
-
-    /*
-     * Returns a versioned {@code JarFileEntry} for the given entry,
-     * if there is one. Otherwise returns the original entry. This
-     * is invoked by the {@code entries2} for verifier.
-     */
-    JarEntry newEntry(JarEntry je) {
-        if (isMultiRelease()) {
-            return getVersionedEntry(je.getName(), je);
-        }
-        return je;
-    }
-
-    /*
-     * Returns a versioned {@code JarFileEntry} for the given entry
-     * name, if there is one. Otherwise returns a {@code JarFileEntry}
-     * with the given name. It is invoked from JarVerifier's entries2
-     * for {@code singers}.
-     */
-    JarEntry newEntry(String name) {
-        if (isMultiRelease()) {
-            JarEntry vje = getVersionedEntry(name, (JarEntry)null);
-            if (vje != null) {
-                return vje;
-            }
-        }
-        return new JarFileEntry(name);
-    }
-
-    Enumeration<String> entryNames(CodeSource[] cs) {
-        ensureInitialization();
-        if (jv != null) {
-            return jv.entryNames(this, cs);
-        }
-
-        /*
-         * JAR file has no signed content. Is there a non-signing
-         * code source?
-         */
-        boolean includeUnsigned = false;
-        for (CodeSource c : cs) {
-            if (c.getCodeSigners() == null) {
-                includeUnsigned = true;
-                break;
-            }
-        }
-        if (includeUnsigned) {
-            return unsignedEntryNames();
-        } else {
-            return Collections.emptyEnumeration();
-        }
-    }
-
-    /**
-     * Returns an enumeration of the zip file entries
-     * excluding internal JAR mechanism entries and including
-     * signed entries missing from the ZIP directory.
-     */
-    Enumeration<JarEntry> entries2() {
-        ensureInitialization();
-        if (jv != null) {
-            return jv.entries2(this, JUZFA.entries(JarFile.this,
-                                                   JarFileEntry::new));
-        }
-
-        // screen out entries which are never signed
-        final var unfilteredEntries = JUZFA.entries(JarFile.this, JarFileEntry::new);
-
-        return new Enumeration<>() {
-
-            JarEntry entry;
-
-            public boolean hasMoreElements() {
-                if (entry != null) {
-                    return true;
-                }
-                while (unfilteredEntries.hasMoreElements()) {
-                    JarEntry je = unfilteredEntries.nextElement();
-                    if (JarVerifier.isSigningRelated(je.getName())) {
-                        continue;
-                    }
-                    entry = je;
-                    return true;
-                }
-                return false;
-            }
-
-            public JarEntry nextElement() {
-                if (hasMoreElements()) {
-                    JarEntry je = entry;
-                    entry = null;
-                    return newEntry(je);
-                }
-                throw new NoSuchElementException();
-            }
-        };
-    }
-
-    CodeSource[] getCodeSources(URL url) {
-        ensureInitialization();
-        if (jv != null) {
-            return jv.getCodeSources(this, url);
-        }
-
-        /*
-         * JAR file has no signed content. Is there a non-signing
-         * code source?
-         */
-        Enumeration<String> unsigned = unsignedEntryNames();
-        if (unsigned.hasMoreElements()) {
-            return new CodeSource[]{JarVerifier.getUnsignedCS(url)};
-        } else {
-            return null;
-        }
-    }
-
+    
     private Enumeration<String> unsignedEntryNames() {
         final Enumeration<JarEntry> entries = entries();
+        
         return new Enumeration<>() {
-
+            
             String name;
-
+            
             /*
              * Grab entries from ZIP directory but screen out
              * metadata.
              */
             public boolean hasMoreElements() {
-                if (name != null) {
+                if(name != null) {
                     return true;
                 }
-                while (entries.hasMoreElements()) {
+                while(entries.hasMoreElements()) {
                     String value;
                     ZipEntry e = entries.nextElement();
                     value = e.getName();
-                    if (e.isDirectory() || JarVerifier.isSigningRelated(value)) {
+                    if(e.isDirectory() || JarVerifier.isSigningRelated(value)) {
                         continue;
                     }
                     name = value;
@@ -1193,9 +1268,9 @@ class JarFile extends ZipFile {
                 }
                 return false;
             }
-
+            
             public String nextElement() {
-                if (hasMoreElements()) {
+                if(hasMoreElements()) {
                     String value = name;
                     name = null;
                     return value;
@@ -1204,43 +1279,167 @@ class JarFile extends ZipFile {
             }
         };
     }
-
-    CodeSource getCodeSource(URL url, String name) {
-        ensureInitialization();
-        if (jv != null) {
-            if (jv.eagerValidation) {
-                CodeSource cs = null;
-                JarEntry je = getJarEntry(name);
-                if (je != null) {
-                    cs = jv.getCodeSource(url, this, je);
-                } else {
-                    cs = jv.getCodeSource(url, name);
-                }
-                return cs;
-            } else {
-                return jv.getCodeSource(url, name);
-            }
-        }
-
-        return JarVerifier.getUnsignedCS(url);
-    }
-
-    void setEagerValidation(boolean eager) {
+    
+    private synchronized void ensureInitialization() {
         try {
             maybeInstantiateVerifier();
-        } catch (IOException e) {
+        } catch(IOException e) {
             throw new RuntimeException(e);
         }
-        if (jv != null) {
-            jv.setEagerValidation(eager);
+        
+        if(jv != null && !jvInitialized) {
+            initializeVerifier();
+            jvInitialized = true;
         }
     }
-
-    List<Object> getManifestDigests() {
-        ensureInitialization();
-        if (jv != null) {
-            return jv.getManifestDigests();
+    
+    /**
+     * On first invocation, check if the JAR file has the Class-Path
+     * and the Multi-Release attribute. A no-op on subsequent calls.
+     */
+    /*
+     * 首次调用时，检查JAR文件是否具有Class-Path和Multi-Release属性。
+     * 后续调用该方法不会重读检查。
+     */
+    private void checkForSpecialAttributes() throws IOException {
+        if(hasCheckedSpecialAttributes) {
+            return;
         }
-        return new ArrayList<>();
+        
+        synchronized(this) {
+            if(hasCheckedSpecialAttributes) {
+                return;
+            }
+            
+            // 获取"META-INF/MANIFEST.MF"实体
+            JarEntry manEntry = getManEntry();
+            
+            if(manEntry != null) {
+                // 将指定的ZipEntry实体解压后存入byte[]中返回
+                byte[] b = getBytes(manEntry);
+                
+                // 在b中查找"class-path: "属性
+                hasClassPathAttribute = match(CLASSPATH_CHARS, b, CLASSPATH_LASTOCC, CLASSPATH_OPTOSFT) != -1;
+                
+                /* is this a multi-release jar file */
+                // 是否允许支持multi-release jar
+                if(MULTI_RELEASE_ENABLED) {
+                    // 在b中查找"multi-release: true"属性
+                    int i = match(MULTIRELEASE_CHARS, b, MULTIRELEASE_LASTOCC, MULTIRELEASE_OPTOSFT);
+                    
+                    // 如果找到了"multi-release: true"属性，需要进一步验证它是否独立位于一行中
+                    if(i != -1) {
+                        i += MULTIRELEASE_CHARS.length;
+                        if(i<b.length) {
+                            byte c = b[i++];
+                            // Check that the value is followed by a newline and does not have a continuation
+                            if(c == '\n' && (i == b.length || b[i] != ' ')) {
+                                isMultiRelease = true;
+                            } else if(c == '\r') {
+                                if(i == b.length) {
+                                    isMultiRelease = true;
+                                } else {
+                                    c = b[i++];
+                                    if(c == '\n') {
+                                        if(i == b.length || b[i] != ' ') {
+                                            isMultiRelease = true;
+                                        }
+                                    } else if(c != ' ') {
+                                        isMultiRelease = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            hasCheckedSpecialAttributes = true;
+        }
     }
+    
+    
+    
+    
+    
+    
+    private class JarFileEntry extends JarEntry {
+        private String basename;    // 实体名称(不含版本信息)
+        
+        JarFileEntry(String name) {
+            super(name);
+            this.basename = name;
+        }
+        
+        JarFileEntry(String name, ZipEntry vze) {
+            super(vze);
+            this.basename = name;
+        }
+        
+        @Override
+        public Attributes getAttributes() throws IOException {
+            Manifest man = JarFile.this.getManifest();
+            if(man != null) {
+                return man.getAttributes(super.getName());
+            } else {
+                return null;
+            }
+        }
+        
+        @Override
+        public Certificate[] getCertificates() {
+            try {
+                maybeInstantiateVerifier();
+            } catch(IOException e) {
+                throw new RuntimeException(e);
+            }
+            if(certs == null && jv != null) {
+                certs = jv.getCerts(JarFile.this, realEntry());
+            }
+            return certs == null ? null : certs.clone();
+        }
+        
+        @Override
+        public CodeSigner[] getCodeSigners() {
+            try {
+                maybeInstantiateVerifier();
+            } catch(IOException e) {
+                throw new RuntimeException(e);
+            }
+            if(signers == null && jv != null) {
+                signers = jv.getCodeSigners(JarFile.this, realEntry());
+            }
+            return signers == null ? null : signers.clone();
+        }
+        
+        @Override
+        public String getRealName() {
+            return super.getName();
+        }
+        
+        @Override
+        public String getName() {
+            return basename;
+        }
+        
+        // 返回jar实体
+        JarFileEntry realEntry() {
+            if(isMultiRelease() && versionFeature != BASE_VERSION_FEATURE) {
+                // 获取当前实体的名称
+                String entryName = super.getName();
+                return entryName == basename || entryName.equals(basename)
+                    ? this
+                    : new JarFileEntry(entryName, this);
+            }
+            
+            return this;
+        }
+        
+        // changes the basename, returns "this"
+        JarFileEntry withBasename(String name) {
+            basename = name;
+            return this;
+        }
+    }
+    
 }
