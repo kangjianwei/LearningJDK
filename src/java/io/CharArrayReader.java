@@ -29,35 +29,42 @@ package java.io;
  * This class implements a character buffer that can be used as a
  * character-input stream.
  *
- * @author      Herb Jellinek
- * @since       1.1
+ * @author Herb Jellinek
+ * @since 1.1
  */
+// 字符数组输入流：从给定的字符数组中读取字符
 public class CharArrayReader extends Reader {
+    
     /** The character buffer. */
-    protected char buf[];
-
+    protected char[] buf;   // 输入源，存放待读字符
+    
     /** The current buffer position. */
-    protected int pos;
-
+    protected int pos;      // 指向输入源下一个待读字符的游标
+    
+    /**
+     * The index of the end of this buffer.  There is not valid
+     * data at or beyond this index.
+     */
+    protected int count;    // 输入源中的游标上限
+    
     /** The position of mark in buffer. */
     protected int markedPos = 0;
-
-    /**
-     *  The index of the end of this buffer.  There is not valid
-     *  data at or beyond this index.
-     */
-    protected int count;
-
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates a CharArrayReader from the specified array of chars.
-     * @param buf       Input buffer (not copied)
+     *
+     * @param buf Input buffer (not copied)
      */
-    public CharArrayReader(char buf[]) {
+    public CharArrayReader(char[] buf) {
         this.buf = buf;
         this.pos = 0;
         this.count = buf.length;
     }
-
+    
     /**
      * Creates a CharArrayReader from the specified array of chars.
      *
@@ -66,18 +73,16 @@ public class CharArrayReader extends Reader {
      * read from this reader will be either {@code length} or
      * {@code buf.length-offset}, whichever is smaller.
      *
-     * @throws IllegalArgumentException
-     *         If {@code offset} is negative or greater than
-     *         {@code buf.length}, or if {@code length} is negative, or if
-     *         the sum of these two values is negative.
+     * @param buf    Input buffer (not copied)
+     * @param offset Offset of the first char to read
+     * @param length Number of chars to read
      *
-     * @param buf       Input buffer (not copied)
-     * @param offset    Offset of the first char to read
-     * @param length    Number of chars to read
+     * @throws IllegalArgumentException If {@code offset} is negative or greater than
+     *                                  {@code buf.length}, or if {@code length} is negative, or if
+     *                                  the sum of these two values is negative.
      */
-    public CharArrayReader(char buf[], int offset, int length) {
-        if ((offset < 0) || (offset > buf.length) || (length < 0) ||
-            ((offset + length) < 0)) {
+    public CharArrayReader(char[] buf, int offset, int length) {
+        if((offset<0) || (offset>buf.length) || (length<0) || ((offset + length)<0)) {
             throw new IllegalArgumentException();
         }
         this.buf = buf;
@@ -85,66 +90,156 @@ public class CharArrayReader extends Reader {
         this.count = Math.min(offset + length, buf.length);
         this.markedPos = offset;
     }
-
-    /** Checks to make sure that the stream has not been closed */
-    private void ensureOpen() throws IOException {
-        if (buf == null)
-            throw new IOException("Stream closed");
-    }
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 读 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Reads a single character.
      *
-     * @exception   IOException  If an I/O error occurs
+     * @throws IOException If an I/O error occurs
      */
+    // 返回从当前输入流中读取的一个char，返回-1表示读取失败
     public int read() throws IOException {
-        synchronized (lock) {
+        synchronized(lock) {
             ensureOpen();
-            if (pos >= count)
+            
+            if(pos >= count) {
                 return -1;
-            else
+            } else {
                 return buf[pos++];
+            }
         }
     }
-
+    
     /**
      * Reads characters into a portion of an array.
-     * @param b  Destination buffer
-     * @param off  Offset at which to start storing characters
-     * @param len   Maximum number of characters to read
-     * @return  The actual number of characters read, or -1 if
-     *          the end of the stream has been reached
      *
-     * @exception   IOException  If an I/O error occurs
-     * @exception   IndexOutOfBoundsException {@inheritDoc}
+     * @param b   Destination buffer
+     * @param off Offset at which to start storing characters
+     * @param len Maximum number of characters to read
+     *
+     * @return The actual number of characters read, or -1 if
+     * the end of the stream has been reached
+     *
+     * @throws IOException               If an I/O error occurs
+     * @throws IndexOutOfBoundsException {@inheritDoc}
      */
-    public int read(char b[], int off, int len) throws IOException {
-        synchronized (lock) {
+    // 尝试从当前输入流中读取len个char，并将其填充到b的off处。返回实际填充的字符数量，返回-1表示读取失败
+    public int read(char[] b, int off, int len) throws IOException {
+        synchronized(lock) {
             ensureOpen();
-            if ((off < 0) || (off > b.length) || (len < 0) ||
-                ((off + len) > b.length) || ((off + len) < 0)) {
+            
+            if((off<0) || (off>b.length) || (len<0) || ((off + len)>b.length) || ((off + len)<0)) {
                 throw new IndexOutOfBoundsException();
-            } else if (len == 0) {
+            } else if(len == 0) {
                 return 0;
             }
-
-            if (pos >= count) {
+            
+            if(pos >= count) {
                 return -1;
             }
-
+            
             int avail = count - pos;
-            if (len > avail) {
+            if(len>avail) {
                 len = avail;
             }
-            if (len <= 0) {
+            
+            if(len<=0) {
                 return 0;
             }
+            
             System.arraycopy(buf, pos, b, off, len);
             pos += len;
             return len;
         }
     }
-
+    
+    /*▲ 读 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 存档 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Tells whether this stream supports the mark() operation, which it does.
+     */
+    // 判断当前输入流是否支持存档标记，此处默认为true
+    public boolean markSupported() {
+        return true;
+    }
+    
+    /**
+     * Marks the present position in the stream.  Subsequent calls to reset()
+     * will reposition the stream to this point.
+     *
+     * @param readAheadLimit Limit on the number of characters that may be
+     *                       read while still preserving the mark.  Because
+     *                       the stream's input comes from a character array,
+     *                       there is no actual limit; hence this argument is
+     *                       ignored.
+     *
+     * @throws IOException If an I/O error occurs
+     */
+    // 设置存档标记，readAheadLimit参数未使用
+    public void mark(int readAheadLimit) throws IOException {
+        synchronized(lock) {
+            ensureOpen();
+            markedPos = pos;
+        }
+    }
+    
+    /**
+     * Resets the stream to the most recent mark, or to the beginning if it has
+     * never been marked.
+     *
+     * @throws IOException If an I/O error occurs
+     */
+    // 对于支持设置存档的输入流，可以重置其"读游标"到存档区的起始位置
+    public void reset() throws IOException {
+        synchronized(lock) {
+            ensureOpen();
+            pos = markedPos;
+        }
+    }
+    
+    /*▲ 存档 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Closes the stream and releases any system resources associated with
+     * it.  Once the stream has been closed, further read(), ready(),
+     * mark(), reset(), or skip() invocations will throw an IOException.
+     * Closing a previously closed stream has no effect. This method will block
+     * while there is another thread blocking on the reader.
+     */
+    // 关闭输入流
+    public void close() {
+        synchronized(lock) {
+            buf = null;
+        }
+    }
+    
+    /**
+     * Tells whether this stream is ready to be read.  Character-array readers
+     * are always ready to be read.
+     *
+     * @throws IOException If an I/O error occurs
+     */
+    // 判断当前流是否已准备好被读取
+    public boolean ready() throws IOException {
+        synchronized(lock) {
+            ensureOpen();
+            return (count - pos)>0;
+        }
+    }
+    
     /**
      * Skips characters.  Returns the number of characters that were skipped.
      *
@@ -154,87 +249,39 @@ public class CharArrayReader extends Reader {
      * this method does nothing and returns <code>0</code>.
      *
      * @param n The number of characters to skip
-     * @return       The number of characters actually skipped
-     * @exception  IOException If the stream is closed, or an I/O error occurs
+     *
+     * @return The number of characters actually skipped
+     *
+     * @throws IOException If the stream is closed, or an I/O error occurs
      */
+    // 读取中跳过n个字符，返回实际跳过的字符数
     public long skip(long n) throws IOException {
-        synchronized (lock) {
+        synchronized(lock) {
             ensureOpen();
-
+            
             long avail = count - pos;
-            if (n > avail) {
+            if(n>avail) {
                 n = avail;
             }
-            if (n < 0) {
+            
+            if(n<0) {
                 return 0;
             }
+            
             pos += n;
             return n;
         }
     }
-
-    /**
-     * Tells whether this stream is ready to be read.  Character-array readers
-     * are always ready to be read.
-     *
-     * @exception  IOException  If an I/O error occurs
-     */
-    public boolean ready() throws IOException {
-        synchronized (lock) {
-            ensureOpen();
-            return (count - pos) > 0;
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /** Checks to make sure that the stream has not been closed */
+    private void ensureOpen() throws IOException {
+        if(buf == null) {
+            throw new IOException("Stream closed");
         }
     }
-
-    /**
-     * Tells whether this stream supports the mark() operation, which it does.
-     */
-    public boolean markSupported() {
-        return true;
-    }
-
-    /**
-     * Marks the present position in the stream.  Subsequent calls to reset()
-     * will reposition the stream to this point.
-     *
-     * @param  readAheadLimit  Limit on the number of characters that may be
-     *                         read while still preserving the mark.  Because
-     *                         the stream's input comes from a character array,
-     *                         there is no actual limit; hence this argument is
-     *                         ignored.
-     *
-     * @exception  IOException  If an I/O error occurs
-     */
-    public void mark(int readAheadLimit) throws IOException {
-        synchronized (lock) {
-            ensureOpen();
-            markedPos = pos;
-        }
-    }
-
-    /**
-     * Resets the stream to the most recent mark, or to the beginning if it has
-     * never been marked.
-     *
-     * @exception  IOException  If an I/O error occurs
-     */
-    public void reset() throws IOException {
-        synchronized (lock) {
-            ensureOpen();
-            pos = markedPos;
-        }
-    }
-
-    /**
-     * Closes the stream and releases any system resources associated with
-     * it.  Once the stream has been closed, further read(), ready(),
-     * mark(), reset(), or skip() invocations will throw an IOException.
-     * Closing a previously closed stream has no effect. This method will block
-     * while there is another thread blocking on the reader.
-     */
-    public void close() {
-        synchronized (lock) {
-            buf = null;
-        }
-    }
+    
 }

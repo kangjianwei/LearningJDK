@@ -34,8 +34,8 @@ package java.lang;
  * release, avoiding resource exhaustion exceptions and errors that
  * may otherwise occur.
  *
- * @apiNote
- * <p>It is possible, and in fact common, for a base class to
+ * @author Josh Bloch
+ * @apiNote <p>It is possible, and in fact common, for a base class to
  * implement AutoCloseable even though not all of its subclasses or
  * instances will hold releasable resources.  For code that must operate
  * in complete generality, or when it is known that the {@code AutoCloseable}
@@ -44,11 +44,15 @@ package java.lang;
  * {@link java.util.stream.Stream} that support both I/O-based and
  * non-I/O-based forms, {@code try}-with-resources blocks are in
  * general unnecessary when using non-I/O-based forms.
- *
- * @author Josh Bloch
  * @since 1.7
  */
+/*
+ * 自动关闭接口，通常用在实现了Closeable接口的类中，以便"自动"释放资源
+ *
+ * 参见try-with-resources语法
+ */
 public interface AutoCloseable {
+    
     /**
      * Closes this resource, relinquishing any underlying resources.
      * This method is invoked automatically on objects managed by the
@@ -94,5 +98,7 @@ public interface AutoCloseable {
      *
      * @throws Exception if this resource cannot be closed
      */
+    // 关闭(释放)资源
     void close() throws Exception;
+    
 }

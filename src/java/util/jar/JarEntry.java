@@ -35,35 +35,39 @@ import java.security.cert.Certificate;
  *
  * @since 1.2
  */
-public
-class JarEntry extends ZipEntry {
-    Attributes attr;
-    Certificate[] certs;
+// jar包中的实体条目
+public class JarEntry extends ZipEntry {
+    
+    Attributes attr;        // jar实体中"META-INF/MANIFEST.MF"文件的键值对数据
     CodeSigner[] signers;
-
+    Certificate[] certs;
+    
+    
     /**
      * Creates a new <code>JarEntry</code> for the specified JAR file
      * entry name.
      *
      * @param name the JAR file entry name
-     * @exception NullPointerException if the entry name is <code>null</code>
-     * @exception IllegalArgumentException if the entry name is longer than
-     *            0xFFFF bytes.
+     *
+     * @throws NullPointerException     if the entry name is <code>null</code>
+     * @throws IllegalArgumentException if the entry name is longer than
+     *                                  0xFFFF bytes.
      */
     public JarEntry(String name) {
         super(name);
     }
-
+    
     /**
      * Creates a new <code>JarEntry</code> with fields taken from the
      * specified <code>ZipEntry</code> object.
+     *
      * @param ze the <code>ZipEntry</code> object to create the
      *           <code>JarEntry</code> from
      */
     public JarEntry(ZipEntry ze) {
         super(ze);
     }
-
+    
     /**
      * Creates a new <code>JarEntry</code> with fields taken from the
      * specified <code>JarEntry</code> object.
@@ -71,24 +75,67 @@ class JarEntry extends ZipEntry {
      * @param je the <code>JarEntry</code> to copy
      */
     public JarEntry(JarEntry je) {
-        this((ZipEntry)je);
+        this((ZipEntry) je);
         this.attr = je.attr;
         this.certs = je.certs;
         this.signers = je.signers;
     }
-
+    
+    /**
+     * Returns the real name of this {@code JarEntry}.
+     *
+     * If this {@code JarEntry} is an entry of a
+     * <a href="JarFile.html#multirelease">multi-release jar file</a> and the
+     * {@code JarFile} is configured to be processed as such, the name returned
+     * by this method is the path name of the versioned entry that the
+     * {@code JarEntry} represents, rather than the path name of the base entry
+     * that {@link #getName()} returns. If the {@code JarEntry} does not represent
+     * a versioned entry of a multi-release {@code JarFile} or the {@code JarFile}
+     * is not configured for processing a multi-release jar file, this method
+     * returns the same name that {@link #getName()} returns.
+     *
+     * @return the real name of the JarEntry
+     *
+     * @since 10
+     */
+    // 返回当前jar实体的名称
+    public String getRealName() {
+        return super.getName();
+    }
+    
     /**
      * Returns the <code>Manifest</code> <code>Attributes</code> for this
      * entry, or <code>null</code> if none.
      *
      * @return the <code>Manifest</code> <code>Attributes</code> for this
      * entry, or <code>null</code> if none
-     * @throws IOException  if an I/O error has occurred
+     *
+     * @throws IOException if an I/O error has occurred
      */
+    // 返回jar实体中"META-INF/MANIFEST.MF"文件的键值对数据
     public Attributes getAttributes() throws IOException {
         return attr;
     }
-
+    
+    /**
+     * Returns the <code>CodeSigner</code> objects for this entry, or
+     * <code>null</code> if none. This method can only be called once
+     * the <code>JarEntry</code> has been completely verified by reading
+     * from the entry input stream until the end of the stream has been
+     * reached. Otherwise, this method will return <code>null</code>.
+     *
+     * <p>The returned array comprises all the code signers that have signed
+     * this entry.
+     *
+     * @return the <code>CodeSigner</code> objects for this entry, or
+     * <code>null</code> if none.
+     *
+     * @since 1.5
+     */
+    public CodeSigner[] getCodeSigners() {
+        return signers == null ? null : signers.clone();
+    }
+    
     /**
      * Returns the <code>Certificate</code> objects for this entry, or
      * <code>null</code> if none. This method can only be called once
@@ -109,44 +156,5 @@ class JarEntry extends ZipEntry {
     public Certificate[] getCertificates() {
         return certs == null ? null : certs.clone();
     }
-
-    /**
-     * Returns the <code>CodeSigner</code> objects for this entry, or
-     * <code>null</code> if none. This method can only be called once
-     * the <code>JarEntry</code> has been completely verified by reading
-     * from the entry input stream until the end of the stream has been
-     * reached. Otherwise, this method will return <code>null</code>.
-     *
-     * <p>The returned array comprises all the code signers that have signed
-     * this entry.
-     *
-     * @return the <code>CodeSigner</code> objects for this entry, or
-     * <code>null</code> if none.
-     *
-     * @since 1.5
-     */
-    public CodeSigner[] getCodeSigners() {
-        return signers == null ? null : signers.clone();
-    }
-
-    /**
-     * Returns the real name of this {@code JarEntry}.
-     *
-     * If this {@code JarEntry} is an entry of a
-     * <a href="JarFile.html#multirelease">multi-release jar file</a> and the
-     * {@code JarFile} is configured to be processed as such, the name returned
-     * by this method is the path name of the versioned entry that the
-     * {@code JarEntry} represents, rather than the path name of the base entry
-     * that {@link #getName()} returns. If the {@code JarEntry} does not represent
-     * a versioned entry of a multi-release {@code JarFile} or the {@code JarFile}
-     * is not configured for processing a multi-release jar file, this method
-     * returns the same name that {@link #getName()} returns.
-     *
-     * @return the real name of the JarEntry
-     *
-     * @since 10
-     */
-    public String getRealName() {
-        return super.getName();
-    }
+    
 }

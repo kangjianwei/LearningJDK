@@ -90,7 +90,7 @@ import jdk.internal.misc.SharedSecrets;
  *     }
  *     return Status.UNDECIDED;
  * }
- *}</pre>
+ * }</pre>
  * <p>
  * Unless otherwise noted, passing a {@code null} argument to a
  * method in this interface and its nested classes will cause a
@@ -99,9 +99,10 @@ import jdk.internal.misc.SharedSecrets;
  * @see ObjectInputStream#setObjectInputFilter(ObjectInputFilter)
  * @since 9
  */
+// 反序列化过滤器，可以过滤掉不规范的对象，防止恶意反序列化
 @FunctionalInterface
 public interface ObjectInputFilter {
-
+    
     /**
      * Check the class, array length, number of object references, depth,
      * stream size, and other available filtering information.
@@ -110,70 +111,14 @@ public interface ObjectInputFilter {
      * {@link Status#REJECTED Status.REJECTED}, or {@link Status#UNDECIDED Status.UNDECIDED}.
      *
      * @param filterInfo provides information about the current object being deserialized,
-     *             if any, and the status of the {@link ObjectInputStream}
-     * @return  {@link Status#ALLOWED Status.ALLOWED} if accepted,
-     *          {@link Status#REJECTED Status.REJECTED} if rejected,
-     *          {@link Status#UNDECIDED Status.UNDECIDED} if undecided.
+     *                   if any, and the status of the {@link ObjectInputStream}
+     *
+     * @return {@link Status#ALLOWED Status.ALLOWED} if accepted,
+     * {@link Status#REJECTED Status.REJECTED} if rejected,
+     * {@link Status#UNDECIDED Status.UNDECIDED} if undecided.
      */
     Status checkInput(FilterInfo filterInfo);
-
-    /**
-     * FilterInfo provides access to information about the current object
-     * being deserialized and the status of the {@link ObjectInputStream}.
-     * @since 9
-     */
-    interface FilterInfo {
-        /**
-         * The class of an object being deserialized.
-         * For arrays, it is the array type.
-         * For example, the array class name of a 2 dimensional array of strings is
-         * "{@code [[Ljava.lang.String;}".
-         * To check the array's element type, iteratively use
-         * {@link Class#getComponentType() Class.getComponentType} while the result
-         * is an array and then check the class.
-         * The {@code serialClass is null} in the case where a new object is not being
-         * created and to give the filter a chance to check the depth, number of
-         * references to existing objects, and the stream size.
-         *
-         * @return class of an object being deserialized; may be null
-         */
-        Class<?> serialClass();
-
-        /**
-         * The number of array elements when deserializing an array of the class.
-         *
-         * @return the non-negative number of array elements when deserializing
-         * an array of the class, otherwise -1
-         */
-        long arrayLength();
-
-        /**
-         * The current depth.
-         * The depth starts at {@code 1} and increases for each nested object and
-         * decrements when each nested object returns.
-         *
-         * @return the current depth
-         */
-        long depth();
-
-        /**
-         * The current number of object references.
-         *
-         * @return the non-negative current number of object references
-         */
-        long references();
-
-        /**
-         * The current number of bytes consumed.
-         * @implSpec  {@code streamBytes} is implementation specific
-         * and may not be directly related to the object in the stream
-         * that caused the callback.
-         *
-         * @return the non-negative current number of bytes consumed
-         */
-        long streamBytes();
-    }
-
+    
     /**
      * The status of a check on the class, array length, number of references,
      * depth, and stream size.
@@ -192,9 +137,69 @@ public interface ObjectInputFilter {
         /**
          * The status is rejected.
          */
-        REJECTED;
+        REJECTED
     }
-
+    
+    /**
+     * FilterInfo provides access to information about the current object
+     * being deserialized and the status of the {@link ObjectInputStream}.
+     *
+     * @since 9
+     */
+    // 待过滤信息
+    interface FilterInfo {
+        /**
+         * The class of an object being deserialized.
+         * For arrays, it is the array type.
+         * For example, the array class name of a 2 dimensional array of strings is
+         * "{@code [[Ljava.lang.String;}".
+         * To check the array's element type, iteratively use
+         * {@link Class#getComponentType() Class.getComponentType} while the result
+         * is an array and then check the class.
+         * The {@code serialClass is null} in the case where a new object is not being
+         * created and to give the filter a chance to check the depth, number of
+         * references to existing objects, and the stream size.
+         *
+         * @return class of an object being deserialized; may be null
+         */
+        Class<?> serialClass();
+        
+        /**
+         * The number of array elements when deserializing an array of the class.
+         *
+         * @return the non-negative number of array elements when deserializing
+         * an array of the class, otherwise -1
+         */
+        long arrayLength();
+        
+        /**
+         * The current depth.
+         * The depth starts at {@code 1} and increases for each nested object and
+         * decrements when each nested object returns.
+         *
+         * @return the current depth
+         */
+        long depth();
+        
+        /**
+         * The current number of object references.
+         *
+         * @return the non-negative current number of object references
+         */
+        long references();
+        
+        /**
+         * The current number of bytes consumed.
+         *
+         * @return the non-negative current number of bytes consumed
+         *
+         * @implSpec {@code streamBytes} is implementation specific
+         * and may not be directly related to the object in the stream
+         * that caused the callback.
+         */
+        long streamBytes();
+    }
+    
     /**
      * A utility class to set and get the process-wide filter or create a filter
      * from a pattern string. If a process-wide filter is set, it will be
@@ -218,106 +223,108 @@ public interface ObjectInputFilter {
      * @since 9
      */
     final class Config {
-        /* No instances. */
-        private Config() {}
-
-        /**
-         * Lock object for process-wide filter.
-         */
-        private final static Object serialFilterLock = new Object();
-
-        /**
-         * Debug: Logger
-         */
-        private final static System.Logger configLog;
-
-        /**
-         * Logger for debugging.
-         */
-        static void filterLog(System.Logger.Level level, String msg, Object... args) {
-            if (configLog != null) {
-                configLog.log(level, msg, args);
-            }
-        }
-
+        
         /**
          * The name for the process-wide deserialization filter.
          * Used as a system property and a java.security.Security property.
          */
         private final static String SERIAL_FILTER_PROPNAME = "jdk.serialFilter";
-
+        
+        /**
+         * Lock object for process-wide filter.
+         */
+        private final static Object serialFilterLock = new Object();
+        
+        /**
+         * Debug: Logger
+         */
+        private final static System.Logger configLog;
+        
         /**
          * The process-wide filter; may be null.
          * Lookup the filter in java.security.Security or
          * the system property.
          */
         private final static ObjectInputFilter configuredFilter;
-
+        
         static {
-            configuredFilter = AccessController
-                    .doPrivileged((PrivilegedAction<ObjectInputFilter>) () -> {
-                        String props = System.getProperty(SERIAL_FILTER_PROPNAME);
-                        if (props == null) {
-                            props = Security.getProperty(SERIAL_FILTER_PROPNAME);
-                        }
-                        if (props != null) {
-                            System.Logger log =
-                                    System.getLogger("java.io.serialization");
-                            log.log(System.Logger.Level.INFO,
-                                    "Creating serialization filter from {0}", props);
-                            try {
-                                return createFilter(props);
-                            } catch (RuntimeException re) {
-                                log.log(System.Logger.Level.ERROR,
-                                        "Error configuring filter: {0}", re);
-                            }
-                        }
-                        return null;
-                    });
+            configuredFilter = AccessController.doPrivileged((PrivilegedAction<ObjectInputFilter>) () -> {
+                // 获取"jdk.serialFilter"属性指定的反序列化过滤器
+                String props = System.getProperty(SERIAL_FILTER_PROPNAME);
+                
+                if(props == null) {
+                    props = Security.getProperty(SERIAL_FILTER_PROPNAME);
+                }
+                
+                // 没有找到
+                if(props == null) {
+                    return null;
+                }
+                
+                // 获取一个日志
+                System.Logger log = System.getLogger("java.io.serialization");
+                log.log(System.Logger.Level.INFO, "Creating serialization filter from {0}", props);
+                
+                try {
+                    return createFilter(props);
+                } catch(RuntimeException re) {
+                    log.log(System.Logger.Level.ERROR, "Error configuring filter: {0}", re);
+                }
+                
+                return null;
+            });
+            
             configLog = (configuredFilter != null) ? System.getLogger("java.io.serialization") : null;
-
+            
             // Setup shared secrets for RegistryImpl to use.
             SharedSecrets.setJavaObjectInputFilterAccess(Config::createFilter2);
         }
-
+        
         /**
          * Current configured filter.
          */
         private static ObjectInputFilter serialFilter = configuredFilter;
-
+        
+        /* No instances. */
+        private Config() {
+        }
+        
         /**
          * Returns the process-wide serialization filter or {@code null} if not configured.
          *
          * @return the process-wide serialization filter or {@code null} if not configured
          */
         public static ObjectInputFilter getSerialFilter() {
-            synchronized (serialFilterLock) {
+            synchronized(serialFilterLock) {
                 return serialFilter;
             }
         }
-
+        
         /**
          * Set the process-wide filter if it has not already been configured or set.
          *
          * @param filter the serialization filter to set as the process-wide filter; not null
-         * @throws SecurityException if there is security manager and the
-         *       {@code SerializablePermission("serialFilter")} is not granted
+         *
+         * @throws SecurityException     if there is security manager and the
+         *                               {@code SerializablePermission("serialFilter")} is not granted
          * @throws IllegalStateException if the filter has already been set {@code non-null}
          */
         public static void setSerialFilter(ObjectInputFilter filter) {
             Objects.requireNonNull(filter, "filter");
+            
             SecurityManager sm = System.getSecurityManager();
-            if (sm != null) {
+            if(sm != null) {
                 sm.checkPermission(ObjectStreamConstants.SERIAL_FILTER_PERMISSION);
             }
-            synchronized (serialFilterLock) {
-                if (serialFilter != null) {
+            
+            synchronized(serialFilterLock) {
+                if(serialFilter != null) {
                     throw new IllegalStateException("Serial filter can only be set once");
                 }
                 serialFilter = filter;
             }
         }
-
+        
         /**
          * Returns an ObjectInputFilter from a string of patterns.
          * <p>
@@ -366,162 +373,163 @@ public interface ObjectInputFilter {
          * the result is {@link Status#UNDECIDED Status.UNDECIDED}.
          *
          * @param pattern the pattern string to parse; not null
+         *
          * @return a filter to check a class being deserialized;
-         *          {@code null} if no patterns
+         * {@code null} if no patterns
+         *
          * @throws IllegalArgumentException if the pattern string is illegal or
-         *         malformed and cannot be parsed.
-         *         In particular, if any of the following is true:
-         * <ul>
-         * <li>   if a limit is missing the name or the name is not one of
-         *        "maxdepth", "maxrefs", "maxbytes", or "maxarray"
-         * <li>   if the value of the limit can not be parsed by
-         *        {@link Long#parseLong Long.parseLong} or is negative
-         * <li>   if the pattern contains "/" and the module name is missing
-         *        or the remaining pattern is empty
-         * <li>   if the package is missing for ".*" and ".**"
-         * </ul>
+         *                                  malformed and cannot be parsed.
+         *                                  In particular, if any of the following is true:
+         *                                  <ul>
+         *                                  <li>   if a limit is missing the name or the name is not one of
+         *                                         "maxdepth", "maxrefs", "maxbytes", or "maxarray"
+         *                                  <li>   if the value of the limit can not be parsed by
+         *                                         {@link Long#parseLong Long.parseLong} or is negative
+         *                                  <li>   if the pattern contains "/" and the module name is missing
+         *                                         or the remaining pattern is empty
+         *                                  <li>   if the package is missing for ".*" and ".**"
+         *                                  </ul>
          */
         public static ObjectInputFilter createFilter(String pattern) {
             Objects.requireNonNull(pattern, "pattern");
             return Global.createFilter(pattern, true);
         }
-
+        
         /**
          * Returns an ObjectInputFilter from a string of patterns that
          * checks only the length for arrays, not the component type.
          *
          * @param pattern the pattern string to parse; not null
+         *
          * @return a filter to check a class being deserialized;
-         *          {@code null} if no patterns
+         * {@code null} if no patterns
          */
         static ObjectInputFilter createFilter2(String pattern) {
             Objects.requireNonNull(pattern, "pattern");
             return Global.createFilter(pattern, false);
         }
-
+        
+        /**
+         * Logger for debugging.
+         */
+        static void filterLog(System.Logger.Level level, String msg, Object... args) {
+            if(configLog != null) {
+                configLog.log(level, msg, args);
+            }
+        }
+        
         /**
          * Implementation of ObjectInputFilter that performs the checks of
          * the process-wide serialization filter. If configured, it will be
          * used for all ObjectInputStreams that do not set their own filters.
-         *
          */
         final static class Global implements ObjectInputFilter {
             /**
              * The pattern used to create the filter.
              */
             private final String pattern;
+            
             /**
              * The list of class filters.
              */
             private final List<Function<Class<?>, Status>> filters;
-            /**
-             * Maximum allowed bytes in the stream.
-             */
-            private long maxStreamBytes;
-            /**
-             * Maximum depth of the graph allowed.
-             */
-            private long maxDepth;
-            /**
-             * Maximum number of references in a graph.
-             */
-            private long maxReferences;
-            /**
-             * Maximum length of any array.
-             */
-            private long maxArrayLength;
+            
             /**
              * True to check the component type for arrays.
              */
             private final boolean checkComponentType;
-
+            
             /**
-             * Returns an ObjectInputFilter from a string of patterns.
-             *
-             * @param pattern the pattern string to parse
-             * @param checkComponentType true if the filter should check
-             *                           the component type of arrays
-             * @return a filter to check a class being deserialized;
-             *          {@code null} if no patterns
-             * @throws IllegalArgumentException if the parameter is malformed
-             *                if the pattern is missing the name, the long value
-             *                is not a number or is negative.
+             * Maximum allowed bytes in the stream.
              */
-            static ObjectInputFilter createFilter(String pattern, boolean checkComponentType) {
-                try {
-                    return new Global(pattern, checkComponentType);
-                } catch (UnsupportedOperationException uoe) {
-                    // no non-empty patterns
-                    return null;
-                }
-            }
-
+            private long maxStreamBytes;
+            
+            /**
+             * Maximum depth of the graph allowed.
+             */
+            private long maxDepth;
+            
+            /**
+             * Maximum number of references in a graph.
+             */
+            private long maxReferences;
+            
+            /**
+             * Maximum length of any array.
+             */
+            private long maxArrayLength;
+            
             /**
              * Construct a new filter from the pattern String.
              *
-             * @param pattern a pattern string of filters
+             * @param pattern            a pattern string of filters
              * @param checkComponentType true if the filter should check
              *                           the component type of arrays
-             * @throws IllegalArgumentException if the pattern is malformed
+             *
+             * @throws IllegalArgumentException      if the pattern is malformed
              * @throws UnsupportedOperationException if there are no non-empty patterns
              */
             private Global(String pattern, boolean checkComponentType) {
                 boolean hasLimits = false;
                 this.pattern = pattern;
                 this.checkComponentType = checkComponentType;
-
+                
                 maxArrayLength = Long.MAX_VALUE; // Default values are unlimited
                 maxDepth = Long.MAX_VALUE;
                 maxReferences = Long.MAX_VALUE;
                 maxStreamBytes = Long.MAX_VALUE;
-
+                
                 String[] patterns = pattern.split(";");
                 filters = new ArrayList<>(patterns.length);
-                for (int i = 0; i < patterns.length; i++) {
-                    String p = patterns[i];
+                
+                for(String p : patterns) {
                     int nameLen = p.length();
-                    if (nameLen == 0) {
+                    if(nameLen == 0) {
                         continue;
                     }
-                    if (parseLimit(p)) {
+                    
+                    if(parseLimit(p)) {
                         // If the pattern contained a limit setting, i.e. type=value
                         hasLimits = true;
                         continue;
                     }
+                    
                     boolean negate = p.charAt(0) == '!';
                     int poffset = negate ? 1 : 0;
-
+                    
                     // isolate module name, if any
                     int slash = p.indexOf('/', poffset);
-                    if (slash == poffset) {
+                    if(slash == poffset) {
                         throw new IllegalArgumentException("module name is missing in: \"" + pattern + "\"");
                     }
+                    
                     final String moduleName = (slash >= 0) ? p.substring(poffset, slash) : null;
                     poffset = (slash >= 0) ? slash + 1 : poffset;
-
+                    
                     final Function<Class<?>, Status> patternFilter;
-                    if (p.endsWith("*")) {
+                    
+                    if(p.endsWith("*")) {
                         // Wildcard cases
-                        if (p.endsWith(".*")) {
+                        if(p.endsWith(".*")) {
                             // Pattern is a package name with a wildcard
                             final String pkg = p.substring(poffset, nameLen - 2);
-                            if (pkg.isEmpty()) {
+                            if(pkg.isEmpty()) {
                                 throw new IllegalArgumentException("package missing in: \"" + pattern + "\"");
                             }
-                            if (negate) {
+                            if(negate) {
                                 // A Function that fails if the class starts with the pattern, otherwise don't care
                                 patternFilter = c -> matchesPackage(c, pkg) ? Status.REJECTED : Status.UNDECIDED;
                             } else {
                                 // A Function that succeeds if the class starts with the pattern, otherwise don't care
                                 patternFilter = c -> matchesPackage(c, pkg) ? Status.ALLOWED : Status.UNDECIDED;
                             }
-                        } else if (p.endsWith(".**")) {
+                        } else if(p.endsWith(".**")) {
                             // Pattern is a package prefix with a double wildcard
                             final String pkgs = p.substring(poffset, nameLen - 2);
-                            if (pkgs.length() < 2) {
+                            if(pkgs.length()<2) {
                                 throw new IllegalArgumentException("package missing in: \"" + pattern + "\"");
                             }
-                            if (negate) {
+                            if(negate) {
                                 // A Function that fails if the class starts with the pattern, otherwise don't care
                                 patternFilter = c -> c.getName().startsWith(pkgs) ? Status.REJECTED : Status.UNDECIDED;
                             } else {
@@ -531,7 +539,7 @@ public interface ObjectInputFilter {
                         } else {
                             // Pattern is a classname (possibly empty) with a trailing wildcard
                             final String className = p.substring(poffset, nameLen - 1);
-                            if (negate) {
+                            if(negate) {
                                 // A Function that fails if the class starts with the pattern, otherwise don't care
                                 patternFilter = c -> c.getName().startsWith(className) ? Status.REJECTED : Status.UNDECIDED;
                             } else {
@@ -541,11 +549,12 @@ public interface ObjectInputFilter {
                         }
                     } else {
                         final String name = p.substring(poffset);
-                        if (name.isEmpty()) {
+                        if(name.isEmpty()) {
                             throw new IllegalArgumentException("class or package missing in: \"" + pattern + "\"");
                         }
+                        
                         // Pattern is a class name
-                        if (negate) {
+                        if(negate) {
                             // A Function that fails if the class equals the pattern, otherwise don't care
                             patternFilter = c -> c.getName().equals(name) ? Status.REJECTED : Status.UNDECIDED;
                         } else {
@@ -553,129 +562,173 @@ public interface ObjectInputFilter {
                             patternFilter = c -> c.getName().equals(name) ? Status.ALLOWED : Status.UNDECIDED;
                         }
                     }
+                    
                     // If there is a moduleName, combine the module name check with the package/class check
-                    if (moduleName == null) {
+                    if(moduleName == null) {
                         filters.add(patternFilter);
                     } else {
                         filters.add(c -> moduleName.equals(c.getModule().getName()) ? patternFilter.apply(c) : Status.UNDECIDED);
                     }
                 }
-                if (filters.isEmpty() && !hasLimits) {
+                
+                if(filters.isEmpty() && !hasLimits) {
                     throw new UnsupportedOperationException("no non-empty patterns");
                 }
             }
-
-            /**
-             * Parse out a limit for one of maxarray, maxdepth, maxbytes, maxreferences.
-             *
-             * @param pattern a string with a type name, '=' and a value
-             * @return {@code true} if a limit was parsed, else {@code false}
-             * @throws IllegalArgumentException if the pattern is missing
-             *                the name, the Long value is not a number or is negative.
-             */
-            private boolean parseLimit(String pattern) {
-                int eqNdx = pattern.indexOf('=');
-                if (eqNdx < 0) {
-                    // not a limit pattern
-                    return false;
-                }
-                String valueString = pattern.substring(eqNdx + 1);
-                if (pattern.startsWith("maxdepth=")) {
-                    maxDepth = parseValue(valueString);
-                } else if (pattern.startsWith("maxarray=")) {
-                    maxArrayLength = parseValue(valueString);
-                } else if (pattern.startsWith("maxrefs=")) {
-                    maxReferences = parseValue(valueString);
-                } else if (pattern.startsWith("maxbytes=")) {
-                    maxStreamBytes = parseValue(valueString);
-                } else {
-                    throw new IllegalArgumentException("unknown limit: " + pattern.substring(0, eqNdx));
-                }
-                return true;
-            }
-
-            /**
-             * Parse the value of a limit and check that it is non-negative.
-             * @param string inputstring
-             * @return the parsed value
-             * @throws IllegalArgumentException if parsing the value fails or the value is negative
-             */
-            private static long parseValue(String string) throws IllegalArgumentException {
-                // Parse a Long from after the '=' to the end
-                long value = Long.parseLong(string);
-                if (value < 0) {
-                    throw new IllegalArgumentException("negative limit: " + string);
-                }
-                return value;
-            }
-
+            
             /**
              * {@inheritDoc}
              */
             @Override
             public Status checkInput(FilterInfo filterInfo) {
-                if (filterInfo.references() < 0
-                        || filterInfo.depth() < 0
-                        || filterInfo.streamBytes() < 0
-                        || filterInfo.references() > maxReferences
-                        || filterInfo.depth() > maxDepth
-                        || filterInfo.streamBytes() > maxStreamBytes) {
+                if(filterInfo.references()<0
+                    || filterInfo.depth()<0
+                    || filterInfo.streamBytes()<0
+                    || filterInfo.references()>maxReferences
+                    || filterInfo.depth()>maxDepth
+                    || filterInfo.streamBytes()>maxStreamBytes) {
                     return Status.REJECTED;
                 }
-
+                
+                // 反序列化后的对象类型
                 Class<?> clazz = filterInfo.serialClass();
-                if (clazz != null) {
-                    if (clazz.isArray()) {
-                        if (filterInfo.arrayLength() >= 0 && filterInfo.arrayLength() > maxArrayLength) {
-                            // array length is too big
-                            return Status.REJECTED;
-                        }
-                        if (!checkComponentType) {
-                            // As revised; do not check the component type for arrays
-                            return Status.UNDECIDED;
-                        }
-                        do {
-                            // Arrays are decided based on the component type
-                            clazz = clazz.getComponentType();
-                        } while (clazz.isArray());
-                    }
-
-                    if (clazz.isPrimitive())  {
-                        // Primitive types are undecided; let someone else decide
-                        return Status.UNDECIDED;
-                    } else {
-                        // Find any filter that allowed or rejected the class
-                        final Class<?> cl = clazz;
-                        Optional<Status> status = filters.stream()
-                                .map(f -> f.apply(cl))
-                                .filter(p -> p != Status.UNDECIDED)
-                                .findFirst();
-                        return status.orElse(Status.UNDECIDED);
-                    }
+                
+                if(clazz == null) {
+                    return Status.UNDECIDED;
                 }
-                return Status.UNDECIDED;
+                
+                if(clazz.isArray()) {
+                    if(filterInfo.arrayLength() >= 0 && filterInfo.arrayLength()>maxArrayLength) {
+                        // array length is too big
+                        return Status.REJECTED;
+                    }
+                    
+                    if(!checkComponentType) {
+                        // As revised; do not check the component type for arrays
+                        return Status.UNDECIDED;
+                    }
+                    
+                    do {
+                        // Arrays are decided based on the component type
+                        clazz = clazz.getComponentType();
+                    } while(clazz.isArray());
+                }
+                
+                if(clazz.isPrimitive()) {
+                    // Primitive types are undecided; let someone else decide
+                    return Status.UNDECIDED;
+                }
+                
+                // Find any filter that allowed or rejected the class
+                final Class<?> cl = clazz;
+                
+                Optional<Status> status = filters.stream()
+                    .map(f -> f.apply(cl))
+                    .filter(p -> p != Status.UNDECIDED)
+                    .findFirst();
+                
+                return status.orElse(Status.UNDECIDED);
             }
-
-            /**
-             * Returns {@code true} if the class is in the package.
-             *
-             * @param c   a class
-             * @param pkg a package name
-             * @return {@code true} if the class is in the package,
-             * otherwise {@code false}
-             */
-            private static boolean matchesPackage(Class<?> c, String pkg) {
-                return pkg.equals(c.getPackageName());
-            }
-
+            
             /**
              * Returns the pattern used to create this filter.
+             *
              * @return the pattern used to create this filter
              */
             @Override
             public String toString() {
                 return pattern;
             }
+            
+            /**
+             * Returns an ObjectInputFilter from a string of patterns.
+             *
+             * @param pattern            the pattern string to parse
+             * @param checkComponentType true if the filter should check
+             *                           the component type of arrays
+             *
+             * @return a filter to check a class being deserialized;
+             * {@code null} if no patterns
+             *
+             * @throws IllegalArgumentException if the parameter is malformed
+             *                                  if the pattern is missing the name, the long value
+             *                                  is not a number or is negative.
+             */
+            static ObjectInputFilter createFilter(String pattern, boolean checkComponentType) {
+                try {
+                    return new Global(pattern, checkComponentType);
+                } catch(UnsupportedOperationException uoe) {
+                    // no non-empty patterns
+                    return null;
+                }
+            }
+            
+            /**
+             * Parse the value of a limit and check that it is non-negative.
+             *
+             * @param string inputstring
+             *
+             * @return the parsed value
+             *
+             * @throws IllegalArgumentException if parsing the value fails or the value is negative
+             */
+            private static long parseValue(String string) throws IllegalArgumentException {
+                // Parse a Long from after the '=' to the end
+                long value = Long.parseLong(string);
+                
+                if(value<0) {
+                    throw new IllegalArgumentException("negative limit: " + string);
+                }
+                
+                return value;
+            }
+            
+            /**
+             * Returns {@code true} if the class is in the package.
+             *
+             * @param c   a class
+             * @param pkg a package name
+             *
+             * @return {@code true} if the class is in the package,
+             * otherwise {@code false}
+             */
+            private static boolean matchesPackage(Class<?> c, String pkg) {
+                return pkg.equals(c.getPackageName());
+            }
+            
+            /**
+             * Parse out a limit for one of maxarray, maxdepth, maxbytes, maxreferences.
+             *
+             * @param pattern a string with a type name, '=' and a value
+             *
+             * @return {@code true} if a limit was parsed, else {@code false}
+             *
+             * @throws IllegalArgumentException if the pattern is missing
+             *                                  the name, the Long value is not a number or is negative.
+             */
+            private boolean parseLimit(String pattern) {
+                int eqNdx = pattern.indexOf('=');
+                if(eqNdx<0) {
+                    // not a limit pattern
+                    return false;
+                }
+                
+                String valueString = pattern.substring(eqNdx + 1);
+                if(pattern.startsWith("maxdepth=")) {
+                    maxDepth = parseValue(valueString);
+                } else if(pattern.startsWith("maxarray=")) {
+                    maxArrayLength = parseValue(valueString);
+                } else if(pattern.startsWith("maxrefs=")) {
+                    maxReferences = parseValue(valueString);
+                } else if(pattern.startsWith("maxbytes=")) {
+                    maxStreamBytes = parseValue(valueString);
+                } else {
+                    throw new IllegalArgumentException("unknown limit: " + pattern.substring(0, eqNdx));
+                }
+                
+                return true;
+            }
         }
     }
+    
 }

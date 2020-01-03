@@ -38,32 +38,52 @@ package java.io;
  * The line number begins at {@code 0}, and is incremented by
  * {@code 1} when a {@code read} returns a newline character.
  *
- * @author     Arthur van Hoff
- * @see        java.io.LineNumberReader
- * @since      1.0
+ * @author Arthur van Hoff
+ * @see java.io.LineNumberReader
+ * @since 1.0
  * @deprecated This class incorrectly assumes that bytes adequately represent
- *             characters.  As of JDK&nbsp;1.1, the preferred way to operate on
- *             character streams is via the new character-stream classes, which
- *             include a class for counting line numbers.
+ * characters.  As of JDK&nbsp;1.1, the preferred way to operate on
+ * character streams is via the new character-stream classes, which
+ * include a class for counting line numbers.
+ */
+/*
+ * 带行号的输入流
+ *
+ * 在读取数据时，会记录当前"读游标"所在的行。
+ *
+ * 过时原因：该类在设计之初用来读取字符流，并假设"字节"可以表示所有字符，
+ * 但现实是字符由多字节表示，所以使用LineNumberReader来替代了此类。
  */
 @Deprecated
-public
-class LineNumberInputStream extends FilterInputStream {
-    int pushBack = -1;
-    int lineNumber;
-    int markLineNumber;
-    int markPushBack = -1;
-
+public class LineNumberInputStream extends FilterInputStream {
+    
+    int pushBack = -1;      // 缓存标记，临时存储\r后面的一个字节
+    
+    int lineNumber;         // 行号
+    
+    int markLineNumber;     // 行号存档
+    int markPushBack = -1;  // 缓存标记存档
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Constructs a newline number input stream that reads its input
      * from the specified input stream.
      *
-     * @param      in   the underlying input stream.
+     * @param in the underlying input stream.
      */
     public LineNumberInputStream(InputStream in) {
         super(in);
     }
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 读 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Reads the next byte of data from this input stream. The value
      * byte is returned as an {@code int} in the range
@@ -81,35 +101,45 @@ class LineNumberInputStream extends FilterInputStream {
      * a carriage return followed by a newline character are both
      * converted into a single newline character.
      *
-     * @return     the next byte of data, or {@code -1} if the end of this
-     *             stream is reached.
-     * @exception  IOException  if an I/O error occurs.
-     * @see        java.io.FilterInputStream#in
-     * @see        java.io.LineNumberInputStream#getLineNumber()
+     * @return the next byte of data, or {@code -1} if the end of this
+     * stream is reached.
+     *
+     * @throws IOException if an I/O error occurs.
+     * @see java.io.FilterInputStream#in
+     * @see java.io.LineNumberInputStream#getLineNumber()
+     */
+    /*
+     * 尝试从当前输入流读取一个字节，读取成功直接返回，读取失败返回-1
      */
     @SuppressWarnings("fallthrough")
     public int read() throws IOException {
         int c = pushBack;
-
-        if (c != -1) {
-            pushBack = -1;
-        } else {
+        
+        // 如果没有缓存的字节，则直接从流中读取新的字节
+        if(c == -1) {
             c = in.read();
+        } else {
+            // 重置缓存标记为-1
+            pushBack = -1;
         }
-
-        switch (c) {
-          case '\r':
-            pushBack = in.read();
-            if (pushBack == '\n') {
-                pushBack = -1;
-            }
-          case '\n':
-            lineNumber++;
-            return '\n';
+        
+        switch(c) {
+            // 如果遇到了\r，则需要进一步读取下一个字节
+            case '\r':
+                pushBack = in.read();
+                // 如果\r后面紧跟着\n，说明遇到了\r\n组成的行结束标记
+                if(pushBack == '\n') {
+                    pushBack = -1;
+                }
+            case '\n':
+                // 不论遇到\r还是\n还是\r\n，都需要将行号增一
+                lineNumber++;
+                return '\n';
         }
+        
         return c;
     }
-
+    
     /**
      * Reads up to {@code len} bytes of data from this input stream
      * into an array of bytes. This method blocks until some input is available.
@@ -118,129 +148,61 @@ class LineNumberInputStream extends FilterInputStream {
      * {@code LineNumberInputStream} repeatedly calls the
      * {@code read} method of zero arguments to fill in the byte array.
      *
-     * @param      b     the buffer into which the data is read.
-     * @param      off   the start offset of the data.
-     * @param      len   the maximum number of bytes read.
-     * @return     the total number of bytes read into the buffer, or
-     *             {@code -1} if there is no more data because the end of
-     *             this stream has been reached.
-     * @exception  IOException  if an I/O error occurs.
-     * @see        java.io.LineNumberInputStream#read()
+     * @param b   the buffer into which the data is read.
+     * @param off the start offset of the data.
+     * @param len the maximum number of bytes read.
+     *
+     * @return the total number of bytes read into the buffer, or
+     * {@code -1} if there is no more data because the end of
+     * this stream has been reached.
+     *
+     * @throws IOException if an I/O error occurs.
+     * @see java.io.LineNumberInputStream#read()
      */
-    public int read(byte b[], int off, int len) throws IOException {
-        if (b == null) {
+    /*
+     * 尝试从当前输入流读取len个字节，并将读到的内容插入到字节数组b的off索引处
+     * 返回值表示成功读取的字节数量(可能小于预期值)，返回-1表示已经没有可读内容了
+     */
+    public int read(byte[] b, int off, int len) throws IOException {
+        if(b == null) {
             throw new NullPointerException();
-        } else if ((off < 0) || (off > b.length) || (len < 0) ||
-                   ((off + len) > b.length) || ((off + len) < 0)) {
+        } else if((off<0) || (off>b.length) || (len<0) || ((off + len)>b.length) || ((off + len)<0)) {
             throw new IndexOutOfBoundsException();
-        } else if (len == 0) {
+        } else if(len == 0) {
             return 0;
         }
-
+        
+        // 先尝试读取一个字节
         int c = read();
-        if (c == -1) {
+        if(c == -1) {
             return -1;
         }
-        b[off] = (byte)c;
-
+        b[off] = (byte) c;
+        
         int i = 1;
         try {
-            for (; i < len ; i++) {
+            // 循环读取，直到读够len个字节，或者遇到结束标记
+            for(; i<len; i++) {
                 c = read();
-                if (c == -1) {
+                if(c == -1) {
                     break;
                 }
-                if (b != null) {
-                    b[off + i] = (byte)c;
+                if(b != null) {
+                    b[off + i] = (byte) c;
                 }
             }
-        } catch (IOException ee) {
+        } catch(IOException ee) {
         }
+        
         return i;
     }
-
-    /**
-     * Skips over and discards {@code n} bytes of data from this
-     * input stream. The {@code skip} method may, for a variety of
-     * reasons, end up skipping over some smaller number of bytes,
-     * possibly {@code 0}. The actual number of bytes skipped is
-     * returned.  If {@code n} is negative, no bytes are skipped.
-     * <p>
-     * The {@code skip} method of {@code LineNumberInputStream} creates
-     * a byte array and then repeatedly reads into it until
-     * {@code n} bytes have been read or the end of the stream has
-     * been reached.
-     *
-     * @param      n   the number of bytes to be skipped.
-     * @return     the actual number of bytes skipped.
-     * @exception  IOException  if an I/O error occurs.
-     * @see        java.io.FilterInputStream#in
-     */
-    public long skip(long n) throws IOException {
-        int chunk = 2048;
-        long remaining = n;
-        byte data[];
-        int nr;
-
-        if (n <= 0) {
-            return 0;
-        }
-
-        data = new byte[chunk];
-        while (remaining > 0) {
-            nr = read(data, 0, (int) Math.min(chunk, remaining));
-            if (nr < 0) {
-                break;
-            }
-            remaining -= nr;
-        }
-
-        return n - remaining;
-    }
-
-    /**
-     * Sets the line number to the specified argument.
-     *
-     * @param      lineNumber   the new line number.
-     * @see #getLineNumber
-     */
-    public void setLineNumber(int lineNumber) {
-        this.lineNumber = lineNumber;
-    }
-
-    /**
-     * Returns the current line number.
-     *
-     * @return     the current line number.
-     * @see #setLineNumber
-     */
-    public int getLineNumber() {
-        return lineNumber;
-    }
-
-
-    /**
-     * Returns the number of bytes that can be read from this input
-     * stream without blocking.
-     * <p>
-     * Note that if the underlying input stream is able to supply
-     * <i>k</i> input characters without blocking, the
-     * {@code LineNumberInputStream} can guarantee only to provide
-     * <i>k</i>/2 characters without blocking, because the
-     * <i>k</i> characters from the underlying input stream might
-     * consist of <i>k</i>/2 pairs of {@code '\u005Cr'} and
-     * {@code '\u005Cn'}, which are converted to just
-     * <i>k</i>/2 {@code '\u005Cn'} characters.
-     *
-     * @return     the number of bytes that can be read from this input stream
-     *             without blocking.
-     * @exception  IOException  if an I/O error occurs.
-     * @see        java.io.FilterInputStream#in
-     */
-    public int available() throws IOException {
-        return (pushBack == -1) ? super.available()/2 : super.available()/2 + 1;
-    }
-
+    
+    /*▲ 读 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 存档 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Marks the current position in this input stream. A subsequent
      * call to the {@code reset} method repositions this stream at
@@ -251,17 +213,19 @@ class LineNumberInputStream extends FilterInputStream {
      * number in a private variable, and then calls the {@code mark}
      * method of the underlying input stream.
      *
-     * @param   readlimit   the maximum limit of bytes that can be read before
-     *                      the mark position becomes invalid.
-     * @see     java.io.FilterInputStream#in
-     * @see     java.io.LineNumberInputStream#reset()
+     * @param readlimit the maximum limit of bytes that can be read before
+     *                  the mark position becomes invalid.
+     *
+     * @see java.io.FilterInputStream#in
+     * @see java.io.LineNumberInputStream#reset()
      */
+    // 设置存档标记，readlimit是存档上限
     public void mark(int readlimit) {
         markLineNumber = lineNumber;
-        markPushBack   = pushBack;
+        markPushBack = pushBack;
         in.mark(readlimit);
     }
-
+    
     /**
      * Repositions this stream to the position at the time the
      * {@code mark} method was last called on this input stream.
@@ -281,13 +245,114 @@ class LineNumberInputStream extends FilterInputStream {
      * which, if it happens within readlimit bytes, allows the outer
      * code to reset the stream and try another parser.
      *
-     * @exception  IOException  if an I/O error occurs.
-     * @see        java.io.FilterInputStream#in
-     * @see        java.io.LineNumberInputStream#mark(int)
+     * @throws IOException if an I/O error occurs.
+     * @see java.io.FilterInputStream#in
+     * @see java.io.LineNumberInputStream#mark(int)
      */
+    // 重置"读游标"到存档区的起始位置
     public void reset() throws IOException {
         lineNumber = markLineNumber;
-        pushBack   = markPushBack;
+        pushBack = markPushBack;
         in.reset();
     }
+    
+    /*▲ 存档 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the number of bytes that can be read from this input
+     * stream without blocking.
+     * <p>
+     * Note that if the underlying input stream is able to supply
+     * <i>k</i> input characters without blocking, the
+     * {@code LineNumberInputStream} can guarantee only to provide
+     * <i>k</i>/2 characters without blocking, because the
+     * <i>k</i> characters from the underlying input stream might
+     * consist of <i>k</i>/2 pairs of {@code '\u005Cr'} and
+     * {@code '\u005Cn'}, which are converted to just
+     * <i>k</i>/2 {@code '\u005Cn'} characters.
+     *
+     * @return the number of bytes that can be read from this input stream
+     * without blocking.
+     *
+     * @throws IOException if an I/O error occurs.
+     * @see java.io.FilterInputStream#in
+     */
+    // 返回剩余可不被阻塞地读取（或跳过）的字节数（估计值）
+    public int available() throws IOException {
+        return (pushBack == -1) ? super.available() / 2 : super.available() / 2 + 1;
+    }
+    
+    /**
+     * Skips over and discards {@code n} bytes of data from this
+     * input stream. The {@code skip} method may, for a variety of
+     * reasons, end up skipping over some smaller number of bytes,
+     * possibly {@code 0}. The actual number of bytes skipped is
+     * returned.  If {@code n} is negative, no bytes are skipped.
+     * <p>
+     * The {@code skip} method of {@code LineNumberInputStream} creates
+     * a byte array and then repeatedly reads into it until
+     * {@code n} bytes have been read or the end of the stream has
+     * been reached.
+     *
+     * @param n the number of bytes to be skipped.
+     *
+     * @return the actual number of bytes skipped.
+     *
+     * @throws IOException if an I/O error occurs.
+     * @see java.io.FilterInputStream#in
+     */
+    // 读取中跳过n个字节，返回实际跳过的字节数
+    public long skip(long n) throws IOException {
+        int chunk = 2048;
+        long remaining = n;
+        byte[] data;
+        int nr;
+        
+        if(n<=0) {
+            return 0;
+        }
+        
+        data = new byte[chunk];
+        while(remaining>0) {
+            nr = read(data, 0, (int) Math.min(chunk, remaining));
+            if(nr<0) {
+                break;
+            }
+            remaining -= nr;
+        }
+        
+        return n - remaining;
+    }
+    
+    
+    /**
+     * Returns the current line number.
+     *
+     * @return the current line number.
+     *
+     * @see #setLineNumber
+     */
+    // 返回当前行号
+    public int getLineNumber() {
+        return lineNumber;
+    }
+    
+    /**
+     * Sets the line number to the specified argument.
+     *
+     * @param lineNumber the new line number.
+     *
+     * @see #getLineNumber
+     */
+    // 修改当前行号(不会修改读游标的位置)
+    public void setLineNumber(int lineNumber) {
+        this.lineNumber = lineNumber;
+    }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }

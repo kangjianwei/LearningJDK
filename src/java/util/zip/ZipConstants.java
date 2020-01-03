@@ -25,22 +25,26 @@
 
 package java.util.zip;
 
-/*
- * This interface defines the constants that are used by the classes
- * which manipulate ZIP files.
+/**
+ * This interface defines the constants that are used by the classes which manipulate ZIP files.
  *
  * @author      David Connelly
  * @since 1.1
+ */
+/*
+ * zip文件格式常量
+ *
+ * 参见：https://pkware.cachefly.net/webdocs/APPNOTE/APPNOTE-6.3.5.TXT
  */
 interface ZipConstants {
     /*
      * Header signatures
      */
-    static long LOCSIG = 0x04034b50L;   // "PK\003\004"
-    static long EXTSIG = 0x08074b50L;   // "PK\007\008"
-    static long CENSIG = 0x02014b50L;   // "PK\001\002"
-    static long ENDSIG = 0x06054b50L;   // "PK\005\006"
-
+    static long LOCSIG = 0x04034b50L;   // "PK\003\004" | 文件头标识(属于zip文件的第一部分的第1小节)，该值固定
+    static long EXTSIG = 0x08074b50L;   // "PK\007\008" | 扩展数据描述符起始标记(属于zip文件的第一部分的第3小节)
+    static long CENSIG = 0x02014b50L;   // "PK\001\002" | 核心目录文件头标识(zip文件的第二部分)
+    static long ENDSIG = 0x06054b50L;   // "PK\005\006" | 核心目录结束标记(zip文件的第三部分)
+    
     /*
      * Header sizes in bytes (including signatures)
      */
@@ -48,7 +52,7 @@ interface ZipConstants {
     static final int EXTHDR = 16;       // EXT header size
     static final int CENHDR = 46;       // CEN header size
     static final int ENDHDR = 22;       // END header size
-
+    
     /*
      * Local file (LOC) header field offsets
      */
@@ -61,14 +65,14 @@ interface ZipConstants {
     static final int LOCLEN = 22;       // uncompressed size
     static final int LOCNAM = 26;       // filename length
     static final int LOCEXT = 28;       // extra field length
-
+    
     /*
      * Extra local (EXT) header field offsets
      */
     static final int EXTCRC = 4;        // uncompressed file crc-32 value
     static final int EXTSIZ = 8;        // compressed size
     static final int EXTLEN = 12;       // uncompressed size
-
+    
     /*
      * Central directory (CEN) header field offsets
      */
@@ -87,7 +91,7 @@ interface ZipConstants {
     static final int CENATT = 36;       // internal file attributes
     static final int CENATX = 38;       // external file attributes
     static final int CENOFF = 42;       // LOC header offset
-
+    
     /*
      * End of central directory (END) header field offsets
      */

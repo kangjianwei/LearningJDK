@@ -149,13 +149,236 @@ package java.io;
  * <li><a href="../lang/Character.html#unicode">Supplementary characters</a>
  *     are represented in the form of surrogate pairs.
  * </ul>
- * @author  Frank Yellin
- * @see     java.io.DataInputStream
- * @see     java.io.DataOutput
- * @since   1.0
+ *
+ * @author Frank Yellin
+ * @see java.io.DataInputStream
+ * @see java.io.DataOutput
+ * @since 1.0
  */
-public
-interface DataInput {
+// 字节数据输入接口
+public interface DataInput {
+    
+    /**
+     * Reads one input byte and returns
+     * {@code true} if that byte is nonzero,
+     * {@code false} if that byte is zero.
+     * This method is suitable for reading
+     * the byte written by the {@code writeBoolean}
+     * method of interface {@code DataOutput}.
+     *
+     * @return the {@code boolean} value read.
+     *
+     * @throws EOFException if this stream reaches the end before reading
+     *                      all the bytes.
+     * @throws IOException  if an I/O error occurs.
+     */
+    // 从输入流读取boolean
+    boolean readBoolean() throws IOException;
+    
+    /**
+     * Reads two input bytes and returns a {@code char} value.
+     * Let {@code a}
+     * be the first byte read and {@code b}
+     * be the second byte. The value
+     * returned is:
+     * <pre>{@code (char)((a << 8) | (b & 0xff))
+     * }</pre>
+     * This method
+     * is suitable for reading bytes written by
+     * the {@code writeChar} method of interface
+     * {@code DataOutput}.
+     *
+     * @return the {@code char} value read.
+     *
+     * @throws EOFException if this stream reaches the end before reading
+     *                      all the bytes.
+     * @throws IOException  if an I/O error occurs.
+     */
+    // 从输入流读取char值（按大端法读取）
+    char readChar() throws IOException;
+    
+    /**
+     * Reads and returns one input byte.
+     * The byte is treated as a signed value in
+     * the range {@code -128} through {@code 127},
+     * inclusive.
+     * This method is suitable for
+     * reading the byte written by the {@code writeByte}
+     * method of interface {@code DataOutput}.
+     *
+     * @return the 8-bit value read.
+     *
+     * @throws EOFException if this stream reaches the end before reading
+     *                      all the bytes.
+     * @throws IOException  if an I/O error occurs.
+     */
+    // 从输入流读取byte值
+    byte readByte() throws IOException;
+    
+    /**
+     * Reads one input byte, zero-extends
+     * it to type {@code int}, and returns
+     * the result, which is therefore in the range
+     * {@code 0}
+     * through {@code 255}.
+     * This method is suitable for reading
+     * the byte written by the {@code writeByte}
+     * method of interface {@code DataOutput}
+     * if the argument to {@code writeByte}
+     * was intended to be a value in the range
+     * {@code 0} through {@code 255}.
+     *
+     * @return the unsigned 8-bit value read.
+     *
+     * @throws EOFException if this stream reaches the end before reading
+     *                      all the bytes.
+     * @throws IOException  if an I/O error occurs.
+     */
+    // 从输入流读取无符号byte
+    int readUnsignedByte() throws IOException;
+    
+    /**
+     * Reads two input bytes and returns
+     * a {@code short} value. Let {@code a}
+     * be the first byte read and {@code b}
+     * be the second byte. The value
+     * returned
+     * is:
+     * <pre>{@code (short)((a << 8) | (b & 0xff))
+     * }</pre>
+     * This method
+     * is suitable for reading the bytes written
+     * by the {@code writeShort} method of
+     * interface {@code DataOutput}.
+     *
+     * @return the 16-bit value read.
+     *
+     * @throws EOFException if this stream reaches the end before reading
+     *                      all the bytes.
+     * @throws IOException  if an I/O error occurs.
+     */
+    // 从输入流读取short（按大端法读取）
+    short readShort() throws IOException;
+    
+    /**
+     * Reads two input bytes and returns
+     * an {@code int} value in the range {@code 0}
+     * through {@code 65535}. Let {@code a}
+     * be the first byte read and
+     * {@code b}
+     * be the second byte. The value returned is:
+     * <pre>{@code (((a & 0xff) << 8) | (b & 0xff))
+     * }</pre>
+     * This method is suitable for reading the bytes
+     * written by the {@code writeShort} method
+     * of interface {@code DataOutput}  if
+     * the argument to {@code writeShort}
+     * was intended to be a value in the range
+     * {@code 0} through {@code 65535}.
+     *
+     * @return the unsigned 16-bit value read.
+     *
+     * @throws EOFException if this stream reaches the end before reading
+     *                      all the bytes.
+     * @throws IOException  if an I/O error occurs.
+     */
+    // 从输入流读取无符号short（按大端法读取）
+    int readUnsignedShort() throws IOException;
+    
+    /**
+     * Reads four input bytes and returns an
+     * {@code int} value. Let {@code a-d}
+     * be the first through fourth bytes read. The value returned is:
+     * <pre>{@code
+     * (((a & 0xff) << 24) | ((b & 0xff) << 16) |
+     *  ((c & 0xff) <<  8) | (d & 0xff))
+     * }</pre>
+     * This method is suitable
+     * for reading bytes written by the {@code writeInt}
+     * method of interface {@code DataOutput}.
+     *
+     * @return the {@code int} value read.
+     *
+     * @throws EOFException if this stream reaches the end before reading
+     *                      all the bytes.
+     * @throws IOException  if an I/O error occurs.
+     */
+    // 从输入流读取int（按大端法读取）
+    int readInt() throws IOException;
+    
+    /**
+     * Reads eight input bytes and returns
+     * a {@code long} value. Let {@code a-h}
+     * be the first through eighth bytes read.
+     * The value returned is:
+     * <pre>{@code
+     * (((long)(a & 0xff) << 56) |
+     *  ((long)(b & 0xff) << 48) |
+     *  ((long)(c & 0xff) << 40) |
+     *  ((long)(d & 0xff) << 32) |
+     *  ((long)(e & 0xff) << 24) |
+     *  ((long)(f & 0xff) << 16) |
+     *  ((long)(g & 0xff) <<  8) |
+     *  ((long)(h & 0xff)))
+     * }</pre>
+     * <p>
+     * This method is suitable
+     * for reading bytes written by the {@code writeLong}
+     * method of interface {@code DataOutput}.
+     *
+     * @return the {@code long} value read.
+     *
+     * @throws EOFException if this stream reaches the end before reading
+     *                      all the bytes.
+     * @throws IOException  if an I/O error occurs.
+     */
+    // 从输入流读取long（按大端法读取）
+    long readLong() throws IOException;
+    
+    /**
+     * Reads four input bytes and returns
+     * a {@code float} value. It does this
+     * by first constructing an {@code int}
+     * value in exactly the manner
+     * of the {@code readInt}
+     * method, then converting this {@code int}
+     * value to a {@code float} in
+     * exactly the manner of the method {@code Float.intBitsToFloat}.
+     * This method is suitable for reading
+     * bytes written by the {@code writeFloat}
+     * method of interface {@code DataOutput}.
+     *
+     * @return the {@code float} value read.
+     *
+     * @throws EOFException if this stream reaches the end before reading
+     *                      all the bytes.
+     * @throws IOException  if an I/O error occurs.
+     */
+    // 从输入流读取float（按大端法读取）
+    float readFloat() throws IOException;
+    
+    /**
+     * Reads eight input bytes and returns
+     * a {@code double} value. It does this
+     * by first constructing a {@code long}
+     * value in exactly the manner
+     * of the {@code readLong}
+     * method, then converting this {@code long}
+     * value to a {@code double} in exactly
+     * the manner of the method {@code Double.longBitsToDouble}.
+     * This method is suitable for reading
+     * bytes written by the {@code writeDouble}
+     * method of interface {@code DataOutput}.
+     *
+     * @return the {@code double} value read.
+     *
+     * @throws EOFException if this stream reaches the end before reading
+     *                      all the bytes.
+     * @throws IOException  if an I/O error occurs.
+     */
+    // 从输入流读取double（按大端法读取）
+    double readDouble() throws IOException;
+    
     /**
      * Reads some bytes from an input
      * stream and stores them into the buffer
@@ -191,16 +414,17 @@ interface DataInput {
      * not all bytes of {@code b} have been
      * updated with data from the input stream.
      *
-     * @param   b   the buffer into which the data is read.
-     * @throws  NullPointerException if {@code b} is {@code null}.
-     * @throws  EOFException  if this stream reaches the end before reading
-     *          all the bytes.
-     * @throws  IOException   if an I/O error occurs.
-     */
-    void readFully(byte b[]) throws IOException;
-
-    /**
+     * @param b the buffer into which the data is read.
      *
+     * @throws NullPointerException if {@code b} is {@code null}.
+     * @throws EOFException         if this stream reaches the end before reading
+     *                              all the bytes.
+     * @throws IOException          if an I/O error occurs.
+     */
+    // 从输入流读取足量的字节填充给定的字节数组，填不满不返回
+    void readFully(byte[] b) throws IOException;
+    
+    /**
      * Reads {@code len}
      * bytes from
      * an input stream.
@@ -236,284 +460,21 @@ interface DataInput {
      * and so on. The number of bytes read is,
      * at most, equal to {@code len}.
      *
-     * @param   b    the buffer into which the data is read.
-     * @param   off  an int specifying the offset in the data array {@code b}.
-     * @param   len  an int specifying the number of bytes to read.
-     * @throws  NullPointerException if {@code b} is {@code null}.
-     * @throws  IndexOutOfBoundsException if {@code off} is negative,
-     *          {@code len} is negative, or {@code len} is greater than
-     *          {@code b.length - off}.
-     * @throws  EOFException  if this stream reaches the end before reading
-     *          all the bytes.
-     * @throws  IOException   if an I/O error occurs.
-     */
-    void readFully(byte b[], int off, int len) throws IOException;
-
-    /**
-     * Makes an attempt to skip over
-     * {@code n} bytes
-     * of data from the input
-     * stream, discarding the skipped bytes. However,
-     * it may skip
-     * over some smaller number of
-     * bytes, possibly zero. This may result from
-     * any of a
-     * number of conditions; reaching
-     * end of file before {@code n} bytes
-     * have been skipped is
-     * only one possibility.
-     * This method never throws an {@code EOFException}.
-     * The actual
-     * number of bytes skipped is returned.
+     * @param b   the buffer into which the data is read.
+     * @param off an int specifying the offset in the data array {@code b}.
+     * @param len an int specifying the number of bytes to read.
      *
-     * @param      n   the number of bytes to be skipped.
-     * @return     the number of bytes actually skipped.
-     * @exception  IOException   if an I/O error occurs.
+     * @throws NullPointerException      if {@code b} is {@code null}.
+     * @throws IndexOutOfBoundsException if {@code off} is negative,
+     *                                   {@code len} is negative, or {@code len} is greater than
+     *                                   {@code b.length - off}.
+     * @throws EOFException              if this stream reaches the end before reading
+     *                                   all the bytes.
+     * @throws IOException               if an I/O error occurs.
      */
-    int skipBytes(int n) throws IOException;
-
-    /**
-     * Reads one input byte and returns
-     * {@code true} if that byte is nonzero,
-     * {@code false} if that byte is zero.
-     * This method is suitable for reading
-     * the byte written by the {@code writeBoolean}
-     * method of interface {@code DataOutput}.
-     *
-     * @return     the {@code boolean} value read.
-     * @exception  EOFException  if this stream reaches the end before reading
-     *               all the bytes.
-     * @exception  IOException   if an I/O error occurs.
-     */
-    boolean readBoolean() throws IOException;
-
-    /**
-     * Reads and returns one input byte.
-     * The byte is treated as a signed value in
-     * the range {@code -128} through {@code 127},
-     * inclusive.
-     * This method is suitable for
-     * reading the byte written by the {@code writeByte}
-     * method of interface {@code DataOutput}.
-     *
-     * @return     the 8-bit value read.
-     * @exception  EOFException  if this stream reaches the end before reading
-     *               all the bytes.
-     * @exception  IOException   if an I/O error occurs.
-     */
-    byte readByte() throws IOException;
-
-    /**
-     * Reads one input byte, zero-extends
-     * it to type {@code int}, and returns
-     * the result, which is therefore in the range
-     * {@code 0}
-     * through {@code 255}.
-     * This method is suitable for reading
-     * the byte written by the {@code writeByte}
-     * method of interface {@code DataOutput}
-     * if the argument to {@code writeByte}
-     * was intended to be a value in the range
-     * {@code 0} through {@code 255}.
-     *
-     * @return     the unsigned 8-bit value read.
-     * @exception  EOFException  if this stream reaches the end before reading
-     *               all the bytes.
-     * @exception  IOException   if an I/O error occurs.
-     */
-    int readUnsignedByte() throws IOException;
-
-    /**
-     * Reads two input bytes and returns
-     * a {@code short} value. Let {@code a}
-     * be the first byte read and {@code b}
-     * be the second byte. The value
-     * returned
-     * is:
-     * <pre>{@code (short)((a << 8) | (b & 0xff))
-     * }</pre>
-     * This method
-     * is suitable for reading the bytes written
-     * by the {@code writeShort} method of
-     * interface {@code DataOutput}.
-     *
-     * @return     the 16-bit value read.
-     * @exception  EOFException  if this stream reaches the end before reading
-     *               all the bytes.
-     * @exception  IOException   if an I/O error occurs.
-     */
-    short readShort() throws IOException;
-
-    /**
-     * Reads two input bytes and returns
-     * an {@code int} value in the range {@code 0}
-     * through {@code 65535}. Let {@code a}
-     * be the first byte read and
-     * {@code b}
-     * be the second byte. The value returned is:
-     * <pre>{@code (((a & 0xff) << 8) | (b & 0xff))
-     * }</pre>
-     * This method is suitable for reading the bytes
-     * written by the {@code writeShort} method
-     * of interface {@code DataOutput}  if
-     * the argument to {@code writeShort}
-     * was intended to be a value in the range
-     * {@code 0} through {@code 65535}.
-     *
-     * @return     the unsigned 16-bit value read.
-     * @exception  EOFException  if this stream reaches the end before reading
-     *               all the bytes.
-     * @exception  IOException   if an I/O error occurs.
-     */
-    int readUnsignedShort() throws IOException;
-
-    /**
-     * Reads two input bytes and returns a {@code char} value.
-     * Let {@code a}
-     * be the first byte read and {@code b}
-     * be the second byte. The value
-     * returned is:
-     * <pre>{@code (char)((a << 8) | (b & 0xff))
-     * }</pre>
-     * This method
-     * is suitable for reading bytes written by
-     * the {@code writeChar} method of interface
-     * {@code DataOutput}.
-     *
-     * @return     the {@code char} value read.
-     * @exception  EOFException  if this stream reaches the end before reading
-     *               all the bytes.
-     * @exception  IOException   if an I/O error occurs.
-     */
-    char readChar() throws IOException;
-
-    /**
-     * Reads four input bytes and returns an
-     * {@code int} value. Let {@code a-d}
-     * be the first through fourth bytes read. The value returned is:
-     * <pre>{@code
-     * (((a & 0xff) << 24) | ((b & 0xff) << 16) |
-     *  ((c & 0xff) <<  8) | (d & 0xff))
-     * }</pre>
-     * This method is suitable
-     * for reading bytes written by the {@code writeInt}
-     * method of interface {@code DataOutput}.
-     *
-     * @return     the {@code int} value read.
-     * @exception  EOFException  if this stream reaches the end before reading
-     *               all the bytes.
-     * @exception  IOException   if an I/O error occurs.
-     */
-    int readInt() throws IOException;
-
-    /**
-     * Reads eight input bytes and returns
-     * a {@code long} value. Let {@code a-h}
-     * be the first through eighth bytes read.
-     * The value returned is:
-     * <pre>{@code
-     * (((long)(a & 0xff) << 56) |
-     *  ((long)(b & 0xff) << 48) |
-     *  ((long)(c & 0xff) << 40) |
-     *  ((long)(d & 0xff) << 32) |
-     *  ((long)(e & 0xff) << 24) |
-     *  ((long)(f & 0xff) << 16) |
-     *  ((long)(g & 0xff) <<  8) |
-     *  ((long)(h & 0xff)))
-     * }</pre>
-     * <p>
-     * This method is suitable
-     * for reading bytes written by the {@code writeLong}
-     * method of interface {@code DataOutput}.
-     *
-     * @return     the {@code long} value read.
-     * @exception  EOFException  if this stream reaches the end before reading
-     *               all the bytes.
-     * @exception  IOException   if an I/O error occurs.
-     */
-    long readLong() throws IOException;
-
-    /**
-     * Reads four input bytes and returns
-     * a {@code float} value. It does this
-     * by first constructing an {@code int}
-     * value in exactly the manner
-     * of the {@code readInt}
-     * method, then converting this {@code int}
-     * value to a {@code float} in
-     * exactly the manner of the method {@code Float.intBitsToFloat}.
-     * This method is suitable for reading
-     * bytes written by the {@code writeFloat}
-     * method of interface {@code DataOutput}.
-     *
-     * @return     the {@code float} value read.
-     * @exception  EOFException  if this stream reaches the end before reading
-     *               all the bytes.
-     * @exception  IOException   if an I/O error occurs.
-     */
-    float readFloat() throws IOException;
-
-    /**
-     * Reads eight input bytes and returns
-     * a {@code double} value. It does this
-     * by first constructing a {@code long}
-     * value in exactly the manner
-     * of the {@code readLong}
-     * method, then converting this {@code long}
-     * value to a {@code double} in exactly
-     * the manner of the method {@code Double.longBitsToDouble}.
-     * This method is suitable for reading
-     * bytes written by the {@code writeDouble}
-     * method of interface {@code DataOutput}.
-     *
-     * @return     the {@code double} value read.
-     * @exception  EOFException  if this stream reaches the end before reading
-     *               all the bytes.
-     * @exception  IOException   if an I/O error occurs.
-     */
-    double readDouble() throws IOException;
-
-    /**
-     * Reads the next line of text from the input stream.
-     * It reads successive bytes, converting
-     * each byte separately into a character,
-     * until it encounters a line terminator or
-     * end of
-     * file; the characters read are then
-     * returned as a {@code String}. Note
-     * that because this
-     * method processes bytes,
-     * it does not support input of the full Unicode
-     * character set.
-     * <p>
-     * If end of file is encountered
-     * before even one byte can be read, then {@code null}
-     * is returned. Otherwise, each byte that is
-     * read is converted to type {@code char}
-     * by zero-extension. If the character {@code '\n'}
-     * is encountered, it is discarded and reading
-     * ceases. If the character {@code '\r'}
-     * is encountered, it is discarded and, if
-     * the following byte converts &#32;to the
-     * character {@code '\n'}, then that is
-     * discarded also; reading then ceases. If
-     * end of file is encountered before either
-     * of the characters {@code '\n'} and
-     * {@code '\r'} is encountered, reading
-     * ceases. Once reading has ceased, a {@code String}
-     * is returned that contains all the characters
-     * read and not discarded, taken in order.
-     * Note that every character in this string
-     * will have a value less than {@code \u005Cu0100},
-     * that is, {@code (char)256}.
-     *
-     * @return the next line of text from the input stream,
-     *         or {@code null} if the end of file is
-     *         encountered before a byte can be read.
-     * @exception  IOException  if an I/O error occurs.
-     */
-    String readLine() throws IOException;
-
+    // 从输入流读取len个字节插入到字节数组b的off处，读不够len个字节不返回
+    void readFully(byte[] b, int off, int len) throws IOException;
+    
     /**
      * Reads in a string that has been encoded using a
      * <a href="#modified-utf-8">modified UTF-8</a>
@@ -592,12 +553,83 @@ interface DataInput {
      * method of interface {@code DataOutput}
      * may be used to write data that is suitable
      * for reading by this method.
-     * @return     a Unicode string.
-     * @exception  EOFException            if this stream reaches the end
-     *               before reading all the bytes.
-     * @exception  IOException             if an I/O error occurs.
-     * @exception  UTFDataFormatException  if the bytes do not represent a
-     *               valid modified UTF-8 encoding of a string.
+     *
+     * @return a Unicode string.
+     *
+     * @throws EOFException           if this stream reaches the end before reading all the bytes.
+     * @throws IOException            if an I/O error occurs.
+     * @throws UTFDataFormatException if the bytes do not represent a valid modified UTF-8 encoding of a string.
      */
+    // 从输入流读取UTF8格式的字节，将其解码为String
     String readUTF() throws IOException;
+    
+    /**
+     * Reads the next line of text from the input stream.
+     * It reads successive bytes, converting
+     * each byte separately into a character,
+     * until it encounters a line terminator or
+     * end of
+     * file; the characters read are then
+     * returned as a {@code String}. Note
+     * that because this
+     * method processes bytes,
+     * it does not support input of the full Unicode
+     * character set.
+     * <p>
+     * If end of file is encountered
+     * before even one byte can be read, then {@code null}
+     * is returned. Otherwise, each byte that is
+     * read is converted to type {@code char}
+     * by zero-extension. If the character {@code '\n'}
+     * is encountered, it is discarded and reading
+     * ceases. If the character {@code '\r'}
+     * is encountered, it is discarded and, if
+     * the following byte converts &#32;to the
+     * character {@code '\n'}, then that is
+     * discarded also; reading then ceases. If
+     * end of file is encountered before either
+     * of the characters {@code '\n'} and
+     * {@code '\r'} is encountered, reading
+     * ceases. Once reading has ceased, a {@code String}
+     * is returned that contains all the characters
+     * read and not discarded, taken in order.
+     * Note that every character in this string
+     * will have a value less than {@code \u005Cu0100},
+     * that is, {@code (char)256}.
+     *
+     * @return the next line of text from the input stream,
+     * or {@code null} if the end of file is
+     * encountered before a byte can be read.
+     *
+     * @throws IOException if an I/O error occurs.
+     */
+    // 读取一行数据(该方法已过时)
+    String readLine() throws IOException;
+    
+    /**
+     * Makes an attempt to skip over
+     * {@code n} bytes
+     * of data from the input
+     * stream, discarding the skipped bytes. However,
+     * it may skip
+     * over some smaller number of
+     * bytes, possibly zero. This may result from
+     * any of a
+     * number of conditions; reaching
+     * end of file before {@code n} bytes
+     * have been skipped is
+     * only one possibility.
+     * This method never throws an {@code EOFException}.
+     * The actual
+     * number of bytes skipped is returned.
+     *
+     * @param n the number of bytes to be skipped.
+     *
+     * @return the number of bytes actually skipped.
+     *
+     * @throws IOException if an I/O error occurs.
+     */
+    // 跳过n个字节
+    int skipBytes(int n) throws IOException;
+    
 }

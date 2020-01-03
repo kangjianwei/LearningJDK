@@ -25,7 +25,6 @@
 
 package java.io;
 
-import java.io.InputStream;
 import java.util.Enumeration;
 import java.util.Vector;
 
@@ -39,14 +38,34 @@ import java.util.Vector;
  * and so on, until end of file is reached
  * on the last of the contained input streams.
  *
- * @author  Author van Hoff
- * @since   1.0
+ * @author Author van Hoff
+ * @since 1.0
  */
-public
-class SequenceInputStream extends InputStream {
-    Enumeration<? extends InputStream> e;
-    InputStream in;
-
+// 输入流序列(集合)，可以合并多个输入流并对其顺序读取
+public class SequenceInputStream extends InputStream {
+    
+    Enumeration<? extends InputStream> list;    // 输入流集合
+    InputStream in; // 下一个未处理的输入流
+    
+    /**
+     * Initializes a newly
+     * created <code>SequenceInputStream</code>
+     * by remembering the two arguments, which
+     * will be read in order, first <code>s1</code>
+     * and then <code>s2</code>, to provide the
+     * bytes to be read from this <code>SequenceInputStream</code>.
+     *
+     * @param s1 the first input stream to read.
+     * @param s2 the second input stream to read.
+     */
+    public SequenceInputStream(InputStream s1, InputStream s2) {
+        Vector<InputStream> v = new Vector<>(2);
+        v.addElement(s1);
+        v.addElement(s2);
+        list = v.elements();
+        peekNextStream();   // 查看是否存在下一个输入流
+    }
+    
     /**
      * Initializes a newly created <code>SequenceInputStream</code>
      * by remembering the argument, which must
@@ -60,79 +79,15 @@ class SequenceInputStream extends InputStream {
      * is exhausted, it is closed by calling its
      * <code>close</code> method.
      *
-     * @param   e   an enumeration of input streams.
-     * @see     java.util.Enumeration
-     */
-    public SequenceInputStream(Enumeration<? extends InputStream> e) {
-        this.e = e;
-        peekNextStream();
-    }
-
-    /**
-     * Initializes a newly
-     * created <code>SequenceInputStream</code>
-     * by remembering the two arguments, which
-     * will be read in order, first <code>s1</code>
-     * and then <code>s2</code>, to provide the
-     * bytes to be read from this <code>SequenceInputStream</code>.
+     * @param e an enumeration of input streams.
      *
-     * @param   s1   the first input stream to read.
-     * @param   s2   the second input stream to read.
+     * @see java.util.Enumeration
      */
-    public SequenceInputStream(InputStream s1, InputStream s2) {
-        Vector<InputStream> v = new Vector<>(2);
-        v.addElement(s1);
-        v.addElement(s2);
-        e = v.elements();
-        peekNextStream();
+    public SequenceInputStream(Enumeration<? extends InputStream> list) {
+        this.list = list;
+        peekNextStream();   // 查看是否存在下一个输入流
     }
-
-    /**
-     *  Continues reading in the next stream if an EOF is reached.
-     */
-    final void nextStream() throws IOException {
-        if (in != null) {
-            in.close();
-        }
-        peekNextStream();
-    }
-
-    private void peekNextStream() {
-        if (e.hasMoreElements()) {
-            in = (InputStream) e.nextElement();
-            if (in == null)
-                throw new NullPointerException();
-        } else {
-            in = null;
-        }
-    }
-
-    /**
-     * Returns an estimate of the number of bytes that can be read (or
-     * skipped over) from the current underlying input stream without
-     * blocking by the next invocation of a method for the current
-     * underlying input stream. The next invocation might be
-     * the same thread or another thread.  A single read or skip of this
-     * many bytes will not block, but may read or skip fewer bytes.
-     * <p>
-     * This method simply calls {@code available} of the current underlying
-     * input stream and returns the result.
-     *
-     * @return an estimate of the number of bytes that can be read (or
-     *         skipped over) from the current underlying input stream
-     *         without blocking or {@code 0} if this input stream
-     *         has been closed by invoking its {@link #close()} method
-     * @exception  IOException  if an I/O error occurs.
-     *
-     * @since   1.1
-     */
-    public int available() throws IOException {
-        if (in == null) {
-            return 0; // no way to signal EOF from available()
-        }
-        return in.available();
-    }
-
+    
     /**
      * Reads the next byte of data from this input stream. The byte is
      * returned as an <code>int</code> in the range <code>0</code> to
@@ -147,21 +102,24 @@ class SequenceInputStream extends InputStream {
      * method of the current substream and begins reading from the next
      * substream.
      *
-     * @return     the next byte of data, or <code>-1</code> if the end of the
-     *             stream is reached.
-     * @exception  IOException  if an I/O error occurs.
+     * @return the next byte of data, or <code>-1</code> if the end of the
+     * stream is reached.
+     *
+     * @throws IOException if an I/O error occurs.
      */
+    // 从输入流集合中读取一个字节并返回
     public int read() throws IOException {
-        while (in != null) {
+        while(in != null) {
             int c = in.read();
-            if (c != -1) {
+            if(c != -1) {
                 return c;
             }
-            nextStream();
+            nextStream();   // 获取下一个输入流
         }
+        
         return -1;
     }
-
+    
     /**
      * Reads up to <code>len</code> bytes of data from this input stream
      * into an array of bytes.  If <code>len</code> is not zero, the method
@@ -174,37 +132,70 @@ class SequenceInputStream extends InputStream {
      * the stream, it calls the <code>close</code> method of the current
      * substream and begins reading from the next substream.
      *
-     * @param      b     the buffer into which the data is read.
-     * @param      off   the start offset in array <code>b</code>
-     *                   at which the data is written.
-     * @param      len   the maximum number of bytes read.
-     * @return     int   the number of bytes read.
-     * @exception  NullPointerException If <code>b</code> is <code>null</code>.
-     * @exception  IndexOutOfBoundsException If <code>off</code> is negative,
-     * <code>len</code> is negative, or <code>len</code> is greater than
-     * <code>b.length - off</code>
-     * @exception  IOException  if an I/O error occurs.
+     * @param b   the buffer into which the data is read.
+     * @param off the start offset in array <code>b</code>
+     *            at which the data is written.
+     * @param len the maximum number of bytes read.
+     *
+     * @return int   the number of bytes read.
+     *
+     * @throws NullPointerException      If <code>b</code> is <code>null</code>.
+     * @throws IndexOutOfBoundsException If <code>off</code> is negative,
+     *                                   <code>len</code> is negative, or <code>len</code> is greater than
+     *                                   <code>b.length - off</code>
+     * @throws IOException               if an I/O error occurs.
      */
-    public int read(byte b[], int off, int len) throws IOException {
-        if (in == null) {
+    // 从输入流集合中读取len个字节，并将其存入字节数组b的off处，最后返回读到的字节数量
+    public int read(byte[] b, int off, int len) throws IOException {
+        if(in == null) {
             return -1;
-        } else if (b == null) {
+        } else if(b == null) {
             throw new NullPointerException();
-        } else if (off < 0 || len < 0 || len > b.length - off) {
+        } else if(off<0 || len<0 || len>b.length - off) {
             throw new IndexOutOfBoundsException();
-        } else if (len == 0) {
+        } else if(len == 0) {
             return 0;
         }
+        
         do {
             int n = in.read(b, off, len);
-            if (n > 0) {
+            if(n>0) {
                 return n;
             }
-            nextStream();
-        } while (in != null);
+            nextStream();   // 获取下一个输入流
+        } while(in != null);
+        
         return -1;
     }
-
+    
+    /**
+     * Returns an estimate of the number of bytes that can be read (or
+     * skipped over) from the current underlying input stream without
+     * blocking by the next invocation of a method for the current
+     * underlying input stream. The next invocation might be
+     * the same thread or another thread.  A single read or skip of this
+     * many bytes will not block, but may read or skip fewer bytes.
+     * <p>
+     * This method simply calls {@code available} of the current underlying
+     * input stream and returns the result.
+     *
+     * @return an estimate of the number of bytes that can be read (or
+     * skipped over) from the current underlying input stream
+     * without blocking or {@code 0} if this input stream
+     * has been closed by invoking its {@link #close()} method
+     *
+     * @throws IOException if an I/O error occurs.
+     * @since 1.1
+     */
+    // 返回当前剩余未读(可用)的字节数量
+    public int available() throws IOException {
+        if(in == null) {
+            return 0; // no way to signal EOF from available()
+        }
+        
+        return in.available();
+    }
+    
     /**
      * Closes this input stream and releases any system resources
      * associated with the stream.
@@ -217,11 +208,39 @@ class SequenceInputStream extends InputStream {
      * are requested from the enumeration and closed
      * before the <code>close</code> method returns.
      *
-     * @exception  IOException  if an I/O error occurs.
+     * @throws IOException if an I/O error occurs.
      */
+    // 关闭所有输入流
     public void close() throws IOException {
         do {
-            nextStream();
-        } while (in != null);
+            nextStream();   // 获取下一个输入流
+        } while(in != null);
     }
+    
+    /**
+     * Continues reading in the next stream if an EOF is reached.
+     */
+    // 获取下一个输入流
+    final void nextStream() throws IOException {
+        // 先把当前输入流关闭
+        if(in != null) {
+            in.close();
+        }
+        peekNextStream();   // 查看是否存在下一个输入流
+    }
+    
+    // 查看是否存在下一个输入流
+    private void peekNextStream() {
+        // 如果存在未遍历元素
+        if(list.hasMoreElements()) {
+            // 获取下一个输入流
+            in = list.nextElement();
+            if(in == null) {
+                throw new NullPointerException();
+            }
+        } else {
+            in = null;
+        }
+    }
+    
 }

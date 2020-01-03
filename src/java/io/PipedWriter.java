@@ -25,51 +25,170 @@
 
 package java.io;
 
-
 /**
  * Piped character-output streams.
  *
- * @author      Mark Reinhold
- * @since       1.1
+ * @author Mark Reinhold
+ * @since 1.1
  */
-
+// (字符)写管道，需要与读管道配合使用
 public class PipedWriter extends Writer {
-
-    /* REMIND: identification of the read and write sides needs to be
-       more sophisticated.  Either using thread groups (but what about
-       pipes within a thread?) or using finalization (but it may be a
-       long time until the next GC). */
-    private PipedReader sink;
-
-    /* This flag records the open status of this particular writer. It
-     * is independent of the status flags defined in PipedReader. It is
-     * used to do a sanity check on connect.
+    
+    /*
+     * REMIND: identification of the read and write sides needs to be more sophisticated.
+     * Either using thread groups (but what about pipes within a thread?)
+     * or using finalization (but it may be a long time until the next GC).
+     */
+    private PipedReader sink;   // 连接的读管道
+    
+    /*
+     * This flag records the open status of this particular writer.
+     * It is independent of the status flags defined in PipedReader.
+     * It is used to do a sanity check on connect.
      */
     private boolean closed = false;
-
-    /**
-     * Creates a piped writer connected to the specified piped
-     * reader. Data characters written to this stream will then be
-     * available as input from <code>snk</code>.
-     *
-     * @param      snk   The piped reader to connect to.
-     * @exception  IOException  if an I/O error occurs.
-     */
-    public PipedWriter(PipedReader snk)  throws IOException {
-        connect(snk);
-    }
-
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates a piped writer that is not yet connected to a
      * piped reader. It must be connected to a piped reader,
      * either by the receiver or the sender, before being used.
      *
-     * @see     java.io.PipedReader#connect(java.io.PipedWriter)
-     * @see     java.io.PipedWriter#connect(java.io.PipedReader)
+     * @see java.io.PipedReader#connect(java.io.PipedWriter)
+     * @see java.io.PipedWriter#connect(java.io.PipedReader)
      */
+    // 构造写管道，未与读管道建立连接
     public PipedWriter() {
     }
-
+    
+    /**
+     * Creates a piped writer connected to the specified piped
+     * reader. Data characters written to this stream will then be
+     * available as input from <code>snk</code>.
+     *
+     * @param snk The piped reader to connect to.
+     *
+     * @throws IOException if an I/O error occurs.
+     */
+    // 构造写管道，且与读管道建立连接
+    public PipedWriter(PipedReader snk) throws IOException {
+        connect(snk);
+    }
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 写 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Writes the specified <code>char</code> to the piped output stream.
+     * If a thread was reading data characters from the connected piped input
+     * stream, but the thread is no longer alive, then an
+     * <code>IOException</code> is thrown.
+     * <p>
+     * Implements the <code>write</code> method of <code>Writer</code>.
+     *
+     * @param c the <code>char</code> to be written.
+     *
+     * @throws IOException if the pipe is
+     *                     <a href=PipedOutputStream.html#BROKEN> <code>broken</code></a>,
+     *                     {@link #connect(java.io.PipedReader) unconnected}, closed
+     *                     or an I/O error occurs.
+     */
+    // 向读管道存入一个字符
+    public void write(int c) throws IOException {
+        if(sink == null) {
+            throw new IOException("Pipe not connected");
+        }
+        
+        // 将写入的字符保存到读管道的缓冲区
+        sink.receive(c);
+    }
+    
+    /**
+     * Writes {@code len} characters from the specified character array
+     * starting at offset {@code off} to this piped output stream.
+     * This method blocks until all the characters are written to the output
+     * stream.
+     * If a thread was reading data characters from the connected piped input
+     * stream, but the thread is no longer alive, then an
+     * {@code IOException} is thrown.
+     *
+     * @param cbuf the data.
+     * @param off  the start offset in the data.
+     * @param len  the number of characters to write.
+     *
+     * @throws IndexOutOfBoundsException If {@code off} is negative, or {@code len} is negative,
+     *                                   or {@code off + len} is negative or greater than the length
+     *                                   of the given array
+     * @throws IOException               if the pipe is
+     *                                   <a href=PipedOutputStream.html#BROKEN><code>broken</code></a>,
+     *                                   {@link #connect(java.io.PipedReader) unconnected}, closed
+     *                                   or an I/O error occurs.
+     */
+    // 向读管道存入字符数组cbuf中off处起的len个字符
+    public void write(char[] cbuf, int off, int len) throws IOException {
+        if(sink == null) {
+            throw new IOException("Pipe not connected");
+        } else if((off | len | (off + len) | (cbuf.length - (off + len)))<0) {
+            throw new IndexOutOfBoundsException();
+        }
+        
+        // 将写入的字符保存到读管道的缓冲区
+        sink.receive(cbuf, off, len);
+    }
+    
+    /*▲ 写 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Closes this piped output stream and releases any system resources
+     * associated with this stream. This stream may no longer be used for
+     * writing characters.
+     *
+     * @throws IOException if an I/O error occurs.
+     */
+    // 关闭写管道，并唤醒所有阻塞的线程
+    public void close() throws IOException {
+        closed = true;
+        if(sink != null) {
+            sink.receivedLast();
+        }
+    }
+    
+    /**
+     * Flushes this output stream and forces any buffered output characters
+     * to be written out.
+     * This will notify any readers that characters are waiting in the pipe.
+     *
+     * @throws IOException if the pipe is closed, or an I/O error occurs.
+     */
+    // 刷新缓冲区，即唤醒读线程
+    public synchronized void flush() throws IOException {
+        if(sink != null) {
+            if(sink.closedByReader || closed) {
+                throw new IOException("Pipe closed");
+            }
+            
+            synchronized(sink) {
+                sink.notifyAll();
+            }
+        }
+    }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 交互 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Connects this piped writer to a receiver. If this object
      * is already connected to some other piped reader, an
@@ -85,106 +204,26 @@ public class PipedWriter extends Writer {
      * snk.connect(src)</pre></blockquote>
      * The two calls have the same effect.
      *
-     * @param      snk   the piped reader to connect to.
-     * @exception  IOException  if an I/O error occurs.
+     * @param snk the piped reader to connect to.
+     *
+     * @throws IOException if an I/O error occurs.
      */
+    // 与指定的读管道建立连接
     public synchronized void connect(PipedReader snk) throws IOException {
-        if (snk == null) {
+        if(snk == null) {
             throw new NullPointerException();
-        } else if (sink != null || snk.connected) {
+        } else if(sink != null || snk.connected) {
             throw new IOException("Already connected");
-        } else if (snk.closedByReader || closed) {
+        } else if(snk.closedByReader || closed) {
             throw new IOException("Pipe closed");
         }
-
+        
         sink = snk;
         snk.in = -1;
         snk.out = 0;
         snk.connected = true;
     }
-
-    /**
-     * Writes the specified <code>char</code> to the piped output stream.
-     * If a thread was reading data characters from the connected piped input
-     * stream, but the thread is no longer alive, then an
-     * <code>IOException</code> is thrown.
-     * <p>
-     * Implements the <code>write</code> method of <code>Writer</code>.
-     *
-     * @param      c   the <code>char</code> to be written.
-     * @exception  IOException  if the pipe is
-     *          <a href=PipedOutputStream.html#BROKEN> <code>broken</code></a>,
-     *          {@link #connect(java.io.PipedReader) unconnected}, closed
-     *          or an I/O error occurs.
-     */
-    public void write(int c)  throws IOException {
-        if (sink == null) {
-            throw new IOException("Pipe not connected");
-        }
-        sink.receive(c);
-    }
-
-    /**
-     * Writes {@code len} characters from the specified character array
-     * starting at offset {@code off} to this piped output stream.
-     * This method blocks until all the characters are written to the output
-     * stream.
-     * If a thread was reading data characters from the connected piped input
-     * stream, but the thread is no longer alive, then an
-     * {@code IOException} is thrown.
-     *
-     * @param      cbuf  the data.
-     * @param      off   the start offset in the data.
-     * @param      len   the number of characters to write.
-     *
-     * @throws  IndexOutOfBoundsException
-     *          If {@code off} is negative, or {@code len} is negative,
-     *          or {@code off + len} is negative or greater than the length
-     *          of the given array
-     *
-     * @throws  IOException  if the pipe is
-     *          <a href=PipedOutputStream.html#BROKEN><code>broken</code></a>,
-     *          {@link #connect(java.io.PipedReader) unconnected}, closed
-     *          or an I/O error occurs.
-     */
-    public void write(char cbuf[], int off, int len) throws IOException {
-        if (sink == null) {
-            throw new IOException("Pipe not connected");
-        } else if ((off | len | (off + len) | (cbuf.length - (off + len))) < 0) {
-            throw new IndexOutOfBoundsException();
-        }
-        sink.receive(cbuf, off, len);
-    }
-
-    /**
-     * Flushes this output stream and forces any buffered output characters
-     * to be written out.
-     * This will notify any readers that characters are waiting in the pipe.
-     *
-     * @exception  IOException  if the pipe is closed, or an I/O error occurs.
-     */
-    public synchronized void flush() throws IOException {
-        if (sink != null) {
-            if (sink.closedByReader || closed) {
-                throw new IOException("Pipe closed");
-            }
-            synchronized (sink) {
-                sink.notifyAll();
-            }
-        }
-    }
-
-    /**
-     * Closes this piped output stream and releases any system resources
-     * associated with this stream. This stream may no longer be used for
-     * writing characters.
-     *
-     * @exception  IOException  if an I/O error occurs.
-     */
-    public void close()  throws IOException {
-        closed = true;
-        if (sink != null) {
-            sink.receivedLast();
-        }
-    }
+    
+    /*▲ 交互 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }

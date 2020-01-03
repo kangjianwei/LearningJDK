@@ -37,48 +37,55 @@ import jdk.internal.HotSpotIntrinsicCandidate;
  * <p> Passing a {@code null} argument to a method in this class will cause
  * a {@link NullPointerException} to be thrown.</p>
  *
- * @author      David Connelly
+ * @author David Connelly
  * @since 1.1
  */
-public
-class CRC32 implements Checksum {
-    private int crc;
-
+// CRC32循环冗余校验的实现
+public class CRC32 implements Checksum {
+    
+    private int crc;    // CRC-32校验和
+    
+    static {
+        ZipUtils.loadLibrary();
+    }
+    
     /**
      * Creates a new CRC32 object.
      */
     public CRC32() {
     }
-
-
+    
     /**
      * Updates the CRC-32 checksum with the specified byte (the low
      * eight bits of the argument b).
      */
+    // 用指定的字节更新当前校验和
     @Override
     public void update(int b) {
         crc = update(crc, b);
     }
-
+    
     /**
      * Updates the CRC-32 checksum with the specified array of bytes.
      *
-     * @throws ArrayIndexOutOfBoundsException
-     *         if {@code off} is negative, or {@code len} is negative, or
-     *         {@code off+len} is negative or greater than the length of
-     *         the array {@code b}.
+     * @throws ArrayIndexOutOfBoundsException if {@code off} is negative, or {@code len} is negative, or
+     *                                        {@code off+len} is negative or greater than the length of
+     *                                        the array {@code b}.
      */
+    // 用字节数组b中off处起的len个字节更新当前校验和
     @Override
     public void update(byte[] b, int off, int len) {
-        if (b == null) {
+        if(b == null) {
             throw new NullPointerException();
         }
-        if (off < 0 || len < 0 || off > b.length - len) {
+        
+        if(off<0 || len<0 || off>b.length - len) {
             throw new ArrayIndexOutOfBoundsException();
         }
+        
         crc = updateBytes(crc, b, off, len);
     }
-
+    
     /**
      * Updates the CRC-32 checksum with the bytes from the specified buffer.
      *
@@ -88,92 +95,101 @@ class CRC32 implements Checksum {
      *
      * @since 1.8
      */
+    // 用缓冲区buffer中的字节更新当前校验和
     @Override
     public void update(ByteBuffer buffer) {
         int pos = buffer.position();
         int limit = buffer.limit();
-        assert (pos <= limit);
+        
+        assert (pos<=limit);
+        
         int rem = limit - pos;
-        if (rem <= 0)
+        if(rem<=0) {
             return;
-        if (buffer instanceof DirectBuffer) {
-            crc = updateByteBuffer(crc, ((DirectBuffer)buffer).address(), pos, rem);
-        } else if (buffer.hasArray()) {
+        }
+        
+        if(buffer instanceof DirectBuffer) {
+            crc = updateByteBuffer(crc, ((DirectBuffer) buffer).address(), pos, rem);
+        } else if(buffer.hasArray()) {
             crc = updateBytes(crc, buffer.array(), pos + buffer.arrayOffset(), rem);
         } else {
             byte[] b = new byte[Math.min(buffer.remaining(), 4096)];
-            while (buffer.hasRemaining()) {
+            while(buffer.hasRemaining()) {
                 int length = Math.min(buffer.remaining(), b.length);
                 buffer.get(b, 0, length);
                 update(b, 0, length);
             }
         }
+        
         buffer.position(limit);
     }
-
+    
+    /**
+     * Returns CRC-32 value.
+     */
+    // 获取当前校验和
+    @Override
+    public long getValue() {
+        return (long) crc & 0xffffffffL;
+    }
+    
     /**
      * Resets CRC-32 to initial value.
      */
+    // 重置当前校验和
     @Override
     public void reset() {
         crc = 0;
     }
-
-    /**
-     * Returns CRC-32 value.
-     */
-    @Override
-    public long getValue() {
-        return (long)crc & 0xffffffffL;
-    }
-
+    
+    // 用指定的字节更新当前校验和
     @HotSpotIntrinsicCandidate
     private static native int update(int crc, int b);
-
+    
+    // 用字节数组b中off处起的len个字节更新校验和crc
     private static int updateBytes(int crc, byte[] b, int off, int len) {
         updateBytesCheck(b, off, len);
         return updateBytes0(crc, b, off, len);
     }
-
+    
+    // 用地址addr处的缓冲区中off处起的len个字节更新校验和crc
+    private static int updateByteBuffer(int crc, long addr, int off, int len) {
+        updateByteBufferCheck(addr);
+        return updateByteBuffer0(crc, addr, off, len);
+    }
+    
+    // (本地实现)用字节数组b中off处起的len个字节更新校验和crc
     @HotSpotIntrinsicCandidate
     private static native int updateBytes0(int crc, byte[] b, int off, int len);
-
+    
+    // (本地实现)用地址addr处的缓冲区中off处起的len个字节更新校验和crc
+    @HotSpotIntrinsicCandidate
+    private static native int updateByteBuffer0(int crc, long addr, int off, int len);
+    
+    // 边界检查
     private static void updateBytesCheck(byte[] b, int off, int len) {
-        if (len <= 0) {
+        if(len<=0) {
             return;  // not an error because updateBytesImpl won't execute if len <= 0
         }
-
+        
         Objects.requireNonNull(b);
-
-        if (off < 0 || off >= b.length) {
+        
+        if(off<0 || off >= b.length) {
             throw new ArrayIndexOutOfBoundsException(off);
         }
-
+        
         int endIndex = off + len - 1;
-        if (endIndex < 0 || endIndex >= b.length) {
+        if(endIndex<0 || endIndex >= b.length) {
             throw new ArrayIndexOutOfBoundsException(endIndex);
         }
     }
-
-    private static int updateByteBuffer(int alder, long addr,
-                                        int off, int len) {
-        updateByteBufferCheck(addr);
-        return updateByteBuffer0(alder, addr, off, len);
-    }
-
-    @HotSpotIntrinsicCandidate
-    private static native int updateByteBuffer0(int alder, long addr,
-                                                int off, int len);
-
+    
+    // 地址检查
     private static void updateByteBufferCheck(long addr) {
-        // Performs only a null check because bounds checks
-        // are not easy to do on raw addresses.
-        if (addr == 0L) {
+        // Performs only a null check because bounds checks are not easy to do on raw addresses.
+        if(addr == 0L) {
             throw new NullPointerException();
         }
     }
-
-    static {
-        ZipUtils.loadLibrary();
-    }
+    
 }

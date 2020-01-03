@@ -30,134 +30,182 @@ package java.io;
  * A character-stream reader that allows characters to be pushed back into the
  * stream.
  *
- * @author      Mark Reinhold
- * @since       1.1
+ * @author Mark Reinhold
+ * @since 1.1
  */
-
+// 回推输入流，可以将一些字符暂时填充到回推缓冲区以便后续读取
 public class PushbackReader extends FilterReader {
-
+    
     /** Pushback buffer */
-    private char[] buf;
-
+    private char[] buf;     // 回推缓冲区
+    
     /** Current position in buffer */
-    private int pos;
-
-    /**
-     * Creates a new pushback reader with a pushback buffer of the given size.
-     *
-     * @param   in   The reader from which characters will be read
-     * @param   size The size of the pushback buffer
-     * @exception IllegalArgumentException if {@code size <= 0}
-     */
-    public PushbackReader(Reader in, int size) {
-        super(in);
-        if (size <= 0) {
-            throw new IllegalArgumentException("size <= 0");
-        }
-        this.buf = new char[size];
-        this.pos = size;
-    }
-
+    private int pos;        // 指向回退数据的起点
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates a new pushback reader with a one-character pushback buffer.
      *
-     * @param   in  The reader from which characters will be read
+     * @param in The reader from which characters will be read
      */
+    // 构造带有容量为1的回推缓冲区的回推输入流
     public PushbackReader(Reader in) {
         this(in, 1);
     }
-
-    /** Checks to make sure that the stream has not been closed. */
-    private void ensureOpen() throws IOException {
-        if (buf == null)
-            throw new IOException("Stream closed");
+    
+    /**
+     * Creates a new pushback reader with a pushback buffer of the given size.
+     *
+     * @param in   The reader from which characters will be read
+     * @param size The size of the pushback buffer
+     *
+     * @throws IllegalArgumentException if {@code size <= 0}
+     */
+    // 构造带有容量为size的回推缓冲区的回推输入流
+    public PushbackReader(Reader in, int size) {
+        super(in);
+        
+        if(size<=0) {
+            throw new IllegalArgumentException("size <= 0");
+        }
+        
+        this.buf = new char[size];
+        this.pos = size;
     }
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 读 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Reads a single character.
      *
-     * @return     The character read, or -1 if the end of the stream has been
-     *             reached
+     * @return The character read, or -1 if the end of the stream has been
+     * reached
      *
-     * @exception  IOException  If an I/O error occurs
+     * @throws IOException If an I/O error occurs
      */
+    // 从回推输入流读取一个字符并返回
     public int read() throws IOException {
-        synchronized (lock) {
+        synchronized(lock) {
             ensureOpen();
-            if (pos < buf.length)
+            
+            if(pos<buf.length) {
                 return buf[pos++];
-            else
+            } else {
                 return super.read();
+            }
         }
     }
-
+    
     /**
      * Reads characters into a portion of an array.
      *
-     * @param      cbuf  Destination buffer
-     * @param      off   Offset at which to start writing characters
-     * @param      len   Maximum number of characters to read
+     * @param cbuf Destination buffer
+     * @param off  Offset at which to start writing characters
+     * @param len  Maximum number of characters to read
      *
-     * @return     The number of characters read, or -1 if the end of the
-     *             stream has been reached
+     * @return The number of characters read, or -1 if the end of the
+     * stream has been reached
      *
-     * @exception  IOException  If an I/O error occurs
-     * @exception  IndexOutOfBoundsException {@inheritDoc}
+     * @throws IOException               If an I/O error occurs
+     * @throws IndexOutOfBoundsException {@inheritDoc}
      */
-    public int read(char cbuf[], int off, int len) throws IOException {
-        synchronized (lock) {
+    // 从回推输入流读取len个字符存入字符数组b的off处，返回读取到的字符数
+    public int read(char[] cbuf, int off, int len) throws IOException {
+        synchronized(lock) {
             ensureOpen();
+            
             try {
-                if (len <= 0) {
-                    if (len < 0) {
+                if(len<=0) {
+                    if(len<0) {
                         throw new IndexOutOfBoundsException();
-                    } else if ((off < 0) || (off > cbuf.length)) {
+                    } else if((off<0) || (off>cbuf.length)) {
                         throw new IndexOutOfBoundsException();
                     }
                     return 0;
                 }
+                
+                // 如果回推缓冲区不为空，则从回推缓冲区读取数据
                 int avail = buf.length - pos;
-                if (avail > 0) {
-                    if (len < avail)
+                if(avail>0) {
+                    if(len<avail) {
                         avail = len;
+                    }
+                    
                     System.arraycopy(buf, pos, cbuf, off, avail);
                     pos += avail;
                     off += avail;
                     len -= avail;
                 }
-                if (len > 0) {
+                
+                // 没有读够指定数量的字符
+                if(len>0) {
+                    // 继续从包装的输入流中读取
                     len = super.read(cbuf, off, len);
-                    if (len == -1) {
+                    if(len == -1) {
                         return (avail == 0) ? -1 : avail;
                     }
                     return avail + len;
                 }
+                
                 return avail;
-            } catch (ArrayIndexOutOfBoundsException e) {
+            } catch(ArrayIndexOutOfBoundsException e) {
                 throw new IndexOutOfBoundsException();
             }
         }
     }
-
+    
+    /*▲ 读 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 回推 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Pushes back a single character by copying it to the front of the
      * pushback buffer. After this method returns, the next character to be read
      * will have the value <code>(char)c</code>.
      *
-     * @param  c  The int value representing a character to be pushed back
+     * @param c The int value representing a character to be pushed back
      *
-     * @exception  IOException  If the pushback buffer is full,
-     *                          or if some other I/O error occurs
+     * @throws IOException If the pushback buffer is full,
+     *                     or if some other I/O error occurs
      */
+    // 将指定的字符存入回推缓冲区
     public void unread(int c) throws IOException {
-        synchronized (lock) {
+        synchronized(lock) {
             ensureOpen();
-            if (pos == 0)
+            
+            if(pos == 0) {
                 throw new IOException("Pushback buffer overflow");
+            }
+            
             buf[--pos] = (char) c;
         }
     }
-
+    
+    /**
+     * Pushes back an array of characters by copying it to the front of the
+     * pushback buffer.  After this method returns, the next character to be
+     * read will have the value <code>cbuf[0]</code>, the character after that
+     * will have the value <code>cbuf[1]</code>, and so forth.
+     *
+     * @param cbuf Character array to push back
+     *
+     * @throws IOException If there is insufficient room in the pushback
+     *                     buffer, or if some other I/O error occurs
+     */
+    // 将字符数组cbuf中所有字符存入回推缓冲区
+    public void unread(char[] cbuf) throws IOException {
+        unread(cbuf, 0, cbuf.length);
+    }
+    
     /**
      * Pushes back a portion of an array of characters by copying it to the
      * front of the pushback buffer.  After this method returns, the next
@@ -165,78 +213,71 @@ public class PushbackReader extends FilterReader {
      * character after that will have the value <code>cbuf[off+1]</code>, and
      * so forth.
      *
-     * @param  cbuf  Character array
-     * @param  off   Offset of first character to push back
-     * @param  len   Number of characters to push back
+     * @param cbuf Character array
+     * @param off  Offset of first character to push back
+     * @param len  Number of characters to push back
      *
-     * @exception  IOException  If there is insufficient room in the pushback
-     *                          buffer, or if some other I/O error occurs
+     * @throws IOException If there is insufficient room in the pushback
+     *                     buffer, or if some other I/O error occurs
      */
-    public void unread(char cbuf[], int off, int len) throws IOException {
-        synchronized (lock) {
+    // 将字符数组cbuf中off处起的len个字符存入回推缓冲区
+    public void unread(char[] cbuf, int off, int len) throws IOException {
+        synchronized(lock) {
             ensureOpen();
-            if (len > pos)
+            
+            if(len>pos) {
                 throw new IOException("Pushback buffer overflow");
+            }
+            
             pos -= len;
+            
             System.arraycopy(cbuf, off, buf, pos, len);
         }
     }
-
-    /**
-     * Pushes back an array of characters by copying it to the front of the
-     * pushback buffer.  After this method returns, the next character to be
-     * read will have the value <code>cbuf[0]</code>, the character after that
-     * will have the value <code>cbuf[1]</code>, and so forth.
-     *
-     * @param  cbuf  Character array to push back
-     *
-     * @exception  IOException  If there is insufficient room in the pushback
-     *                          buffer, or if some other I/O error occurs
-     */
-    public void unread(char cbuf[]) throws IOException {
-        unread(cbuf, 0, cbuf.length);
-    }
-
-    /**
-     * Tells whether this stream is ready to be read.
-     *
-     * @exception  IOException  If an I/O error occurs
-     */
-    public boolean ready() throws IOException {
-        synchronized (lock) {
-            ensureOpen();
-            return (pos < buf.length) || super.ready();
-        }
-    }
-
-    /**
-     * Marks the present position in the stream. The <code>mark</code>
-     * for class <code>PushbackReader</code> always throws an exception.
-     *
-     * @exception  IOException  Always, since mark is not supported
-     */
-    public void mark(int readAheadLimit) throws IOException {
-        throw new IOException("mark/reset not supported");
-    }
-
-    /**
-     * Resets the stream. The <code>reset</code> method of
-     * <code>PushbackReader</code> always throws an exception.
-     *
-     * @exception  IOException  Always, since reset is not supported
-     */
-    public void reset() throws IOException {
-        throw new IOException("mark/reset not supported");
-    }
-
+    
+    /*▲ 回推 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 存档 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Tells whether this stream supports the mark() operation, which it does
      * not.
      */
+    // 判断当前输入流是否支持存档标记：默认不支持
     public boolean markSupported() {
         return false;
     }
-
+    
+    /**
+     * Marks the present position in the stream. The <code>mark</code>
+     * for class <code>PushbackReader</code> always throws an exception.
+     *
+     * @throws IOException Always, since mark is not supported
+     */
+    // 设置存档标记，当前输入流不支持标记行为，所以也不会设置存档标记
+    public void mark(int readAheadLimit) throws IOException {
+        throw new IOException("mark/reset not supported");
+    }
+    
+    /**
+     * Resets the stream. The <code>reset</code> method of
+     * <code>PushbackReader</code> always throws an exception.
+     *
+     * @throws IOException Always, since reset is not supported
+     */
+    // 对于支持设置存档的输入流，可以重置其"读游标"到存档区的起始位置，此处默认不支持重置操作
+    public void reset() throws IOException {
+        throw new IOException("mark/reset not supported");
+    }
+    
+    /*▲ 存档 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Closes the stream and releases any system resources associated with
      * it. Once the stream has been closed, further read(),
@@ -244,34 +285,51 @@ public class PushbackReader extends FilterReader {
      * Closing a previously closed stream has no effect. This method will block
      * while there is another thread blocking on the reader.
      *
-     * @exception  IOException  If an I/O error occurs
+     * @throws IOException If an I/O error occurs
      */
+    // 关闭内部包装的输入流，且置空回推缓冲区
     public void close() throws IOException {
-        synchronized (lock) {
+        synchronized(lock) {
             super.close();
             buf = null;
         }
     }
-
+    
+    /**
+     * Tells whether this stream is ready to be read.
+     *
+     * @throws IOException If an I/O error occurs
+     */
+    // 判断当前流是否已准备好被读取
+    public boolean ready() throws IOException {
+        synchronized(lock) {
+            ensureOpen();
+            return (pos<buf.length) || super.ready();
+        }
+    }
+    
     /**
      * Skips characters.  This method will block until some characters are
      * available, an I/O error occurs, or the end of the stream is reached.
      *
-     * @param  n  The number of characters to skip
+     * @param n The number of characters to skip
      *
-     * @return    The number of characters actually skipped
+     * @return The number of characters actually skipped
      *
-     * @exception  IllegalArgumentException  If <code>n</code> is negative.
-     * @exception  IOException  If an I/O error occurs
+     * @throws IllegalArgumentException If <code>n</code> is negative.
+     * @throws IOException              If an I/O error occurs
      */
+    // 跳过n个字符
     public long skip(long n) throws IOException {
-        if (n < 0L)
+        if(n<0L) {
             throw new IllegalArgumentException("skip value is negative");
-        synchronized (lock) {
+        }
+        
+        synchronized(lock) {
             ensureOpen();
             int avail = buf.length - pos;
-            if (avail > 0) {
-                if (n <= avail) {
+            if(avail>0) {
+                if(n<=avail) {
                     pos += n;
                     return n;
                 } else {
@@ -282,4 +340,16 @@ public class PushbackReader extends FilterReader {
             return avail + super.skip(n);
         }
     }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /** Checks to make sure that the stream has not been closed. */
+    // 确保包装的输入流未关闭
+    private void ensureOpen() throws IOException {
+        if(buf == null)
+            throw new IOException("Stream closed");
+    }
+    
 }

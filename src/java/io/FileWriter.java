@@ -44,153 +44,178 @@ import java.nio.charset.Charset;
  * The {@code FileWriter} is meant for writing streams of characters. For writing
  * streams of raw bytes, consider using a {@code FileOutputStream}.
  *
+ * @author Mark Reinhold
  * @see OutputStreamWriter
  * @see FileOutputStream
- *
- * @author      Mark Reinhold
- * @since       1.1
+ * @since 1.1
  */
-
+// 文件输出流：向文件写入数据(向文件中写入的字符会被编码为字节)
 public class FileWriter extends OutputStreamWriter {
-
+    
     /**
      * Constructs a {@code FileWriter} given a file name, using the platform's
      * {@linkplain java.nio.charset.Charset#defaultCharset() default charset}
      *
-     * @param fileName  String The system-dependent filename.
-     * @throws IOException  if the named file exists but is a directory rather
-     *                  than a regular file, does not exist but cannot be
-     *                  created, or cannot be opened for any other reason
+     * @param fileName String The system-dependent filename.
+     *
+     * @throws IOException if the named file exists but is a directory rather
+     *                     than a regular file, does not exist but cannot be
+     *                     created, or cannot be opened for any other reason
      */
+    // 打开指定名称的文件以便输出，数据从文件头部写入(覆盖模式)
     public FileWriter(String fileName) throws IOException {
         super(new FileOutputStream(fileName));
     }
-
+    
     /**
      * Constructs a {@code FileWriter} given a file name and a boolean indicating
      * whether to append the data written, using the platform's
      * {@linkplain java.nio.charset.Charset#defaultCharset() default charset}.
      *
-     * @param fileName  String The system-dependent filename.
-     * @param append    boolean if {@code true}, then data will be written
-     *                  to the end of the file rather than the beginning.
-     * @throws IOException  if the named file exists but is a directory rather
-     *                  than a regular file, does not exist but cannot be
-     *                  created, or cannot be opened for any other reason
+     * @param fileName String The system-dependent filename.
+     * @param append   boolean if {@code true}, then data will be written
+     *                 to the end of the file rather than the beginning.
+     *
+     * @throws IOException if the named file exists but is a directory rather
+     *                     than a regular file, does not exist but cannot be
+     *                     created, or cannot be opened for any other reason
      */
+    // 打开指定名称的文件以便输出。如果append为true，则数据被写入文件尾部，否则，数据从文件头部写入
     public FileWriter(String fileName, boolean append) throws IOException {
         super(new FileOutputStream(fileName, append));
     }
-
+    
     /**
      * Constructs a {@code FileWriter} given the {@code File} to write,
      * using the platform's
      * {@linkplain java.nio.charset.Charset#defaultCharset() default charset}
      *
-     * @param file  the {@code File} to write.
-     * @throws IOException  if the file exists but is a directory rather than
-     *                  a regular file, does not exist but cannot be created,
-     *                  or cannot be opened for any other reason
+     * @param file the {@code File} to write.
+     *
+     * @throws IOException if the file exists but is a directory rather than
+     *                     a regular file, does not exist but cannot be created,
+     *                     or cannot be opened for any other reason
      */
+    // 打开指定的文件以便输出，数据从文件头部写入(覆盖模式)
     public FileWriter(File file) throws IOException {
         super(new FileOutputStream(file));
     }
-
+    
     /**
      * Constructs a {@code FileWriter} given the {@code File} to write and
      * a boolean indicating whether to append the data written, using the platform's
      * {@linkplain java.nio.charset.Charset#defaultCharset() default charset}.
      *
-     * @param file  the {@code File} to write
-     * @param     append    if {@code true}, then bytes will be written
-     *                      to the end of the file rather than the beginning
-     * @throws IOException  if the file exists but is a directory rather than
-     *                  a regular file, does not exist but cannot be created,
-     *                  or cannot be opened for any other reason
+     * @param file   the {@code File} to write
+     * @param append if {@code true}, then bytes will be written
+     *               to the end of the file rather than the beginning
+     *
+     * @throws IOException if the file exists but is a directory rather than
+     *                     a regular file, does not exist but cannot be created,
+     *                     or cannot be opened for any other reason
      * @since 1.4
      */
+    // 打开指定的文件以便输出。如果append为true，则数据被写入文件尾部，否则，数据从文件头部写入
     public FileWriter(File file, boolean append) throws IOException {
         super(new FileOutputStream(file, append));
     }
-
+    
     /**
      * Constructs a {@code FileWriter} given a file descriptor,
      * using the platform's
      * {@linkplain java.nio.charset.Charset#defaultCharset() default charset}.
      *
-     * @param fd  the {@code FileDescriptor} to write.
+     * @param fd the {@code FileDescriptor} to write.
      */
+    // 直接使用文件描述符初始化输出流
     public FileWriter(FileDescriptor fd) {
         super(new FileOutputStream(fd));
     }
-
-
+    
     /**
      * Constructs a {@code FileWriter} given a file name and
      * {@linkplain java.nio.charset.Charset charset}.
      *
-     * @param fileName  the name of the file to write
-     * @param charset the {@linkplain java.nio.charset.Charset charset}
-     * @throws IOException  if the named file exists but is a directory rather
-     *                  than a regular file, does not exist but cannot be
-     *                  created, or cannot be opened for any other reason
+     * @param fileName the name of the file to write
+     * @param charset  the {@linkplain java.nio.charset.Charset charset}
      *
+     * @throws IOException if the named file exists but is a directory rather
+     *                     than a regular file, does not exist but cannot be
+     *                     created, or cannot be opened for any other reason
      * @since 11
+     */
+    /*
+     * 打开指定名称的文件以便输出，数据从文件头部写入(覆盖模式)。
+     * 其中用到的编码器的字符集为charset。
      */
     public FileWriter(String fileName, Charset charset) throws IOException {
         super(new FileOutputStream(fileName), charset);
     }
-
+    
     /**
      * Constructs a {@code FileWriter} given a file name,
      * {@linkplain java.nio.charset.Charset charset} and a boolean indicating
      * whether to append the data written.
      *
-     * @param fileName  the name of the file to write
-     * @param charset the {@linkplain java.nio.charset.Charset charset}
-     * @param append    a boolean. If {@code true}, the writer will write the data
-     *                  to the end of the file rather than the beginning.
-     * @throws IOException  if the named file exists but is a directory rather
-     *                  than a regular file, does not exist but cannot be
-     *                  created, or cannot be opened for any other reason
+     * @param fileName the name of the file to write
+     * @param charset  the {@linkplain java.nio.charset.Charset charset}
+     * @param append   a boolean. If {@code true}, the writer will write the data
+     *                 to the end of the file rather than the beginning.
      *
+     * @throws IOException if the named file exists but is a directory rather
+     *                     than a regular file, does not exist but cannot be
+     *                     created, or cannot be opened for any other reason
      * @since 11
+     */
+    /*
+     * 打开指定名称的文件以便输出。如果append为true，则数据被写入文件尾部，否则，数据从文件头部写入。
+     * 其中用到的编码器的字符集为charset。
      */
     public FileWriter(String fileName, Charset charset, boolean append) throws IOException {
         super(new FileOutputStream(fileName, append), charset);
     }
-
+    
     /**
      * Constructs a {@code FileWriter} given the {@code File} to write and
      * {@linkplain java.nio.charset.Charset charset}.
      *
-     * @param file  the {@code File} to write
+     * @param file    the {@code File} to write
      * @param charset the {@linkplain java.nio.charset.Charset charset}
-     * @throws IOException  if the file exists but is a directory rather than
-     *                  a regular file, does not exist but cannot be created,
-     *                  or cannot be opened for any other reason
      *
+     * @throws IOException if the file exists but is a directory rather than
+     *                     a regular file, does not exist but cannot be created,
+     *                     or cannot be opened for any other reason
      * @since 11
+     */
+    /*
+     * 打开指定的文件以便输出，数据从文件头部写入(覆盖模式)。
+     * 其中用到的编码器的字符集为charset。
      */
     public FileWriter(File file, Charset charset) throws IOException {
         super(new FileOutputStream(file), charset);
     }
-
+    
     /**
      * Constructs a {@code FileWriter} given the {@code File} to write,
      * {@linkplain java.nio.charset.Charset charset} and a boolean indicating
      * whether to append the data written.
      *
-     * @param file  the {@code File} to write
+     * @param file    the {@code File} to write
      * @param charset the {@linkplain java.nio.charset.Charset charset}
-     * @param append    a boolean. If {@code true}, the writer will write the data
-     *                  to the end of the file rather than the beginning.
-     * @throws IOException  if the file exists but is a directory rather than
-     *                  a regular file, does not exist but cannot be created,
-     *                  or cannot be opened for any other reason
+     * @param append  a boolean. If {@code true}, the writer will write the data
+     *                to the end of the file rather than the beginning.
+     *
+     * @throws IOException if the file exists but is a directory rather than
+     *                     a regular file, does not exist but cannot be created,
+     *                     or cannot be opened for any other reason
      * @since 11
+     */
+    /*
+     * 打开指定的文件以便输出。如果append为true，则数据被写入文件尾部，否则，数据从文件头部写入。
+     * 其中用到的编码器的字符集为charset。
      */
     public FileWriter(File file, Charset charset, boolean append) throws IOException {
         super(new FileOutputStream(file, append), charset);
     }
+    
 }

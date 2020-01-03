@@ -30,55 +30,63 @@ import java.io.OutputStream;
 import java.io.IOException;
 
 /**
- * An output stream that also maintains a checksum of the data being
- * written. The checksum can then be used to verify the integrity of
- * the output data.
+ * An output stream that also maintains a checksum of the data being written.
+ * The checksum can then be used to verify the integrity of the output data.
  *
- * @see         Checksum
- * @author      David Connelly
+ * @author David Connelly
+ * @see Checksum
  * @since 1.1
  */
-public
-class CheckedOutputStream extends FilterOutputStream {
-    private Checksum cksum;
-
+// 包含数据校验器的输出流，可以对写入输出流的数据进行数据校验
+public class CheckedOutputStream extends FilterOutputStream {
+    private Checksum cksum;  // 数据校验
+    
     /**
      * Creates an output stream with the specified Checksum.
-     * @param out the output stream
+     *
+     * @param out   the output stream
      * @param cksum the checksum
      */
     public CheckedOutputStream(OutputStream out, Checksum cksum) {
         super(out);
         this.cksum = cksum;
     }
-
+    
     /**
      * Writes a byte. Will block until the byte is actually written.
+     *
      * @param b the byte to be written
-     * @exception IOException if an I/O error has occurred
+     *
+     * @throws IOException if an I/O error has occurred
      */
+    // 写入一个字节
     public void write(int b) throws IOException {
         out.write(b);
         cksum.update(b);
     }
-
+    
     /**
      * Writes an array of bytes. Will block until the bytes are
      * actually written.
-     * @param b the data to be written
+     *
+     * @param b   the data to be written
      * @param off the start offset of the data
      * @param len the number of bytes to be written
-     * @exception IOException if an I/O error has occurred
+     *
+     * @throws IOException if an I/O error has occurred
      */
+    // 写入b中off处的len个字节
     public void write(byte[] b, int off, int len) throws IOException {
         out.write(b, off, len);
         cksum.update(b, off, len);
     }
-
+    
     /**
      * Returns the Checksum for this output stream.
+     *
      * @return the Checksum
      */
+    // 返回数据校验和
     public Checksum getChecksum() {
         return cksum;
     }

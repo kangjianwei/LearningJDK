@@ -50,5 +50,6 @@ package java.lang;
  * @see     java.lang.Object#clone()
  * @since   1.0
  */
+// "克隆"接口，需要重写Object中clone()方法的类应当实现此接口
 public interface Cloneable {
 }

@@ -25,7 +25,6 @@
 
 package java.io;
 
-
 import java.util.Objects;
 
 /**
@@ -34,32 +33,307 @@ import java.util.Objects;
  * Most subclasses, however, will override some of the methods defined here in
  * order to provide higher efficiency, additional functionality, or both.
  *
- * @see   BufferedWriter
- * @see   CharArrayWriter
- * @see   FilterWriter
- * @see   OutputStreamWriter
- * @see   FileWriter
- * @see   PipedWriter
- * @see   PrintWriter
- * @see   StringWriter
+ * @author Mark Reinhold
+ * @see BufferedWriter
+ * @see CharArrayWriter
+ * @see FilterWriter
+ * @see OutputStreamWriter
+ * @see FileWriter
+ * @see PipedWriter
+ * @see PrintWriter
+ * @see StringWriter
  * @see Reader
- *
- * @author      Mark Reinhold
- * @since       1.1
+ * @since 1.1
  */
-
+/*
+ * 字符输出流，可以向它写入数据
+ *
+ * 本地 ---------> 远端
+ *
+ * 字节输出流的解释：
+ * [输出流]的含义是将本地数据写入到远端，
+ * [字符]的含义是本地写入的是字符(远端通常是数组、字节流、字符流、通道)
+ *
+ * 注：这里的字符指char
+ */
 public abstract class Writer implements Appendable, Closeable, Flushable {
-
-    /**
-     * Temporary buffer used to hold writes of strings and single characters
-     */
-    private char[] writeBuffer;
-
+    
     /**
      * Size of writeBuffer, must be >= 1
      */
     private static final int WRITE_BUFFER_SIZE = 1024;
-
+    
+    /**
+     * The object used to synchronize operations on this stream.  For
+     * efficiency, a character-stream object may use an object other than
+     * itself to protect critical sections.  A subclass should therefore use
+     * the object in this field rather than {@code this} or a synchronized
+     * method.
+     */
+    protected Object lock;
+    
+    /**
+     * Temporary buffer used to hold writes of strings and single characters
+     */
+    private char[] writeBuffer; // 临时存储待写字符序列
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Creates a new character-stream writer whose critical sections will
+     * synchronize on the writer itself.
+     */
+    protected Writer() {
+        this.lock = this;
+    }
+    
+    /**
+     * Creates a new character-stream writer whose critical sections will
+     * synchronize on the given object.
+     *
+     * @param lock Object to synchronize on
+     */
+    protected Writer(Object lock) {
+        if(lock == null) {
+            throw new NullPointerException();
+        }
+        this.lock = lock;
+    }
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 写 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Writes a single character.  The character to be written is contained in
+     * the 16 low-order bits of the given integer value; the 16 high-order bits
+     * are ignored.
+     *
+     * <p> Subclasses that intend to support efficient single-character output
+     * should override this method.
+     *
+     * @param c int specifying a character to be written
+     *
+     * @throws IOException If an I/O error occurs
+     */
+    // 将指定的字符写入到输出流
+    public void write(int c) throws IOException {
+        synchronized(lock) {
+            if(writeBuffer == null) {
+                writeBuffer = new char[WRITE_BUFFER_SIZE];
+            }
+            writeBuffer[0] = (char) c;
+            write(writeBuffer, 0, 1);
+        }
+    }
+    
+    /**
+     * Writes an array of characters.
+     *
+     * @param cbuf Array of characters to be written
+     *
+     * @throws IOException If an I/O error occurs
+     */
+    // 将字符数组cbuf的内容写入到输出流
+    public void write(char[] cbuf) throws IOException {
+        write(cbuf, 0, cbuf.length);
+    }
+    
+    /**
+     * Writes a portion of an array of characters.
+     *
+     * @param cbuf Array of characters
+     * @param off  Offset from which to start writing characters
+     * @param len  Number of characters to write
+     *
+     * @throws IndexOutOfBoundsException Implementations should throw this exception
+     *                                   if {@code off} is negative, or {@code len} is negative,
+     *                                   or {@code off + len} is negative or greater than the length
+     *                                   of the given array
+     * @throws IOException               If an I/O error occurs
+     */
+    // 将字符数组cbuf中off处起的len个字符写入到输出流
+    public abstract void write(char[] cbuf, int off, int len) throws IOException;
+    
+    
+    /**
+     * Writes a string.
+     *
+     * @param str String to be written
+     *
+     * @throws IOException If an I/O error occurs
+     */
+    // 将字符串中的字符写入到输出流
+    public void write(String str) throws IOException {
+        write(str, 0, str.length());
+    }
+    
+    /**
+     * Writes a portion of a string.
+     *
+     * @param str A String
+     * @param off Offset from which to start writing characters
+     * @param len Number of characters to write
+     *
+     * @throws IndexOutOfBoundsException Implementations should throw this exception
+     *                                   if {@code off} is negative, or {@code len} is negative,
+     *                                   or {@code off + len} is negative or greater than the length
+     *                                   of the given string
+     * @throws IOException               If an I/O error occurs
+     * @implSpec The implementation in this class throws an
+     * {@code IndexOutOfBoundsException} for the indicated conditions;
+     * overriding methods may choose to do otherwise.
+     */
+    // 将字符串str中off处起的len个字符写入到输出流
+    public void write(String str, int off, int len) throws IOException {
+        synchronized(lock) {
+            char[] cbuf;
+            
+            if(len<=WRITE_BUFFER_SIZE) {
+                if(writeBuffer == null) {
+                    writeBuffer = new char[WRITE_BUFFER_SIZE];
+                }
+                cbuf = writeBuffer;
+            } else {
+                // Don't permanently allocate very large buffers.
+                cbuf = new char[len];
+            }
+            
+            // 将String内部的字节批量转换为char后存入cbuf
+            str.getChars(off, (off + len), cbuf, 0);
+            
+            write(cbuf, 0, len);
+        }
+    }
+    
+    
+    /**
+     * Appends the specified character to this writer.
+     *
+     * <p> An invocation of this method of the form {@code out.append(c)}
+     * behaves in exactly the same way as the invocation
+     *
+     * <pre>
+     *     out.write(c) </pre>
+     *
+     * @param c The 16-bit character to append
+     *
+     * @return This writer
+     *
+     * @throws IOException If an I/O error occurs
+     * @since 1.5
+     */
+    // 将指定的字符写入到输出流
+    public Writer append(char c) throws IOException {
+        write(c);
+        return this;
+    }
+    
+    /**
+     * Appends the specified character sequence to this writer.
+     *
+     * <p> An invocation of this method of the form {@code out.append(csq)}
+     * behaves in exactly the same way as the invocation
+     *
+     * <pre>
+     *     out.write(csq.toString()) </pre>
+     *
+     * <p> Depending on the specification of {@code toString} for the
+     * character sequence {@code csq}, the entire sequence may not be
+     * appended. For instance, invoking the {@code toString} method of a
+     * character buffer will return a subsequence whose content depends upon
+     * the buffer's position and limit.
+     *
+     * @param csq The character sequence to append.  If {@code csq} is
+     *            {@code null}, then the four characters {@code "null"} are
+     *            appended to this writer.
+     *
+     * @return This writer
+     *
+     * @throws IOException If an I/O error occurs
+     * @since 1.5
+     */
+    // 将字符序列csq的字符写入到输出流
+    public Writer append(CharSequence csq) throws IOException {
+        write(String.valueOf(csq));
+        return this;
+    }
+    
+    /**
+     * Appends a subsequence of the specified character sequence to this writer.
+     * {@code Appendable}.
+     *
+     * <p> An invocation of this method of the form
+     * {@code out.append(csq, start, end)} when {@code csq}
+     * is not {@code null} behaves in exactly the
+     * same way as the invocation
+     *
+     * <pre>{@code
+     *     out.write(csq.subSequence(start, end).toString())
+     * }</pre>
+     *
+     * @param csq   The character sequence from which a subsequence will be
+     *              appended.  If {@code csq} is {@code null}, then characters
+     *              will be appended as if {@code csq} contained the four
+     *              characters {@code "null"}.
+     * @param start The index of the first character in the subsequence
+     * @param end   The index of the character following the last character in the
+     *              subsequence
+     *
+     * @return This writer
+     *
+     * @throws IndexOutOfBoundsException If {@code start} or {@code end} are negative, {@code start}
+     *                                   is greater than {@code end}, or {@code end} is greater than
+     *                                   {@code csq.length()}
+     * @throws IOException               If an I/O error occurs
+     * @since 1.5
+     */
+    // 将字符序列csq[start, end)范围的字符写入到输出流
+    public Writer append(CharSequence csq, int start, int end) throws IOException {
+        if(csq == null) {
+            csq = "null";
+        }
+        return append(csq.subSequence(start, end));
+    }
+    
+    /*▲ 写 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Flushes the stream.  If the stream has saved any characters from the
+     * various write() methods in a buffer, write them immediately to their
+     * intended destination.  Then, if that destination is another character or
+     * byte stream, flush it.  Thus one flush() invocation will flush all the
+     * buffers in a chain of Writers and OutputStreams.
+     *
+     * <p> If the intended destination of this stream is an abstraction provided
+     * by the underlying operating system, for example a file, then flushing the
+     * stream guarantees only that bytes previously written to the stream are
+     * passed to the operating system for writing; it does not guarantee that
+     * they are actually written to a physical device such as a disk drive.
+     *
+     * @throws IOException If an I/O error occurs
+     */
+    // 将内部缓冲区中的字符写入到输出流
+    public abstract void flush() throws IOException;
+    
+    /**
+     * Closes the stream, flushing it first. Once the stream has been closed,
+     * further write() or flush() invocations will cause an IOException to be
+     * thrown. Closing a previously closed stream has no effect.
+     *
+     * @throws IOException If an I/O error occurs
+     */
+    // 关闭输出流
+    public abstract void close() throws IOException;
+    
     /**
      * Returns a new {@code Writer} which discards all characters.  The
      * returned stream is initially open.  The stream is closed by calling
@@ -79,343 +353,73 @@ public abstract class Writer implements Appendable, Closeable, Flushable {
      *
      * @since 11
      */
+    // 返回一个不包含有效字符的输出流
     public static Writer nullWriter() {
         return new Writer() {
             private volatile boolean closed;
-
-            private void ensureOpen() throws IOException {
-                if (closed) {
-                    throw new IOException("Stream closed");
-                }
-            }
-
+            
             @Override
             public Writer append(char c) throws IOException {
                 ensureOpen();
                 return this;
             }
-
+            
             @Override
             public Writer append(CharSequence csq) throws IOException {
                 ensureOpen();
                 return this;
             }
-
+            
             @Override
             public Writer append(CharSequence csq, int start, int end) throws IOException {
                 ensureOpen();
-                if (csq != null) {
+                if(csq != null) {
                     Objects.checkFromToIndex(start, end, csq.length());
                 }
                 return this;
             }
-
+            
             @Override
             public void write(int c) throws IOException {
                 ensureOpen();
             }
-
+            
             @Override
             public void write(char[] cbuf, int off, int len) throws IOException {
                 Objects.checkFromIndexSize(off, len, cbuf.length);
                 ensureOpen();
             }
-
+            
             @Override
             public void write(String str) throws IOException {
                 Objects.requireNonNull(str);
                 ensureOpen();
             }
-
+            
             @Override
             public void write(String str, int off, int len) throws IOException {
                 Objects.checkFromIndexSize(off, len, str.length());
                 ensureOpen();
             }
-
+            
             @Override
             public void flush() throws IOException {
                 ensureOpen();
             }
-
+            
             @Override
             public void close() throws IOException {
                 closed = true;
             }
+            
+            private void ensureOpen() throws IOException {
+                if(closed) {
+                    throw new IOException("Stream closed");
+                }
+            }
         };
     }
-
-    /**
-     * The object used to synchronize operations on this stream.  For
-     * efficiency, a character-stream object may use an object other than
-     * itself to protect critical sections.  A subclass should therefore use
-     * the object in this field rather than {@code this} or a synchronized
-     * method.
-     */
-    protected Object lock;
-
-    /**
-     * Creates a new character-stream writer whose critical sections will
-     * synchronize on the writer itself.
-     */
-    protected Writer() {
-        this.lock = this;
-    }
-
-    /**
-     * Creates a new character-stream writer whose critical sections will
-     * synchronize on the given object.
-     *
-     * @param  lock
-     *         Object to synchronize on
-     */
-    protected Writer(Object lock) {
-        if (lock == null) {
-            throw new NullPointerException();
-        }
-        this.lock = lock;
-    }
-
-    /**
-     * Writes a single character.  The character to be written is contained in
-     * the 16 low-order bits of the given integer value; the 16 high-order bits
-     * are ignored.
-     *
-     * <p> Subclasses that intend to support efficient single-character output
-     * should override this method.
-     *
-     * @param  c
-     *         int specifying a character to be written
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     */
-    public void write(int c) throws IOException {
-        synchronized (lock) {
-            if (writeBuffer == null){
-                writeBuffer = new char[WRITE_BUFFER_SIZE];
-            }
-            writeBuffer[0] = (char) c;
-            write(writeBuffer, 0, 1);
-        }
-    }
-
-    /**
-     * Writes an array of characters.
-     *
-     * @param  cbuf
-     *         Array of characters to be written
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     */
-    public void write(char cbuf[]) throws IOException {
-        write(cbuf, 0, cbuf.length);
-    }
-
-    /**
-     * Writes a portion of an array of characters.
-     *
-     * @param  cbuf
-     *         Array of characters
-     *
-     * @param  off
-     *         Offset from which to start writing characters
-     *
-     * @param  len
-     *         Number of characters to write
-     *
-     * @throws  IndexOutOfBoundsException
-     *          Implementations should throw this exception
-     *          if {@code off} is negative, or {@code len} is negative,
-     *          or {@code off + len} is negative or greater than the length
-     *          of the given array
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     */
-    public abstract void write(char cbuf[], int off, int len) throws IOException;
-
-    /**
-     * Writes a string.
-     *
-     * @param  str
-     *         String to be written
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     */
-    public void write(String str) throws IOException {
-        write(str, 0, str.length());
-    }
-
-    /**
-     * Writes a portion of a string.
-     *
-     * @implSpec
-     * The implementation in this class throws an
-     * {@code IndexOutOfBoundsException} for the indicated conditions;
-     * overriding methods may choose to do otherwise.
-     *
-     * @param  str
-     *         A String
-     *
-     * @param  off
-     *         Offset from which to start writing characters
-     *
-     * @param  len
-     *         Number of characters to write
-     *
-     * @throws  IndexOutOfBoundsException
-     *          Implementations should throw this exception
-     *          if {@code off} is negative, or {@code len} is negative,
-     *          or {@code off + len} is negative or greater than the length
-     *          of the given string
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     */
-    public void write(String str, int off, int len) throws IOException {
-        synchronized (lock) {
-            char cbuf[];
-            if (len <= WRITE_BUFFER_SIZE) {
-                if (writeBuffer == null) {
-                    writeBuffer = new char[WRITE_BUFFER_SIZE];
-                }
-                cbuf = writeBuffer;
-            } else {    // Don't permanently allocate very large buffers.
-                cbuf = new char[len];
-            }
-            str.getChars(off, (off + len), cbuf, 0);
-            write(cbuf, 0, len);
-        }
-    }
-
-    /**
-     * Appends the specified character sequence to this writer.
-     *
-     * <p> An invocation of this method of the form {@code out.append(csq)}
-     * behaves in exactly the same way as the invocation
-     *
-     * <pre>
-     *     out.write(csq.toString()) </pre>
-     *
-     * <p> Depending on the specification of {@code toString} for the
-     * character sequence {@code csq}, the entire sequence may not be
-     * appended. For instance, invoking the {@code toString} method of a
-     * character buffer will return a subsequence whose content depends upon
-     * the buffer's position and limit.
-     *
-     * @param  csq
-     *         The character sequence to append.  If {@code csq} is
-     *         {@code null}, then the four characters {@code "null"} are
-     *         appended to this writer.
-     *
-     * @return  This writer
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     *
-     * @since  1.5
-     */
-    public Writer append(CharSequence csq) throws IOException {
-        write(String.valueOf(csq));
-        return this;
-    }
-
-    /**
-     * Appends a subsequence of the specified character sequence to this writer.
-     * {@code Appendable}.
-     *
-     * <p> An invocation of this method of the form
-     * {@code out.append(csq, start, end)} when {@code csq}
-     * is not {@code null} behaves in exactly the
-     * same way as the invocation
-     *
-     * <pre>{@code
-     *     out.write(csq.subSequence(start, end).toString())
-     * }</pre>
-     *
-     * @param  csq
-     *         The character sequence from which a subsequence will be
-     *         appended.  If {@code csq} is {@code null}, then characters
-     *         will be appended as if {@code csq} contained the four
-     *         characters {@code "null"}.
-     *
-     * @param  start
-     *         The index of the first character in the subsequence
-     *
-     * @param  end
-     *         The index of the character following the last character in the
-     *         subsequence
-     *
-     * @return  This writer
-     *
-     * @throws  IndexOutOfBoundsException
-     *          If {@code start} or {@code end} are negative, {@code start}
-     *          is greater than {@code end}, or {@code end} is greater than
-     *          {@code csq.length()}
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     *
-     * @since  1.5
-     */
-    public Writer append(CharSequence csq, int start, int end) throws IOException {
-        if (csq == null) csq = "null";
-        return append(csq.subSequence(start, end));
-    }
-
-    /**
-     * Appends the specified character to this writer.
-     *
-     * <p> An invocation of this method of the form {@code out.append(c)}
-     * behaves in exactly the same way as the invocation
-     *
-     * <pre>
-     *     out.write(c) </pre>
-     *
-     * @param  c
-     *         The 16-bit character to append
-     *
-     * @return  This writer
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     *
-     * @since 1.5
-     */
-    public Writer append(char c) throws IOException {
-        write(c);
-        return this;
-    }
-
-    /**
-     * Flushes the stream.  If the stream has saved any characters from the
-     * various write() methods in a buffer, write them immediately to their
-     * intended destination.  Then, if that destination is another character or
-     * byte stream, flush it.  Thus one flush() invocation will flush all the
-     * buffers in a chain of Writers and OutputStreams.
-     *
-     * <p> If the intended destination of this stream is an abstraction provided
-     * by the underlying operating system, for example a file, then flushing the
-     * stream guarantees only that bytes previously written to the stream are
-     * passed to the operating system for writing; it does not guarantee that
-     * they are actually written to a physical device such as a disk drive.
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     */
-    public abstract void flush() throws IOException;
-
-    /**
-     * Closes the stream, flushing it first. Once the stream has been closed,
-     * further write() or flush() invocations will cause an IOException to be
-     * thrown. Closing a previously closed stream has no effect.
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     */
-    public abstract void close() throws IOException;
-
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }
