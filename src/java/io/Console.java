@@ -28,6 +28,7 @@ package java.io;
 import java.util.*;
 import java.nio.charset.Charset;
 import jdk.internal.misc.JavaIOAccess;
+import jdk.internal.misc.JavaLangAccess;
 import jdk.internal.misc.SharedSecrets;
 import sun.nio.cs.StreamDecoder;
 import sun.nio.cs.StreamEncoder;
@@ -87,350 +88,443 @@ import sun.nio.cs.StreamEncoder;
  * }
  * }</pre></blockquote>
  *
- * @author  Xueming Shen
- * @since   1.6
+ * @author Xueming Shen
+ * @since 1.6
  */
-
-public final class Console implements Flushable
-{
-   /**
-    * Retrieves the unique {@link java.io.PrintWriter PrintWriter} object
-    * associated with this console.
-    *
-    * @return  The printwriter associated with this console
-    */
+// 终端对象，往往关联着标准输入流和标准输出流。在非tty环境下(比如IDE中)，无法获取终端对象。
+public final class Console implements Flushable {
+    
+    private Object readLock;
+    private Object writeLock;
+    
+    private static Console cons;
+    
+    private Reader reader;  // 当前终端关联的标准输入流
+    
+    private Writer out;     // 当前终端关联的标准输出流
+    private PrintWriter pw;
+    
+    private Formatter formatter;
+    
+    private Charset cs;
+    
+    private char[] rcb;
+    
+    private boolean restoreEcho;
+    private boolean shutdownHookInstalled;  // 指示属于Console类的钩子是否已注册
+    
+    
+    // Set up JavaIOAccess in SharedSecrets
+    static {
+        SharedSecrets.setJavaIOAccess(new JavaIOAccess() {
+            public Console console() {
+                // 如果处于终端环境下
+                if(istty()) {
+                    if(cons == null) {
+                        cons = new Console();
+                    }
+                    return cons;
+                }
+                
+                return null;
+            }
+            
+            public Charset charset() {
+                // This method is called in sun.security.util.Password, cons already exists when this method is called
+                return cons.cs;
+            }
+        });
+    }
+    
+    
+    // 构造中终端对象，需要从System类中获取
+    private Console() {
+        readLock = new Object();
+        writeLock = new Object();
+        
+        // 当前系统编码名称
+        String csname = encoding();
+        if(csname != null) {
+            try {
+                cs = Charset.forName(csname);
+            } catch(Exception x) {
+            }
+        }
+        
+        if(cs == null) {
+            // 返回Java虚拟机的默认字符集
+            cs = Charset.defaultCharset();
+        }
+        
+        // 直接使用文件描述符初始化输出流，FileDescriptor.out指示标准输出流，被封装为System.out
+        FileOutputStream fos = new FileOutputStream(FileDescriptor.out);
+        out = StreamEncoder.forOutputStreamWriter(fos, writeLock, cs);
+        
+        pw = new PrintWriter(out, true) {
+            public void close() {
+            }
+        };
+        
+        formatter = new Formatter(out);
+        
+        // 直接使用文件描述符初始化输入流，FileDescriptor.in指示标准输入流，被封装为System.in
+        FileInputStream fis = new FileInputStream(FileDescriptor.in);
+        reader = new LineReader(StreamDecoder.forInputStreamReader(fis, readLock, cs));
+        
+        rcb = new char[1024];
+    }
+    
+    
+    /**
+     * Retrieves the unique {@link java.io.PrintWriter PrintWriter} object
+     * associated with this console.
+     *
+     * @return The printwriter associated with this console
+     */
+    // 返回定向到标准输出流的Writer
     public PrintWriter writer() {
         return pw;
     }
-
-   /**
-    * Retrieves the unique {@link java.io.Reader Reader} object associated
-    * with this console.
-    * <p>
-    * This method is intended to be used by sophisticated applications, for
-    * example, a {@link java.util.Scanner} object which utilizes the rich
-    * parsing/scanning functionality provided by the {@code Scanner}:
-    * <blockquote><pre>
-    * Console con = System.console();
-    * if (con != null) {
-    *     Scanner sc = new Scanner(con.reader());
-    *     ...
-    * }
-    * </pre></blockquote>
-    * <p>
-    * For simple applications requiring only line-oriented reading, use
-    * {@link #readLine}.
-    * <p>
-    * The bulk read operations {@link java.io.Reader#read(char[]) read(char[]) },
-    * {@link java.io.Reader#read(char[], int, int) read(char[], int, int) } and
-    * {@link java.io.Reader#read(java.nio.CharBuffer) read(java.nio.CharBuffer)}
-    * on the returned object will not read in characters beyond the line
-    * bound for each invocation, even if the destination buffer has space for
-    * more characters. The {@code Reader}'s {@code read} methods may block if a
-    * line bound has not been entered or reached on the console's input device.
-    * A line bound is considered to be any one of a line feed ({@code '\n'}),
-    * a carriage return ({@code '\r'}), a carriage return followed immediately
-    * by a linefeed, or an end of stream.
-    *
-    * @return  The reader associated with this console
-    */
+    
+    /**
+     * Retrieves the unique {@link java.io.Reader Reader} object associated
+     * with this console.
+     * <p>
+     * This method is intended to be used by sophisticated applications, for
+     * example, a {@link java.util.Scanner} object which utilizes the rich
+     * parsing/scanning functionality provided by the {@code Scanner}:
+     * <blockquote><pre>
+     * Console con = System.console();
+     * if (con != null) {
+     *     Scanner sc = new Scanner(con.reader());
+     *     ...
+     * }
+     * </pre></blockquote>
+     * <p>
+     * For simple applications requiring only line-oriented reading, use
+     * {@link #readLine}.
+     * <p>
+     * The bulk read operations {@link java.io.Reader#read(char[]) read(char[]) },
+     * {@link java.io.Reader#read(char[], int, int) read(char[], int, int) } and
+     * {@link java.io.Reader#read(java.nio.CharBuffer) read(java.nio.CharBuffer)}
+     * on the returned object will not read in characters beyond the line
+     * bound for each invocation, even if the destination buffer has space for
+     * more characters. The {@code Reader}'s {@code read} methods may block if a
+     * line bound has not been entered or reached on the console's input device.
+     * A line bound is considered to be any one of a line feed ({@code '\n'}),
+     * a carriage return ({@code '\r'}), a carriage return followed immediately
+     * by a linefeed, or an end of stream.
+     *
+     * @return The reader associated with this console
+     */
+    // 返回定向到标准输入流的Reader
     public Reader reader() {
         return reader;
     }
-
-   /**
-    * Writes a formatted string to this console's output stream using
-    * the specified format string and arguments.
-    *
-    * @param  fmt
-    *         A format string as described in <a
-    *         href="../util/Formatter.html#syntax">Format string syntax</a>
-    *
-    * @param  args
-    *         Arguments referenced by the format specifiers in the format
-    *         string.  If there are more arguments than format specifiers, the
-    *         extra arguments are ignored.  The number of arguments is
-    *         variable and may be zero.  The maximum number of arguments is
-    *         limited by the maximum dimension of a Java array as defined by
-    *         <cite>The Java&trade; Virtual Machine Specification</cite>.
-    *         The behaviour on a
-    *         {@code null} argument depends on the <a
-    *         href="../util/Formatter.html#syntax">conversion</a>.
-    *
-    * @throws  IllegalFormatException
-    *          If a format string contains an illegal syntax, a format
-    *          specifier that is incompatible with the given arguments,
-    *          insufficient arguments given the format string, or other
-    *          illegal conditions.  For specification of all possible
-    *          formatting errors, see the <a
-    *          href="../util/Formatter.html#detail">Details</a> section
-    *          of the formatter class specification.
-    *
-    * @return  This console
-    */
-    public Console format(String fmt, Object ...args) {
+    
+    
+    /**
+     * A convenience method to write a formatted string to this console's
+     * output stream using the specified format string and arguments.
+     *
+     * <p> An invocation of this method of the form
+     * {@code con.printf(format, args)} behaves in exactly the same way
+     * as the invocation of
+     * <pre>con.format(format, args)</pre>.
+     *
+     * @param format A format string as described in <a
+     *               href="../util/Formatter.html#syntax">Format string syntax</a>.
+     * @param args   Arguments referenced by the format specifiers in the format
+     *               string.  If there are more arguments than format specifiers, the
+     *               extra arguments are ignored.  The number of arguments is
+     *               variable and may be zero.  The maximum number of arguments is
+     *               limited by the maximum dimension of a Java array as defined by
+     *               <cite>The Java&trade; Virtual Machine Specification</cite>.
+     *               The behaviour on a
+     *               {@code null} argument depends on the <a
+     *               href="../util/Formatter.html#syntax">conversion</a>.
+     *
+     * @return This console
+     *
+     * @throws IllegalFormatException If a format string contains an illegal syntax, a format
+     *                                specifier that is incompatible with the given arguments,
+     *                                insufficient arguments given the format string, or other
+     *                                illegal conditions.  For specification of all possible
+     *                                formatting errors, see the <a
+     *                                href="../util/Formatter.html#detail">Details</a> section of the
+     *                                formatter class specification.
+     */
+    // 按指定的格式打印字符串
+    public Console printf(String format, Object... args) {
+        return format(format, args);
+    }
+    
+    /**
+     * Writes a formatted string to this console's output stream using
+     * the specified format string and arguments.
+     *
+     * @param fmt  A format string as described in <a
+     *             href="../util/Formatter.html#syntax">Format string syntax</a>
+     * @param args Arguments referenced by the format specifiers in the format
+     *             string.  If there are more arguments than format specifiers, the
+     *             extra arguments are ignored.  The number of arguments is
+     *             variable and may be zero.  The maximum number of arguments is
+     *             limited by the maximum dimension of a Java array as defined by
+     *             <cite>The Java&trade; Virtual Machine Specification</cite>.
+     *             The behaviour on a
+     *             {@code null} argument depends on the <a
+     *             href="../util/Formatter.html#syntax">conversion</a>.
+     *
+     * @return This console
+     *
+     * @throws IllegalFormatException If a format string contains an illegal syntax, a format
+     *                                specifier that is incompatible with the given arguments,
+     *                                insufficient arguments given the format string, or other
+     *                                illegal conditions.  For specification of all possible
+     *                                formatting errors, see the <a
+     *                                href="../util/Formatter.html#detail">Details</a> section
+     *                                of the formatter class specification.
+     */
+    // 按指定的格式打印字符串
+    public Console format(String fmt, Object... args) {
         formatter.format(fmt, args).flush();
         return this;
     }
-
-   /**
-    * A convenience method to write a formatted string to this console's
-    * output stream using the specified format string and arguments.
-    *
-    * <p> An invocation of this method of the form
-    * {@code con.printf(format, args)} behaves in exactly the same way
-    * as the invocation of
-    * <pre>con.format(format, args)</pre>.
-    *
-    * @param  format
-    *         A format string as described in <a
-    *         href="../util/Formatter.html#syntax">Format string syntax</a>.
-    *
-    * @param  args
-    *         Arguments referenced by the format specifiers in the format
-    *         string.  If there are more arguments than format specifiers, the
-    *         extra arguments are ignored.  The number of arguments is
-    *         variable and may be zero.  The maximum number of arguments is
-    *         limited by the maximum dimension of a Java array as defined by
-    *         <cite>The Java&trade; Virtual Machine Specification</cite>.
-    *         The behaviour on a
-    *         {@code null} argument depends on the <a
-    *         href="../util/Formatter.html#syntax">conversion</a>.
-    *
-    * @throws  IllegalFormatException
-    *          If a format string contains an illegal syntax, a format
-    *          specifier that is incompatible with the given arguments,
-    *          insufficient arguments given the format string, or other
-    *          illegal conditions.  For specification of all possible
-    *          formatting errors, see the <a
-    *          href="../util/Formatter.html#detail">Details</a> section of the
-    *          formatter class specification.
-    *
-    * @return  This console
-    */
-    public Console printf(String format, Object ... args) {
-        return format(format, args);
+    
+    /**
+     * Reads a single line of text from the console.
+     *
+     * @return A string containing the line read from the console, not
+     * including any line-termination characters, or {@code null}
+     * if an end of stream has been reached.
+     *
+     * @throws IOError If an I/O error occurs.
+     */
+    // 读取单行数据
+    public String readLine() {
+        return readLine("");
     }
-
-   /**
-    * Provides a formatted prompt, then reads a single line of text from the
-    * console.
-    *
-    * @param  fmt
-    *         A format string as described in <a
-    *         href="../util/Formatter.html#syntax">Format string syntax</a>.
-    *
-    * @param  args
-    *         Arguments referenced by the format specifiers in the format
-    *         string.  If there are more arguments than format specifiers, the
-    *         extra arguments are ignored.  The maximum number of arguments is
-    *         limited by the maximum dimension of a Java array as defined by
-    *         <cite>The Java&trade; Virtual Machine Specification</cite>.
-    *
-    * @throws  IllegalFormatException
-    *          If a format string contains an illegal syntax, a format
-    *          specifier that is incompatible with the given arguments,
-    *          insufficient arguments given the format string, or other
-    *          illegal conditions.  For specification of all possible
-    *          formatting errors, see the <a
-    *          href="../util/Formatter.html#detail">Details</a> section
-    *          of the formatter class specification.
-    *
-    * @throws IOError
-    *         If an I/O error occurs.
-    *
-    * @return  A string containing the line read from the console, not
-    *          including any line-termination characters, or {@code null}
-    *          if an end of stream has been reached.
-    */
-    public String readLine(String fmt, Object ... args) {
+    
+    /**
+     * Provides a formatted prompt, then reads a single line of text from the console.
+     *
+     * @param fmt  A format string as described in <a
+     *             href="../util/Formatter.html#syntax">Format string syntax</a>.
+     * @param args Arguments referenced by the format specifiers in the format
+     *             string.  If there are more arguments than format specifiers, the
+     *             extra arguments are ignored.  The maximum number of arguments is
+     *             limited by the maximum dimension of a Java array as defined by
+     *             <cite>The Java&trade; Virtual Machine Specification</cite>.
+     *
+     * @return A string containing the line read from the console, not
+     * including any line-termination characters, or {@code null}
+     * if an end of stream has been reached.
+     *
+     * @throws IllegalFormatException If a format string contains an illegal syntax, a format
+     *                                specifier that is incompatible with the given arguments,
+     *                                insufficient arguments given the format string, or other
+     *                                illegal conditions.  For specification of all possible
+     *                                formatting errors, see the <a
+     *                                href="../util/Formatter.html#detail">Details</a> section
+     *                                of the formatter class specification.
+     * @throws IOError                If an I/O error occurs.
+     */
+    // 读取单行数据，允许先打印指定格式的输入提示语句
+    public String readLine(String fmt, Object... args) {
         String line = null;
-        synchronized (writeLock) {
+        synchronized(writeLock) {
             synchronized(readLock) {
-                if (fmt.length() != 0)
+                if(fmt.length() != 0) {
                     pw.format(fmt, args);
+                }
+                
                 try {
                     char[] ca = readline(false);
-                    if (ca != null)
+                    if(ca != null) {
                         line = new String(ca);
-                } catch (IOException x) {
+                    }
+                } catch(IOException x) {
                     throw new IOError(x);
                 }
             }
         }
         return line;
     }
-
-   /**
-    * Reads a single line of text from the console.
-    *
-    * @throws IOError
-    *         If an I/O error occurs.
-    *
-    * @return  A string containing the line read from the console, not
-    *          including any line-termination characters, or {@code null}
-    *          if an end of stream has been reached.
-    */
-    public String readLine() {
-        return readLine("");
+    
+    /**
+     * Reads a password or passphrase from the console with echoing disabled
+     *
+     * @return A character array containing the password or passphrase read
+     * from the console, not including any line-termination characters,
+     * or {@code null} if an end of stream has been reached.
+     *
+     * @throws IOError If an I/O error occurs.
+     */
+    // 读取密码信息
+    public char[] readPassword() {
+        return readPassword("");
     }
-
-   /**
-    * Provides a formatted prompt, then reads a password or passphrase from
-    * the console with echoing disabled.
-    *
-    * @param  fmt
-    *         A format string as described in <a
-    *         href="../util/Formatter.html#syntax">Format string syntax</a>
-    *         for the prompt text.
-    *
-    * @param  args
-    *         Arguments referenced by the format specifiers in the format
-    *         string.  If there are more arguments than format specifiers, the
-    *         extra arguments are ignored.  The maximum number of arguments is
-    *         limited by the maximum dimension of a Java array as defined by
-    *         <cite>The Java&trade; Virtual Machine Specification</cite>.
-    *
-    * @throws  IllegalFormatException
-    *          If a format string contains an illegal syntax, a format
-    *          specifier that is incompatible with the given arguments,
-    *          insufficient arguments given the format string, or other
-    *          illegal conditions.  For specification of all possible
-    *          formatting errors, see the <a
-    *          href="../util/Formatter.html#detail">Details</a>
-    *          section of the formatter class specification.
-    *
-    * @throws IOError
-    *         If an I/O error occurs.
-    *
-    * @return  A character array containing the password or passphrase read
-    *          from the console, not including any line-termination characters,
-    *          or {@code null} if an end of stream has been reached.
-    */
-    public char[] readPassword(String fmt, Object ... args) {
+    
+    /**
+     * Provides a formatted prompt, then reads a password or passphrase from
+     * the console with echoing disabled.
+     *
+     * @param fmt  A format string as described in <a
+     *             href="../util/Formatter.html#syntax">Format string syntax</a>
+     *             for the prompt text.
+     * @param args Arguments referenced by the format specifiers in the format
+     *             string.  If there are more arguments than format specifiers, the
+     *             extra arguments are ignored.  The maximum number of arguments is
+     *             limited by the maximum dimension of a Java array as defined by
+     *             <cite>The Java&trade; Virtual Machine Specification</cite>.
+     *
+     * @return A character array containing the password or passphrase read
+     * from the console, not including any line-termination characters,
+     * or {@code null} if an end of stream has been reached.
+     *
+     * @throws IllegalFormatException If a format string contains an illegal syntax, a format
+     *                                specifier that is incompatible with the given arguments,
+     *                                insufficient arguments given the format string, or other
+     *                                illegal conditions.  For specification of all possible
+     *                                formatting errors, see the <a
+     *                                href="../util/Formatter.html#detail">Details</a>
+     *                                section of the formatter class specification.
+     * @throws IOError                If an I/O error occurs.
+     */
+    // 读取指定格式的密码信息，允许先打印指定格式的输入提示语句
+    public char[] readPassword(String fmt, Object... args) {
         char[] passwd = null;
-        synchronized (writeLock) {
+        
+        synchronized(writeLock) {
             synchronized(readLock) {
+                // 注册一个在虚拟机关闭时执行的钩子：开启控制台回显
                 installShutdownHook();
+                
                 try {
                     restoreEcho = echo(false);
-                } catch (IOException x) {
+                } catch(IOException x) {
                     throw new IOError(x);
                 }
+                
                 IOError ioe = null;
                 try {
-                    if (fmt.length() != 0)
+                    if(fmt.length() != 0) {
                         pw.format(fmt, args);
+                    }
                     passwd = readline(true);
-                } catch (IOException x) {
+                } catch(IOException x) {
                     ioe = new IOError(x);
                 } finally {
                     try {
-                        if (restoreEcho)
+                        if(restoreEcho) {
                             restoreEcho = echo(true);
-                    } catch (IOException x) {
-                        if (ioe == null)
+                        }
+                    } catch(IOException x) {
+                        if(ioe == null) {
                             ioe = new IOError(x);
-                        else
+                        } else {
                             ioe.addSuppressed(x);
+                        }
                     }
-                    if (ioe != null)
+                    
+                    if(ioe != null) {
                         throw ioe;
+                    }
                 }
                 pw.println();
             }
         }
+        
         return passwd;
     }
-
-    private void installShutdownHook() {
-        if (shutdownHookInstalled)
-            return;
-        try {
-            // Add a shutdown hook to restore console's echo state should
-            // it be necessary.
-            SharedSecrets.getJavaLangAccess()
-                .registerShutdownHook(0 /* shutdown hook invocation order */,
-                    false /* only register if shutdown is not in progress */,
-                    new Runnable() {
-                        public void run() {
-                            try {
-                                if (restoreEcho) {
-                                    echo(true);
-                                }
-                            } catch (IOException x) { }
-                        }
-                    });
-        } catch (IllegalStateException e) {
-            // shutdown is already in progress and readPassword is first used
-            // by a shutdown hook
-        }
-        shutdownHookInstalled = true;
-    }
-
-   /**
-    * Reads a password or passphrase from the console with echoing disabled
-    *
-    * @throws IOError
-    *         If an I/O error occurs.
-    *
-    * @return  A character array containing the password or passphrase read
-    *          from the console, not including any line-termination characters,
-    *          or {@code null} if an end of stream has been reached.
-    */
-    public char[] readPassword() {
-        return readPassword("");
-    }
-
+    
+    
     /**
-     * Flushes the console and forces any buffered output to be written
-     * immediately .
+     * Flushes the console and forces any buffered output to be written immediately .
      */
+    // 刷新控制台
     public void flush() {
         pw.flush();
     }
-
-    private Object readLock;
-    private Object writeLock;
-    private Reader reader;
-    private Writer out;
-    private PrintWriter pw;
-    private Formatter formatter;
-    private Charset cs;
-    private char[] rcb;
-    private boolean restoreEcho;
-    private boolean shutdownHookInstalled;
+    
+    
     private static native String encoding();
-    /*
-     * Sets the console echo status to {@code on} and returns the previous
-     * console on/off status.
-     * @param on    the echo status to set to. {@code true} for echo on and
-     *              {@code false} for echo off
+    
+    /**
+     * Sets the console echo status to {@code on} and returns the previous console on/off status.
+     *
+     * @param on the echo status to set to. {@code true} for echo on and {@code false} for echo off
+     *
      * @return true if the previous console echo status is on
      */
+    // 是否开启控制台回显，在输入密码时通常需要关闭回显
     private static native boolean echo(boolean on) throws IOException;
-
-    private char[] readline(boolean zeroOut) throws IOException {
-        int len = reader.read(rcb, 0, rcb.length);
-        if (len < 0)
-            return null;  //EOL
-        if (rcb[len-1] == '\r')
-            len--;        //remove CR at end;
-        else if (rcb[len-1] == '\n') {
-            len--;        //remove LF at end;
-            if (len > 0 && rcb[len-1] == '\r')
-                len--;    //remove the CR, if there is one
+    
+    // 是否在终端环境下
+    private static native boolean istty();
+    
+    // 注册一个在虚拟机关闭时执行的钩子：开启控制台回显
+    private void installShutdownHook() {
+        // 已注册
+        if(shutdownHookInstalled) {
+            return;
         }
+        
+        try {
+            /* Add a shutdown hook to restore console's echo state should it be necessary */
+            JavaLangAccess javaLangAccess = SharedSecrets.getJavaLangAccess();
+            
+            // 将指定的钩子注册到0号插槽中，以便在虚拟机关闭时处理这些钩子
+            javaLangAccess.registerShutdownHook(0                 /* shutdown hook invocation order */, false             /* only register if shutdown is not in progress */, new Runnable() {
+                public void run() {
+                    try {
+                        if(restoreEcho) {
+                            echo(true);     // 开启控制台回显
+                        }
+                    } catch(IOException x) {
+                    }
+                }
+            });
+        } catch(IllegalStateException e) {
+            // shutdown is already in progress and readPassword is first used by a shutdown hook
+        }
+        
+        // 标记属于Console类的钩子已注册
+        shutdownHookInstalled = true;
+    }
+    
+    private char[] readline(boolean zeroOut) throws IOException {
+        // 尝试从字符输入流中读取length个char，并将其填充到rcb中。返回实际填充的字符数量
+        int len = reader.read(rcb, 0, rcb.length);
+        if(len<0) {
+            return null;  //EOL
+        }
+        
+        // 如果以'\r'结尾，直接移除
+        if(rcb[len - 1] == '\r') {
+            len--;        //remove CR at end;
+            
+            // 如果以'\n'结尾，尝试移除"\r\n"
+        } else if(rcb[len - 1] == '\n') {
+            len--;        //remove LF at end;
+            if(len>0 && rcb[len - 1] == '\r') {
+                len--;    //remove the CR, if there is one
+            }
+        }
+        
         char[] b = new char[len];
-        if (len > 0) {
+        if(len>0) {
             System.arraycopy(rcb, 0, b, 0, len);
-            if (zeroOut) {
+            
+            // 如果需要清空缓冲区
+            if(zeroOut) {
                 Arrays.fill(rcb, 0, len, ' ');
             }
         }
+        
         return b;
     }
-
+    
     private char[] grow() {
         assert Thread.holdsLock(readLock);
         char[] t = new char[rcb.length * 2];
@@ -438,47 +532,50 @@ public final class Console implements Flushable
         rcb = t;
         return rcb;
     }
-
+    
+    
     class LineReader extends Reader {
+        boolean leftoverLF;
         private Reader in;
         private char[] cb;
         private int nChars, nextChar;
-        boolean leftoverLF;
+        
         LineReader(Reader in) {
             this.in = in;
             cb = new char[1024];
             nextChar = nChars = 0;
             leftoverLF = false;
         }
-        public void close () {}
+        
+        public void close() {
+        }
+        
         public boolean ready() throws IOException {
             //in.ready synchronizes on readLock already
             return in.ready();
         }
-
-        public int read(char cbuf[], int offset, int length)
-            throws IOException
-        {
+        
+        public int read(char[] cbuf, int offset, int length) throws IOException {
             int off = offset;
             int end = offset + length;
-            if (offset < 0 || offset > cbuf.length || length < 0 ||
-                end < 0 || end > cbuf.length) {
+            
+            if(offset<0 || offset>cbuf.length || length<0 || end<0 || end>cbuf.length) {
                 throw new IndexOutOfBoundsException();
             }
+            
             synchronized(readLock) {
                 boolean eof = false;
                 char c = 0;
-                for (;;) {
-                    if (nextChar >= nChars) {   //fill
+                for(; ; ) {
+                    if(nextChar >= nChars) {   //fill
                         int n = 0;
                         do {
                             n = in.read(cb, 0, cb.length);
-                        } while (n == 0);
-                        if (n > 0) {
+                        } while(n == 0);
+                        if(n>0) {
                             nChars = n;
                             nextChar = 0;
-                            if (n < cb.length &&
-                                cb[n-1] != '\n' && cb[n-1] != '\r') {
+                            if(n<cb.length && cb[n - 1] != '\n' && cb[n - 1] != '\r') {
                                 /*
                                  * we're in canonical mode so each "fill" should
                                  * come back with an eol. if there no lf or nl at
@@ -487,31 +584,34 @@ public final class Console implements Flushable
                                 eof = true;
                             }
                         } else { /*EOF*/
-                            if (off - offset == 0)
+                            if(off - offset == 0)
                                 return -1;
                             return off - offset;
                         }
                     }
-                    if (leftoverLF && cbuf == rcb && cb[nextChar] == '\n') {
+                    
+                    if(leftoverLF && cbuf == rcb && cb[nextChar] == '\n') {
                         /*
                          * if invoked by our readline, skip the leftover, otherwise
                          * return the LF.
                          */
                         nextChar++;
                     }
+                    
                     leftoverLF = false;
-                    while (nextChar < nChars) {
+                    
+                    while(nextChar<nChars) {
                         c = cbuf[off++] = cb[nextChar];
                         cb[nextChar++] = 0;
-                        if (c == '\n') {
+                        if(c == '\n') {
                             return off - offset;
-                        } else if (c == '\r') {
-                            if (off == end) {
+                        } else if(c == '\r') {
+                            if(off == end) {
                                 /* no space left even the next is LF, so return
                                  * whatever we have if the invoker is not our
                                  * readLine()
                                  */
-                                if (cbuf == rcb) {
+                                if(cbuf == rcb) {
                                     cbuf = grow();
                                     end = cbuf.length;
                                 } else {
@@ -519,7 +619,7 @@ public final class Console implements Flushable
                                     return off - offset;
                                 }
                             }
-                            if (nextChar == nChars && in.ready()) {
+                            if(nextChar == nChars && in.ready()) {
                                 /*
                                  * we have a CR and we reached the end of
                                  * the read in buffer, fill to make sure we
@@ -530,69 +630,27 @@ public final class Console implements Flushable
                                 nChars = in.read(cb, 0, cb.length);
                                 nextChar = 0;
                             }
-                            if (nextChar < nChars && cb[nextChar] == '\n') {
+                            if(nextChar<nChars && cb[nextChar] == '\n') {
                                 cbuf[off++] = '\n';
                                 nextChar++;
                             }
                             return off - offset;
-                        } else if (off == end) {
-                           if (cbuf == rcb) {
+                        } else if(off == end) {
+                            if(cbuf == rcb) {
                                 cbuf = grow();
                                 end = cbuf.length;
-                           } else {
-                               return off - offset;
-                           }
+                            } else {
+                                return off - offset;
+                            }
                         }
                     }
-                    if (eof)
+                    
+                    if(eof) {
                         return off - offset;
+                    }
                 }
             }
         }
     }
-
-    // Set up JavaIOAccess in SharedSecrets
-    static {
-        SharedSecrets.setJavaIOAccess(new JavaIOAccess() {
-            public Console console() {
-                if (istty()) {
-                    if (cons == null)
-                        cons = new Console();
-                    return cons;
-                }
-                return null;
-            }
-
-            public Charset charset() {
-                // This method is called in sun.security.util.Password,
-                // cons already exists when this method is called
-                return cons.cs;
-            }
-        });
-    }
-    private static Console cons;
-    private static native boolean istty();
-    private Console() {
-        readLock = new Object();
-        writeLock = new Object();
-        String csname = encoding();
-        if (csname != null) {
-            try {
-                cs = Charset.forName(csname);
-            } catch (Exception x) {}
-        }
-        if (cs == null)
-            cs = Charset.defaultCharset();
-        out = StreamEncoder.forOutputStreamWriter(
-                  new FileOutputStream(FileDescriptor.out),
-                  writeLock,
-                  cs);
-        pw = new PrintWriter(out, true) { public void close() {} };
-        formatter = new Formatter(out);
-        reader = new LineReader(StreamDecoder.forInputStreamReader(
-                     new FileInputStream(FileDescriptor.in),
-                     readLock,
-                     cs));
-        rcb = new char[1024];
-    }
+    
 }
