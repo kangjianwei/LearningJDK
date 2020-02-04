@@ -25,72 +25,86 @@
 
 package jdk.internal.reflect;
 
-/** This interface provides the declarations for the accessor methods
-    of java.lang.reflect.Field. Each Field object is configured with a
-    (possibly dynamically-generated) class which implements this
-    interface. */
-
+/**
+ * This interface provides the declarations for the accessor methods
+ * of java.lang.reflect.Field. Each Field object is configured with a
+ * (possibly dynamically-generated) class which implements this
+ * interface.
+ */
+// 字段访问器
 public interface FieldAccessor {
+    
     /** Matches specification in {@link java.lang.reflect.Field} */
-    public Object get(Object obj) throws IllegalArgumentException;
-
+    // 返回obj中当前字段的值，要求当前字段为boolean类型
+    boolean getBoolean(Object obj) throws IllegalArgumentException;
+    
     /** Matches specification in {@link java.lang.reflect.Field} */
-    public boolean getBoolean(Object obj) throws IllegalArgumentException;
-
+    // 返回obj中当前字段的值，要求当前字段为char类型
+    char getChar(Object obj) throws IllegalArgumentException;
+    
     /** Matches specification in {@link java.lang.reflect.Field} */
-    public byte getByte(Object obj) throws IllegalArgumentException;
-
+    // 返回obj中当前字段的值，要求当前字段为byte类型
+    byte getByte(Object obj) throws IllegalArgumentException;
+    
     /** Matches specification in {@link java.lang.reflect.Field} */
-    public char getChar(Object obj) throws IllegalArgumentException;
-
+    // 返回obj中当前字段的值，要求当前字段为short类型
+    short getShort(Object obj) throws IllegalArgumentException;
+    
     /** Matches specification in {@link java.lang.reflect.Field} */
-    public short getShort(Object obj) throws IllegalArgumentException;
-
+    // 返回obj中当前字段的值，要求当前字段为int类型
+    int getInt(Object obj) throws IllegalArgumentException;
+    
     /** Matches specification in {@link java.lang.reflect.Field} */
-    public int getInt(Object obj) throws IllegalArgumentException;
-
+    // 返回obj中当前字段的值，要求当前字段为long类型
+    long getLong(Object obj) throws IllegalArgumentException;
+    
     /** Matches specification in {@link java.lang.reflect.Field} */
-    public long getLong(Object obj) throws IllegalArgumentException;
-
+    // 返回obj中当前字段的值，要求当前字段为float类型
+    float getFloat(Object obj) throws IllegalArgumentException;
+    
     /** Matches specification in {@link java.lang.reflect.Field} */
-    public float getFloat(Object obj) throws IllegalArgumentException;
-
+    // 返回obj中当前字段的值，要求当前字段为double类型
+    double getDouble(Object obj) throws IllegalArgumentException;
+    
     /** Matches specification in {@link java.lang.reflect.Field} */
-    public double getDouble(Object obj) throws IllegalArgumentException;
-
+    // 返回obj中当前字段的值，要求当前字段为对象类型
+    Object get(Object obj) throws IllegalArgumentException;
+    
+    
     /** Matches specification in {@link java.lang.reflect.Field} */
-    public void set(Object obj, Object value)
-        throws IllegalArgumentException, IllegalAccessException;
-
+    // 将obj对象中的当前字段设置为指定的值，要求当前字段为boolean类型
+    void setBoolean(Object obj, boolean value) throws IllegalArgumentException, IllegalAccessException;
+    
     /** Matches specification in {@link java.lang.reflect.Field} */
-    public void setBoolean(Object obj, boolean z)
-        throws IllegalArgumentException, IllegalAccessException;
-
+    // 将obj对象中的当前字段设置为指定的值，要求当前字段为char类型
+    void setChar(Object obj, char value) throws IllegalArgumentException, IllegalAccessException;
+    
     /** Matches specification in {@link java.lang.reflect.Field} */
-    public void setByte(Object obj, byte b)
-        throws IllegalArgumentException, IllegalAccessException;
-
+    // 将obj对象中的当前字段设置为指定的值，要求当前字段为byte类型
+    void setByte(Object obj, byte value) throws IllegalArgumentException, IllegalAccessException;
+    
     /** Matches specification in {@link java.lang.reflect.Field} */
-    public void setChar(Object obj, char c)
-        throws IllegalArgumentException, IllegalAccessException;
-
+    // 将obj对象中的当前字段设置为指定的值，要求当前字段为short类型
+    void setShort(Object obj, short value) throws IllegalArgumentException, IllegalAccessException;
+    
     /** Matches specification in {@link java.lang.reflect.Field} */
-    public void setShort(Object obj, short s)
-        throws IllegalArgumentException, IllegalAccessException;
-
+    // 将obj对象中的当前字段设置为指定的值，要求当前字段为int类型
+    void setInt(Object obj, int value) throws IllegalArgumentException, IllegalAccessException;
+    
     /** Matches specification in {@link java.lang.reflect.Field} */
-    public void setInt(Object obj, int i)
-        throws IllegalArgumentException, IllegalAccessException;
-
+    // 将obj对象中的当前字段设置为指定的值，要求当前字段为long类型
+    void setLong(Object obj, long value) throws IllegalArgumentException, IllegalAccessException;
+    
     /** Matches specification in {@link java.lang.reflect.Field} */
-    public void setLong(Object obj, long l)
-        throws IllegalArgumentException, IllegalAccessException;
-
+    // 将obj对象中的当前字段设置为指定的值，要求当前字段为float类型
+    void setFloat(Object obj, float value) throws IllegalArgumentException, IllegalAccessException;
+    
     /** Matches specification in {@link java.lang.reflect.Field} */
-    public void setFloat(Object obj, float f)
-        throws IllegalArgumentException, IllegalAccessException;
-
+    // 将obj对象中的当前字段设置为指定的值，要求当前字段为double类型
+    void setDouble(Object obj, double value) throws IllegalArgumentException, IllegalAccessException;
+    
     /** Matches specification in {@link java.lang.reflect.Field} */
-    public void setDouble(Object obj, double d)
-        throws IllegalArgumentException, IllegalAccessException;
+    // 将obj对象中的当前字段设置为指定的值，要求当前字段为对象类型
+    void set(Object obj, Object value) throws IllegalArgumentException, IllegalAccessException;
+    
 }
