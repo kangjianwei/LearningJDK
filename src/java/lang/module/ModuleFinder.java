@@ -79,12 +79,12 @@ import jdk.internal.module.SystemModuleFinders;
  *
  * <p> A {@code ModuleFinder} is not required to be thread safe. </p>
  *
- * @since 9
  * @spec JPMS
+ * @since 9
  */
-
+// 模块查找器
 public interface ModuleFinder {
-
+    
     /**
      * Finds a reference to a module of a given name.
      *
@@ -95,20 +95,17 @@ public interface ModuleFinder {
      * of the set of modules returned by the {@link #findAll() findAll}
      * method. </p>
      *
-     * @param  name
-     *         The name of the module to find
+     * @param name The name of the module to find
      *
      * @return A reference to a module with the given name or an empty
-     *         {@code Optional} if not found
+     * {@code Optional} if not found
      *
-     * @throws FindException
-     *         If an error occurs finding the module
-     *
-     * @throws SecurityException
-     *         If denied by the security manager
+     * @throws FindException     If an error occurs finding the module
+     * @throws SecurityException If denied by the security manager
      */
+    // 查找指定名称的模块，返回模块引用
     Optional<ModuleReference> find(String name);
-
+    
     /**
      * Returns the set of all module references that this finder can locate.
      *
@@ -119,20 +116,17 @@ public interface ModuleFinder {
      * {@link #find find} will locate the {@code ModuleReference} if invoked
      * to find that module. </p>
      *
+     * @return The set of all module references that this finder locates
+     *
+     * @throws FindException     If an error occurs finding all modules
+     * @throws SecurityException If denied by the security manager
      * @apiNote This is important to have for methods such as {@link
      * Configuration#resolveAndBind resolveAndBind} that need to scan the
      * module path to find modules that provide a specific service.
-     *
-     * @return The set of all module references that this finder locates
-     *
-     * @throws FindException
-     *         If an error occurs finding all modules
-     *
-     * @throws SecurityException
-     *         If denied by the security manager
      */
+    // 查找所有模块，返回其模块引用的集合
     Set<ModuleReference> findAll();
-
+    
     /**
      * Returns a module finder that locates the <em>system modules</em>. The
      * system modules are the modules in the Java run-time image.
@@ -146,20 +140,20 @@ public interface ModuleFinder {
      *
      * @return A {@code ModuleFinder} that locates the system modules
      *
-     * @throws SecurityException
-     *         If denied by the security manager
+     * @throws SecurityException If denied by the security manager
      */
+    // 返回一个系统模块查找器
     static ModuleFinder ofSystem() {
         SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
+        if(sm != null) {
             sm.checkPermission(new RuntimePermission("accessSystemModules"));
             PrivilegedAction<ModuleFinder> pa = SystemModuleFinders::ofSystem;
             return AccessController.doPrivileged(pa);
-        } else {
-            return SystemModuleFinders.ofSystem();
         }
+        
+        return SystemModuleFinders.ofSystem();
     }
-
+    
     /**
      * Returns a module finder that locates modules on the file system by
      * searching a sequence of directories and/or packaged modules.
@@ -288,32 +282,33 @@ public interface ModuleFinder {
      * fail if invoking these methods results in searching a directory or
      * packaged module and an error is encountered. </p>
      *
-     * @param entries
-     *        A possibly-empty array of paths to directories of modules
-     *        or paths to packaged or exploded modules
+     * @param entries A possibly-empty array of paths to directories of modules
+     *                or paths to packaged or exploded modules
      *
      * @return A {@code ModuleFinder} that locates modules on the file system
      */
+    // 构造模块查找器，用于查找指定路径下的模块
     static ModuleFinder of(Path... entries) {
         // special case zero entries
-        if (entries.length == 0) {
+        if(entries.length == 0) {
+            // 空的模块查找器
             return new ModuleFinder() {
                 @Override
                 public Optional<ModuleReference> find(String name) {
                     Objects.requireNonNull(name);
                     return Optional.empty();
                 }
-
+            
                 @Override
                 public Set<ModuleReference> findAll() {
                     return Collections.emptySet();
                 }
             };
         }
-
+    
         return ModulePath.of(entries);
     }
-
+    
     /**
      * Returns a module finder that is composed from a sequence of zero or more
      * module finders. The {@link #find(String) find} method of the resulting
@@ -331,51 +326,46 @@ public interface ModuleFinder {
      * will be propagated to the caller of the resulting module finder's
      * {@code find} or {@code findAll} methods. </p>
      *
-     * @param finders
-     *        The array of module finders
+     * @param finders The array of module finders
      *
      * @return A {@code ModuleFinder} that composes a sequence of module finders
      */
+    // 构造模块查找器，该模块查找器由参数中指定的一系列模块查找器组成
     static ModuleFinder compose(ModuleFinder... finders) {
         // copy the list and check for nulls
         final List<ModuleFinder> finderList = List.of(finders);
-
+    
         return new ModuleFinder() {
             private final Map<String, ModuleReference> nameToModule = new HashMap<>();
             private Set<ModuleReference> allModules;
-
+        
             @Override
             public Optional<ModuleReference> find(String name) {
                 // cached?
                 ModuleReference mref = nameToModule.get(name);
-                if (mref != null)
+                if(mref != null)
                     return Optional.of(mref);
-                Optional<ModuleReference> omref = finderList.stream()
-                        .map(f -> f.find(name))
-                        .flatMap(Optional::stream)
-                        .findFirst();
+                Optional<ModuleReference> omref = finderList.stream().map(f -> f.find(name)).flatMap(Optional::stream).findFirst();
                 omref.ifPresent(m -> nameToModule.put(name, m));
                 return omref;
             }
-
+        
             @Override
             public Set<ModuleReference> findAll() {
-                if (allModules != null)
+                if(allModules != null)
                     return allModules;
                 // seed with modules already found
                 Set<ModuleReference> result = new HashSet<>(nameToModule.values());
-                finderList.stream()
-                          .flatMap(f -> f.findAll().stream())
-                          .forEach(mref -> {
-                              String name = mref.descriptor().name();
-                              if (nameToModule.putIfAbsent(name, mref) == null) {
-                                  result.add(mref);
-                              }
-                          });
+                finderList.stream().flatMap(f -> f.findAll().stream()).forEach(mref -> {
+                    String name = mref.descriptor().name();
+                    if(nameToModule.putIfAbsent(name, mref) == null) {
+                        result.add(mref);
+                    }
+                });
                 allModules = Collections.unmodifiableSet(result);
                 return allModules;
             }
         };
     }
-
+    
 }
