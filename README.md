@@ -75,7 +75,7 @@
     
 [Oracle JDK](https://www.oracle.com/technetwork/java/javase/archive-139210.html)    
     
-[Open JDK](https://openjdk.java.net)    
+[Open JDK](http://jdk.java.net/archive)    
     
     
 ## 脚注
