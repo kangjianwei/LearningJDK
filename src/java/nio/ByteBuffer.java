@@ -226,7 +226,6 @@ package java.nio;
  * @author JSR-51 Expert Group
  * @since 1.4
  */
-
 /*
  * 字节缓冲区
  *
@@ -254,7 +253,7 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /* Creates a new buffer with the given mark, position, limit, capacity, backing array, and array offset */
     ByteBuffer(int mark, int pos, int lim, int cap, byte[] hb, int offset) {
@@ -268,7 +267,7 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
         this(mark, pos, lim, cap, null, 0);
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -1459,7 +1458,7 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
      *
      * @return The new byte buffer
      */
-    // 包装一个字节数组到buffer（包装一部分）
+    // 包装一个字节数组到buffer
     public static ByteBuffer wrap(byte[] array) {
         return wrap(array, 0, array.length);
     }

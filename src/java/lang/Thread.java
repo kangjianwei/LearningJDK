@@ -176,7 +176,7 @@ public class Thread implements Runnable {
     private Runnable target; // 当前线程将要执行的动作
     
     /** The context ClassLoader for this thread */
-    private ClassLoader contextClassLoader; // 当前线程（所处的类）的类加载器
+    private ClassLoader contextClassLoader; // 线程上下文类加载器
     
     /** The inherited AccessControlContext of this thread */
     private AccessControlContext inheritedAccessControlContext; // 此线程继承的AccessControlContext
@@ -232,14 +232,14 @@ public class Thread implements Runnable {
      * ThreadLocal values pertaining to this thread.
      * This map is maintained by the ThreadLocal class.
      */
-    // 一个键值对组合，为当前线程关联一些“独享”变量，ThreadLocal是key。
+    // 线程局部缓存，这是一个键值对组合，为当前线程关联一些“独享”变量，ThreadLocal是key。
     ThreadLocal.ThreadLocalMap threadLocals = null;
     
     /**
      * InheritableThreadLocal values pertaining to this thread.
      * This map is maintained by the InheritableThreadLocal class.
      */
-    // 从父线程继承而来的键值对组合<ThreadLocal, Object>，由InheritableThreadLocal维护
+    // 从父线程继承而来的线程局部缓存，由InheritableThreadLocal维护
     ThreadLocal.ThreadLocalMap inheritableThreadLocals = null;
     
     
@@ -830,7 +830,7 @@ public class Thread implements Runnable {
      *                           {@link RuntimePermission}{@code ("getClassLoader")}
      * @since 1.2
      */
-    // 获取当前线程（所处的类）的类加载器
+    // 获取当前线程上下文类加载器
     @CallerSensitive
     public ClassLoader getContextClassLoader() {
         if(contextClassLoader == null) {
@@ -864,12 +864,13 @@ public class Thread implements Runnable {
      * @throws SecurityException if the current thread cannot set the context ClassLoader
      * @since 1.2
      */
-    // 设置类加载器
+    // 设置线程上下文类加载器
     public void setContextClassLoader(ClassLoader cl) {
         SecurityManager sm = System.getSecurityManager();
         if(sm != null) {
             sm.checkPermission(new RuntimePermission("setContextClassLoader"));
         }
+    
         contextClassLoader = cl;
     }
     

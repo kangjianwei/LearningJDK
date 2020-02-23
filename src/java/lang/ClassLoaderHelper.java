@@ -27,20 +27,27 @@ package java.lang;
 
 import java.io.File;
 
+// 加载本地库文件的辅助类
 class ClassLoaderHelper {
-
-    private ClassLoaderHelper() {}
-
+    
     /**
      * Indicates, whether PATH env variable is allowed to contain quoted entries.
      */
+    // 是否允许环境变量中的路径用双引号包围起来
     static final boolean allowsQuotedPathElements = true;
-
+    
+    private ClassLoaderHelper() {
+    }
+    
     /**
-     * Returns an alternate path name for the given file
-     * such that if the original pathname did not exist, then the
-     * file may be located at the alternate location.
+     * Returns an alternate path name for the given file such that if the original pathname did not exist,
+     * then the file may be located at the alternate location.
      * For most platforms, this behavior is not supported and returns null.
+     */
+    /*
+     * 返回给定文件的备用路径名。
+     * 这样，如果原始路径名不存在，则该文件可能位于该备用位置。
+     * 对于大多数平台，不支持此行为，并且返回null。
      */
     static File mapAlternativeName(File lib) {
         return null;

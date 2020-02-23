@@ -148,13 +148,12 @@ import java.util.function.Function;
  * @author Doug Lea
  * @since 1.8
  */
-// 各类型枢纽任务需要实现的方法
+// "阶段"接口
 public interface CompletionStage<T> {
     
     /**
-     * Returns a new CompletionStage that, when this stage completes
-     * normally, is executed with this stage's result as the argument
-     * to the supplied function.
+     * Returns a new CompletionStage that, when this stage completes normally,
+     * is executed with this stage's result as the argument to the supplied function.
      *
      * <p>This method is analogous to
      * {@link java.util.Optional#map Optional.map} and
@@ -169,14 +168,13 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 同步执行UniApply型任务
+    // 同步执行Function任务
     <U> CompletionStage<U> thenApply(Function<? super T, ? extends U> fn);
     
     /**
-     * Returns a new CompletionStage that, when this stage completes
-     * normally, is executed using this stage's default asynchronous
-     * execution facility, with this stage's result as the argument to
-     * the supplied function.
+     * Returns a new CompletionStage that, when this stage completes normally,
+     * is executed using this stage's default asynchronous execution facility,
+     * with this stage's result as the argument to the supplied function.
      *
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
@@ -187,13 +185,13 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用【默认工作池】执行UniApply型任务
+    // 异步执行Function任务
     <U> CompletionStage<U> thenApplyAsync(Function<? super T, ? extends U> fn);
     
     /**
-     * Returns a new CompletionStage that, when this stage completes
-     * normally, is executed using the supplied Executor, with this
-     * stage's result as the argument to the supplied function.
+     * Returns a new CompletionStage that, when this stage completes normally,
+     * is executed using the supplied Executor,
+     * with this stage's result as the argument to the supplied function.
      *
      * See the {@link CompletionStage} documentation for rules
      * covering exceptional completion.
@@ -205,7 +203,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用指定的【任务执行器】执行UniApply型任务
+    // 异步执行Function任务
     <U> CompletionStage<U> thenApplyAsync(Function<? super T, ? extends U> fn, Executor executor);
     
     
@@ -223,7 +221,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 同步执行UniAccept型任务
+    // 同步执行Consumer任务
     CompletionStage<Void> thenAccept(Consumer<? super T> action);
     
     /**
@@ -240,7 +238,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用【默认工作池】执行UniAccept型任务
+    // 异步执行Consumer任务
     CompletionStage<Void> thenAcceptAsync(Consumer<? super T> action);
     
     /**
@@ -257,7 +255,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用指定的【任务执行器】执行UniAccept型任务
+    // 异步执行Consumer任务
     CompletionStage<Void> thenAcceptAsync(Consumer<? super T> action, Executor executor);
     
     
@@ -274,7 +272,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 同步执行UniRun型任务
+    // 同步执行Runnable任务
     CompletionStage<Void> thenRun(Runnable action);
     
     /**
@@ -290,7 +288,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用【默认工作池】执行UniRun型任务
+    // 异步执行Runnable任务
     CompletionStage<Void> thenRunAsync(Runnable action);
     
     /**
@@ -306,7 +304,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用指定的【任务执行器】执行UniRun型任务
+    // 异步执行Runnable任务
     CompletionStage<Void> thenRunAsync(Runnable action, Executor executor);
     
     
@@ -327,7 +325,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 同步执行BiApply型任务
+    // 同步执行BiFunction任务
     <U, V> CompletionStage<V> thenCombine(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn);
     
     /**
@@ -347,7 +345,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用【默认工作池】执行BiApply型任务
+    // 异步执行BiFunction任务
     <U, V> CompletionStage<V> thenCombineAsync(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn);
     
     /**
@@ -368,7 +366,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用指定的【任务执行器】执行BiApply型任务
+    // 异步执行BiFunction任务
     <U, V> CompletionStage<V> thenCombineAsync(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn, Executor executor);
     
     
@@ -388,7 +386,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 同步执行BiAccept型任务
+    // 同步执行BiConsumer任务
     <U> CompletionStage<Void> thenAcceptBoth(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action);
     
     /**
@@ -407,7 +405,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用【默认工作池】执行BiAccept型任务
+    // 异步执行BiConsumer任务
     <U> CompletionStage<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action);
     
     /**
@@ -427,7 +425,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用指定的【任务执行器】执行BiAccept型任务
+    // 异步执行BiConsumer任务
     <U> CompletionStage<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action, Executor executor);
     
     
@@ -445,7 +443,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 同步执行BiRun型任务
+    // 同步执行Runnable任务
     CompletionStage<Void> runAfterBoth(CompletionStage<?> other, Runnable action);
     
     /**
@@ -462,7 +460,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用【默认工作池】执行BiRun型任务
+    // 异步执行Runnable任务
     CompletionStage<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action);
     
     /**
@@ -480,7 +478,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用指定的【任务执行器】执行BiRun型任务
+    // 异步执行Runnable任务
     CompletionStage<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action, Executor executor);
     
     
@@ -500,7 +498,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 同步执行OrApply型任务
+    // 同步执行Function任务
     <U> CompletionStage<U> applyToEither(CompletionStage<? extends T> other, Function<? super T, U> fn);
     
     /**
@@ -519,7 +517,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用【默认工作池】执行OrApply型任务
+    // 异步执行Function任务
     <U> CompletionStage<U> applyToEitherAsync(CompletionStage<? extends T> other, Function<? super T, U> fn);
     
     /**
@@ -539,7 +537,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用指定的【任务执行器】执行OrApply型任务
+    // 异步执行Function任务
     <U> CompletionStage<U> applyToEitherAsync(CompletionStage<? extends T> other, Function<? super T, U> fn, Executor executor);
     
     
@@ -558,7 +556,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 同步执行OrAccept型任务
+    // 同步执行Consumer任务
     CompletionStage<Void> acceptEither(CompletionStage<? extends T> other, Consumer<? super T> action);
     
     /**
@@ -576,7 +574,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用【默认工作池】执行OrAccept型任务
+    // 异步执行Consumer任务
     CompletionStage<Void> acceptEitherAsync(CompletionStage<? extends T> other, Consumer<? super T> action);
     
     /**
@@ -595,7 +593,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用指定的【任务执行器】执行OrAccept型任务
+    // 异步执行Consumer任务
     CompletionStage<Void> acceptEitherAsync(CompletionStage<? extends T> other, Consumer<? super T> action, Executor executor);
     
     
@@ -613,7 +611,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 同步执行OrRun型任务
+    // 同步执行Runnable任务
     CompletionStage<Void> runAfterEither(CompletionStage<?> other, Runnable action);
     
     /**
@@ -630,7 +628,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用【默认工作池】执行OrRun型任务
+    // 异步执行Runnable任务
     CompletionStage<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action);
     
     /**
@@ -648,7 +646,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用指定的【任务执行器】执行OrRun型任务
+    // 异步执行Runnable任务
     CompletionStage<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action, Executor executor);
     
     
@@ -678,7 +676,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 同步执行UniCompose型任务
+    // 同步执行Function任务
     <U> CompletionStage<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn);
     
     /**
@@ -704,7 +702,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用【默认工作池】执行UniCompose型任务
+    // 异步执行Function任务
     <U> CompletionStage<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn);
     
     /**
@@ -730,7 +728,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用指定的【任务执行器】执行UniCompose型任务
+    // 异步执行Function任务
     <U> CompletionStage<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, Executor executor);
     
     
@@ -751,7 +749,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 同步执行UniHandle型任务
+    // 同步执行BiFunction任务
     <U> CompletionStage<U> handle(BiFunction<? super T, Throwable, ? extends U> fn);
     
     /**
@@ -771,7 +769,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用【默认工作池】执行UniHandle型任务
+    // 异步执行BiFunction任务
     <U> CompletionStage<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn);
     
     /**
@@ -792,7 +790,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用指定的【任务执行器】执行UniHandle型任务
+    // 异步执行BiFunction任务
     <U> CompletionStage<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor);
     
     
@@ -820,7 +818,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 同步执行UniWhenComplete型任务
+    // 同步执行BiConsumer任务
     CompletionStage<T> whenComplete(BiConsumer<? super T, ? super Throwable> action);
     
     /**
@@ -847,7 +845,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用【默认工作池】执行UniWhenComplete型任务
+    // 异步执行BiConsumer任务
     CompletionStage<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action);
     
     /**
@@ -875,7 +873,7 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
-    // 使用指定的【任务执行器】执行UniWhenComplete型任务
+    // 异步执行BiConsumer任务
     CompletionStage<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, Executor executor);
     
     
@@ -893,17 +891,17 @@ public interface CompletionStage<T> {
      *
      * @return the new CompletionStage
      */
+    // 返回一个新阶段：该阶段会使用当前阶段的执行结果；如果当前阶段产生的是"异常"结果，则会先通过action来处理/转换它
     CompletionStage<T> exceptionally(Function<Throwable, ? extends T> fn);
     
     /**
-     * Returns a {@link CompletableFuture} maintaining the same
-     * completion properties as this stage. If this stage is already a
-     * CompletableFuture, this method may return this stage itself.
-     * Otherwise, invocation of this method may be equivalent in
-     * effect to {@code thenApply(x -> x)}, but returning an instance
-     * of type {@code CompletableFuture}.
+     * Returns a {@link CompletableFuture} maintaining the same completion properties as this stage.
+     * If this stage is already a CompletableFuture, this method may return this stage itself.
+     * Otherwise, invocation of this method may be equivalent in effect to {@code thenApply(x -> x)},
+     * but returning an instance of type {@code CompletableFuture}.
      *
      * @return the CompletableFuture
      */
+    // 对当前阶段进行转换，默认是原样返回
     CompletableFuture<T> toCompletableFuture();
 }

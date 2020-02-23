@@ -45,7 +45,6 @@ import java.util.Objects;
  * @author Pavani Diwanji
  * @since 1.0
  */
-
 /*
  * 文件描述符用来保存操作系统中的标准流id和对文件的引用handle
  *
@@ -55,7 +54,7 @@ import java.util.Objects;
  * 关闭FileInputStream/FileOutputStream/RandomAccessFile时，会关闭底层对应的文件描述符。
  * 关闭是文件底层是通过使用close执行系统调用实现的。
  *
- * 简单理解：文件描述符是"文件"的抽象表示。文件可以是：file、socket或其他IO连接
+ * 简单理解：在Java中，文件描述符是"文件"的抽象表示。文件可以是：file、socket或其他IO连接
  *
  * 注：应用程序不应创建自己的文件描述符。
  */
@@ -88,14 +87,27 @@ public final class FileDescriptor {
     // 标准错误流，被封装为System.err
     public static final FileDescriptor err = new FileDescriptor(2);
     
-    // 每个打开的文件都会为它分配一个fd值作为其唯一编号，通过该值可以找到对应的文件并进行相关操作
+    /*
+     * 文件描述符(通用概念)
+     *
+     * 每个打开的文件都会为它分配一个fd值作为其唯一编号，通过该值可以找到对应的文件并进行相关操作。
+     *
+     * 在windows上，文件描述符是文件句柄结构中的一个字段。
+     */
     private int fd;
-    // 文件句柄，即指向文件的引用。
+    /*
+     * 文件句柄(windows下的概念)
+     *
+     * 句柄是Windows下各种对象的标识符，比如文件、资源、菜单、光标等等。
+     * 文件句柄和文件描述符类似，它也是一个非负整数，也用于定位文件数据在内存中的位置。
+     *
+     * 在Windows中，文件句柄可以看做是FILE*，即文件指针。
+     */
     private long handle;
     
     // 存放文件描述符关联的唯一流对象（绝大多数情况）
     private Closeable parent;
-    // 存放文件描述符的所有流对象（使用流的带有文件描述符参数的构造方法会用到此字段）
+    // 存放关联了文件描述符的所有文件(流)对象（使用流的带有文件描述符参数的构造方法会用到此字段）
     private List<Closeable> otherParents;
     
     // 判断fd是否被释放
@@ -104,7 +116,7 @@ public final class FileDescriptor {
     /**
      * true, if file is opened for appending.
      */
-    // 判断是否处于追加(append)模式
+    // 判断当前文件是否处于追加(append)模式
     private boolean append;
     
     /**
@@ -191,18 +203,6 @@ public final class FileDescriptor {
         this.append = getAppend(fd);
     }
     
-    /*
-     * On Windows return the handle for the standard streams.
-     */
-    // 返回标准流（输入流、输出流、错误流）的引用
-    private static native long getHandle(int d);
-    
-    /**
-     * Returns true, if the file was opened for appending.
-     */
-    // 文件是否以append模式打开
-    private static native boolean getAppend(int fd);
-    
     /**
      * Tests if this file descriptor object is valid.
      *
@@ -232,22 +232,11 @@ public final class FileDescriptor {
      */
     public native void sync() throws SyncFailedException;
     
-    /**
-     * Set the fd.
-     * Used on Unix and for sockets on Windows and Unix.
-     * If setting to -1, clear the cleaner.
-     * The {@link #registerCleanup} method should be called for new fds.
-     *
-     * @param fd the raw fd or -1 to indicate closed
+    /*
+     * On Windows return the handle for the standard streams.
      */
-    @SuppressWarnings("unchecked")
-    synchronized void set(int fd) {
-        if(fd == -1 && cleanup != null) {
-            cleanup.clear();
-            cleanup = null;
-        }
-        this.fd = fd;
-    }
+    // 返回标准流（输入流、输出流、错误流）的句柄
+    private static native long getHandle(int d);
     
     /**
      * Set the handle.
@@ -256,6 +245,10 @@ public final class FileDescriptor {
      * The {@link #registerCleanup} method should be called for new handles.
      *
      * @param handle the handle or -1 to indicate closed
+     */
+    /*
+     * 设置文件句柄，常用于Windows系统的普通文件上。
+     * 如果handle为-1，则开始清理资源。
      */
     @SuppressWarnings("unchecked")
     void setHandle(long handle) {
@@ -267,11 +260,39 @@ public final class FileDescriptor {
     }
     
     /**
+     * Returns true, if the file was opened for appending.
+     */
+    // 文件是否以append模式打开
+    private static native boolean getAppend(int fd);
+    
+    /**
+     * Set the fd.
+     * Used on Unix and for sockets on Windows and Unix.
+     * If setting to -1, clear the cleaner.
+     * The {@link #registerCleanup} method should be called for new fds.
+     *
+     * @param fd the raw fd or -1 to indicate closed
+     */
+    /*
+     * 设置文件描述符，常用于类UNIX系统。
+     * 在socket编程中，也会将此方法用于Windows系统。
+     * 如果fd为-1，则开始清理资源。
+     */
+    @SuppressWarnings("unchecked")
+    synchronized void set(int fd) {
+        if(fd == -1 && cleanup != null) {
+            cleanup.clear();
+            cleanup = null;
+        }
+        this.fd = fd;
+    }
+    
+    /**
      * Attach a Closeable to this FD for tracking.
      * parent reference is added to otherParents when needed to make closeAll simpler.
      */
     /*
-     * 将打开的流关联到文件描述符上
+     * 将指定的文件(流)记录到当前关联的文件描述符中
      *
      * 如果FileDescriptor只和一个FileInputStream/FileOutputStream/RandomAccessFile有关联，则将流简单的保存到parent成员中。
      * 如果FileDescriptor和多个FileInputStream/FileOutputStream/RandomAccessFile有关联，则所有关联的Closeable流都被保存到otherParents这个ArrayList中。
@@ -381,7 +402,6 @@ public final class FileDescriptor {
                     }
                 }
             }
-            /* 此段不注释的话有语法错误 */
 //            catch(IOException ex) {
 //                /*
 //                 * If releaser close() throws IOException, add other exceptions as suppressed.
@@ -401,4 +421,5 @@ public final class FileDescriptor {
      * Close the raw file descriptor or handle, if it has not already been closed and set the fd and handle to -1.
      */
     private native void close0() throws IOException;
+    
 }

@@ -65,20 +65,21 @@ import java.util.StringJoiner;
  * @see java.lang.Class#getDeclaredMethod(String, Class[])
  * @since 1.1
  */
-// 反射元素-方法（在注解中的方法也被称为属性）
+// 反射元素-方法（在注解接口中的方法也被称为属性）
 public final class Method extends Executable {
-    private volatile MethodAccessor methodAccessor;
     
-    private Class<?> clazz;
+    private volatile MethodAccessor methodAccessor; // 方法访问器，用于对方法的反射调用
     
-    private int slot;
+    private int slot;   // 当前方法在宿主类方法中的序号
+    
+    private Class<?> clazz; // 当前方法所在的类
     
     // This is guaranteed to be interned by the VM in the 1.4 reflection implementation
-    private String name;
-    private Class<?> returnType;
-    private Class<?>[] parameterTypes;
-    private Class<?>[] exceptionTypes;
-    private int modifiers;
+    private String name;                // 方法名称
+    private Class<?> returnType;        // 方法的返回类型
+    private Class<?>[] parameterTypes;  // 方法的形参列表
+    private Class<?>[] exceptionTypes;  // 方法抛出的异常列表
+    private int modifiers;              // 方法的修饰符
     
     // Generics and annotations support
     private transient String signature;
@@ -86,15 +87,16 @@ public final class Method extends Executable {
     // generic info repository; lazily initialized
     private transient MethodRepository genericInfo;
     
-    private byte[] annotations;
-    private byte[] parameterAnnotations;
-    private byte[] annotationDefault;
+    private byte[] annotations;             // 作用在方法上的注解(以字节形式表示，用在反射中)
+    private byte[] parameterAnnotations;    // 作用在方法形参上的注解(以字节形式表示，用在反射中)
+    private byte[] annotationDefault;       // 注解接口中方法(属性)的默认值(以字节形式表示，用在反射中)
     
     /**
      * For sharing of MethodAccessors.
      * This branching structure is currently only two levels deep (i.e., one root Method and potentially many Method objects pointing to it.)
      * If this branching structure would ever contain cycles, deadlocks can occur in annotation code.
      */
+    // 如果当前Method是复制来的，此处保存它的复制源
     private Method root;
     
     
@@ -125,21 +127,35 @@ public final class Method extends Executable {
     
     
     
-    /*▼ 使用方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 设置可访问性 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * @throws InaccessibleObjectException {@inheritDoc}
      * @throws SecurityException           {@inheritDoc}
      */
-    // 禁用/启用安全检查。访问private的Method/Field/Constructor时必须禁用安全检查，即setAccessible(true)
+    // 开启/关闭对当前元素的反射访问权限。访问private的Method时必须禁用安全检查，以开启访问权限，即setAccessible(true)
     @Override
     @CallerSensitive
     public void setAccessible(boolean flag) {
         AccessibleObject.checkPermission();
-        if(flag)
-            checkCanSetAccessible(Reflection.getCallerClass());
+    
+        // 如果需要开启访问权限
+        if(flag) {
+            // 获取setAccessible()的调用者所处的类
+            Class<?> caller = Reflection.getCallerClass();
+        
+            // 判断caller是否可以访问当前元素(涉及到exports和opens的判断)
+            checkCanSetAccessible(caller);
+        }
+    
         setAccessible0(flag);
     }
+    
+    /*▲ 设置可访问性 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 使用方法 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Invokes the underlying method represented by this {@code Method}
@@ -204,14 +220,21 @@ public final class Method extends Executable {
     @ForceInline
     @HotSpotIntrinsicCandidate
     public Object invoke(Object obj, Object... args) throws IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+        // 如果没有禁用安全检查，那么需要检查显式访问权限
         if(!override) {
+            // 获取invoke()方法的调用者所处的类
             Class<?> caller = Reflection.getCallerClass();
+        
+            // 判断是否可以在caller中反射调用当前元素指示的方法
             checkAccess(caller, clazz, Modifier.isStatic(modifiers) ? null : obj.getClass(), modifiers);
         }
-        MethodAccessor ma = methodAccessor;             // read volatile
+    
+        MethodAccessor ma = methodAccessor;     // read volatile
         if(ma == null) {
+            // 获取方法访问器
             ma = acquireMethodAccessor();
         }
+    
         return ma.invoke(obj, args);
     }
     
@@ -246,10 +269,11 @@ public final class Method extends Executable {
     @Override
     @SuppressWarnings({"rawtypes", "unchecked"})
     public TypeVariable<Method>[] getTypeParameters() {
-        if(getGenericSignature() != null)
+        if(getGenericSignature() != null) {
             return (TypeVariable<Method>[]) getGenericInfo().getTypeParameters();
-        else
+        } else {
             return (TypeVariable<Method>[]) new TypeVariable[0];
+        }
     }
     
     /*▲ 2. 方法引入的TypeVariable ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -664,8 +688,7 @@ public final class Method extends Executable {
      */
     // 是否为接口中的default方法
     public boolean isDefault() {
-        // Default methods are public non-abstract instance methods
-        // declared in an interface.
+        // Default methods are public non-abstract instance methods declared in an interface.
         return ((getModifiers() & (Modifier.ABSTRACT | Modifier.PUBLIC | Modifier.STATIC)) == Modifier.PUBLIC) && getDeclaringClass().isInterface();
     }
     
@@ -684,20 +707,24 @@ public final class Method extends Executable {
      *                                 default class value.
      * @since 1.5
      */
-    // 返回注解类中方法的默认值，其它情形下返回null
+    // 返回当前方法(属性)在注解接口中的默认值(非注解接口情形下返回null)
     public Object getDefaultValue() {
-        if(annotationDefault == null)
+        if(annotationDefault == null) {
             return null;
+        }
+    
         Class<?> memberType = AnnotationType.invocationHandlerReturnType(getReturnType());
-        Object result = AnnotationParser.parseMemberValue(memberType, ByteBuffer.wrap(annotationDefault), SharedSecrets.getJavaLangAccess().
-            getConstantPool(getDeclaringClass()), getDeclaringClass());
+    
+        Object result = AnnotationParser.parseMemberValue(memberType, ByteBuffer.wrap(annotationDefault), SharedSecrets.getJavaLangAccess().getConstantPool(getDeclaringClass()), getDeclaringClass());
         if(result instanceof ExceptionProxy) {
             if(result instanceof TypeNotPresentExceptionProxy) {
                 TypeNotPresentExceptionProxy proxy = (TypeNotPresentExceptionProxy) result;
                 throw new TypeNotPresentException(proxy.typeName(), proxy.getCause());
             }
+        
             throw new AnnotationFormatError("Invalid default: " + this);
         }
+    
         return result;
     }
     
@@ -720,6 +747,7 @@ public final class Method extends Executable {
                 return equalParamTypes(parameterTypes, other.parameterTypes);
             }
         }
+    
         return false;
     }
     
@@ -733,11 +761,7 @@ public final class Method extends Executable {
     }
     
     
-    
-    
-    
-    
-    // Accessor for generic info repository
+    /** Accessor for generic info repository */
     @Override
     MethodRepository getGenericInfo() {
         // lazily initialize repository if necessary
@@ -745,29 +769,28 @@ public final class Method extends Executable {
             // create and cache generic info repository
             genericInfo = MethodRepository.make(getGenericSignature(), getFactory());
         }
+    
         return genericInfo; //return cached repository
     }
     
     /**
-     * Package-private routine (exposed to java.lang.Class via
-     * ReflectAccess) which returns a copy of this Method. The copy's
-     * "root" field points to this Method.
+     * Package-private routine (exposed to java.lang.Class via ReflectAccess) which returns a copy of this Method.
+     * The copy's "root" field points to this Method.
      */
     Method copy() {
-        // This routine enables sharing of MethodAccessor objects
-        // among Method objects which refer to the same underlying
-        // method in the VM. (All of this contortion is only necessary
-        // because of the "accessibility" bit in AccessibleObject,
-        // which implicitly requires that new java.lang.reflect
-        // objects be fabricated for each reflective call on Class
-        // objects.)
-        if(this.root != null)
+        /*
+         * This routine enables sharing of MethodAccessor objects among Method objects which refer to the same underlying method in the VM.
+         * (All of this contortion is only necessary because of the "accessibility" bit in AccessibleObject,
+         * which implicitly requires that new java.lang.reflect objects be fabricated for each reflective call on Class objects.)
+         */
+        if(this.root != null) {
             throw new IllegalArgumentException("Can not copy a non-root Method");
-        
+        }
+    
         Method res = new Method(clazz, name, parameterTypes, returnType, exceptionTypes, modifiers, slot, signature, annotations, parameterAnnotations, annotationDefault);
         res.root = this;
-        // Might as well eagerly propagate this if already present
-        res.methodAccessor = methodAccessor;
+        res.methodAccessor = methodAccessor;    // Might as well eagerly propagate this if already present
+    
         return res;
     }
     
@@ -775,12 +798,14 @@ public final class Method extends Executable {
      * Make a copy of a leaf method.
      */
     Method leafCopy() {
-        if(this.root == null)
+        if(this.root == null) {
             throw new IllegalArgumentException("Can only leafCopy a non-root Method");
+        }
         
         Method res = new Method(clazz, name, parameterTypes, returnType, exceptionTypes, modifiers, slot, signature, annotations, parameterAnnotations, annotationDefault);
         res.root = root;
         res.methodAccessor = methodAccessor;
+    
         return res;
     }
     
@@ -844,14 +869,15 @@ public final class Method extends Executable {
         sb.append(getName());
     }
     
-    // Returns MethodAccessor for this Method object, not looking up the chain to the root
+    /** Returns MethodAccessor for this Method object, not looking up the chain to the root */
     MethodAccessor getMethodAccessor() {
         return methodAccessor;
     }
     
-    // Sets the MethodAccessor for this Method object and (recursively) its root
+    /** Sets the MethodAccessor for this Method object and (recursively) its root */
     void setMethodAccessor(MethodAccessor accessor) {
         methodAccessor = accessor;
+    
         // Propagate up
         if(root != null) {
             root.setMethodAccessor(accessor);
@@ -874,21 +900,26 @@ public final class Method extends Executable {
         return CoreReflectionFactory.make(this, MethodScope.make(this));
     }
     
-    // NOTE that there is no synchronization used here. It is correct
-    // (though not efficient) to generate more than one MethodAccessor
-    // for a given Method. However, avoiding synchronization will
-    // probably make the implementation more scalable.
+    /**
+     * NOTE that there is no synchronization used here.
+     * It is correct (though not efficient) to generate more than one MethodAccessor for a given Method.
+     * However, avoiding synchronization will probably make the implementation more scalable.
+     */
+    // 返回当前方法的访问器
     private MethodAccessor acquireMethodAccessor() {
-        // First check to see if one has been created yet, and take it
-        // if so
+        // First check to see if one has been created yet, and take it if so
         MethodAccessor tmp = null;
-        if(root != null)
+        
+        if(root != null) {
             tmp = root.getMethodAccessor();
+        }
+        
         if(tmp != null) {
             methodAccessor = tmp;
         } else {
-            // Otherwise fabricate one and propagate it up to the root
+            /* Otherwise fabricate one and propagate it up to the root */
             tmp = reflectionFactory.newMethodAccessor(this);
+            
             setMethodAccessor(tmp);
         }
         

@@ -40,11 +40,14 @@ import java.lang.reflect.Field;
  * @see ObjectStreamClass
  * @since 1.2
  */
-// 代表可被序列化的字段。即指定哪些字段将参与序列化，并封装这些参与序列化的字段信息
+/*
+ * 代表可被序列化的字段。即指定哪些字段将参与序列化，并封装这些参与序列化的字段信息。
+ * 所有可被序列化的字段需要封装为一个ObjectStreamField数组，且数组变量名必须为serialPersistentFields。
+ */
 public class ObjectStreamField implements Comparable<Object> {
     
     /** corresponding reflective field object, if any */
-    // 封装的字段
+    // 封装的字段(可能为null)
     private final Field field;
     
     /** field name */
@@ -59,13 +62,16 @@ public class ObjectStreamField implements Comparable<Object> {
     // JVM规范签名
     private final String signature;
     
-    /** whether or not to (de)serialize field values as unshared */
-    private final boolean unshared;
-    
     /** lazily constructed signature for the type, if no explicit signature */
+    // JVM规范签名(懒加载生成)
     private String typeSignature;
     
+    /** whether or not to (de)serialize field values as unshared */
+    // 字段是否非共享(共享字段会共用一段序列化信息)
+    private final boolean unshared;
+    
     /** offset of field value in enclosing field group */
+    // 当前字段在所有待序列化字段中的偏移量(以字节为偏移单位)
     private int offset;
     
     
@@ -266,6 +272,7 @@ public class ObjectStreamField implements Comparable<Object> {
      *
      * REMIND: deprecate?
      */
+    // 返回字段的偏移量
     public int getOffset() {
         return offset;
     }
@@ -279,6 +286,7 @@ public class ObjectStreamField implements Comparable<Object> {
      *
      * REMIND: deprecate?
      */
+    // 设置字段的偏移量
     protected void setOffset(int offset) {
         this.offset = offset;
     }
@@ -304,6 +312,7 @@ public class ObjectStreamField implements Comparable<Object> {
      *
      * @since 1.4
      */
+    // 判断当前字段是否非共享
     public boolean isUnshared() {
         return unshared;
     }

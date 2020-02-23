@@ -33,23 +33,50 @@ package java.util.regex;
  * groups and group boundaries can be seen but not modified through
  * a {@code MatchResult}.
  *
- * @author  Michael McCloskey
+ * @author Michael McCloskey
  * @see Matcher
  * @since 1.5
  */
+// 使用正则表达式匹配到的目标串的匹配信息（存储了匹配文本的位置信息）
 public interface MatchResult {
-
+    
+    /**
+     * Returns the number of capturing groups in this match result's pattern.
+     *
+     * <p> Group zero denotes the entire pattern by convention. It is not
+     * included in this count.
+     *
+     * <p> Any non-negative integer smaller than or equal to the value
+     * returned by this method is guaranteed to be a valid group index for
+     * this matcher.  </p>
+     *
+     * @return The number of capturing groups in this matcher's pattern
+     */
+    // 获取当前正则表达式中的捕获组数量
+    int groupCount();
+    
     /**
      * Returns the start index of the match.
      *
-     * @return  The index of the first character matched
+     * @return The index of the first character matched
      *
-     * @throws  IllegalStateException
-     *          If no match has yet been attempted,
-     *          or if the previous match operation failed
+     * @throws IllegalStateException If no match has yet been attempted,
+     *                               or if the previous match operation failed
      */
-    public int start();
-
+    // 获取上次匹配到的文本起点（包含）
+    int start();
+    
+    /**
+     * Returns the offset after the last character matched.
+     *
+     * @return The offset after the last character matched
+     *
+     * @throws IllegalStateException If no match has yet been attempted,
+     *                               or if the previous match operation failed
+     */
+    // 获取上次匹配到的文本终点（不包含）
+    int end();
+    
     /**
      * Returns the start index of the subsequence captured by the given group
      * during this match.
@@ -59,34 +86,20 @@ public interface MatchResult {
      * the expression <i>m.</i>{@code start(0)} is equivalent to
      * <i>m.</i>{@code start()}.  </p>
      *
-     * @param  group
-     *         The index of a capturing group in this matcher's pattern
+     * @param group The index of a capturing group in this matcher's pattern
      *
-     * @return  The index of the first character captured by the group,
-     *          or {@code -1} if the match was successful but the group
-     *          itself did not match anything
+     * @return The index of the first character captured by the group,
+     * or {@code -1} if the match was successful but the group
+     * itself did not match anything
      *
-     * @throws  IllegalStateException
-     *          If no match has yet been attempted,
-     *          or if the previous match operation failed
-     *
-     * @throws  IndexOutOfBoundsException
-     *          If there is no capturing group in the pattern
-     *          with the given index
+     * @throws IllegalStateException     If no match has yet been attempted,
+     *                                   or if the previous match operation failed
+     * @throws IndexOutOfBoundsException If there is no capturing group in the pattern
+     *                                   with the given index
      */
-    public int start(int group);
-
-    /**
-     * Returns the offset after the last character matched.
-     *
-     * @return  The offset after the last character matched
-     *
-     * @throws  IllegalStateException
-     *          If no match has yet been attempted,
-     *          or if the previous match operation failed
-     */
-    public int end();
-
+    // 获取group捕获组中上次匹配到的文本起点（包含）
+    int start(int group);
+    
     /**
      * Returns the offset after the last character of the subsequence
      * captured by the given group during this match.
@@ -96,23 +109,20 @@ public interface MatchResult {
      * the expression <i>m.</i>{@code end(0)} is equivalent to
      * <i>m.</i>{@code end()}.  </p>
      *
-     * @param  group
-     *         The index of a capturing group in this matcher's pattern
+     * @param group The index of a capturing group in this matcher's pattern
      *
-     * @return  The offset after the last character captured by the group,
-     *          or {@code -1} if the match was successful
-     *          but the group itself did not match anything
+     * @return The offset after the last character captured by the group,
+     * or {@code -1} if the match was successful
+     * but the group itself did not match anything
      *
-     * @throws  IllegalStateException
-     *          If no match has yet been attempted,
-     *          or if the previous match operation failed
-     *
-     * @throws  IndexOutOfBoundsException
-     *          If there is no capturing group in the pattern
-     *          with the given index
+     * @throws IllegalStateException     If no match has yet been attempted,
+     *                                   or if the previous match operation failed
+     * @throws IndexOutOfBoundsException If there is no capturing group in the pattern
+     *                                   with the given index
      */
-    public int end(int group);
-
+    // 获取group捕获组中上次匹配到的文本终点（不包含）
+    int end(int group);
+    
     /**
      * Returns the input subsequence matched by the previous match.
      *
@@ -126,14 +136,14 @@ public interface MatchResult {
      * successfully matches the empty string in the input.  </p>
      *
      * @return The (possibly empty) subsequence matched by the previous match,
-     *         in string form
+     * in string form
      *
-     * @throws  IllegalStateException
-     *          If no match has yet been attempted,
-     *          or if the previous match operation failed
+     * @throws IllegalStateException If no match has yet been attempted,
+     *                               or if the previous match operation failed
      */
-    public String group();
-
+    // 获取整个正则表达式匹配到的目标串
+    String group();
+    
     /**
      * Returns the input subsequence captured by the given group during the
      * previous match operation.
@@ -155,35 +165,18 @@ public interface MatchResult {
      * This method will return the empty string when such a group successfully
      * matches the empty string in the input.  </p>
      *
-     * @param  group
-     *         The index of a capturing group in this matcher's pattern
+     * @param group The index of a capturing group in this matcher's pattern
      *
-     * @return  The (possibly empty) subsequence captured by the group
-     *          during the previous match, or {@code null} if the group
-     *          failed to match part of the input
+     * @return The (possibly empty) subsequence captured by the group
+     * during the previous match, or {@code null} if the group
+     * failed to match part of the input
      *
-     * @throws  IllegalStateException
-     *          If no match has yet been attempted,
-     *          or if the previous match operation failed
-     *
-     * @throws  IndexOutOfBoundsException
-     *          If there is no capturing group in the pattern
-     *          with the given index
+     * @throws IllegalStateException     If no match has yet been attempted,
+     *                                   or if the previous match operation failed
+     * @throws IndexOutOfBoundsException If there is no capturing group in the pattern
+     *                                   with the given index
      */
-    public String group(int group);
-
-    /**
-     * Returns the number of capturing groups in this match result's pattern.
-     *
-     * <p> Group zero denotes the entire pattern by convention. It is not
-     * included in this count.
-     *
-     * <p> Any non-negative integer smaller than or equal to the value
-     * returned by this method is guaranteed to be a valid group index for
-     * this matcher.  </p>
-     *
-     * @return The number of capturing groups in this matcher's pattern
-     */
-    public int groupCount();
-
+    // 获取正则表达式中第group个捕获组匹配到的目标串
+    String group(int group);
+    
 }

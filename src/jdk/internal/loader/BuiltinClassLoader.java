@@ -93,16 +93,19 @@ import jdk.internal.module.Resources;
 public class BuiltinClassLoader extends SecureClassLoader {
     
     /** maps package name to loaded module for modules in the boot layer */
+    // 内置类加载器加载的<包名, 模块>的映射，为所有类加载器共享
     private static final Map<String, LoadedModule> packageToModule = new ConcurrentHashMap<>(1024);
     
     /** maps a module name to a module reference */
+    // 当前类加载器加载的<模块名, 模块引用>映射
     private final Map<String, ModuleReference> nameToModule;
     
     /** maps a module reference to a module reader */
+    // 当前类加载器加载的<模块引用, 模块阅读器>映射，通常当被加载模块未编译时用到
     private final Map<ModuleReference, ModuleReader> moduleToReader;
     
     /** cache of resource name -> list of URLs. used only for resources that are not in module packages */
-    // 缓存已搜索资源名称与其URL的映射
+    // 缓存当前类加载器已搜索过的资源名称与其URL的映射
     private volatile SoftReference<Map<String, List<URL>>> resourceCache;
     
     /*
@@ -116,13 +119,14 @@ public class BuiltinClassLoader extends SecureClassLoader {
      */
     private final BuiltinClassLoader parent;
     
-    // the URL class path, or null if there is no class path
+    /** the URL class path, or null if there is no class path */
+    // 当前类加载器关联的类路径
     private final URLClassPath ucp;
     
     
     static {
         // 将当前类加载器注册为并行
-        if(!ClassLoader.registerAsParallelCapable()){
+        if(!ClassLoader.registerAsParallelCapable()) {
             throw new InternalError("Unable to register as parallel capable");
         }
     }
@@ -149,72 +153,60 @@ public class BuiltinClassLoader extends SecureClassLoader {
     
     
     
-    /*▼ 加载资源 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /* ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ */
-    
-    /**
-     * Returns a URL to a resource of the given name in a module defined to this class loader.
-     */
-    // 查找首个匹配的资源，并返回其URL。或者在指定模块中查找，或者在当前类加载器的类路径上查找
-    @Override
-    public URL findResource(String moduleName, String resName) throws IOException {
-        URL url = null;
-        
-        if(moduleName != null) {
-            // find in module
-            ModuleReference mref = nameToModule.get(moduleName);
-            if(mref != null) {
-                // 尝试在指定的模块中搜索匹配的资源
-                url = findResource(mref, resName);
-            }
-        } else {
-            // 尝试在类路径下搜索首个匹配的资源
-            url = findResourceOnClassPath(resName);
-        }
-        
-        return checkURL(url);  // check access before returning
-    }
+    /*▼ 查找资源(局部) ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Finds a resource with the given name in the modules defined to this class loader or its class path.
      */
     /*
-     * 在模块/类路径下搜索首个匹配的资源（遍历所有可能的位置，一发现匹配资源就返回），查找过程如下：
+     * 在当前类加载器可以访问到的模块路径/类路径下搜索首个匹配的资源（遍历所有可能的位置，一发现匹配资源就返回）
      *
-     * 1.如果资源位于模块中，在指定的模块中查找匹配的资源
-     * 2.如果资源不在模块中，尝试搜索当前类加载器定义的所有模块
-     * 3.如果经过1/2没找到，再去当前类加载器定义的类路径下搜索
-     * 4.在1/2/3中哪一步先找到匹配的资源，就立即返回
+     * 注：resName是相对于模块路径或类路径的根目录下的相对路径
      */
     @Override
     public URL findResource(String resName) {
-        // 将资源所在目录转换为包名形式
+        // 获取待查找资源所在的包
         String packageName = Resources.toPackageName(resName);
-        
-        // 获取待加载资源的定位信息
+    
+        // 获取待查找资源所在的模块
         LoadedModule module = packageToModule.get(packageName);
-        
+    
+        // 如果找到了对应的模块，说明之前加载过该"包"内的类
         if(module != null) {
-            // resource is in a package of a module defined to this loader
+            /*
+             * resource is in a package of a module defined to this loader
+             *
+             * 如果目标模块的类加载器就是当前类加载器，则可以直接使用当前类加载器查找资源；
+             * 否则，该资源所在的包可能是由别的类加载器加载的，当前类加载器无权过问。
+             */
             if(module.loader() == this) {
                 URL url;
                 try {
-                    // 查找首个匹配的资源，并返回其URL。或者在指定模块中查找，或者在当前类加载器的类路径上查找
-                    url = findResource(module.name(), resName); // checks URL
+                    // 在指定的模块路径或当前类加载器的类路径下查找匹配的资源
+                    url = findResource(module.name(), resName);
                 } catch(IOException ioe) {
                     return null;
                 }
-                
-                if(url != null && (resName.endsWith(".class") || url.toString().endsWith("/") || isOpen(module.mref(), packageName))) {
-                    return url;
+        
+                // 如果找到了该资源
+                if(url != null) {
+                    // 满足以下条件时才能返回资源的URL
+                    if(resName.endsWith(".class")               // 待查找资源以".class"结尾
+                        || url.toString().endsWith("/")         // 或者，待查找资源是目录
+                        || isOpen(module.mref(), packageName)) { // 或者，目标模块将资源所在的包packageName开放(opens)给了所有其它模块
+                        return url;
+                    }
                 }
             }
+    
+            // 如果资源位于未命名模块，或者资源所在的命名模块不是当前类加载器加载的
         } else {
             // not in a module package but may be in module defined to this loader
             try {
-                // 尝试在当前类加载器定义的所有模块内查找所有匹配的资源
+                // 尝试在当前类加载器下辖的所有模块内查找所有匹配的资源
                 List<URL> urls = findMiscResource(resName);
+    
+                // 如果存在目标资源
                 if(!urls.isEmpty()) {
                     URL url = urls.get(0);
                     // 一旦发现首个匹配的资源就立即返回
@@ -226,18 +218,42 @@ public class BuiltinClassLoader extends SecureClassLoader {
                 return null;
             }
         }
-        
-        // 尝试在类路径下搜索首个匹配的资源
+    
+        // 尝试在当前类加载器关联的类路径(的根目录)下搜索首个匹配的资源
         URL url = findResourceOnClassPath(resName);
-        
+    
         // 检查url的可访问性
         return checkURL(url);
     }
     
-    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
-    
-    
-    /* ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ */
+    /**
+     * Returns a URL to a resource of the given name in a module defined to this class loader.
+     */
+    /*
+     * 在指定的模块路径或当前类加载器的类路径下查找匹配的资源
+     *
+     * 如果moduleName为null，则在当前类加载器关联的类路径(根目录)下查找首个匹配的资源
+     * 如果moduleName不为null，则在模块路径(根目录)下查找首个匹配的资源
+     */
+    @Override
+    public URL findResource(String moduleName, String resName) throws IOException {
+        URL url = null;
+        
+        // find in classpath
+        if(moduleName == null) {
+            // 尝试在当前类加载器关联的类路径(根目录)下搜索首个匹配的资源
+            url = findResourceOnClassPath(resName);
+        } else {
+            // find in module
+            ModuleReference mref = nameToModule.get(moduleName);
+            if(mref != null) {
+                // 尝试在指定模块的模块路径(根目录)中搜索匹配的资源
+                url = findResource(mref, resName);
+            }
+        }
+        
+        return checkURL(url);  // check access before returning
+    }
     
     /**
      * Returns an enumeration of URL objects to all the resources with the
@@ -245,37 +261,51 @@ public class BuiltinClassLoader extends SecureClassLoader {
      * path of this loader.
      */
     /*
-     * 在模块/类路径下搜索所有匹配的资源（遍历所有可能的位置，找出所有匹配资源才返回），查找过程如下：
+     * 在当前类加载器下辖的模块路径/类路径的根目录下搜索所有匹配的资源
      *
-     * 1.如果资源位于模块中，在指定的模块中查找匹配的资源
-     * 2.如果资源不在模块中，尝试搜索当前类加载器定义的所有模块
-     * 3.等1/2完成后，再去当前类加载器定义的类路径下搜索
-     * 4.最后合并1/2/3中的查找结果
+     * 注：resName是相对于模块路径或类路径的根目录下的相对路径
      */
     @Override
     public Enumeration<URL> findResources(String resName) throws IOException {
+    
+        // 缓存在模块路径下找到的资源
         List<URL> checked = new ArrayList<>();  // list of checked URLs
-        
-        // 将资源所在目录转换为包名形式
+    
+        // 获取待查找资源所在的包
         String packageName = Resources.toPackageName(resName);
-        
+    
         // 获取待加载资源的定位信息
         LoadedModule module = packageToModule.get(packageName);
-        
+    
+        // 如果找到了对应的模块，说明之前加载过该"包"内的类
         if(module != null) {
-            // resource is in a package of a module defined to this loader
+            /*
+             * resource is in a package of a module defined to this loader
+             *
+             * 如果目标模块的类加载器就是当前类加载器，则可以直接使用当前类加载器查找资源；
+             * 否则，该资源所在的包可能是由别的类加载器加载的，当前类加载器无权过问。
+             */
             if(module.loader() == this) {
-                // 查找首个匹配的资源，并返回其输入流。或者在指定模块中查找，或者在当前类加载器的类路径上查找
+                // 在指定的模块路径或当前类加载器的类路径下查找匹配的资源
                 URL url = findResource(module.name(), resName); // checks URL
-                
-                if(url != null && (resName.endsWith(".class") || url.toString().endsWith("/") || isOpen(module.mref(), packageName))) {
-                    checked.add(url);
+            
+                // 如果找到了该资源
+                if(url != null) {
+                    // 满足以下条件时才能返回资源的URL
+                    if(resName.endsWith(".class")               // 待查找资源以".class"结尾
+                        || url.toString().endsWith("/")         // 或者，待查找资源是目录
+                        || isOpen(module.mref(), packageName)) { // 或者，目标模块将资源所在的包packageName开放(opens)给了所有其它模块
+                        checked.add(url);
+                    }
                 }
             }
         } else {
             /* not in a package of a module defined to this loader */
-            // 尝试在当前类加载器定义的所有模块内查找所有匹配的资源
-            for(URL url : findMiscResource(resName)) {
+            // 尝试在当前类加载器下辖的所有模块内查找所有匹配的资源
+            List<URL> urls = findMiscResource(resName);
+        
+            // 检查找到的资源路径
+            for(URL url : urls) {
                 url = checkURL(url);
                 // 一旦发现匹配的资源就缓存起来
                 if(url != null) {
@@ -283,21 +313,22 @@ public class BuiltinClassLoader extends SecureClassLoader {
                 }
             }
         }
-        
+    
         /* class path (not checked) */
         // 尝试在类路径上搜索所有匹配的资源
-        Enumeration<URL> e = findResourcesOnClassPath(resName);
-        
-        // concat the checked URLs and the (not checked) class path
+        Enumeration<URL> enumeration = findResourcesOnClassPath(resName);
+    
+        /* concat the checked URLs and the (not checked) class path */
+        // 连接模块路径和类路径下找到的所有资源
         return new Enumeration<>() {
             final Iterator<URL> iterator = checked.iterator();
             URL next;
-            
+        
             @Override
             public boolean hasMoreElements() {
                 return hasNext();
             }
-            
+        
             @Override
             public URL nextElement() {
                 if(hasNext()) {
@@ -317,8 +348,8 @@ public class BuiltinClassLoader extends SecureClassLoader {
                     return true;
                 } else {
                     // need to check each URL
-                    while(e.hasMoreElements() && next == null) {
-                        next = checkURL(e.nextElement());
+                    while(enumeration.hasMoreElements() && next == null) {
+                        next = checkURL(enumeration.nextElement());
                     }
                     return next != null;
                 }
@@ -326,53 +357,75 @@ public class BuiltinClassLoader extends SecureClassLoader {
         };
     }
     
-    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
-    
-    
-    /* ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ */
-    
     /**
      * Returns an input stream to a resource of the given name in a module defined to this class loader.
      */
-    // 查找首个匹配的资源，并返回其输入流。或者在指定模块中查找，或者在当前类加载器的类路径上查找
+    // 在指定的模块路径(根目录)或当前类加载器关联的类路径(根目录)下查找匹配的资源；如果成功找到资源，则返回其入流
     public InputStream findResourceAsStream(String moduleName, String resName) throws IOException {
-        // Need URL to resource when running with a security manager so that the right permission check is done.
-        if(System.getSecurityManager() != null || moduleName == null) {
-            URL url = findResource(moduleName, resName);
-            
-            return (url != null) ? url.openStream() : null;
-        }
+    
+        /* find in module defined to this loader, no security manager */
+        // 如果不存在安全管理器，且模块名非空，进行快捷查找
+        if(System.getSecurityManager() == null && moduleName != null) {
         
-        // find in module defined to this loader, no security manager
-        ModuleReference mref = nameToModule.get(moduleName);
-        if(mref != null) {
+            // 查找模块引用
+            ModuleReference mref = nameToModule.get(moduleName);
+            if(mref == null) {
+                return null;
+            }
+        
+            // 获取模块阅读器，以便读取指定的模块
             ModuleReader moduleReader = moduleReaderFor(mref);
+        
+            // 打开模块中指定资源的输入流以便外界读取
             Optional<InputStream> streamOptional = moduleReader.open(resName);
+        
             return streamOptional.orElse(null);
         } else {
-            return null;
+            // 在指定的模块路径或当前类加载器的类路径下查找匹配的资源
+            URL url = findResource(moduleName, resName);
+        
+            return (url != null) ? url.openStream() : null;
         }
+    
     }
     
-    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
     
-    
-    /* ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ */
+    /**
+     * Returns a URL to a resource on the class path.
+     */
+    // 尝试在当前类加载器关联的类路径(根目录)下搜索首个匹配的资源
+    private URL findResourceOnClassPath(String resName) {
+        // 如果当前类加载器没有关联类路径，返回null
+        if(!hasClassPath()) {
+            return null;    // no class path
+        }
+        
+        // 不存在安全管理器
+        if(System.getSecurityManager() == null) {
+            return ucp.findResource(resName, false);
+        }
+        
+        PrivilegedAction<URL> pa = () -> ucp.findResource(resName, false);
+        return AccessController.doPrivileged(pa);
+    }
     
     /**
      * Returns the URL to a resource in a module or {@code null} if not found.
      */
-    // 尝试在指定的模块中搜索匹配的资源
+    // 尝试在指定模块的模块路径(根目录)中搜索匹配的资源
     private URL findResource(ModuleReference mref, String resName) throws IOException {
-        URI u;
+        URI uri;
         
+        // 不存在安全管理器
         if(System.getSecurityManager() == null) {
+            // 获取模块阅读器，以便读取指定的模块
             ModuleReader moduleReader = moduleReaderFor(mref);
+            // 返回指定资源在模块中的位置
             Optional<URI> uriOptional = moduleReader.find(resName);
-            u = uriOptional.orElse(null);
+            uri = uriOptional.orElse(null);
         } else {
             try {
-                u = AccessController.doPrivileged(new PrivilegedExceptionAction<>() {
+                uri = AccessController.doPrivileged(new PrivilegedExceptionAction<>() {
                     @Override
                     public URI run() throws IOException {
                         ModuleReader moduleReader = moduleReaderFor(mref);
@@ -385,10 +438,10 @@ public class BuiltinClassLoader extends SecureClassLoader {
             }
         }
         
-        if(u != null) {
+        if(uri != null) {
             try {
-                return u.toURL();
-            } catch(MalformedURLException | IllegalArgumentException e) {
+                return uri.toURL();
+            } catch(MalformedURLException | IllegalArgumentException ignored) {
             }
         }
         
@@ -396,13 +449,12 @@ public class BuiltinClassLoader extends SecureClassLoader {
     }
     
     /**
-     * Returns the URL to a resource in a module. Returns {@code null} if not found
-     * or an I/O error occurs.
+     * Returns the URL to a resource in a module. Returns {@code null} if not found or an I/O error occurs.
      */
-    // 尝试在指定的模块中搜索匹配的资源。发生IO异常时会返回null
+    // 尝试在指定模块的模块路径(根目录)中搜索匹配的资源；发生IOException时返回null
     private URL findResourceOrNull(ModuleReference mref, String resName) {
         try {
-            // 尝试在指定的模块中搜索匹配的资源
+            // 尝试在指定模块的模块路径(根目录)中搜索匹配的资源
             return findResource(mref, resName);
         } catch(IOException ignore) {
             return null;
@@ -415,7 +467,7 @@ public class BuiltinClassLoader extends SecureClassLoader {
      *
      * The cache used by this method avoids repeated searching of all modules.
      */
-    // 尝试在当前类加载器定义的所有模块内查找所有匹配的资源
+    // 尝试在当前类加载器下辖的所有模块内查找所有匹配的资源
     private List<URL> findMiscResource(String resName) throws IOException {
         
         // 获取当前类加载器内已缓存的资源路径信息
@@ -430,8 +482,8 @@ public class BuiltinClassLoader extends SecureClassLoader {
                 return urls;
             }
         }
-        
-        // 搜索所有模块以定位资源
+    
+        // 存储在当前类加载器下辖的模块中查找到的目标资源
         List<URL> urls;
         
         try {
@@ -439,21 +491,26 @@ public class BuiltinClassLoader extends SecureClassLoader {
                 @Override
                 public List<URL> run() throws IOException {
                     List<URL> result = null;
-                    
-                    // 遍历所有模块引用，以查找该资源的路径信息
+    
+                    // 遍历当前类加载器加载过的所有模块，以便查找该资源的路径信息
                     for(ModuleReference mref : nameToModule.values()) {
+                        // 获取模块阅读器，以便读取指定的模块
                         ModuleReader moduleReader = moduleReaderFor(mref);
-                        Optional<URI> uriOptional = moduleReader.find(resName);
-                        URI u = uriOptional.orElse(null);
-                        
-                        if(u != null) {
-                            try {
-                                if(result == null) {
-                                    result = new ArrayList<>();
-                                }
-                                result.add(u.toURL());
-                            } catch(MalformedURLException | IllegalArgumentException ignored) {
+    
+                        // 返回指定资源在模块中的位置
+                        URI uri = moduleReader.find(resName).orElse(null);
+                        if(uri == null) {
+                            continue;
+                        }
+    
+                        try {
+                            if(result == null) {
+                                result = new ArrayList<>();
                             }
+        
+                            // 记录该资源的路径信息
+                            result.add(uri.toURL());
+                        } catch(MalformedURLException | IllegalArgumentException ignored) {
                         }
                     }
                     
@@ -466,7 +523,7 @@ public class BuiltinClassLoader extends SecureClassLoader {
         
         // only cache resources after VM is fully initialized
         if(VM.isModuleSystemInited()) {
-            // 缓存搜索过的资源和对应的URL列表
+            // 只有当模块系统初始化完成之后，才缓存搜索过的资源和对应的URL列表
             map.putIfAbsent(resName, urls);
         }
         
@@ -474,50 +531,31 @@ public class BuiltinClassLoader extends SecureClassLoader {
     }
     
     /**
-     * Returns a URL to a resource on the class path.
-     */
-    // 尝试在类路径下搜索首个匹配的资源
-    private URL findResourceOnClassPath(String resName) {
-        if(hasClassPath()) {
-            if(System.getSecurityManager() == null) {
-                return ucp.findResource(resName, false);
-            } else {
-                PrivilegedAction<URL> pa = () -> ucp.findResource(resName, false);
-                return AccessController.doPrivileged(pa);
-            }
-        } else {
-            // no class path
-            return null;
-        }
-    }
-    
-    /**
      * Returns the URLs of all resources of the given name on the class path.
      */
     // 尝试在类路径下搜索所有匹配的资源
     private Enumeration<URL> findResourcesOnClassPath(String resName) {
-        if(hasClassPath()) {
-            if(System.getSecurityManager() == null) {
-                return ucp.findResources(resName, false);
-            } else {
-                PrivilegedAction<Enumeration<URL>> pa = () -> ucp.findResources(resName, false);
-                return AccessController.doPrivileged(pa);
-            }
-        } else {
+        // 如果不存在类路径，返回一个空集
+        if(!hasClassPath()) {
             // no class path
             return Collections.emptyEnumeration();
         }
+    
+        // 存在安全管理器
+        if(System.getSecurityManager() != null) {
+            PrivilegedAction<Enumeration<URL>> pa = () -> ucp.findResources(resName, false);
+            return AccessController.doPrivileged(pa);
+        }
+    
+        // 不存在安全管理器
+        return ucp.findResources(resName, false);
     }
     
-    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
-    
-    /*▲ 加载资源 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 查找资源(局部) ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 加载类 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /* ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ */
     
     /**
      * Loads the class with the specified binary name.
@@ -527,87 +565,23 @@ public class BuiltinClassLoader extends SecureClassLoader {
     protected Class<?> loadClass(String className, boolean resolve) throws ClassNotFoundException {
         // 由给定的类名加载类。如果找不到该类则返回null
         Class<?> c = loadClassOrNull(className, resolve);
-        
+    
         if(c == null) {
             throw new ClassNotFoundException(className);
         }
-        
+    
         return c;
     }
     
     /**
-     * Finds the class with the specified binary name.
+     * A variation of {@code loadClass} to load a class with the specified
+     * binary name. This method returns {@code null} when the class is not
+     * found.
      */
-    // 定义类，如果该类在模块中，则在模块中定义该类，否则在类路径下定义（无法定义时抛异常）
-    @Override
-    protected Class<?> findClass(String className) throws ClassNotFoundException {
-        // no class loading until VM is fully initialized
-        if(!VM.isModuleSystemInited()) {
-            throw new ClassNotFoundException(className);
-        }
-        
-        // 返回指定类关联的定位信息，如果该类位于未命名的包中，则返回null
-        LoadedModule loadedModule = findLoadedModule(className);
-        
-        Class<?> c = null;
-        
-        if(loadedModule != null) {
-            // attempt to load class in module defined to this loader
-            if(loadedModule.loader() == this) {
-                // 在模块中定义指定的类
-                c = findClassInModuleOrNull(loadedModule, className);
-            }
-        } else {
-            // search class path
-            if(hasClassPath()) {
-                // 在类路径下定义指定的类
-                c = findClassOnClassPathOrNull(className);
-            }
-        }
-        
-        // not found
-        if(c == null) {
-            throw new ClassNotFoundException(className);
-        }
-        
-        return c;
+    // 由给定的类名加载类，常用于切换待加载类的上下文（切换使用的类加载器）
+    protected Class<?> loadClassOrNull(String className) {
+        return loadClassOrNull(className, false);
     }
-    
-    /**
-     * Finds the class with the specified binary name in a module.
-     * This method returns {@code null} if the class cannot be found
-     * or not defined in the specified module.
-     */
-    // 定义类，如果moduleName不为空，则在模块中定义该类，否则在类路径下定义（无法定义时返回null）
-    @Override
-    protected Class<?> findClass(String moduleName, String className) {
-        if(moduleName != null) {
-            // 返回指定类关联的定位信息，如果该类位于未命名的包中，或者其所在模块不是指定的模块，则返回null
-            LoadedModule loadedModule = findLoadedModule(moduleName, className);
-            if(loadedModule == null) {
-                return null;
-            }
-            
-            // attempt to load class in module defined to this loader
-            assert loadedModule.loader() == this;
-            
-            // 在模块中定义指定的类
-            return findClassInModuleOrNull(loadedModule, className);
-        }
-        
-        // search class path
-        if(hasClassPath()) {
-            // 在类路径下定义指定的类
-            return findClassOnClassPathOrNull(className);
-        }
-        
-        return null;
-    }
-    
-    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
-    
-    
-    /* ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ */
     
     /**
      * A variation of {@code loadClass} to load a class with the specified binary name.
@@ -615,7 +589,6 @@ public class BuiltinClassLoader extends SecureClassLoader {
      */
     // 由给定的类名加载类。如果找不到该类则返回null
     protected Class<?> loadClassOrNull(String className, boolean resolve) {
-        // 加锁
         synchronized(getClassLoadingLock(className)) {
             
             // 首先检查该类是否已经加载
@@ -632,9 +605,9 @@ public class BuiltinClassLoader extends SecureClassLoader {
                     BuiltinClassLoader loader = loadedModule.loader();
                     
                     if(loader == this) {
-                        // 验证模块系统是否已加载
+                        // 确保模块系统是否已加载
                         if(VM.isModuleSystemInited()) {
-                            // 在模块中定义指定的类
+                            // 查找类，从loadedModule中获取className类的位置信息，加载className类的字节码，待虚拟机定义类之后，将其返回
                             c = findClassInModuleOrNull(loadedModule, className);
                         }
                     } else {
@@ -657,7 +630,7 @@ public class BuiltinClassLoader extends SecureClassLoader {
                      * 如果有关联了类路径，那么就尝试自己去加载这个类
                      */
                     if(c == null && hasClassPath() && VM.isModuleSystemInited()) {
-                        // 在类路径下定义指定的类
+                        // 查找类，从类路径下加载字节码，进而通知虚拟机定义className类，并将定义后的类返回
                         c = findClassOnClassPathOrNull(className);
                     }
                 }
@@ -672,20 +645,81 @@ public class BuiltinClassLoader extends SecureClassLoader {
         }
     }
     
+    /*▲ 加载类 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 查找(定义)类 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * A variation of {@code loadClass} to load a class with the specified
-     * binary name. This method returns {@code null} when the class is not
-     * found.
+     * Finds the class with the specified binary name.
      */
-    // 由给定的类名加载类，常用于切换待加载类的上下文（切换使用的类加载器）
-    protected Class<?> loadClassOrNull(String className) {
-        return loadClassOrNull(className, false);
+    // 查找(定义)类，如果该类在模块中，则在模块中查找该类，否则在类路径下查找（如果待查找的类存在，则会加载器字节码，并交给虚拟机去定义）
+    @Override
+    protected Class<?> findClass(String className) throws ClassNotFoundException {
+        // no class loading until VM is fully initialized
+        if(!VM.isModuleSystemInited()) {
+            // 确保模块系统已经初始化，否则抛异常
+            throw new ClassNotFoundException(className);
+        }
+        
+        // 返回指定类关联的定位信息，如果该类位于未命名的包中，则返回null
+        LoadedModule loadedModule = findLoadedModule(className);
+        
+        Class<?> c = null;
+        
+        if(loadedModule != null) {
+            // attempt to load class in module defined to this loader
+            if(loadedModule.loader() == this) {
+                // 查找类，从loadedModule中获取className类的位置信息，加载className类的字节码，待虚拟机定义类之后，将其返回
+                c = findClassInModuleOrNull(loadedModule, className);
+            }
+        } else {
+            // search class path
+            if(hasClassPath()) {
+                // 查找类，从类路径下加载字节码，进而通知虚拟机定义className类，并将定义后的类返回
+                c = findClassOnClassPathOrNull(className);
+            }
+        }
+        
+        // not found
+        if(c == null) {
+            throw new ClassNotFoundException(className);
+        }
+        
+        return c;
     }
     
-    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
+    /**
+     * Finds the class with the specified binary name in a module.
+     * This method returns {@code null} if the class cannot be found
+     * or not defined in the specified module.
+     */
+    // 查找(定义)类，如果moduleName不为空，则在指定模块中查找该类，否则在类路径下查找（如果待查找的类存在，则会加载器字节码，并交给虚拟机去定义）
+    @Override
+    protected Class<?> findClass(String moduleName, String className) {
+        if(moduleName != null) {
+            // 返回指定类关联的定位信息，如果该类位于未命名的包中，或者其所在模块不是指定的模块，则返回null
+            LoadedModule loadedModule = findLoadedModule(moduleName, className);
+            if(loadedModule == null) {
+                return null;
+            }
+            
+            // attempt to load class in module defined to this loader
+            assert loadedModule.loader() == this;
     
-    
-    /* ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ */
+            // 查找类，从loadedModule中获取className类的位置信息，加载className类的字节码，待虚拟机定义类之后，将其返回
+            return findClassInModuleOrNull(loadedModule, className);
+        }
+        
+        // search class path
+        if(hasClassPath()) {
+            // 查找类，从类路径下加载字节码，进而通知虚拟机定义className类，并将定义后的类返回
+            return findClassOnClassPathOrNull(className);
+        }
+        
+        return null;
+    }
     
     /**
      * Finds the class with the specified binary name if in a module
@@ -693,24 +727,73 @@ public class BuiltinClassLoader extends SecureClassLoader {
      *
      * @return the resulting Class or {@code null} if not found
      */
-    // 在模块中定义指定的类，该类的定位信息由loadedModule描述（需要经过安全管理器）
+    // 查找(定义)类，从loadedModule中获取className类的位置信息，加载className类的字节码，待虚拟机定义类之后，将其返回
     private Class<?> findClassInModuleOrNull(LoadedModule loadedModule, String className) {
         if(System.getSecurityManager() == null) {
-            // 在模块中定义指定的类
             return defineClass(className, loadedModule);
         } else {
-            // 在模块中定义指定的类
             PrivilegedAction<Class<?>> pa = () -> defineClass(className, loadedModule);
             return AccessController.doPrivileged(pa);
         }
     }
     
     /**
+     * Finds the class with the specified binary name on the class path.
+     *
+     * @return the resulting Class or {@code null} if not found
+     */
+    // 查找(定义)类，从类路径下加载字节码，进而通知虚拟机定义className类，并将定义后的类返回
+    private Class<?> findClassOnClassPathOrNull(String className) {
+        // 将类名的全限定名转换为路径形式
+        String path = className.replace('.', '/').concat(".class");
+        
+        if(System.getSecurityManager() == null) {
+            // 获取封装了待加载类信息的Resource对象
+            Resource res = ucp.getResource(path, false);
+            
+            if(res != null) {
+                try {
+                    // 从res中加载字节码，进而通知虚拟机定义className类
+                    return defineClass(className, res);
+                } catch(IOException ioe) {
+                    // TBD on how I/O errors should be propagated
+                }
+            }
+            return null;
+        } else {
+            // avoid use of lambda here
+            PrivilegedAction<Class<?>> pa = new PrivilegedAction<>() {
+                public Class<?> run() {
+                    // 获取封装了待加载类信息的Resource对象
+                    Resource res = ucp.getResource(path, false);
+                    if(res != null) {
+                        try {
+                            // 从res中加载字节码，进而通知虚拟机定义className类
+                            return defineClass(className, res);
+                        } catch(IOException ioe) {
+                            // TBD on how I/O errors should be propagated
+                        }
+                    }
+                    return null;
+                }
+            };
+            
+            return AccessController.doPrivileged(pa);
+        }
+    }
+    
+    /*▲ 查找(定义)类 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 定义类 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
      * Defines the given binary class name to the VM, loading the class bytes from the given module.
      *
      * @return the resulting Class or {@code null} if an I/O error occurs
      */
-    // 在模块中定义指定的类，该类的定位信息由loadedModule描述
+    // 从loadedModule中获取className类的位置信息，加载className类的字节码，以便虚拟机定义类
     private Class<?> defineClass(String className, LoadedModule loadedModule) {
         // 从LoadedModule获取ModuleReference
         ModuleReference mref = loadedModule.mref();
@@ -726,8 +809,8 @@ public class BuiltinClassLoader extends SecureClassLoader {
             
             // 将类名的全限定名转换为路径形式
             String path = className.replace('.', '/').concat(".class");
-            
-            // 是否需要从补丁模块（--patch-module）读取
+    
+            // 如果需要从补丁模块（--patch-module）读取
             if(reader instanceof PatchedModuleReader) {
                 Resource r = ((PatchedModuleReader) reader).findResource(path);
                 if(r != null) {
@@ -749,7 +832,7 @@ public class BuiltinClassLoader extends SecureClassLoader {
             
             CodeSource cs = new CodeSource(csURL, (CodeSigner[]) null);
             try {
-                // 使用JVM定义类（define class）
+                // 利用存储在缓冲区bb中的字节码去定义类
                 return defineClass(className, bb, cs);
                 
             } finally {
@@ -763,50 +846,6 @@ public class BuiltinClassLoader extends SecureClassLoader {
     }
     
     /**
-     * Finds the class with the specified binary name on the class path.
-     *
-     * @return the resulting Class or {@code null} if not found
-     */
-    // 在类路径下定义指定的类（需要经过安全管理器）
-    private Class<?> findClassOnClassPathOrNull(String className) {
-        // 将类名的全限定名转换为路径形式
-        String path = className.replace('.', '/').concat(".class");
-        
-        if(System.getSecurityManager() == null) {
-            // 获取封装了待加载类信息的Resource对象
-            Resource res = ucp.getResource(path, false);
-            
-            if(res != null) {
-                try {
-                    // 在类路径下定义指定的类，res对象中封装了该类的位置信息与安全信息
-                    return defineClass(className, res);
-                } catch(IOException ioe) {
-                    // TBD on how I/O errors should be propagated
-                }
-            }
-            return null;
-        } else {
-            // avoid use of lambda here
-            PrivilegedAction<Class<?>> pa = new PrivilegedAction<>() {
-                public Class<?> run() {
-                    // 获取封装了待加载类信息的Resource对象
-                    Resource res = ucp.getResource(path, false);
-                    if(res != null) {
-                        try {
-                            // 在类路径下定义指定的类，res对象中封装了该类的位置信息与安全信息
-                            return defineClass(className, res);
-                        } catch(IOException ioe) {
-                            // TBD on how I/O errors should be propagated
-                        }
-                    }
-                    return null;
-                }
-            };
-            return AccessController.doPrivileged(pa);
-        }
-    }
-    
-    /**
      * Defines the given binary class name to the VM,
      * loading the class bytes via the given Resource object.
      *
@@ -815,7 +854,7 @@ public class BuiltinClassLoader extends SecureClassLoader {
      * @throws IOException       if reading the resource fails
      * @throws SecurityException if there is a sealing violation (JAR spec)
      */
-    // 在类路径下定义指定的类，res对象中封装了该类的位置信息与安全信息
+    // 从res中加载字节码，进而通知虚拟机定义className类
     private Class<?> defineClass(String className, Resource res) throws IOException {
         // 获取代码源的URL
         URL url = res.getCodeSourceURL();
@@ -836,7 +875,7 @@ public class BuiltinClassLoader extends SecureClassLoader {
         if(bb != null) {
             CodeSigner[] signers = res.getCodeSigners();
             CodeSource cs = new CodeSource(url, signers);
-            // 使用JVM定义类（define class），该class文件的二进制流位于缓冲区b中
+            // 利用存储在缓冲区bb中的字节码去定义类
             return defineClass(className, bb, cs);
         } else {
             byte[] b = res.getBytes();  // 将class文件存储到字节流
@@ -847,9 +886,7 @@ public class BuiltinClassLoader extends SecureClassLoader {
         }
     }
     
-    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
-    
-    /*▲ 加载类 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 定义类 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -1076,47 +1113,56 @@ public class BuiltinClassLoader extends SecureClassLoader {
     /**
      * Returns the ModuleReader for the given module, creating it if needed.
      */
-    // 获取模块的ModuleReader，以便读取模块
+    // 获取模块阅读器，以便读取指定的模块
     private ModuleReader moduleReaderFor(ModuleReference mref) {
         ModuleReader reader = moduleToReader.get(mref);
-        if(reader == null) {
-            // avoid method reference during startup
-            Function<ModuleReference, ModuleReader> create = new Function<>() {
-                public ModuleReader apply(ModuleReference moduleReference) {
-                    try {
-                        return mref.open();
-                    } catch(IOException e) {
-                        // Return a null module reader to avoid a future class load attempting
-                        // to open the module again.
-                        return new NullModuleReader();
-                    }
-                }
-            };
-            reader = moduleToReader.computeIfAbsent(mref, create);
+        if(reader != null) {
+            return reader;
         }
+    
+        // avoid method reference during startup
+        Function<ModuleReference, ModuleReader> create = new Function<>() {
+            public ModuleReader apply(ModuleReference moduleReference) {
+                try {
+                    return mref.open();
+                } catch(IOException e) {
+                    // Return a null module reader to avoid a future class load attempting to open the module again.
+                    return new NullModuleReader();
+                }
+            }
+        };
+    
+        reader = moduleToReader.computeIfAbsent(mref, create);
+    
         return reader;
     }
     
     /**
-     * Returns true if the given module opens the given package
-     * unconditionally.
+     * Returns true if the given module opens the given package unconditionally.
      *
-     * @implNote This method currently iterates over each of the open
-     * packages. This will be replaced once the ModuleDescriptor.Opens
-     * API is updated.
+     * @implNote This method currently iterates over each of the open packages.
+     * This will be replaced once the ModuleDescriptor.Opens API is updated.
      */
-    // 判断给定的模块是否open(s)了指定的包（从模块中读取资源时很重要）
+    // 判断给定的模块mref是否将指定的包packageName开放(opens)给了所有其它模块（从模块中读取资源时很重要）
     private boolean isOpen(ModuleReference mref, String packageName) {
         ModuleDescriptor descriptor = mref.descriptor();
+        
+        // 如果mref是open模块，或者是自动模块，可以直接返回true
         if(descriptor.isOpen() || descriptor.isAutomatic()) {
             return true;
         }
+        
+        // 遍历mref开放(opens)的元素
         for(ModuleDescriptor.Opens opens : descriptor.opens()) {
+            // 开放的包名
             String source = opens.source();
+            
+            // 如果遇到了opens packageName（而不是opens...to...）
             if(!opens.isQualified() && source.equals(packageName)) {
                 return true;
             }
         }
+        
         return false;
     }
     
@@ -1186,7 +1232,7 @@ public class BuiltinClassLoader extends SecureClassLoader {
      * A LoadedModule encapsulates a ModuleReference along with its CodeSource
      * URL to avoid needing to create this URL when defining classes.
      */
-    // 待加载类/资源的定位信息
+    // 由内置类加载器加载的模块信息
     private static class LoadedModule {
         private final BuiltinClassLoader loader;    // 加载该模块使用的类加载器
         private final ModuleReference mref;         // 模块引用，包含模块描述符和模块的位置信息
@@ -1241,4 +1287,5 @@ public class BuiltinClassLoader extends SecureClassLoader {
             throw new InternalError("Should not get here");
         }
     }
+    
 }

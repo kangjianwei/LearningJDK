@@ -72,8 +72,7 @@ import java.util.stream.Stream;
  * ProcessHandle provides no more access to, or control over, the native process
  * than would be allowed by a native application.
  *
- * @implSpec
- * In the case where ProcessHandles cannot be supported then the factory
+ * @implSpec In the case where ProcessHandles cannot be supported then the factory
  * methods must consistently throw {@link java.lang.UnsupportedOperationException}.
  * The methods of this class throw {@link java.lang.UnsupportedOperationException}
  * if the operating system does not allow access to query or kill a process.
@@ -87,99 +86,46 @@ import java.util.stream.Stream;
  * {@code ProcessHandle} may have unpredictable results and should be avoided.
  * Use {@link #equals(Object) equals} or
  * {@link #compareTo(ProcessHandle) compareTo} methods to compare ProcessHandles.
- *
  * @see Process
  * @since 9
  */
+// Java层进程句柄
 public interface ProcessHandle extends Comparable<ProcessHandle> {
-
-    /**
-     * Returns the native process ID of the process. The native process ID is an
-     * identification number that the operating system assigns to the process.
-     * The operating system may reuse the process ID after a process terminates.
-     * Use {@link #equals(Object) equals} or
-     * {@link #compareTo(ProcessHandle) compareTo} to compare ProcessHandles.
-     *
-     * @return the native process ID of the process
-     * @throws UnsupportedOperationException if the implementation
-     *         does not support this operation
-     */
-    long pid();
-
-    /**
-     * Returns an {@code Optional<ProcessHandle>} for an existing native process.
-     *
-     * @param pid a native process ID
-     * @return an {@code Optional<ProcessHandle>} of the PID for the process;
-     *         the {@code Optional} is empty if the process does not exist
-     * @throws SecurityException if a security manager has been installed and
-     *         it denies RuntimePermission("manageProcess")
-     * @throws UnsupportedOperationException if the implementation
-     *         does not support this operation
-     */
-    public static Optional<ProcessHandle> of(long pid) {
-        return ProcessHandleImpl.get(pid);
-    }
-
+    
     /**
      * Returns a ProcessHandle for the current process. The ProcessHandle cannot be
      * used to destroy the current process, use {@link System#exit System.exit} instead.
      *
      * @return a ProcessHandle for the current process
-     * @throws SecurityException if a security manager has been installed and
-     *         it denies RuntimePermission("manageProcess")
+     *
+     * @throws SecurityException             if a security manager has been installed and
+     *                                       it denies RuntimePermission("manageProcess")
      * @throws UnsupportedOperationException if the implementation
-     *         does not support this operation
+     *                                       does not support this operation
      */
-    public static ProcessHandle current() {
+    // 返回加载ProcessHandleImpl类的进程的句柄
+    static ProcessHandle current() {
         return ProcessHandleImpl.current();
     }
-
+    
     /**
-     * Returns an {@code Optional<ProcessHandle>} for the parent process.
-     * Note that Processes in a zombie state usually don't have a parent.
+     * Returns an {@code Optional<ProcessHandle>} for an existing native process.
      *
-     * @return an {@code Optional<ProcessHandle>} of the parent process;
-     *         the {@code Optional} is empty if the child process does not have a parent
-     *         or if the parent is not available, possibly due to operating system limitations
-     * @throws SecurityException if a security manager has been installed and
-     *         it denies RuntimePermission("manageProcess")
-     */
-    Optional<ProcessHandle> parent();
-
-    /**
-     * Returns a snapshot of the current direct children of the process.
-     * The {@link #parent} of a direct child process is the process.
-     * Typically, a process that is {@link #isAlive not alive} has no children.
-     * <p>
-     * <em>Note that processes are created and terminate asynchronously.
-     * There is no guarantee that a process is {@link #isAlive alive}.
-     * </em>
+     * @param pid a native process ID
      *
-     * @return a sequential Stream of ProcessHandles for processes that are
-     *         direct children of the process
-     * @throws SecurityException if a security manager has been installed and
-     *         it denies RuntimePermission("manageProcess")
-     */
-    Stream<ProcessHandle> children();
-
-    /**
-     * Returns a snapshot of the descendants of the process.
-     * The descendants of a process are the children of the process
-     * plus the descendants of those children, recursively.
-     * Typically, a process that is {@link #isAlive not alive} has no children.
-     * <p>
-     * <em>Note that processes are created and terminate asynchronously.
-     * There is no guarantee that a process is {@link #isAlive alive}.
-     * </em>
+     * @return an {@code Optional<ProcessHandle>} of the PID for the process;
+     * the {@code Optional} is empty if the process does not exist
      *
-     * @return a sequential Stream of ProcessHandles for processes that
-     *         are descendants of the process
-     * @throws SecurityException if a security manager has been installed and
-     *         it denies RuntimePermission("manageProcess")
+     * @throws SecurityException             if a security manager has been installed and
+     *                                       it denies RuntimePermission("manageProcess")
+     * @throws UnsupportedOperationException if the implementation
+     *                                       does not support this operation
      */
-    Stream<ProcessHandle> descendants();
-
+    // 返回进程号为pid的进程句柄
+    static Optional<ProcessHandle> of(long pid) {
+        return ProcessHandleImpl.get(pid);
+    }
+    
     /**
      * Returns a snapshot of all processes visible to the current process.
      * <p>
@@ -189,98 +135,66 @@ public interface ProcessHandle extends Comparable<ProcessHandle> {
      * </em>
      *
      * @return a Stream of ProcessHandles for all processes
-     * @throws SecurityException if a security manager has been installed and
-     *         it denies RuntimePermission("manageProcess")
+     *
+     * @throws SecurityException             if a security manager has been installed and
+     *                                       it denies RuntimePermission("manageProcess")
      * @throws UnsupportedOperationException if the implementation
-     *         does not support this operation
+     *                                       does not support this operation
      */
+    // 返回所有已知进程
     static Stream<ProcessHandle> allProcesses() {
         return ProcessHandleImpl.children(0);
     }
-
+    
     /**
-     * Returns a snapshot of information about the process.
+     * Returns an {@code Optional<ProcessHandle>} for the parent process.
+     * Note that Processes in a zombie state usually don't have a parent.
      *
-     * <p> A {@link ProcessHandle.Info} instance has accessor methods that return
-     * information about the process if it is available.
+     * @return an {@code Optional<ProcessHandle>} of the parent process;
+     * the {@code Optional} is empty if the child process does not have a parent
+     * or if the parent is not available, possibly due to operating system limitations
      *
-     * @return a snapshot of information about the process, always non-null
+     * @throws SecurityException if a security manager has been installed and
+     *                           it denies RuntimePermission("manageProcess")
      */
-    Info info();
-
+    // 返回当前进程的父进程句柄
+    Optional<ProcessHandle> parent();
+    
     /**
-     * Information snapshot about the process.
-     * The attributes of a process vary by operating system and are not available
-     * in all implementations.  Information about processes is limited
-     * by the operating system privileges of the process making the request.
-     * The return types are {@code Optional<T>} allowing explicit tests
-     * and actions if the value is available.
-     * @since 9
+     * Returns a snapshot of the current direct children of the process.
+     * The {@link #parent} of a direct child process is the process.
+     * Typically, a process that is {@link #isAlive not alive} has no children.
+     * <p>
+     * <em>Note that processes are created and terminate asynchronously.
+     * There is no guarantee that a process is {@link #isAlive alive}.
+     * </em>
+     *
+     * @return a sequential Stream of ProcessHandles for processes that are direct children of the process
+     *
+     * @throws SecurityException if a security manager has been installed and
+     *                           it denies RuntimePermission("manageProcess")
      */
-    public interface Info {
-        /**
-         * Returns the executable pathname of the process.
-         *
-         * @return an {@code Optional<String>} of the executable pathname
-         *         of the process
-         */
-        public Optional<String> command();
-
-        /**
-         * Returns the command line of the process.
-         * <p>
-         * If {@link #command command()} and  {@link #arguments arguments()} return
-         * non-empty optionals, this is simply a convenience method which concatenates
-         * the values of the two functions separated by spaces. Otherwise it will return a
-         * best-effort, platform dependent representation of the command line.
-         *
-         * @apiNote Note that the returned executable pathname and the
-         *          arguments may be truncated on some platforms due to system
-         *          limitations.
-         *          <p>
-         *          The executable pathname may contain only the
-         *          name of the executable without the full path information.
-         *          It is undecideable whether white space separates different
-         *          arguments or is part of a single argument.
-         *
-         * @return an {@code Optional<String>} of the command line
-         *         of the process
-         */
-        public Optional<String> commandLine();
-
-        /**
-         * Returns an array of Strings of the arguments of the process.
-         *
-         * @apiNote On some platforms, native applications are free to change
-         *          the arguments array after startup and this method may only
-         *          show the changed values.
-         *
-         * @return an {@code Optional<String[]>} of the arguments of the process
-         */
-        public Optional<String[]> arguments();
-
-        /**
-         * Returns the start time of the process.
-         *
-         * @return an {@code Optional<Instant>} of the start time of the process
-         */
-        public Optional<Instant> startInstant();
-
-        /**
-         * Returns the total cputime accumulated of the process.
-         *
-         * @return an {@code Optional<Duration>} for the accumulated total cputime
-         */
-        public Optional<Duration> totalCpuDuration();
-
-        /**
-         * Return the user of the process.
-         *
-         * @return an {@code Optional<String>} for the user of the process
-         */
-        public Optional<String> user();
-    }
-
+    // 返回当前进程的直接子进程
+    Stream<ProcessHandle> children();
+    
+    /**
+     * Returns a snapshot of the descendants of the process.
+     * The descendants of a process are the children of the process plus the descendants of those children, recursively.
+     * Typically, a process that is {@link #isAlive not alive} has no children.
+     * <p>
+     * <em>
+     * Note that processes are created and terminate asynchronously.
+     * There is no guarantee that a process is {@link #isAlive alive}.
+     * </em>
+     *
+     * @return a sequential Stream of ProcessHandles for processes that are descendants of the process
+     *
+     * @throws SecurityException if a security manager has been installed and it denies RuntimePermission("manageProcess")
+     */
+    // 返回当前进程的后代进程
+    Stream<ProcessHandle> descendants();
+    
+    
     /**
      * Returns a {@code CompletableFuture<ProcessHandle>} for the termination
      * of the process.
@@ -299,16 +213,59 @@ public interface ProcessHandle extends Comparable<ProcessHandle> {
      * {@link java.util.concurrent.Future#get() wait} for it to terminate.
      * {@link java.util.concurrent.Future#cancel(boolean) Cancelling}
      * the CompleteableFuture does not affect the Process.
-     * @apiNote
-     * The process may be observed to have terminated with {@link #isAlive}
-     * before the ComputableFuture is completed and dependent actions are invoked.
      *
      * @return a new {@code CompletableFuture<ProcessHandle>} for the ProcessHandle
      *
      * @throws IllegalStateException if the process is the current process
+     * @apiNote The process may be observed to have terminated with {@link #isAlive}
+     * before the ComputableFuture is completed and dependent actions are invoked.
+     */
+    /*
+     * 返回一个阶段：该阶段的执行结果是当前进程退出时的状态码(如果没执行完，则会等待它执行完)；
+     * 该方法可以看做是【异步】等待进程结束的一种手段。
+     *
+     * 如果等待进程结束的过程中抛出了中断异常，则会为执行该阶段任务的线程设置中断标记。
      */
     CompletableFuture<ProcessHandle> onExit();
-
+    
+    
+    /**
+     * Returns the native process ID of the process. The native process ID is an
+     * identification number that the operating system assigns to the process.
+     * The operating system may reuse the process ID after a process terminates.
+     * Use {@link #equals(Object) equals} or
+     * {@link #compareTo(ProcessHandle) compareTo} to compare ProcessHandles.
+     *
+     * @return the native process ID of the process
+     *
+     * @throws UnsupportedOperationException if the implementation
+     *                                       does not support this operation
+     */
+    // 返回当前进程的进程号
+    long pid();
+    
+    /**
+     * Returns a snapshot of information about the process.
+     *
+     * <p> A {@link ProcessHandle.Info} instance has accessor methods that return
+     * information about the process if it is available.
+     *
+     * @return a snapshot of information about the process, always non-null
+     */
+    // 返回当前进程的快照信息
+    Info info();
+    
+    /**
+     * Tests whether the process represented by this {@code ProcessHandle} is alive.
+     * Process termination is implementation and operating system specific.
+     * The process is considered alive as long as the PID is valid.
+     *
+     * @return {@code true} if the process represented by this
+     * {@code ProcessHandle} object has not yet terminated
+     */
+    // 判断当前进程是否处于活动状态
+    boolean isAlive();
+    
     /**
      * Returns {@code true} if the implementation of {@link #destroy}
      * normally terminates the process.
@@ -316,11 +273,12 @@ public interface ProcessHandle extends Comparable<ProcessHandle> {
      * forcibly and immediately terminates the process.
      *
      * @return {@code true} if the implementation of {@link #destroy}
-     *         normally terminates the process;
-     *         otherwise, {@link #destroy} forcibly terminates the process
+     * normally terminates the process;
+     * otherwise, {@link #destroy} forcibly terminates the process
      */
+    // 返回当前平台对结束进程的支持状况；返回true表示支持正常终止，返回false表示支持强制终止
     boolean supportsNormalTermination();
-
+    
     /**
      * Requests the process to be killed.
      * Whether the process represented by this {@code ProcessHandle} object is
@@ -341,11 +299,13 @@ public interface ProcessHandle extends Comparable<ProcessHandle> {
      * after {@code destroy()} is called.
      *
      * @return {@code true} if termination was successfully requested,
-     *         otherwise {@code false}
+     * otherwise {@code false}
+     *
      * @throws IllegalStateException if the process is the current process
      */
+    // 终止当前进程；如果当前进程是加载ProcessHandleImpl类的进程，则无法销毁
     boolean destroy();
-
+    
     /**
      * Requests the process to be killed forcibly.
      * The process represented by this {@code ProcessHandle} object is
@@ -365,21 +325,14 @@ public interface ProcessHandle extends Comparable<ProcessHandle> {
      * after {@code destroyForcibly()} is called.
      *
      * @return {@code true} if termination was successfully requested,
-     *         otherwise {@code false}
+     * otherwise {@code false}
+     *
      * @throws IllegalStateException if the process is the current process
      */
+    // 强制终止当前进程；如果当前进程是加载ProcessHandleImpl类的进程，则无法销毁
     boolean destroyForcibly();
-
-    /**
-     * Tests whether the process represented by this {@code ProcessHandle} is alive.
-     * Process termination is implementation and operating system specific.
-     * The process is considered alive as long as the PID is valid.
-     *
-     * @return {@code true} if the process represented by this
-     *         {@code ProcessHandle} object has not yet terminated
-     */
-    boolean isAlive();
-
+    
+    
     /**
      * Returns a hash code value for this ProcessHandle.
      * The hashcode value follows the general contract for {@link Object#hashCode()}.
@@ -393,13 +346,19 @@ public interface ProcessHandle extends Comparable<ProcessHandle> {
      */
     @Override
     int hashCode();
-
+    
     /**
      * Returns {@code true} if {@code other} object is non-null, is of the
      * same implementation, and represents the same system process;
      * otherwise it returns {@code false}.
-     * @implNote
-     * It is implementation specific whether ProcessHandles with the same PID
+     *
+     * @param other another object
+     *
+     * @return {@code true} if the {@code other} object is non-null,
+     * is of the same implementation class and represents
+     * the same system process; otherwise returns {@code false}
+     *
+     * @implNote It is implementation specific whether ProcessHandles with the same PID
      * represent the same system process. ProcessHandle implementations
      * should contain additional information to uniquely identify the process.
      * For example, the start time of the process could be used
@@ -407,15 +366,10 @@ public interface ProcessHandle extends Comparable<ProcessHandle> {
      * The implementation of {@code equals} should return {@code true} for two
      * ProcessHandles with the same PID unless there is information to
      * distinguish them.
-     *
-     * @param other another object
-     * @return {@code true} if the {@code other} object is non-null,
-     *         is of the same implementation class and represents
-     *         the same system process; otherwise returns {@code false}
      */
     @Override
     boolean equals(Object other);
-
+    
     /**
      * Compares this ProcessHandle with the specified ProcessHandle for order.
      * The order is not specified, but is consistent with {@link Object#equals},
@@ -426,13 +380,90 @@ public interface ProcessHandle extends Comparable<ProcessHandle> {
      * of {@link ProcessHandle}s, {@link ClassCastException} is thrown.
      *
      * @param other the ProcessHandle to be compared
+     *
      * @return a negative integer, zero, or a positive integer as this object
      * is less than, equal to, or greater than the specified object.
+     *
      * @throws NullPointerException if the specified object is null
-     * @throws ClassCastException if the specified object is not of same class
-     *         as this object
+     * @throws ClassCastException   if the specified object is not of same class
+     *                              as this object
      */
     @Override
     int compareTo(ProcessHandle other);
-
+    
+    
+    /**
+     * Information snapshot about the process.
+     * The attributes of a process vary by operating system and are not available
+     * in all implementations.  Information about processes is limited
+     * by the operating system privileges of the process making the request.
+     * The return types are {@code Optional<T>} allowing explicit tests
+     * and actions if the value is available.
+     *
+     * @since 9
+     */
+    interface Info {
+        /**
+         * Returns the executable pathname of the process.
+         *
+         * @return an {@code Optional<String>} of the executable pathname
+         * of the process
+         */
+        Optional<String> command();
+        
+        /**
+         * Returns the command line of the process.
+         * <p>
+         * If {@link #command command()} and  {@link #arguments arguments()} return
+         * non-empty optionals, this is simply a convenience method which concatenates
+         * the values of the two functions separated by spaces. Otherwise it will return a
+         * best-effort, platform dependent representation of the command line.
+         *
+         * @return an {@code Optional<String>} of the command line
+         * of the process
+         *
+         * @apiNote Note that the returned executable pathname and the
+         * arguments may be truncated on some platforms due to system
+         * limitations.
+         * <p>
+         * The executable pathname may contain only the
+         * name of the executable without the full path information.
+         * It is undecideable whether white space separates different
+         * arguments or is part of a single argument.
+         */
+        Optional<String> commandLine();
+        
+        /**
+         * Returns an array of Strings of the arguments of the process.
+         *
+         * @return an {@code Optional<String[]>} of the arguments of the process
+         *
+         * @apiNote On some platforms, native applications are free to change
+         * the arguments array after startup and this method may only
+         * show the changed values.
+         */
+        Optional<String[]> arguments();
+        
+        /**
+         * Returns the start time of the process.
+         *
+         * @return an {@code Optional<Instant>} of the start time of the process
+         */
+        Optional<Instant> startInstant();
+        
+        /**
+         * Returns the total cputime accumulated of the process.
+         *
+         * @return an {@code Optional<Duration>} for the accumulated total cputime
+         */
+        Optional<Duration> totalCpuDuration();
+        
+        /**
+         * Return the user of the process.
+         *
+         * @return an {@code Optional<String>} for the user of the process
+         */
+        Optional<String> user();
+    }
+    
 }

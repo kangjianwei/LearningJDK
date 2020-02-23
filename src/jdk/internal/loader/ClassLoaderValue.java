@@ -78,10 +78,12 @@ import java.util.function.BiFunction;
  * @since 9
  */
 /*
- * root-ClassLoaderValue
+ * 根[类加载器局部值](root-clv)
  *
- * 可以使用root-ClassLoaderValue对象来孕育AbstractClassLoaderValue.Sub对象
- * 这使得多个Sub可以拥有一致的“外部环境”
+ * root-clv内部不缓存值，通常，它只是简单地作为类加载器局部缓存的一个key。
+ *
+ * 在多层级的clv中，root-clv作为根[类加载器局部值]存在，即通过root-clv对象，可以构造出一系列子级sub-clv，
+ * 这使得多个sub-clv可以拥有一致的“外部环境”。
  */
 public final class ClassLoaderValue<V> extends AbstractClassLoaderValue<ClassLoaderValue<V>, V> {
     
@@ -94,7 +96,7 @@ public final class ClassLoaderValue<V> extends AbstractClassLoaderValue<ClassLoa
     /**
      * @return the key component of this root-ClassLoaderValue (itself).
      */
-    // root-clv不缓存对象，这里直接返回自身
+    // 返回[类加载器局部值]中包装的key；对于root-clv，只是简单地返回自身
     @Override
     public ClassLoaderValue<V> key() {
         return this;
@@ -103,9 +105,10 @@ public final class ClassLoaderValue<V> extends AbstractClassLoaderValue<ClassLoa
     /**
      * root-ClassLoaderValue can only be equal to itself and has no predecessors.
      */
-    // root-clv直接比较引用是否相等
+    // 判断给定的clv是否与当前clv相等，或者是当前clv的后代
     @Override
     public boolean isEqualOrDescendantOf(AbstractClassLoaderValue<?, V> clv) {
+        // 只是简单地比较两个根[类加载器局部值]是否相等
         return equals(Objects.requireNonNull(clv));
     }
 }

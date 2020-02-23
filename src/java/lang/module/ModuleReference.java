@@ -48,8 +48,12 @@ import java.util.Optional;
 // 模块引用，包含了模块描述符与模块位置
 public abstract class ModuleReference {
     
-    private final ModuleDescriptor descriptor;
-    private final URI location;
+    private final ModuleDescriptor descriptor;  // 模块描述符
+    private final URI location;                 // 模块位置，如果未知，则为null
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Constructs a new instance of this class.
@@ -62,16 +66,11 @@ public abstract class ModuleReference {
         this.location = location;
     }
     
-    /**
-     * Opens the module content for reading.
-     *
-     * @return A {@code ModuleReader} to read the module
-     *
-     * @throws IOException       If an I/O error occurs
-     * @throws SecurityException If denied by the security manager
-     */
-    // 返回模块阅读器，以便外界读取该模块的内容
-    public abstract ModuleReader open() throws IOException;
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 属性 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Returns the module descriptor.
@@ -98,4 +97,19 @@ public abstract class ModuleReference {
     public final Optional<URI> location() {
         return Optional.ofNullable(location);
     }
+    
+    /*▲ 属性 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    /**
+     * Opens the module content for reading.
+     *
+     * @return A {@code ModuleReader} to read the module
+     *
+     * @throws IOException       If an I/O error occurs
+     * @throws SecurityException If denied by the security manager
+     */
+    // 返回模块阅读器，以便读取模块内的资源
+    public abstract ModuleReader open() throws IOException;
+    
 }

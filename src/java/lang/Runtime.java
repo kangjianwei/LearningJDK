@@ -25,17 +25,15 @@
 
 package java.lang;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.StringTokenizer;
-
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import jdk.internal.misc.SharedSecrets;
 import jdk.internal.reflect.CallerSensitive;
 import jdk.internal.reflect.Reflection;
@@ -48,90 +46,62 @@ import jdk.internal.reflect.Reflection;
  * <p>
  * An application cannot create its own instance of this class.
  *
- * @author  unascribed
- * @see     java.lang.Runtime#getRuntime()
- * @since   1.0
+ * @author unascribed
+ * @see java.lang.Runtime#getRuntime()
+ * @since 1.0
  */
-
+// 运行时对象，持有一些底层操作工具方法
 public class Runtime {
+    
+    // 单例
     private static final Runtime currentRuntime = new Runtime();
-
-    private static Version version;
-
+    
+    private static Version version; // 当前JDK版本
+    
+    
+    
+    /*▼ 构造器/工厂 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /** Don't let anyone else instantiate this class */
+    private Runtime() {
+    }
+    
     /**
      * Returns the runtime object associated with the current Java application.
      * Most of the methods of class {@code Runtime} are instance
      * methods and must be invoked with respect to the current runtime object.
      *
-     * @return  the {@code Runtime} object associated with the current
-     *          Java application.
+     * @return the {@code Runtime} object associated with the current
+     * Java application.
      */
+    // 返回Runtime对象(工厂方法)
     public static Runtime getRuntime() {
         return currentRuntime;
     }
-
-    /** Don't let anyone else instantiate this class */
-    private Runtime() {}
-
-    /**
-     * Terminates the currently running Java virtual machine by initiating its
-     * shutdown sequence.  This method never returns normally.  The argument
-     * serves as a status code; by convention, a nonzero status code indicates
-     * abnormal termination.
-     *
-     * <p> All registered {@linkplain #addShutdownHook shutdown hooks}, if any,
-     * are started in some unspecified order and allowed to run concurrently
-     * until they finish.  Once this is done the virtual machine
-     * {@linkplain #halt halts}.
-     *
-     * <p> If this method is invoked after all shutdown hooks have already
-     * been run and the status is nonzero then this method halts the
-     * virtual machine with the given status code. Otherwise, this method
-     * blocks indefinitely.
-     *
-     * <p> The {@link System#exit(int) System.exit} method is the
-     * conventional and convenient means of invoking this method.
-     *
-     * @param  status
-     *         Termination status.  By convention, a nonzero status code
-     *         indicates abnormal termination.
-     *
-     * @throws SecurityException
-     *         If a security manager is present and its
-     *         {@link SecurityManager#checkExit checkExit} method does not permit
-     *         exiting with the specified status
-     *
-     * @see java.lang.SecurityException
-     * @see java.lang.SecurityManager#checkExit(int)
-     * @see #addShutdownHook
-     * @see #removeShutdownHook
-     * @see #halt(int)
-     */
-    public void exit(int status) {
-        SecurityManager security = System.getSecurityManager();
-        if (security != null) {
-            security.checkExit(status);
-        }
-        Shutdown.exit(status);
-    }
-
+    
+    /*▲ 构造器/工厂 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 关机回调 ███████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Registers a new virtual-machine shutdown hook.
      *
      * <p> The Java virtual machine <i>shuts down</i> in response to two kinds
      * of events:
      *
-     *   <ul>
+     * <ul>
      *
-     *   <li> The program <i>exits</i> normally, when the last non-daemon
-     *   thread exits or when the {@link #exit exit} (equivalently,
-     *   {@link System#exit(int) System.exit}) method is invoked, or
+     * <li> The program <i>exits</i> normally, when the last non-daemon
+     * thread exits or when the {@link #exit exit} (equivalently,
+     * {@link System#exit(int) System.exit}) method is invoked, or
      *
-     *   <li> The virtual machine is <i>terminated</i> in response to a
-     *   user interrupt, such as typing {@code ^C}, or a system-wide event,
-     *   such as user logoff or system shutdown.
+     * <li> The virtual machine is <i>terminated</i> in response to a
+     * user interrupt, such as typing {@code ^C}, or a system-wide event,
+     * such as user logoff or system shutdown.
      *
-     *   </ul>
+     * </ul>
      *
      * <p> A <i>shutdown hook</i> is simply an initialized but unstarted
      * thread.  When the virtual machine begins its shutdown sequence it will
@@ -186,63 +156,113 @@ public class Runtime {
      * then no guarantee can be made about whether or not any shutdown hooks
      * will be run.
      *
-     * @param   hook
-     *          An initialized but unstarted {@link Thread} object
+     * @param hook An initialized but unstarted {@link Thread} object
      *
-     * @throws  IllegalArgumentException
-     *          If the specified hook has already been registered,
-     *          or if it can be determined that the hook is already running or
-     *          has already been run
-     *
-     * @throws  IllegalStateException
-     *          If the virtual machine is already in the process
-     *          of shutting down
-     *
-     * @throws  SecurityException
-     *          If a security manager is present and it denies
-     *          {@link RuntimePermission}("shutdownHooks")
-     *
+     * @throws IllegalArgumentException If the specified hook has already been registered,
+     *                                  or if it can be determined that the hook is already running or
+     *                                  has already been run
+     * @throws IllegalStateException    If the virtual machine is already in the process
+     *                                  of shutting down
+     * @throws SecurityException        If a security manager is present and it denies
+     *                                  {@link RuntimePermission}("shutdownHooks")
      * @see #removeShutdownHook
      * @see #halt(int)
      * @see #exit(int)
      * @since 1.3
      */
+    /*
+     * 在JVM注册一个钩子线程，该线程在以下情形中被执行：
+     *
+     * 当最后一个非守护程序线程退出；
+     * 或调用Runtime#exit方法（与System.exit()等效）；
+     * 或被用户中断(^C)；
+     * 或被系统自然中断；
+     */
     public void addShutdownHook(Thread hook) {
         SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
+        if(sm != null) {
             sm.checkPermission(new RuntimePermission("shutdownHooks"));
         }
+        
+        // 注册用户级别的钩子
         ApplicationShutdownHooks.add(hook);
     }
-
+    
     /**
      * De-registers a previously-registered virtual-machine shutdown hook.
      *
      * @param hook the hook to remove
+     *
      * @return {@code true} if the specified hook had previously been
      * registered and was successfully de-registered, {@code false}
      * otherwise.
      *
-     * @throws  IllegalStateException
-     *          If the virtual machine is already in the process of shutting
-     *          down
-     *
-     * @throws  SecurityException
-     *          If a security manager is present and it denies
-     *          {@link RuntimePermission}("shutdownHooks")
-     *
+     * @throws IllegalStateException If the virtual machine is already in the process of shutting
+     *                               down
+     * @throws SecurityException     If a security manager is present and it denies
+     *                               {@link RuntimePermission}("shutdownHooks")
      * @see #addShutdownHook
      * @see #exit(int)
      * @since 1.3
      */
+    // 移除注册的钩子线程
     public boolean removeShutdownHook(Thread hook) {
         SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
+        if(sm != null) {
             sm.checkPermission(new RuntimePermission("shutdownHooks"));
         }
+        
+        // 移除用户级别的钩子
         return ApplicationShutdownHooks.remove(hook);
     }
-
+    
+    /*▲ 关机回调 ███████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 关机 ███████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Terminates the currently running Java virtual machine by initiating its
+     * shutdown sequence.  This method never returns normally.  The argument
+     * serves as a status code; by convention, a nonzero status code indicates
+     * abnormal termination.
+     *
+     * <p> All registered {@linkplain #addShutdownHook shutdown hooks}, if any,
+     * are started in some unspecified order and allowed to run concurrently
+     * until they finish.  Once this is done the virtual machine
+     * {@linkplain #halt halts}.
+     *
+     * <p> If this method is invoked after all shutdown hooks have already
+     * been run and the status is nonzero then this method halts the
+     * virtual machine with the given status code. Otherwise, this method
+     * blocks indefinitely.
+     *
+     * <p> The {@link System#exit(int) System.exit} method is the
+     * conventional and convenient means of invoking this method.
+     *
+     * @param status Termination status.  By convention, a nonzero status code
+     *               indicates abnormal termination.
+     *
+     * @throws SecurityException If a security manager is present and its
+     *                           {@link SecurityManager#checkExit checkExit} method does not permit
+     *                           exiting with the specified status
+     * @see java.lang.SecurityException
+     * @see java.lang.SecurityManager#checkExit(int)
+     * @see #addShutdownHook
+     * @see #removeShutdownHook
+     * @see #halt(int)
+     */
+    // 执行所有关机回调，并退出(关闭)虚拟机
+    public void exit(int status) {
+        SecurityManager security = System.getSecurityManager();
+        if(security != null) {
+            security.checkExit(status);
+        }
+        
+        Shutdown.exit(status);
+    }
+    
     /**
      * Forcibly terminates the currently running Java virtual machine.  This
      * method never returns normally.
@@ -253,32 +273,44 @@ public class Runtime {
      * initiated then this method does not wait for any running
      * shutdown hooks to finish their work.
      *
-     * @param  status
-     *         Termination status. By convention, a nonzero status code
-     *         indicates abnormal termination. If the {@link Runtime#exit exit}
-     *         (equivalently, {@link System#exit(int) System.exit}) method
-     *         has already been invoked then this status code
-     *         will override the status code passed to that method.
+     * @param status Termination status. By convention, a nonzero status code
+     *               indicates abnormal termination. If the {@link Runtime#exit exit}
+     *               (equivalently, {@link System#exit(int) System.exit}) method
+     *               has already been invoked then this status code
+     *               will override the status code passed to that method.
      *
-     * @throws SecurityException
-     *         If a security manager is present and its
-     *         {@link SecurityManager#checkExit checkExit} method
-     *         does not permit an exit with the specified status
-     *
+     * @throws SecurityException If a security manager is present and its
+     *                           {@link SecurityManager#checkExit checkExit} method
+     *                           does not permit an exit with the specified status
      * @see #exit
      * @see #addShutdownHook
      * @see #removeShutdownHook
      * @since 1.3
      */
+    /*
+     * 直接关闭虚拟机，不会执行关机回调
+     *
+     * status为关闭时的状态码，一般用非0的状态码表示异常退出状态
+     */
     public void halt(int status) {
         SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
+        if(sm != null) {
             sm.checkExit(status);
         }
+        
+        // 通知虚拟机程序该终止了
         Shutdown.beforeHalt();
+        
+        // 关闭虚拟机
         Shutdown.halt(status);
     }
-
+    
+    /*▲ 关机 ███████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 进程/命令行 ███████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Executes the specified string command in a separate process.
      *
@@ -287,31 +319,24 @@ public class Runtime {
      * behaves in exactly the same way as the invocation
      * {@link #exec(String, String[], File) exec}{@code (command, null, null)}.
      *
-     * @param   command   a specified system command.
+     * @param command a specified system command.
      *
-     * @return  A new {@link Process} object for managing the subprocess
+     * @return A new {@link Process} object for managing the subprocess
      *
-     * @throws  SecurityException
-     *          If a security manager exists and its
-     *          {@link SecurityManager#checkExec checkExec}
-     *          method doesn't allow creation of the subprocess
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     *
-     * @throws  NullPointerException
-     *          If {@code command} is {@code null}
-     *
-     * @throws  IllegalArgumentException
-     *          If {@code command} is empty
-     *
-     * @see     #exec(String[], String[], File)
-     * @see     ProcessBuilder
+     * @throws SecurityException        If a security manager exists and its
+     *                                  {@link SecurityManager#checkExec checkExec}
+     *                                  method doesn't allow creation of the subprocess
+     * @throws IOException              If an I/O error occurs
+     * @throws NullPointerException     If {@code command} is {@code null}
+     * @throws IllegalArgumentException If {@code command} is empty
+     * @see #exec(String[], String[], File)
+     * @see ProcessBuilder
      */
+    // 构造执行指定命令的进程
     public Process exec(String command) throws IOException {
         return exec(command, null, null);
     }
-
+    
     /**
      * Executes the specified string command in a separate process with the
      * specified environment.
@@ -321,38 +346,30 @@ public class Runtime {
      * behaves in exactly the same way as the invocation
      * {@link #exec(String, String[], File) exec}{@code (command, envp, null)}.
      *
-     * @param   command   a specified system command.
+     * @param command a specified system command.
+     * @param envp    array of strings, each element of which
+     *                has environment variable settings in the format
+     *                <i>name</i>=<i>value</i>, or
+     *                {@code null} if the subprocess should inherit
+     *                the environment of the current process.
      *
-     * @param   envp      array of strings, each element of which
-     *                    has environment variable settings in the format
-     *                    <i>name</i>=<i>value</i>, or
-     *                    {@code null} if the subprocess should inherit
-     *                    the environment of the current process.
+     * @return A new {@link Process} object for managing the subprocess
      *
-     * @return  A new {@link Process} object for managing the subprocess
-     *
-     * @throws  SecurityException
-     *          If a security manager exists and its
-     *          {@link SecurityManager#checkExec checkExec}
-     *          method doesn't allow creation of the subprocess
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     *
-     * @throws  NullPointerException
-     *          If {@code command} is {@code null},
-     *          or one of the elements of {@code envp} is {@code null}
-     *
-     * @throws  IllegalArgumentException
-     *          If {@code command} is empty
-     *
-     * @see     #exec(String[], String[], File)
-     * @see     ProcessBuilder
+     * @throws SecurityException        If a security manager exists and its
+     *                                  {@link SecurityManager#checkExec checkExec}
+     *                                  method doesn't allow creation of the subprocess
+     * @throws IOException              If an I/O error occurs
+     * @throws NullPointerException     If {@code command} is {@code null},
+     *                                  or one of the elements of {@code envp} is {@code null}
+     * @throws IllegalArgumentException If {@code command} is empty
+     * @see #exec(String[], String[], File)
+     * @see ProcessBuilder
      */
+    // 构造执行指定命令的进程，envp为进程设置环境变量
     public Process exec(String command, String[] envp) throws IOException {
         return exec(command, envp, null);
     }
-
+    
     /**
      * Executes the specified string command in a separate process with the
      * specified environment and working directory.
@@ -371,50 +388,43 @@ public class Runtime {
      * produced by the tokenizer are then placed in the new string
      * array {@code cmdarray}, in the same order.
      *
-     * @param   command   a specified system command.
+     * @param command a specified system command.
+     * @param envp    array of strings, each element of which
+     *                has environment variable settings in the format
+     *                <i>name</i>=<i>value</i>, or
+     *                {@code null} if the subprocess should inherit
+     *                the environment of the current process.
+     * @param dir     the working directory of the subprocess, or
+     *                {@code null} if the subprocess should inherit
+     *                the working directory of the current process.
      *
-     * @param   envp      array of strings, each element of which
-     *                    has environment variable settings in the format
-     *                    <i>name</i>=<i>value</i>, or
-     *                    {@code null} if the subprocess should inherit
-     *                    the environment of the current process.
+     * @return A new {@link Process} object for managing the subprocess
      *
-     * @param   dir       the working directory of the subprocess, or
-     *                    {@code null} if the subprocess should inherit
-     *                    the working directory of the current process.
-     *
-     * @return  A new {@link Process} object for managing the subprocess
-     *
-     * @throws  SecurityException
-     *          If a security manager exists and its
-     *          {@link SecurityManager#checkExec checkExec}
-     *          method doesn't allow creation of the subprocess
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     *
-     * @throws  NullPointerException
-     *          If {@code command} is {@code null},
-     *          or one of the elements of {@code envp} is {@code null}
-     *
-     * @throws  IllegalArgumentException
-     *          If {@code command} is empty
-     *
-     * @see     ProcessBuilder
+     * @throws SecurityException        If a security manager exists and its
+     *                                  {@link SecurityManager#checkExec checkExec}
+     *                                  method doesn't allow creation of the subprocess
+     * @throws IOException              If an I/O error occurs
+     * @throws NullPointerException     If {@code command} is {@code null},
+     *                                  or one of the elements of {@code envp} is {@code null}
+     * @throws IllegalArgumentException If {@code command} is empty
+     * @see ProcessBuilder
      * @since 1.3
      */
-    public Process exec(String command, String[] envp, File dir)
-        throws IOException {
-        if (command.length() == 0)
+    // 构造执行指定命令的进程，envp为进程设置环境变量，dir为进程设置工作目录
+    public Process exec(String command, String[] envp, File dir) throws IOException {
+        if(command.length() == 0) {
             throw new IllegalArgumentException("Empty command");
-
+        }
+        
         StringTokenizer st = new StringTokenizer(command);
         String[] cmdarray = new String[st.countTokens()];
-        for (int i = 0; st.hasMoreTokens(); i++)
+        for(int i = 0; st.hasMoreTokens(); i++) {
             cmdarray[i] = st.nextToken();
+        }
+        
         return exec(cmdarray, envp, dir);
     }
-
+    
     /**
      * Executes the specified command and arguments in a separate process.
      *
@@ -423,33 +433,26 @@ public class Runtime {
      * behaves in exactly the same way as the invocation
      * {@link #exec(String[], String[], File) exec}{@code (cmdarray, null, null)}.
      *
-     * @param   cmdarray  array containing the command to call and
-     *                    its arguments.
+     * @param cmdarray array containing the command to call and
+     *                 its arguments.
      *
-     * @return  A new {@link Process} object for managing the subprocess
+     * @return A new {@link Process} object for managing the subprocess
      *
-     * @throws  SecurityException
-     *          If a security manager exists and its
-     *          {@link SecurityManager#checkExec checkExec}
-     *          method doesn't allow creation of the subprocess
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     *
-     * @throws  NullPointerException
-     *          If {@code cmdarray} is {@code null},
-     *          or one of the elements of {@code cmdarray} is {@code null}
-     *
-     * @throws  IndexOutOfBoundsException
-     *          If {@code cmdarray} is an empty array
-     *          (has length {@code 0})
-     *
-     * @see     ProcessBuilder
+     * @throws SecurityException         If a security manager exists and its
+     *                                   {@link SecurityManager#checkExec checkExec}
+     *                                   method doesn't allow creation of the subprocess
+     * @throws IOException               If an I/O error occurs
+     * @throws NullPointerException      If {@code cmdarray} is {@code null},
+     *                                   or one of the elements of {@code cmdarray} is {@code null}
+     * @throws IndexOutOfBoundsException If {@code cmdarray} is an empty array
+     *                                   (has length {@code 0})
+     * @see ProcessBuilder
      */
+    // 构造执行指定命令的进程，命令行以数组cmdarray形式给出
     public Process exec(String cmdarray[]) throws IOException {
         return exec(cmdarray, null, null);
     }
-
+    
     /**
      * Executes the specified command and arguments in a separate process
      * with the specified environment.
@@ -459,41 +462,32 @@ public class Runtime {
      * behaves in exactly the same way as the invocation
      * {@link #exec(String[], String[], File) exec}{@code (cmdarray, envp, null)}.
      *
-     * @param   cmdarray  array containing the command to call and
-     *                    its arguments.
+     * @param cmdarray array containing the command to call and
+     *                 its arguments.
+     * @param envp     array of strings, each element of which
+     *                 has environment variable settings in the format
+     *                 <i>name</i>=<i>value</i>, or
+     *                 {@code null} if the subprocess should inherit
+     *                 the environment of the current process.
      *
-     * @param   envp      array of strings, each element of which
-     *                    has environment variable settings in the format
-     *                    <i>name</i>=<i>value</i>, or
-     *                    {@code null} if the subprocess should inherit
-     *                    the environment of the current process.
+     * @return A new {@link Process} object for managing the subprocess
      *
-     * @return  A new {@link Process} object for managing the subprocess
-     *
-     * @throws  SecurityException
-     *          If a security manager exists and its
-     *          {@link SecurityManager#checkExec checkExec}
-     *          method doesn't allow creation of the subprocess
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     *
-     * @throws  NullPointerException
-     *          If {@code cmdarray} is {@code null},
-     *          or one of the elements of {@code cmdarray} is {@code null},
-     *          or one of the elements of {@code envp} is {@code null}
-     *
-     * @throws  IndexOutOfBoundsException
-     *          If {@code cmdarray} is an empty array
-     *          (has length {@code 0})
-     *
-     * @see     ProcessBuilder
+     * @throws SecurityException         If a security manager exists and its
+     *                                   {@link SecurityManager#checkExec checkExec}
+     *                                   method doesn't allow creation of the subprocess
+     * @throws IOException               If an I/O error occurs
+     * @throws NullPointerException      If {@code cmdarray} is {@code null},
+     *                                   or one of the elements of {@code cmdarray} is {@code null},
+     *                                   or one of the elements of {@code envp} is {@code null}
+     * @throws IndexOutOfBoundsException If {@code cmdarray} is an empty array
+     *                                   (has length {@code 0})
+     * @see ProcessBuilder
      */
+    // 构造执行指定命令的进程，命令行以数组cmdarray形式给出，envp为进程设置环境变量
     public Process exec(String[] cmdarray, String[] envp) throws IOException {
         return exec(cmdarray, envp, null);
     }
-
-
+    
     /**
      * Executes the specified command and arguments in a separate process with
      * the specified environment and working directory.
@@ -544,102 +538,45 @@ public class Runtime {
      * <p>If the operating system does not support the creation of
      * processes, an {@link UnsupportedOperationException} will be thrown.
      *
+     * @param cmdarray array containing the command to call and
+     *                 its arguments.
+     * @param envp     array of strings, each element of which
+     *                 has environment variable settings in the format
+     *                 <i>name</i>=<i>value</i>, or
+     *                 {@code null} if the subprocess should inherit
+     *                 the environment of the current process.
+     * @param dir      the working directory of the subprocess, or
+     *                 {@code null} if the subprocess should inherit
+     *                 the working directory of the current process.
      *
-     * @param   cmdarray  array containing the command to call and
-     *                    its arguments.
+     * @return A new {@link Process} object for managing the subprocess
      *
-     * @param   envp      array of strings, each element of which
-     *                    has environment variable settings in the format
-     *                    <i>name</i>=<i>value</i>, or
-     *                    {@code null} if the subprocess should inherit
-     *                    the environment of the current process.
-     *
-     * @param   dir       the working directory of the subprocess, or
-     *                    {@code null} if the subprocess should inherit
-     *                    the working directory of the current process.
-     *
-     * @return  A new {@link Process} object for managing the subprocess
-     *
-     * @throws  SecurityException
-     *          If a security manager exists and its
-     *          {@link SecurityManager#checkExec checkExec}
-     *          method doesn't allow creation of the subprocess
-     *
-     * @throws  UnsupportedOperationException
-     *          If the operating system does not support the creation of processes.
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     *
-     * @throws  NullPointerException
-     *          If {@code cmdarray} is {@code null},
-     *          or one of the elements of {@code cmdarray} is {@code null},
-     *          or one of the elements of {@code envp} is {@code null}
-     *
-     * @throws  IndexOutOfBoundsException
-     *          If {@code cmdarray} is an empty array
-     *          (has length {@code 0})
-     *
-     * @see     ProcessBuilder
+     * @throws SecurityException             If a security manager exists and its
+     *                                       {@link SecurityManager#checkExec checkExec}
+     *                                       method doesn't allow creation of the subprocess
+     * @throws UnsupportedOperationException If the operating system does not support the creation of processes.
+     * @throws IOException                   If an I/O error occurs
+     * @throws NullPointerException          If {@code cmdarray} is {@code null},
+     *                                       or one of the elements of {@code cmdarray} is {@code null},
+     *                                       or one of the elements of {@code envp} is {@code null}
+     * @throws IndexOutOfBoundsException     If {@code cmdarray} is an empty array
+     *                                       (has length {@code 0})
+     * @see ProcessBuilder
      * @since 1.3
      */
-    public Process exec(String[] cmdarray, String[] envp, File dir)
-        throws IOException {
-        return new ProcessBuilder(cmdarray)
-            .environment(envp)
-            .directory(dir)
+    // 构造执行指定命令的进程，命令行以数组cmdarray形式给出，envp为进程设置环境变量，dir为进程设置工作目录
+    public Process exec(String[] cmdarray, String[] envp, File dir) throws IOException {
+        return new ProcessBuilder(cmdarray).environment(envp)  // 为进程构造器设置环境变量
+            .directory(dir)     // 为进程构造器设定工作目录
             .start();
     }
-
-    /**
-     * Returns the number of processors available to the Java virtual machine.
-     *
-     * <p> This value may change during a particular invocation of the virtual
-     * machine.  Applications that are sensitive to the number of available
-     * processors should therefore occasionally poll this property and adjust
-     * their resource usage appropriately. </p>
-     *
-     * @return  the maximum number of processors available to the virtual
-     *          machine; never smaller than one
-     * @since 1.4
-     */
-    public native int availableProcessors();
-
-    /**
-     * Returns the amount of free memory in the Java Virtual Machine.
-     * Calling the
-     * {@code gc} method may result in increasing the value returned
-     * by {@code freeMemory.}
-     *
-     * @return  an approximation to the total amount of memory currently
-     *          available for future allocated objects, measured in bytes.
-     */
-    public native long freeMemory();
-
-    /**
-     * Returns the total amount of memory in the Java virtual machine.
-     * The value returned by this method may vary over time, depending on
-     * the host environment.
-     * <p>
-     * Note that the amount of memory required to hold an object of any
-     * given type may be implementation-dependent.
-     *
-     * @return  the total amount of memory currently available for current
-     *          and future objects, measured in bytes.
-     */
-    public native long totalMemory();
-
-    /**
-     * Returns the maximum amount of memory that the Java virtual machine
-     * will attempt to use.  If there is no inherent limit then the value
-     * {@link java.lang.Long#MAX_VALUE} will be returned.
-     *
-     * @return  the maximum amount of memory that the virtual machine will
-     *          attempt to use, measured in bytes
-     * @since 1.4
-     */
-    public native long maxMemory();
-
+    
+    /*▲ 进程/命令行 ███████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 清理 ███████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Runs the garbage collector.
      * Calling this method suggests that the Java virtual machine expend
@@ -656,8 +593,9 @@ public class Runtime {
      * The method {@link System#gc()} is the conventional and convenient
      * means of invoking this method.
      */
+    // 通知虚拟机执行垃圾回收操作
     public native void gc();
-
+    
     /**
      * Runs the finalization methods of any objects pending finalization.
      * Calling this method suggests that the Java virtual machine expend
@@ -674,38 +612,103 @@ public class Runtime {
      * The method {@link System#runFinalization()} is the conventional
      * and convenient means of invoking this method.
      *
-     * @see     java.lang.Object#finalize()
+     * @see java.lang.Object#finalize()
      */
+    // 手动触发Finalizer的清理操作，不用等待FinalizerThread
     public void runFinalization() {
         SharedSecrets.getJavaLangRefAccess().runFinalization();
     }
-
+    
+    /*▲ 清理 ███████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 信息 ███████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Not implemented, does nothing.
+     * Returns the maximum amount of memory that the Java virtual machine will attempt to use.
+     * If there is no inherent limit then the value {@link java.lang.Long#MAX_VALUE} will be returned.
      *
-     * @deprecated
-     * This method was intended to control instruction tracing.
-     * It has been superseded by JVM-specific tracing mechanisms.
-     * This method is subject to removal in a future version of Java SE.
+     * @return the maximum amount of memory that the virtual machine will attempt to use, measured in bytes
      *
-     * @param on ignored
+     * @since 1.4
      */
-    @Deprecated(since="9", forRemoval=true)
-    public void traceInstructions(boolean on) { }
-
+    /*
+     * 返回虚拟机可用内存的上限(字节数)，可通过-Xmx设置
+     *
+     * max >= total >= free
+     */
+    public native long maxMemory();
+    
     /**
-     * Not implemented, does nothing.
+     * Returns the total amount of memory in the Java virtual machine.
+     * The value returned by this method may vary over time, depending on the host environment.
+     * <p>
+     * Note that the amount of memory required to hold an object of any given type may be implementation-dependent.
      *
-     * @deprecated
-     * This method was intended to control method call tracing.
-     * It has been superseded by JVM-specific tracing mechanisms.
-     * This method is subject to removal in a future version of Java SE.
-     *
-     * @param on ignored
+     * @return the total amount of memory currently available for current and future objects, measured in bytes.
      */
-    @Deprecated(since="9", forRemoval=true)
-    public void traceMethodCalls(boolean on) { }
-
+    /*
+     * 返回虚拟机当前可用的最大内存(字节数)，会动态增长或减少，初始值可通过-Xms设置
+     *
+     * max >= total >= free
+     */
+    public native long totalMemory();
+    
+    /**
+     * Returns the amount of free memory in the Java Virtual Machine.
+     * Calling the {@code gc} method may result in increasing the value returned by {@code freeMemory.}
+     *
+     * @return an approximation to the total amount of memory currently available for future allocated objects, measured in bytes.
+     */
+    /*
+     * 返回虚拟机当前未使用的内存(字节数)，会动态变化；
+     * freeMemory的上限是totalMemory，而totalMemory的上限是maxMemory。
+     *
+     * max >= total >= free
+     */
+    public native long freeMemory();
+    
+    
+    /**
+     * Returns the number of processors available to the Java virtual machine.
+     *
+     * <p> This value may change during a particular invocation of the virtual
+     * machine.  Applications that are sensitive to the number of available
+     * processors should therefore occasionally poll this property and adjust
+     * their resource usage appropriately. </p>
+     *
+     * @return the maximum number of processors available to the virtual
+     * machine; never smaller than one
+     *
+     * @since 1.4
+     */
+    // 返回虚拟机可用的处理器数量
+    public native int availableProcessors();
+    
+    
+    /**
+     * Returns the version of the Java Runtime Environment as a {@link Version}.
+     *
+     * @return the {@link Version} of the Java Runtime Environment
+     *
+     * @since 9
+     */
+    // 返回当前JDK版本信息
+    public static Version version() {
+        if(version == null) {
+            version = new Version(VersionProps.versionNumbers(), VersionProps.pre(), VersionProps.build(), VersionProps.optional());
+        }
+        
+        return version;
+    }
+    
+    /*▲ 信息 ███████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 本地库 ███████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Loads the native library specified by the filename argument.  The filename
      * argument must be an absolute path name.
@@ -736,37 +739,30 @@ public class Runtime {
      * The method {@link System#load(String)} is the conventional and
      * convenient means of invoking this method.
      *
-     * @param      filename   the file to load.
-     * @throws     SecurityException  if a security manager exists and its
-     *             {@code checkLink} method doesn't allow
-     *             loading of the specified dynamic library
-     * @throws     UnsatisfiedLinkError  if either the filename is not an
-     *             absolute path name, the native library is not statically
-     *             linked with the VM, or the library cannot be mapped to
-     *             a native library image by the host system.
-     * @throws     NullPointerException if {@code filename} is
-     *             {@code null}
-     * @see        java.lang.Runtime#getRuntime()
-     * @see        java.lang.SecurityException
-     * @see        java.lang.SecurityManager#checkLink(java.lang.String)
+     * @param filename the file to load.
+     *
+     * @throws SecurityException    if a security manager exists and its
+     *                              {@code checkLink} method doesn't allow
+     *                              loading of the specified dynamic library
+     * @throws UnsatisfiedLinkError if either the filename is not an
+     *                              absolute path name, the native library is not statically
+     *                              linked with the VM, or the library cannot be mapped to
+     *                              a native library image by the host system.
+     * @throws NullPointerException if {@code filename} is
+     *                              {@code null}
+     * @see java.lang.Runtime#getRuntime()
+     * @see java.lang.SecurityException
+     * @see java.lang.SecurityManager#checkLink(java.lang.String)
+     */
+    /*
+     * 加载指定名称的本地库(要求filename是本地库的绝对路径)
+     * 发起加载操作的是load()方法的调用者所处的类(忽略反射栈帧)
      */
     @CallerSensitive
     public void load(String filename) {
         load0(Reflection.getCallerClass(), filename);
     }
-
-    synchronized void load0(Class<?> fromClass, String filename) {
-        SecurityManager security = System.getSecurityManager();
-        if (security != null) {
-            security.checkLink(filename);
-        }
-        if (!(new File(filename).isAbsolute())) {
-            throw new UnsatisfiedLinkError(
-                "Expecting an absolute path of the library: " + filename);
-        }
-        ClassLoader.loadLibrary(fromClass, filename, true);
-    }
-
+    
     /**
      * Loads the native library specified by the {@code libname}
      * argument.  The {@code libname} argument must not contain any platform
@@ -799,52 +795,117 @@ public class Runtime {
      * If this method is called more than once with the same library
      * name, the second and subsequent calls are ignored.
      *
-     * @param      libname   the name of the library.
-     * @throws     SecurityException  if a security manager exists and its
-     *             {@code checkLink} method doesn't allow
-     *             loading of the specified dynamic library
-     * @throws     UnsatisfiedLinkError if either the libname argument
-     *             contains a file path, the native library is not statically
-     *             linked with the VM,  or the library cannot be mapped to a
-     *             native library image by the host system.
-     * @throws     NullPointerException if {@code libname} is
-     *             {@code null}
-     * @see        java.lang.SecurityException
-     * @see        java.lang.SecurityManager#checkLink(java.lang.String)
+     * @param libname the name of the library.
+     *
+     * @throws SecurityException    if a security manager exists and its
+     *                              {@code checkLink} method doesn't allow
+     *                              loading of the specified dynamic library
+     * @throws UnsatisfiedLinkError if either the libname argument
+     *                              contains a file path, the native library is not statically
+     *                              linked with the VM,  or the library cannot be mapped to a
+     *                              native library image by the host system.
+     * @throws NullPointerException if {@code libname} is
+     *                              {@code null}
+     * @see java.lang.SecurityException
+     * @see java.lang.SecurityManager#checkLink(java.lang.String)
+     */
+    /*
+     * 加载指定名称的本地库，如"net"是指本地网络库
+     * 发起加载操作的是loadLibrary()方法的调用者所处的类(忽略反射栈帧)
      */
     @CallerSensitive
     public void loadLibrary(String libname) {
         loadLibrary0(Reflection.getCallerClass(), libname);
     }
-
+    
+    // 加载指定名称的本地库(要求filename是本地库的绝对路径)
+    synchronized void load0(Class<?> fromClass, String filename) {
+        SecurityManager security = System.getSecurityManager();
+        if(security != null) {
+            security.checkLink(filename);
+        }
+        
+        // 如果filename不是绝对路径，则抛异常
+        if(!(new File(filename).isAbsolute())) {
+            throw new UnsatisfiedLinkError("Expecting an absolute path of the library: " + filename);
+        }
+        
+        // 加载指定名称的本地库
+        ClassLoader.loadLibrary(fromClass, filename, true);
+    }
+    
+    // 加载指定名称的本地库，如"net"是指本地网络库
     synchronized void loadLibrary0(Class<?> fromClass, String libname) {
         SecurityManager security = System.getSecurityManager();
-        if (security != null) {
+        if(security != null) {
             security.checkLink(libname);
         }
-        if (libname.indexOf((int)File.separatorChar) != -1) {
-            throw new UnsatisfiedLinkError(
-    "Directory separator should not appear in library name: " + libname);
+        
+        // 如果libname包含路径内部的分隔符，则抛异常
+        if(libname.indexOf((int) File.separatorChar) != -1) {
+            throw new UnsatisfiedLinkError("Directory separator should not appear in library name: " + libname);
         }
+        
+        // 加载指定名称的本地库
         ClassLoader.loadLibrary(fromClass, libname, false);
     }
-
+    
+    /*▲ 本地库 ███████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ███████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns the version of the Java Runtime Environment as a {@link Version}.
+     * Not implemented, does nothing.
      *
-     * @return  the {@link Version} of the Java Runtime Environment
+     * @param on ignored
      *
-     * @since  9
+     * @deprecated This method was intended to control instruction tracing.
+     * It has been superseded by JVM-specific tracing mechanisms.
+     * This method is subject to removal in a future version of Java SE.
      */
-    public static Version version() {
-        if (version == null) {
-            version = new Version(VersionProps.versionNumbers(),
-                    VersionProps.pre(), VersionProps.build(),
-                    VersionProps.optional());
-        }
-        return version;
+    @Deprecated(since = "9", forRemoval = true)
+    public void traceInstructions(boolean on) {
     }
-
+    
+    /**
+     * Not implemented, does nothing.
+     *
+     * @param on ignored
+     *
+     * @deprecated This method was intended to control method call tracing.
+     * It has been superseded by JVM-specific tracing mechanisms.
+     * This method is subject to removal in a future version of Java SE.
+     */
+    @Deprecated(since = "9", forRemoval = true)
+    public void traceMethodCalls(boolean on) {
+    }
+    
+    /*▲ 杂项 ███████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    // 版本号正则
+    private static class VersionPattern {
+        // $VNUM(-$PRE)?(\+($BUILD)?(\-$OPT)?)?
+        // RE limits the format of version strings
+        // ([1-9][0-9]*(?:(?:\.0)*\.[1-9][0-9]*)*)(?:-([a-zA-Z0-9]+))?(?:(\+)(0|[1-9][0-9]*)?)?(?:-([-a-zA-Z0-9.]+))?
+        
+        static final String VNUM_GROUP = "VNUM";
+        static final String PRE_GROUP = "PRE";
+        static final String PLUS_GROUP = "PLUS";
+        static final String BUILD_GROUP = "BUILD";
+        static final String OPT_GROUP = "OPT";
+        
+        private static final String VNUM = "(?<VNUM>[1-9][0-9]*(?:(?:\\.0)*\\.[1-9][0-9]*)*)";
+        private static final String PRE = "(?:-(?<PRE>[a-zA-Z0-9]+))?";
+        private static final String BUILD = "(?:(?<PLUS>\\+)(?<BUILD>0|[1-9][0-9]*)?)?";
+        private static final String OPT = "(?:-(?<OPT>[-a-zA-Z0-9.]+))?";
+        private static final String VSTR_FORMAT = VNUM + PRE + BUILD + OPT;
+        
+        static final Pattern VSTR_PATTERN = Pattern.compile(VSTR_FORMAT);
+    }
+    
     /**
      * A representation of a version string for an implementation of the
      * Java&nbsp;SE Platform.  A version string consists of a version number
@@ -968,123 +1029,165 @@ public class Runtime {
      * {@code Version} may have unpredictable results and should be avoided.
      * </p>
      *
-     * @since  9
+     * @since 9
      */
-    public static final class Version
-        implements Comparable<Version>
-    {
-        private final List<Integer>     version;
-        private final Optional<String>  pre;
-        private final Optional<Integer> build;
-        private final Optional<String>  optional;
-
+    // JAVA版本信息
+    public static final class Version implements Comparable<Version> {
+        private final List<Integer> version;        // 版本号
+        
+        private final Optional<String> pre;         // 预发行信息
+        private final Optional<Integer> build;      // 构建信息
+        private final Optional<String> optional;    // 附加信息
+        
         /*
          * List of version number components passed to this constructor MUST
          * be at least unmodifiable (ideally immutable). In the case on an
          * unmodifiable list, the caller MUST hand the list over to this
          * constructor and never change the underlying list.
          */
-        private Version(List<Integer> unmodifiableListOfVersions,
-                        Optional<String> pre,
-                        Optional<Integer> build,
-                        Optional<String> optional)
-        {
+        private Version(List<Integer> unmodifiableListOfVersions, Optional<String> pre, Optional<Integer> build, Optional<String> optional) {
             this.version = unmodifiableListOfVersions;
             this.pre = pre;
             this.build = build;
             this.optional = optional;
         }
-
+        
         /**
          * Parses the given string as a valid
          * <a href="#verStr">version string</a> containing a
          * <a href="#verNum">version number</a> followed by pre-release and
          * build information.
          *
-         * @param  s
-         *         A string to interpret as a version
+         * @param s A string to interpret as a version
          *
-         * @throws  IllegalArgumentException
-         *          If the given string cannot be interpreted as a valid
-         *          version
+         * @return The Version of the given string
          *
-         * @throws  NullPointerException
-         *          If the given string is {@code null}
-         *
-         * @throws  NumberFormatException
-         *          If an element of the version number or the build number
-         *          cannot be represented as an {@link Integer}
-         *
-         * @return  The Version of the given string
+         * @throws IllegalArgumentException If the given string cannot be interpreted as a valid version
+         * @throws NullPointerException     If the given string is {@code null}
+         * @throws NumberFormatException    If an element of the version number or the build number
+         *                                  cannot be represented as an {@link Integer}
          */
+        // 将给定的字符串解析为有效的版本号
         public static Version parse(String s) {
-            if (s == null)
+            if(s == null) {
                 throw new NullPointerException();
-
-            // Shortcut to avoid initializing VersionPattern when creating
-            // feature-version constants during startup
-            if (isSimpleNumber(s)) {
-                return new Version(List.of(Integer.parseInt(s)),
-                        Optional.empty(), Optional.empty(), Optional.empty());
             }
+    
+            // Shortcut to avoid initializing VersionPattern when creating feature-version constants during startup
+            if(isSimpleNumber(s)) {
+                return new Version(List.of(Integer.parseInt(s)), Optional.empty(), Optional.empty(), Optional.empty());
+            }
+    
             Matcher m = VersionPattern.VSTR_PATTERN.matcher(s);
-            if (!m.matches())
-                throw new IllegalArgumentException("Invalid version string: '"
-                                                   + s + "'");
-
+            if(!m.matches()) {
+                throw new IllegalArgumentException("Invalid version string: '" + s + "'");
+            }
+    
             // $VNUM is a dot-separated list of integers of arbitrary length
             String[] split = m.group(VersionPattern.VNUM_GROUP).split("\\.");
             Integer[] version = new Integer[split.length];
-            for (int i = 0; i < split.length; i++) {
+            for(int i = 0; i<split.length; i++) {
                 version[i] = Integer.parseInt(split[i]);
             }
-
-            Optional<String> pre = Optional.ofNullable(
-                    m.group(VersionPattern.PRE_GROUP));
-
+    
+            Optional<String> pre = Optional.ofNullable(m.group(VersionPattern.PRE_GROUP));
+    
             String b = m.group(VersionPattern.BUILD_GROUP);
+    
             // $BUILD is an integer
-            Optional<Integer> build = (b == null)
-                ? Optional.empty()
-                : Optional.of(Integer.parseInt(b));
-
-            Optional<String> optional = Optional.ofNullable(
-                    m.group(VersionPattern.OPT_GROUP));
-
+            Optional<Integer> build = (b == null) ? Optional.empty() : Optional.of(Integer.parseInt(b));
+    
+            Optional<String> optional = Optional.ofNullable(m.group(VersionPattern.OPT_GROUP));
+    
             // empty '+'
-            if (!build.isPresent()) {
-                if (m.group(VersionPattern.PLUS_GROUP) != null) {
-                    if (optional.isPresent()) {
-                        if (pre.isPresent())
-                            throw new IllegalArgumentException("'+' found with"
-                                + " pre-release and optional components:'" + s
-                                + "'");
+            if(!build.isPresent()) {
+                if(m.group(VersionPattern.PLUS_GROUP) != null) {
+                    if(optional.isPresent()) {
+                        if(pre.isPresent())
+                            throw new IllegalArgumentException("'+' found with" + " pre-release and optional components:'" + s + "'");
                     } else {
-                        throw new IllegalArgumentException("'+' found with neither"
-                            + " build or optional components: '" + s + "'");
+                        throw new IllegalArgumentException("'+' found with neither" + " build or optional components: '" + s + "'");
                     }
                 } else {
-                    if (optional.isPresent() && !pre.isPresent()) {
-                        throw new IllegalArgumentException("optional component"
-                            + " must be preceeded by a pre-release component"
-                            + " or '+': '" + s + "'");
+                    if(optional.isPresent() && !pre.isPresent()) {
+                        throw new IllegalArgumentException("optional component" + " must be preceeded by a pre-release component" + " or '+': '" + s + "'");
                     }
                 }
             }
+    
             return new Version(List.of(version), pre, build, optional);
         }
-
-        private static boolean isSimpleNumber(String s) {
-            for (int i = 0; i < s.length(); i++) {
-                char c = s.charAt(i);
-                char lowerBound = (i > 0) ? '0' : '1';
-                if (c < lowerBound || c > '9') {
-                    return false;
-                }
-            }
-            return true;
+        
+        /**
+         * Returns the value of the major element of the version number.
+         *
+         * @return The value of the feature element
+         *
+         * @deprecated As of Java&nbsp;SE 10, the first element of a version
+         * number is not the major-release number but the feature-release
+         * counter, incremented for every time-based release.  Use the {@link
+         * #feature()} method in preference to this method.  For compatibility,
+         * this method returns the value of the <a href="#FEATURE">feature</a>
+         * element.
+         */
+        // 主版本号。已过时，使用"feature"替代
+        @Deprecated(since = "10")
+        public int major() {
+            return feature();
         }
-
+        
+        /**
+         * Returns the value of the minor element of the version number, or
+         * zero if it is absent.
+         *
+         * @return The value of the interim element, or zero
+         *
+         * @deprecated As of Java&nbsp;SE 10, the second element of a version
+         * number is not the minor-release number but the interim-release
+         * counter, incremented for every interim release.  Use the {@link
+         * #interim()} method in preference to this method.  For compatibility,
+         * this method returns the value of the <a href="#INTERIM">interim</a>
+         * element, or zero if it is absent.
+         */
+        // 次版本号。已过时，使用"interim"替代
+        @Deprecated(since = "10")
+        public int minor() {
+            return interim();
+        }
+        
+        /**
+         * Returns the value of the security element of the version number, or
+         * zero if it is absent.
+         *
+         * @return The value of the update element, or zero
+         *
+         * @deprecated As of Java&nbsp;SE 10, the third element of a version
+         * number is not the security level but the update-release counter,
+         * incremented for every update release.  Use the {@link #update()}
+         * method in preference to this method.  For compatibility, this method
+         * returns the value of the <a href="#UPDATE">update</a> element, or
+         * zero if it is absent.
+         */
+        // 安全级别。已过时，使用"update"替代
+        @Deprecated(since = "10")
+        public int security() {
+            return update();
+        }
+        
+        /**
+         * Returns an unmodifiable {@link java.util.List List} of the integers
+         * represented in the <a href="#verNum">version number</a>.
+         * The {@code List} always contains at least one element corresponding to
+         * the <a href="#FEATURE">feature version number</a>.
+         *
+         * @return An unmodifiable list of the integers
+         * represented in the version number
+         */
+        // 返回版本号，由[feature]-[interim]-[update]-[patch]构成
+        public List<Integer> version() {
+            return version;
+        }
+        
         /**
          * Returns the value of the <a href="#FEATURE">feature</a> element of
          * the version number.
@@ -1096,7 +1199,7 @@ public class Runtime {
         public int feature() {
             return version.get(0);
         }
-
+        
         /**
          * Returns the value of the <a href="#INTERIM">interim</a> element of
          * the version number, or zero if it is absent.
@@ -1106,9 +1209,9 @@ public class Runtime {
          * @since 10
          */
         public int interim() {
-            return (version.size() > 1 ? version.get(1) : 0);
+            return (version.size()>1 ? version.get(1) : 0);
         }
-
+        
         /**
          * Returns the value of the <a href="#UPDATE">update</a> element of the
          * version number, or zero if it is absent.
@@ -1118,9 +1221,9 @@ public class Runtime {
          * @since 10
          */
         public int update() {
-            return (version.size() > 2 ? version.get(2) : 0);
+            return (version.size()>2 ? version.get(2) : 0);
         }
-
+        
         /**
          * Returns the value of the <a href="#PATCH">patch</a> element of the
          * version number, or zero if it is absent.
@@ -1130,103 +1233,40 @@ public class Runtime {
          * @since 10
          */
         public int patch() {
-            return (version.size() > 3 ? version.get(3) : 0);
+            return (version.size()>3 ? version.get(3) : 0);
         }
-
-        /**
-         * Returns the value of the major element of the version number.
-         *
-         * @deprecated As of Java&nbsp;SE 10, the first element of a version
-         * number is not the major-release number but the feature-release
-         * counter, incremented for every time-based release.  Use the {@link
-         * #feature()} method in preference to this method.  For compatibility,
-         * this method returns the value of the <a href="#FEATURE">feature</a>
-         * element.
-         *
-         * @return The value of the feature element
-         */
-        @Deprecated(since = "10")
-        public int major() {
-            return feature();
-        }
-
-        /**
-         * Returns the value of the minor element of the version number, or
-         * zero if it is absent.
-         *
-         * @deprecated As of Java&nbsp;SE 10, the second element of a version
-         * number is not the minor-release number but the interim-release
-         * counter, incremented for every interim release.  Use the {@link
-         * #interim()} method in preference to this method.  For compatibility,
-         * this method returns the value of the <a href="#INTERIM">interim</a>
-         * element, or zero if it is absent.
-         *
-         * @return The value of the interim element, or zero
-         */
-        @Deprecated(since = "10")
-        public int minor() {
-            return interim();
-        }
-
-        /**
-         * Returns the value of the security element of the version number, or
-         * zero if it is absent.
-         *
-         * @deprecated As of Java&nbsp;SE 10, the third element of a version
-         * number is not the security level but the update-release counter,
-         * incremented for every update release.  Use the {@link #update()}
-         * method in preference to this method.  For compatibility, this method
-         * returns the value of the <a href="#UPDATE">update</a> element, or
-         * zero if it is absent.
-         *
-         * @return  The value of the update element, or zero
-         */
-        @Deprecated(since = "10")
-        public int security() {
-            return update();
-        }
-
-        /**
-         * Returns an unmodifiable {@link java.util.List List} of the integers
-         * represented in the <a href="#verNum">version number</a>.
-         * The {@code List} always contains at least one element corresponding to
-         * the <a href="#FEATURE">feature version number</a>.
-         *
-         * @return  An unmodifiable list of the integers
-         *          represented in the version number
-         */
-        public List<Integer> version() {
-            return version;
-        }
-
+        
         /**
          * Returns the optional <a href="#pre">pre-release</a> information.
          *
-         * @return  The optional pre-release information as a String
+         * @return The optional pre-release information as a String
          */
+        // 返回预发行信息
         public Optional<String> pre() {
             return pre;
         }
-
+        
         /**
          * Returns the <a href="#build">build number</a>.
          *
-         * @return  The optional build number.
+         * @return The optional build number.
          */
+        // 返回构建信息
         public Optional<Integer> build() {
             return build;
         }
-
+        
         /**
          * Returns <a href="#opt">optional</a> additional identifying build
          * information.
          *
-         * @return  Additional build information as a String
+         * @return Additional build information as a String
          */
+        // 返回附加信息
         public Optional<String> optional() {
             return optional;
         }
-
+        
         /**
          * Compares this version to another.
          *
@@ -1253,21 +1293,19 @@ public class Runtime {
          * During this comparison, a version with optional build information is
          * considered to be greater than a version without one. </p>
          *
-         * @param  obj
-         *         The object to be compared
+         * @param obj The object to be compared
          *
-         * @return  A negative integer, zero, or a positive integer if this
-         *          {@code Version} is less than, equal to, or greater than the
-         *          given {@code Version}
+         * @return A negative integer, zero, or a positive integer if this
+         * {@code Version} is less than, equal to, or greater than the
+         * given {@code Version}
          *
-         * @throws  NullPointerException
-         *          If the given object is {@code null}
+         * @throws NullPointerException If the given object is {@code null}
          */
         @Override
         public int compareTo(Version obj) {
             return compare(obj, false);
         }
-
+        
         /**
          * Compares this version to another disregarding optional build
          * information.
@@ -1279,154 +1317,66 @@ public class Runtime {
          * <p> This method provides ordering which is consistent with
          * {@code equalsIgnoreOptional()}. </p>
          *
-         * @param  obj
-         *         The object to be compared
+         * @param obj The object to be compared
          *
-         * @return  A negative integer, zero, or a positive integer if this
-         *          {@code Version} is less than, equal to, or greater than the
-         *          given {@code Version}
+         * @return A negative integer, zero, or a positive integer if this
+         * {@code Version} is less than, equal to, or greater than the
+         * given {@code Version}
          *
-         * @throws  NullPointerException
-         *          If the given object is {@code null}
+         * @throws NullPointerException If the given object is {@code null}
          */
         public int compareToIgnoreOptional(Version obj) {
             return compare(obj, true);
         }
-
-        private int compare(Version obj, boolean ignoreOpt) {
-            if (obj == null)
-                throw new NullPointerException();
-
-            int ret = compareVersion(obj);
-            if (ret != 0)
-                return ret;
-
-            ret = comparePre(obj);
-            if (ret != 0)
-                return ret;
-
-            ret = compareBuild(obj);
-            if (ret != 0)
-                return ret;
-
-            if (!ignoreOpt)
-                return compareOptional(obj);
-
-            return 0;
-        }
-
-        private int compareVersion(Version obj) {
-            int size = version.size();
-            int oSize = obj.version().size();
-            int min = Math.min(size, oSize);
-            for (int i = 0; i < min; i++) {
-                int val = version.get(i);
-                int oVal = obj.version().get(i);
-                if (val != oVal)
-                    return val - oVal;
-            }
-            return size - oSize;
-        }
-
-        private int comparePre(Version obj) {
-            Optional<String> oPre = obj.pre();
-            if (!pre.isPresent()) {
-                if (oPre.isPresent())
-                    return 1;
-            } else {
-                if (!oPre.isPresent())
-                    return -1;
-                String val = pre.get();
-                String oVal = oPre.get();
-                if (val.matches("\\d+")) {
-                    return (oVal.matches("\\d+")
-                        ? (new BigInteger(val)).compareTo(new BigInteger(oVal))
-                        : -1);
-                } else {
-                    return (oVal.matches("\\d+")
-                        ? 1
-                        : val.compareTo(oVal));
-                }
-            }
-            return 0;
-        }
-
-        private int compareBuild(Version obj) {
-            Optional<Integer> oBuild = obj.build();
-            if (oBuild.isPresent()) {
-                return (build.isPresent()
-                        ? build.get().compareTo(oBuild.get())
-                        : -1);
-            } else if (build.isPresent()) {
-                return 1;
-            }
-            return 0;
-        }
-
-        private int compareOptional(Version obj) {
-            Optional<String> oOpt = obj.optional();
-            if (!optional.isPresent()) {
-                if (oOpt.isPresent())
-                    return -1;
-            } else {
-                if (!oOpt.isPresent())
-                    return 1;
-                return optional.get().compareTo(oOpt.get());
-            }
-            return 0;
-        }
-
+        
         /**
          * Returns a string representation of this version.
          *
-         * @return  The version string
+         * @return The version string
          */
         @Override
         public String toString() {
-            StringBuilder sb
-                = new StringBuilder(version.stream()
-                    .map(Object::toString)
-                    .collect(Collectors.joining(".")));
-
+            StringBuilder sb = new StringBuilder(version.stream().map(Object::toString).collect(Collectors.joining(".")));
+    
             pre.ifPresent(v -> sb.append("-").append(v));
-
-            if (build.isPresent()) {
+    
+            if(build.isPresent()) {
                 sb.append("+").append(build.get());
-                if (optional.isPresent())
+                if(optional.isPresent()) {
                     sb.append("-").append(optional.get());
+                }
             } else {
-                if (optional.isPresent()) {
+                if(optional.isPresent()) {
                     sb.append(pre.isPresent() ? "-" : "+-");
                     sb.append(optional.get());
                 }
             }
-
+    
             return sb.toString();
         }
-
+        
         /**
          * Determines whether this {@code Version} is equal to another object.
          *
          * <p> Two {@code Version}s are equal if and only if they represent the
          * same version string.
          *
-         * @param  obj
-         *         The object to which this {@code Version} is to be compared
+         * @param obj The object to which this {@code Version} is to be compared
          *
-         * @return  {@code true} if, and only if, the given object is a {@code
-         *          Version} that is identical to this {@code Version}
-         *
+         * @return {@code true} if, and only if, the given object is a {@code
+         * Version} that is identical to this {@code Version}
          */
         @Override
         public boolean equals(Object obj) {
             boolean ret = equalsIgnoreOptional(obj);
-            if (!ret)
+            if(!ret) {
                 return false;
-
-            Version that = (Version)obj;
+            }
+    
+            Version that = (Version) obj;
             return (this.optional().equals(that.optional()));
         }
-
+        
         /**
          * Determines whether this {@code Version} is equal to another
          * disregarding optional build information.
@@ -1434,64 +1384,142 @@ public class Runtime {
          * <p> Two {@code Version}s are equal if and only if they represent the
          * same version string disregarding the optional build information.
          *
-         * @param  obj
-         *         The object to which this {@code Version} is to be compared
+         * @param obj The object to which this {@code Version} is to be compared
          *
-         * @return  {@code true} if, and only if, the given object is a {@code
-         *          Version} that is identical to this {@code Version}
-         *          ignoring the optional build information
-         *
+         * @return {@code true} if, and only if, the given object is a {@code
+         * Version} that is identical to this {@code Version}
+         * ignoring the optional build information
          */
         public boolean equalsIgnoreOptional(Object obj) {
-            if (this == obj)
+            if(this == obj) {
                 return true;
-            if (!(obj instanceof Version))
+            }
+    
+            if(!(obj instanceof Version)) {
                 return false;
-
-            Version that = (Version)obj;
-            return (this.version().equals(that.version())
-                && this.pre().equals(that.pre())
-                && this.build().equals(that.build()));
+            }
+    
+            Version that = (Version) obj;
+    
+            return (this.version().equals(that.version()) && this.pre().equals(that.pre()) && this.build().equals(that.build()));
         }
-
+        
         /**
          * Returns the hash code of this version.
          *
-         * @return  The hashcode of this version
+         * @return The hashcode of this version
          */
         @Override
         public int hashCode() {
             int h = 1;
             int p = 17;
-
+    
             h = p * h + version.hashCode();
             h = p * h + pre.hashCode();
             h = p * h + build.hashCode();
             h = p * h + optional.hashCode();
-
+    
             return h;
         }
+        
+        private static boolean isSimpleNumber(String s) {
+            for(int i = 0; i<s.length(); i++) {
+                char c = s.charAt(i);
+                char lowerBound = (i>0) ? '0' : '1';
+                if(c<lowerBound || c>'9') {
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        private int compare(Version obj, boolean ignoreOpt) {
+            if(obj == null) {
+                throw new NullPointerException();
+            }
+            
+            int ret = compareVersion(obj);
+            if(ret != 0) {
+                return ret;
+            }
+            
+            ret = comparePre(obj);
+            if(ret != 0) {
+                return ret;
+            }
+            
+            ret = compareBuild(obj);
+            if(ret != 0) {
+                return ret;
+            }
+            
+            if(!ignoreOpt) {
+                return compareOptional(obj);
+            }
+            
+            return 0;
+        }
+        
+        private int compareVersion(Version obj) {
+            int size = version.size();
+            int oSize = obj.version().size();
+            int min = Math.min(size, oSize);
+            for(int i = 0; i<min; i++) {
+                int val = version.get(i);
+                int oVal = obj.version().get(i);
+                if(val != oVal) {
+                    return val - oVal;
+                }
+            }
+            return size - oSize;
+        }
+        
+        private int comparePre(Version obj) {
+            Optional<String> oPre = obj.pre();
+            if(!pre.isPresent()) {
+                if(oPre.isPresent()) {
+                    return 1;
+                }
+            } else {
+                if(!oPre.isPresent()) {
+                    return -1;
+                }
+                String val = pre.get();
+                String oVal = oPre.get();
+                if(val.matches("\\d+")) {
+                    return (oVal.matches("\\d+") ? (new BigInteger(val)).compareTo(new BigInteger(oVal)) : -1);
+                } else {
+                    return (oVal.matches("\\d+") ? 1 : val.compareTo(oVal));
+                }
+            }
+            return 0;
+        }
+        
+        private int compareBuild(Version obj) {
+            Optional<Integer> oBuild = obj.build();
+            if(oBuild.isPresent()) {
+                return (build.isPresent() ? build.get().compareTo(oBuild.get()) : -1);
+            } else if(build.isPresent()) {
+                return 1;
+            }
+            return 0;
+        }
+        
+        private int compareOptional(Version obj) {
+            Optional<String> oOpt = obj.optional();
+            if(!optional.isPresent()) {
+                if(oOpt.isPresent()) {
+                    return -1;
+                }
+            } else {
+                if(!oOpt.isPresent()) {
+                    return 1;
+                }
+                return optional.get().compareTo(oOpt.get());
+            }
+            return 0;
+        }
+        
     }
-
-    private static class VersionPattern {
-        // $VNUM(-$PRE)?(\+($BUILD)?(\-$OPT)?)?
-        // RE limits the format of version strings
-        // ([1-9][0-9]*(?:(?:\.0)*\.[1-9][0-9]*)*)(?:-([a-zA-Z0-9]+))?(?:(\+)(0|[1-9][0-9]*)?)?(?:-([-a-zA-Z0-9.]+))?
-
-        private static final String VNUM
-            = "(?<VNUM>[1-9][0-9]*(?:(?:\\.0)*\\.[1-9][0-9]*)*)";
-        private static final String PRE      = "(?:-(?<PRE>[a-zA-Z0-9]+))?";
-        private static final String BUILD
-            = "(?:(?<PLUS>\\+)(?<BUILD>0|[1-9][0-9]*)?)?";
-        private static final String OPT      = "(?:-(?<OPT>[-a-zA-Z0-9.]+))?";
-        private static final String VSTR_FORMAT = VNUM + PRE + BUILD + OPT;
-
-        static final Pattern VSTR_PATTERN = Pattern.compile(VSTR_FORMAT);
-
-        static final String VNUM_GROUP  = "VNUM";
-        static final String PRE_GROUP   = "PRE";
-        static final String PLUS_GROUP  = "PLUS";
-        static final String BUILD_GROUP = "BUILD";
-        static final String OPT_GROUP   = "OPT";
-    }
+    
 }

@@ -94,9 +94,11 @@ public final class System {
     // @see #initPhase2()
     static ModuleLayer bootLayer;
     
-    // The security manager for the system.
+    // The security manager for the system. */
+    // 当前使用的安全管理器，默认为null
     private static volatile SecurityManager security;
     
+    // 当前系统关联的控制台，在IDE中通常为null
     private static volatile Console cons;
     
     /**
@@ -121,22 +123,14 @@ public final class System {
      * <dt>user.dir             <dd>User's current working directory
      * </dl>
      */
+    /*
+     * 环境变量属性集，可通过-D运行参数向其添加自定义条目。
+     * 该属性集是删减过的，完整的初始加载的环境变量保存在VM的字段savedProps中。
+     */
     private static Properties props;
     
+    // 行分隔符，在windows上是'\r\n'
     private static String lineSeparator;
-    
-    static {
-        registerNatives();
-    }
-    
-    
-    /** Don't let anyone instantiate this class */
-    private System() {
-    }
-    
-    
-    
-    /*▼ 标准流 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * The "standard" input stream. This stream is already
@@ -144,7 +138,8 @@ public final class System {
      * corresponds to keyboard input or another input source specified by
      * the host environment or user.
      */
-    public static final InputStream in = null;  // 标准输入流，默认与控制台关联。
+    public static final InputStream in = null;  // 标准输入流，会关联到某个默认的输入设备
+    
     /**
      * The "standard" output stream. This stream is already
      * open and ready to accept output data. Typically this stream
@@ -170,7 +165,8 @@ public final class System {
      * @see java.io.PrintStream#println(java.lang.Object)
      * @see java.io.PrintStream#println(java.lang.String)
      */
-    public static final PrintStream out = null; // 标准输出流，默认与控制台关联。
+    public static final PrintStream out = null; // 标准输出流，会关联到某个默认的输出设备
+    
     /**
      * The "standard" error output stream. This stream is already
      * open and ready to accept output data.
@@ -183,8 +179,21 @@ public final class System {
      * variable {@code out}, has been redirected to a file or other
      * destination that is typically not continuously monitored.
      */
-    public static final PrintStream err = null; // 标准错误流，默认与控制台关联。
+    public static final PrintStream err = null; // 标准错误流，会关联到某个默认的输出设备
     
+    
+    static {
+        registerNatives();
+    }
+    
+    
+    /** Don't let anyone instantiate this class */
+    private System() {
+    }
+    
+    
+    
+    /*▼ 标准流 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Reassigns the "standard" input stream.
@@ -202,7 +211,7 @@ public final class System {
      * @see java.lang.RuntimePermission
      * @since 1.1
      */
-    // 设置标准输入流的源
+    // 重定向标准输入流：使得"标准输入流"变为in，即从in中读取数据
     public static void setIn(InputStream in) {
         checkIO();
         setIn0(in);
@@ -224,7 +233,7 @@ public final class System {
      * @see java.lang.RuntimePermission
      * @since 1.1
      */
-    // 设置标准输出流的源
+    // 重定向标准输出流：使得"标准输出流"变为out，即向out中写入数据
     public static void setOut(PrintStream out) {
         checkIO();
         setOut0(out);
@@ -246,11 +255,21 @@ public final class System {
      * @see java.lang.RuntimePermission
      * @since 1.1
      */
-    // 设置标准错误流的源
+    // 重定向标准错误流：使得"标准错误流"变为err，即向err中写入数据
     public static void setErr(PrintStream err) {
         checkIO();
         setErr0(err);
     }
+    
+    
+    // 为字段System.in关联(初始化)标准输入流
+    private static native void setIn0(InputStream in);
+    
+    // 为字段System.out关联(初始化)标准输出流
+    private static native void setOut0(PrintStream out);
+    
+    // 为字段System.err关联(初始化)标准错误流
+    private static native void setErr0(PrintStream err);
     
     /*▲ 标准流 ████████████████████████████████████████████████████████████████████████████████┛ */
     
@@ -359,7 +378,7 @@ public final class System {
     
     
     
-    /*▼ 属性 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 系统属性 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Sets the system property indicated by the specified key.
@@ -393,9 +412,10 @@ public final class System {
      * @see SecurityManager#checkPermission
      * @since 1.2
      */
-    // 设置属性键值对<key, value>
+    // 添加一条系统属性：键值对<key, value>
     public static String setProperty(String key, String value) {
         checkKey(key);
+    
         SecurityManager sm = getSecurityManager();
         if(sm != null) {
             sm.checkPermission(new PropertyPermission(key, SecurityConstants.PROPERTY_WRITE_ACTION));
@@ -433,9 +453,10 @@ public final class System {
      * @see java.lang.SecurityManager#checkPropertiesAccess()
      * @since 1.5
      */
-    // 清除key对应键值对
+    // 移除指定key对应的系统属性
     public static String clearProperty(String key) {
         checkKey(key);
+    
         SecurityManager sm = getSecurityManager();
         if(sm != null) {
             sm.checkPermission(new PropertyPermission(key, "write"));
@@ -473,9 +494,10 @@ public final class System {
      * @see java.lang.SecurityManager#checkPropertyAccess(java.lang.String)
      * @see java.lang.System#getProperties()
      */
-    // 获取key对应的值。如果key不存在，返回null
+    // 返回指定key对应的系统属性的值。如果key不存在，返回null
     public static String getProperty(String key) {
         checkKey(key);
+    
         SecurityManager sm = getSecurityManager();
         if(sm != null) {
             sm.checkPropertyAccess(key);
@@ -510,9 +532,10 @@ public final class System {
      * @see java.lang.SecurityManager#checkPropertyAccess(java.lang.String)
      * @see java.lang.System#getProperties()
      */
-    // 获取key对应的值。如果key不存在，返回默认值def
+    // 返回指定key对应的系统属性的值。如果key不存在，返回默认值def
     public static String getProperty(String key, String def) {
         checkKey(key);
+    
         SecurityManager sm = getSecurityManager();
         if(sm != null) {
             sm.checkPropertyAccess(key);
@@ -546,16 +569,20 @@ public final class System {
      * @see java.lang.SecurityException
      * @see java.lang.SecurityManager#checkPropertiesAccess()
      */
-    // 设置属性集（会替换掉上次设置的属性值，初始时默认为系统属性集）
+    // 设置系统属性集（会整体替换掉上次设置的属性值，初始时默认为系统属性集）
     public static void setProperties(Properties props) {
         SecurityManager sm = getSecurityManager();
         if(sm != null) {
             sm.checkPropertiesAccess();
         }
+    
         if(props == null) {
             props = new Properties();
+        
+            // 加载环境变量以填充props
             initProperties(props);
         }
+    
         System.props = props;
     }
     
@@ -691,17 +718,129 @@ public final class System {
      * @see java.lang.SecurityManager#checkPropertiesAccess()
      * @see java.util.Properties
      */
-    // 获取属性集
+    // 获取系统属性集
     public static Properties getProperties() {
         SecurityManager sm = getSecurityManager();
         if(sm != null) {
             sm.checkPropertiesAccess();
         }
-        
+    
         return props;
     }
     
-    /*▲ 属性 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 系统属性 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 环境变量 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns an unmodifiable string map view of the current system environment.
+     * The environment is a system-dependent mapping from names to
+     * values which is passed from parent to child processes.
+     *
+     * <p>If the system does not support environment variables, an
+     * empty map is returned.
+     *
+     * <p>The returned map will never contain null keys or values.
+     * Attempting to query the presence of a null key or value will
+     * throw a {@link NullPointerException}.  Attempting to query
+     * the presence of a key or value which is not of type
+     * {@link String} will throw a {@link ClassCastException}.
+     *
+     * <p>The returned map and its collection views may not obey the
+     * general contract of the {@link Object#equals} and
+     * {@link Object#hashCode} methods.
+     *
+     * <p>The returned map is typically case-sensitive on all platforms.
+     *
+     * <p>If a security manager exists, its
+     * {@link SecurityManager#checkPermission checkPermission}
+     * method is called with a
+     * {@code {@link RuntimePermission}("getenv.*")} permission.
+     * This may result in a {@link SecurityException} being thrown.
+     *
+     * <p>When passing information to a Java subprocess,
+     * <a href=#EnvironmentVSSystemProperties>system properties</a>
+     * are generally preferred over environment variables.
+     *
+     * @return the environment as a map of variable names to values
+     *
+     * @throws SecurityException if a security manager exists and its
+     *                           {@link SecurityManager#checkPermission checkPermission}
+     *                           method doesn't allow access to the process environment
+     * @see #getenv(String)
+     * @see ProcessBuilder#environment()
+     * @since 1.5
+     */
+    // 返回所有环境变量
+    public static Map<String, String> getenv() {
+        SecurityManager sm = getSecurityManager();
+        if(sm != null) {
+            sm.checkPermission(new RuntimePermission("getenv.*"));
+        }
+        
+        return ProcessEnvironment.getenv();
+    }
+    
+    /**
+     * Gets the value of the specified environment variable. An
+     * environment variable is a system-dependent external named
+     * value.
+     *
+     * <p>If a security manager exists, its
+     * {@link SecurityManager#checkPermission checkPermission}
+     * method is called with a
+     * {@code {@link RuntimePermission}("getenv."+name)}
+     * permission.  This may result in a {@link SecurityException}
+     * being thrown.  If no exception is thrown the value of the
+     * variable {@code name} is returned.
+     *
+     * <p><a id="EnvironmentVSSystemProperties"><i>System
+     * properties</i> and <i>environment variables</i></a> are both
+     * conceptually mappings between names and values.  Both
+     * mechanisms can be used to pass user-defined information to a
+     * Java process.  Environment variables have a more global effect,
+     * because they are visible to all descendants of the process
+     * which defines them, not just the immediate Java subprocess.
+     * They can have subtly different semantics, such as case
+     * insensitivity, on different operating systems.  For these
+     * reasons, environment variables are more likely to have
+     * unintended side effects.  It is best to use system properties
+     * where possible.  Environment variables should be used when a
+     * global effect is desired, or when an external system interface
+     * requires an environment variable (such as {@code PATH}).
+     *
+     * <p>On UNIX systems the alphabetic case of {@code name} is
+     * typically significant, while on Microsoft Windows systems it is
+     * typically not.  For example, the expression
+     * {@code System.getenv("FOO").equals(System.getenv("foo"))}
+     * is likely to be true on Microsoft Windows.
+     *
+     * @param name the name of the environment variable
+     *
+     * @return the string value of the variable, or {@code null}
+     * if the variable is not defined in the system environment
+     *
+     * @throws NullPointerException if {@code name} is {@code null}
+     * @throws SecurityException    if a security manager exists and its
+     *                              {@link SecurityManager#checkPermission checkPermission}
+     *                              method doesn't allow access to the environment variable
+     *                              {@code name}
+     * @see #getenv()
+     * @see ProcessBuilder#environment()
+     */
+    // 返回指定名称的环境变量
+    public static String getenv(String name) {
+        SecurityManager sm = getSecurityManager();
+        if(sm != null) {
+            sm.checkPermission(new RuntimePermission("getenv." + name));
+        }
+        
+        return ProcessEnvironment.getenv(name);
+    }
+    
+    /*▲ 环境变量 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -813,22 +952,23 @@ public final class System {
      * the system initialization time.
      * @since 9
      */
-    // 获取一个Logger实例，名称为name
+    // 获取一个名为name的Logger实例
     @CallerSensitive
     public static Logger getLogger(String name) {
         Objects.requireNonNull(name);
+    
+        // 获取getLogger()方法的调用者所处的类
         final Class<?> caller = Reflection.getCallerClass();
         if(caller == null) {
             throw new IllegalCallerException("no caller frame");
         }
+    
         return LazyLoggers.getLogger(name, caller.getModule());
     }
     
     /**
-     * Returns a localizable instance of {@link Logger
-     * Logger} for the caller's use.
-     * The returned logger will use the provided resource bundle for message
-     * localization.
+     * Returns a localizable instance of {@link Logger Logger} for the caller's use.
+     * The returned logger will use the provided resource bundle for message localization.
      *
      * @param name   the name of the logger.
      * @param bundle a resource bundle.
@@ -864,22 +1004,30 @@ public final class System {
      * take a resource bundle as parameter.
      * @since 9
      */
+    // 获取一个名为name的Logger实例，其打印的消息会依据bundle来做本地化转换
     @CallerSensitive
     public static Logger getLogger(String name, ResourceBundle bundle) {
-        final ResourceBundle rb = Objects.requireNonNull(bundle);
         Objects.requireNonNull(name);
+    
+        final ResourceBundle rb = Objects.requireNonNull(bundle);
+    
         final Class<?> caller = Reflection.getCallerClass();
         if(caller == null) {
             throw new IllegalCallerException("no caller frame");
         }
+    
         final SecurityManager sm = System.getSecurityManager();
-        // We don't use LazyLoggers if a resource bundle is specified.
-        // Bootstrap sensitive classes in the JDK do not use resource bundles when logging.
-        // This could be revisited later, if it needs to.
+    
+        /*
+         * We don't use LazyLoggers if a resource bundle is specified.
+         * Bootstrap sensitive classes in the JDK do not use resource bundles when logging.
+         * This could be revisited later, if it needs to.
+         */
         if(sm != null) {
             final PrivilegedAction<Logger> pa = () -> LoggerFinder.accessProvider().getLocalizedLogger(name, rb, caller.getModule());
             return AccessController.doPrivileged(pa, null, LoggerFinder.LOGGERFINDER_PERMISSION);
         }
+    
         return LoggerFinder.accessProvider().getLocalizedLogger(name, rb, caller.getModule());
     }
     
@@ -887,117 +1035,7 @@ public final class System {
     
     
     
-    /*▼ 环境变量 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Returns an unmodifiable string map view of the current system environment.
-     * The environment is a system-dependent mapping from names to
-     * values which is passed from parent to child processes.
-     *
-     * <p>If the system does not support environment variables, an
-     * empty map is returned.
-     *
-     * <p>The returned map will never contain null keys or values.
-     * Attempting to query the presence of a null key or value will
-     * throw a {@link NullPointerException}.  Attempting to query
-     * the presence of a key or value which is not of type
-     * {@link String} will throw a {@link ClassCastException}.
-     *
-     * <p>The returned map and its collection views may not obey the
-     * general contract of the {@link Object#equals} and
-     * {@link Object#hashCode} methods.
-     *
-     * <p>The returned map is typically case-sensitive on all platforms.
-     *
-     * <p>If a security manager exists, its
-     * {@link SecurityManager#checkPermission checkPermission}
-     * method is called with a
-     * {@code {@link RuntimePermission}("getenv.*")} permission.
-     * This may result in a {@link SecurityException} being thrown.
-     *
-     * <p>When passing information to a Java subprocess,
-     * <a href=#EnvironmentVSSystemProperties>system properties</a>
-     * are generally preferred over environment variables.
-     *
-     * @return the environment as a map of variable names to values
-     *
-     * @throws SecurityException if a security manager exists and its
-     *                           {@link SecurityManager#checkPermission checkPermission}
-     *                           method doesn't allow access to the process environment
-     * @see #getenv(String)
-     * @see ProcessBuilder#environment()
-     * @since 1.5
-     */
-    public static Map<String, String> getenv() {
-        SecurityManager sm = getSecurityManager();
-        if(sm != null) {
-            sm.checkPermission(new RuntimePermission("getenv.*"));
-        }
-        
-        return ProcessEnvironment.getenv();
-    }
-    
-    /**
-     * Gets the value of the specified environment variable. An
-     * environment variable is a system-dependent external named
-     * value.
-     *
-     * <p>If a security manager exists, its
-     * {@link SecurityManager#checkPermission checkPermission}
-     * method is called with a
-     * {@code {@link RuntimePermission}("getenv."+name)}
-     * permission.  This may result in a {@link SecurityException}
-     * being thrown.  If no exception is thrown the value of the
-     * variable {@code name} is returned.
-     *
-     * <p><a id="EnvironmentVSSystemProperties"><i>System
-     * properties</i> and <i>environment variables</i></a> are both
-     * conceptually mappings between names and values.  Both
-     * mechanisms can be used to pass user-defined information to a
-     * Java process.  Environment variables have a more global effect,
-     * because they are visible to all descendants of the process
-     * which defines them, not just the immediate Java subprocess.
-     * They can have subtly different semantics, such as case
-     * insensitivity, on different operating systems.  For these
-     * reasons, environment variables are more likely to have
-     * unintended side effects.  It is best to use system properties
-     * where possible.  Environment variables should be used when a
-     * global effect is desired, or when an external system interface
-     * requires an environment variable (such as {@code PATH}).
-     *
-     * <p>On UNIX systems the alphabetic case of {@code name} is
-     * typically significant, while on Microsoft Windows systems it is
-     * typically not.  For example, the expression
-     * {@code System.getenv("FOO").equals(System.getenv("foo"))}
-     * is likely to be true on Microsoft Windows.
-     *
-     * @param name the name of the environment variable
-     *
-     * @return the string value of the variable, or {@code null}
-     * if the variable is not defined in the system environment
-     *
-     * @throws NullPointerException if {@code name} is {@code null}
-     * @throws SecurityException    if a security manager exists and its
-     *                              {@link SecurityManager#checkPermission checkPermission}
-     *                              method doesn't allow access to the environment variable
-     *                              {@code name}
-     * @see #getenv()
-     * @see ProcessBuilder#environment()
-     */
-    public static String getenv(String name) {
-        SecurityManager sm = getSecurityManager();
-        if(sm != null) {
-            sm.checkPermission(new RuntimePermission("getenv." + name));
-        }
-        
-        return ProcessEnvironment.getenv(name);
-    }
-    
-    /*▲ 环境变量 ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
-    /*▼ 加载外部库 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 加载本地库 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Loads the native library specified by the filename argument.  The filename
@@ -1036,6 +1074,7 @@ public final class System {
      * @see java.lang.Runtime#load(java.lang.String)
      * @see java.lang.SecurityManager#checkLink(java.lang.String)
      */
+    // 加载指定名称的本地库(要求filename是本地库的绝对路径)
     @CallerSensitive
     public static void load(String filename) {
         Runtime.getRuntime().load0(Reflection.getCallerClass(), filename);
@@ -1073,14 +1112,14 @@ public final class System {
      * @see java.lang.Runtime#loadLibrary(java.lang.String)
      * @see java.lang.SecurityManager#checkLink(java.lang.String)
      */
+    // 加载指定名称的本地库，如"net"是指本地网络库
     @CallerSensitive
     public static void loadLibrary(String libname) {
         Runtime.getRuntime().loadLibrary0(Reflection.getCallerClass(), libname);
     }
     
     /**
-     * Maps a library name into a platform-specific string representing
-     * a native library.
+     * Maps a library name into a platform-specific string representing a native library.
      *
      * @param libname the name of the library.
      *
@@ -1091,9 +1130,10 @@ public final class System {
      * @see java.lang.ClassLoader#findLibrary(java.lang.String)
      * @since 1.2
      */
+    // 返回指定名称的本地库在当前平台上的名称，如从"net"映射到"net.dll"
     public static native String mapLibraryName(String libname);
     
-    /*▲ 加载外部库 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 加载本地库 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -1177,7 +1217,7 @@ public final class System {
      *
      * @since 1.7
      */
-    // 返回当前环境下的换行符，比如在windows下返回"\r\n"
+    // 返回当前环境下的换行标记，比如在windows下返回"\r\n"
     public static String lineSeparator() {
         return lineSeparator;
     }
@@ -1215,9 +1255,10 @@ public final class System {
      *
      * @since 1.6
      */
-    // 返回当前JVM关联的控制台（在IDE中运行项目时，此处往往返回null）
+    // 返回为当前JVM环境关联的终端（在IDE中运行项目时，此处往往返回null）
     public static Console console() {
         Console c;
+    
         if((c = cons) == null) {
             synchronized(System.class) {
                 if((c = cons) == null) {
@@ -1225,12 +1266,12 @@ public final class System {
                 }
             }
         }
+    
         return c;
     }
     
     /**
-     * Returns the channel inherited from the entity that created this
-     * Java virtual machine.
+     * Returns the channel inherited from the entity that created this Java virtual machine.
      *
      * This method returns the channel obtained by invoking the
      * {@link java.nio.channels.spi.SelectorProvider#inheritedChannel
@@ -1249,6 +1290,7 @@ public final class System {
      *                           permit access to the channel.
      * @since 1.5
      */
+    // 返回从创建此Java虚拟机的实体继承的通道。
     public static Channel inheritedChannel() throws IOException {
         return SelectorProvider.provider().inheritedChannel();
     }
@@ -1262,6 +1304,7 @@ public final class System {
      *
      * @see #setSecurityManager
      */
+    // 获取当前使用的安全管理器
     public static SecurityManager getSecurityManager() {
         return security;
     }
@@ -1290,11 +1333,13 @@ public final class System {
      * @see SecurityManager#checkPermission
      * @see java.lang.RuntimePermission
      */
+    // 设置安全管理器
     public static void setSecurityManager(final SecurityManager s) {
         if(security == null) {
             // ensure image reader is initialized
             Object.class.getResource("java/lang/ANY");
         }
+    
         if(s != null) {
             try {
                 s.checkPackageAccess("java.lang");
@@ -1302,7 +1347,172 @@ public final class System {
                 // no-op
             }
         }
+    
         setSecurityManager0(s);
+    }
+    
+    
+    /**
+     * Initialize the system class.  Called after thread initialization.
+     */
+    // VM初始化第一阶段
+    private static void initPhase1() {
+        
+        /*
+         * VM might invoke JNU_NewStringPlatform() to set those encoding sensitive properties
+         * (user.home, user.name, boot.class.path, etc.) during "props" initialization, in which it may need access, via System.getProperty(),
+         * to the related system encoding property that have been initialized (put into "props") at early stage of the initialization.
+         * So make sure the "props" is available at the very beginning of the initialization and all system properties to be put into it directly.
+         */
+        // 创建空的Properties容器
+        props = new Properties(84);
+        
+        // 加载环境变量以填充props
+        initProperties(props);  // initialized by the VM
+        
+        /*
+         * There are certain system configurations that may be controlled by VM options
+         * such as the maximum amount of direct memory and Integer cache size used to support the object identity semantics of autoboxing.
+         * Typically, the library will obtain these values from the properties set by the VM.
+         * If the properties are for internal implementation use only, these properties should be removed from the system properties.
+         * See java.lang.Integer.IntegerCache and the VM.saveAndRemoveProperties method for example.
+         * Save a private copy of the system properties object that can only be accessed by the internal implementation.
+         * Remove certain system properties that are not intended for public access.
+         */
+        // 将加载的环境变量设置给虚拟机，并移除一些需要外部设置的环境变量
+        VM.saveAndRemoveProperties(props);
+        
+        lineSeparator = props.getProperty("line.separator");
+        
+        // 初始化一些只读的系统属性
+        StaticProperty.javaHome();  // Load StaticProperty to cache the property values
+        // 初始化JDK版本信息
+        VersionProps.init();
+        
+        // 在Java层构造标准输入流、标准输出流、标准错误流对象
+        FileInputStream fdIn = new FileInputStream(FileDescriptor.in);
+        FileOutputStream fdOut = new FileOutputStream(FileDescriptor.out);
+        FileOutputStream fdErr = new FileOutputStream(FileDescriptor.err);
+        
+        // 为字段System.in关联(初始化)标准输入流
+        setIn0(new BufferedInputStream(fdIn));
+        // 为字段System.out关联(初始化)标准输出流
+        setOut0(newPrintStream(fdOut, props.getProperty("sun.stdout.encoding")));
+        // 为字段System.err关联(初始化)标准错误流
+        setErr0(newPrintStream(fdErr, props.getProperty("sun.stderr.encoding")));
+        
+        // Setup Java signal handlers for HUP, TERM, and INT (where available).
+        Terminator.setup();
+        
+        /*
+         * Initialize any miscellaneous operating system settings that need to be set for the class libraries.
+         * Currently this is no-op everywhere except for Windows where the process-wide error mode is set before the java.io classes are used.
+         */
+        // 设置一些操作系统相关的选项
+        VM.initializeOSEnvironment();
+        
+        /*
+         * The main thread is not added to its thread group in the same way as other threads;
+         * we must do it ourselves here.
+         */
+        Thread current = Thread.currentThread();
+        current.getThreadGroup().add(current);
+        
+        /* register shared secrets */
+        // 初始化JavaLangAccess后门
+        setJavaLangAccess();
+        
+        /*
+         * Subsystems that are invoked during initialization can invoke VM.isBooted() in order to avoid doing things
+         * that should wait until the VM is fully initialized.
+         * The initialization level is incremented from 0 to 1 here to indicate the first phase of initialization has completed.
+         * IMPORTANT: Ensure that this remains the last initialization action!
+         */
+        VM.initLevel(1);    // VM初始化第一阶段已完成
+    }
+    
+    /**
+     * Invoked by VM.  Phase 2 module system initialization.
+     * Only classes in java.base can be loaded in this phase.
+     *
+     * @param printToStderr   print exceptions to stderr rather than stdout
+     * @param printStackTrace print stack trace when exception occurs
+     *
+     * @return JNI_OK for success, JNI_ERR for failure
+     */
+    // VM初始化第二阶段：初始化模块系统
+    private static int initPhase2(boolean printToStderr, boolean printStackTrace) {
+        try {
+            bootLayer = ModuleBootstrap.boot();
+        } catch(Exception | Error e) {
+            logInitException(printToStderr, printStackTrace, "Error occurred during initialization of boot layer", e);
+            return -1; // JNI_ERR
+        }
+        
+        // module system initialized
+        VM.initLevel(2);    // VM初始化第二阶段已完成
+        
+        return 0; // JNI_OK
+    }
+    
+    /**
+     * Invoked by VM.  Phase 3 is the final system initialization:
+     * 1. set security manager
+     * 2. set system class loader
+     * 3. set TCCL
+     *
+     * This method must be called after the module system initialization.
+     * The security manager and system class loader may be custom class from
+     * the application classpath or modulepath.
+     */
+    // VM初始化第三阶段(初始化安全管理器)和第四阶段(初始化系统类加载器，并将其设置到当前线程的上下文中)
+    private static void initPhase3() {
+        // set security manager
+        String cn = System.getProperty("java.security.manager");
+        
+        // 如果定义了"java.security.manager"属性
+        if(cn != null) {
+            // 使用默认的安全管理器实现
+            if(cn.isEmpty() || "default".equals(cn)) {
+                System.setSecurityManager(new SecurityManager());
+                
+                // 使用自定义的安全管理器类
+            } else {
+                try {
+                    // 创建自定义安全管理器的类对象
+                    Class<?> c = Class.forName(cn, false, ClassLoader.getBuiltinAppClassLoader());
+                    Constructor<?> ctor = c.getConstructor();
+                    
+                    // Must be a public subclass of SecurityManager with a public no-arg constructor
+                    if(!SecurityManager.class.isAssignableFrom(c) || !Modifier.isPublic(c.getModifiers()) || !Modifier.isPublic(ctor.getModifiers())) {
+                        throw new Error("Could not create SecurityManager: " + ctor.toString());
+                    }
+                    
+                    // custom security manager implementation may be in unnamed module or a named module but non-exported package
+                    ctor.setAccessible(true);
+                    
+                    // 实例化自定义安全管理器
+                    SecurityManager sm = (SecurityManager) ctor.newInstance();
+                    
+                    // 设置安全管理器
+                    System.setSecurityManager(sm);
+                } catch(Exception e) {
+                    throw new Error("Could not create SecurityManager", e);
+                }
+            }
+        }
+        
+        // initializing the system class loader
+        VM.initLevel(3);    // VM初始化第三阶段已完成
+        
+        // system class loader initialized
+        ClassLoader scl = ClassLoader.initSystemClassLoader();  // 初始化系统类加载器，默认为内置的AppClassLoader
+        
+        // set TCCL
+        Thread.currentThread().setContextClassLoader(scl);  // 将系统类加载器设置为当前线程的上下文类加载器
+        
+        // system is fully initialized
+        VM.initLevel(4);    // VM初始化第四阶段已完成
     }
     
     
@@ -1316,12 +1526,6 @@ public final class System {
      */
     private static native void registerNatives();
     
-    
-    private static native void setIn0(InputStream in);
-    
-    private static native void setOut0(PrintStream out);
-    
-    private static native void setErr0(PrintStream err);
     
     
     private static void checkIO() {
@@ -1339,7 +1543,6 @@ public final class System {
             throw new IllegalArgumentException("key can't be empty");
         }
     }
-    
     
     private static synchronized void setSecurityManager0(final SecurityManager s) {
         SecurityManager sm = getSecurityManager();
@@ -1369,19 +1572,21 @@ public final class System {
         security = s;
     }
     
-    
+    // 加载环境变量以填充props
     private static native Properties initProperties(Properties props);
     
     /**
      * Create PrintStream for stdout/err based on encoding.
      */
-    private static PrintStream newPrintStream(FileOutputStream fos, String enc) {
-        if(enc != null) {
+    // 用指定的最终输出流构造开启了自动刷新的字节打印流，encoding用来指定打印流用到的字符集
+    private static PrintStream newPrintStream(FileOutputStream fos, String encoding) {
+        if(encoding != null) {
             try {
-                return new PrintStream(new BufferedOutputStream(fos, 128), true, enc);
+                return new PrintStream(new BufferedOutputStream(fos, 128), true, encoding);
             } catch(UnsupportedEncodingException uee) {
             }
         }
+        
         return new PrintStream(new BufferedOutputStream(fos, 128), true);
     }
     
@@ -1397,10 +1602,12 @@ public final class System {
         if(VM.initLevel()<1) {
             throw new InternalError("system classes not initialized");
         }
+    
         PrintStream log = (printToStderr) ? err : out;
         if(msg != null) {
             log.println(msg);
         }
+    
         if(printStackTrace) {
             e.printStackTrace(log);
         } else {
@@ -1578,147 +1785,6 @@ public final class System {
         });
     }
     
-    /**
-     * Initialize the system class.  Called after thread initialization.
-     */
-    private static void initPhase1() {
-        
-        // VM might invoke JNU_NewStringPlatform() to set those encoding
-        // sensitive properties (user.home, user.name, boot.class.path, etc.)
-        // during "props" initialization, in which it may need access, via
-        // System.getProperty(), to the related system encoding property that
-        // have been initialized (put into "props") at early stage of the
-        // initialization. So make sure the "props" is available at the
-        // very beginning of the initialization and all system properties to
-        // be put into it directly.
-        props = new Properties(84);
-        initProperties(props);  // initialized by the VM
-        
-        // There are certain system configurations that may be controlled by
-        // VM options such as the maximum amount of direct memory and
-        // Integer cache size used to support the object identity semantics
-        // of autoboxing.  Typically, the library will obtain these values
-        // from the properties set by the VM.  If the properties are for
-        // internal implementation use only, these properties should be
-        // removed from the system properties.
-        //
-        // See java.lang.Integer.IntegerCache and the
-        // VM.saveAndRemoveProperties method for example.
-        //
-        // Save a private copy of the system properties object that
-        // can only be accessed by the internal implementation.  Remove
-        // certain system properties that are not intended for public access.
-        VM.saveAndRemoveProperties(props);
-        
-        lineSeparator = props.getProperty("line.separator");
-        StaticProperty.javaHome();          // Load StaticProperty to cache the property values
-        VersionProps.init();
-        
-        FileInputStream fdIn = new FileInputStream(FileDescriptor.in);
-        FileOutputStream fdOut = new FileOutputStream(FileDescriptor.out);
-        FileOutputStream fdErr = new FileOutputStream(FileDescriptor.err);
-        setIn0(new BufferedInputStream(fdIn));
-        setOut0(newPrintStream(fdOut, props.getProperty("sun.stdout.encoding")));
-        setErr0(newPrintStream(fdErr, props.getProperty("sun.stderr.encoding")));
-        
-        // Setup Java signal handlers for HUP, TERM, and INT (where available).
-        Terminator.setup();
-        
-        // Initialize any miscellaneous operating system settings that need to be
-        // set for the class libraries. Currently this is no-op everywhere except
-        // for Windows where the process-wide error mode is set before the java.io
-        // classes are used.
-        VM.initializeOSEnvironment();
-        
-        // The main thread is not added to its thread group in the same
-        // way as other threads; we must do it ourselves here.
-        Thread current = Thread.currentThread();
-        current.getThreadGroup().add(current);
-        
-        // register shared secrets
-        setJavaLangAccess();
-        
-        // Subsystems that are invoked during initialization can invoke
-        // VM.isBooted() in order to avoid doing things that should
-        // wait until the VM is fully initialized. The initialization level
-        // is incremented from 0 to 1 here to indicate the first phase of
-        // initialization has completed.
-        // IMPORTANT: Ensure that this remains the last initialization action!
-        VM.initLevel(1);
-    }
-    
-    /**
-     * Invoked by VM.  Phase 2 module system initialization.
-     * Only classes in java.base can be loaded in this phase.
-     *
-     * @param printToStderr print exceptions to stderr rather than stdout
-     * @param printStackTrace print stack trace when exception occurs
-     *
-     * @return JNI_OK for success, JNI_ERR for failure
-     */
-    private static int initPhase2(boolean printToStderr, boolean printStackTrace) {
-        try {
-            bootLayer = ModuleBootstrap.boot();
-        } catch(Exception | Error e) {
-            logInitException(printToStderr, printStackTrace, "Error occurred during initialization of boot layer", e);
-            return -1; // JNI_ERR
-        }
-        
-        // module system initialized
-        VM.initLevel(2);
-        
-        return 0; // JNI_OK
-    }
-    
-    /**
-     * Invoked by VM.  Phase 3 is the final system initialization:
-     * 1. set security manager
-     * 2. set system class loader
-     * 3. set TCCL
-     *
-     * This method must be called after the module system initialization.
-     * The security manager and system class loader may be custom class from
-     * the application classpath or modulepath.
-     */
-    private static void initPhase3() {
-        // set security manager
-        String cn = System.getProperty("java.security.manager");
-        if(cn != null) {
-            if(cn.isEmpty() || "default".equals(cn)) {
-                System.setSecurityManager(new SecurityManager());
-            } else {
-                try {
-                    Class<?> c = Class.forName(cn, false, ClassLoader.getBuiltinAppClassLoader());
-                    Constructor<?> ctor = c.getConstructor();
-                    // Must be a public subclass of SecurityManager with
-                    // a public no-arg constructor
-                    if(!SecurityManager.class.isAssignableFrom(c) || !Modifier.isPublic(c.getModifiers()) || !Modifier.isPublic(ctor.getModifiers())) {
-                        throw new Error("Could not create SecurityManager: " + ctor.toString());
-                    }
-                    // custom security manager implementation may be in unnamed module
-                    // or a named module but non-exported package
-                    ctor.setAccessible(true);
-                    SecurityManager sm = (SecurityManager) ctor.newInstance();
-                    System.setSecurityManager(sm);
-                } catch(Exception e) {
-                    throw new Error("Could not create SecurityManager", e);
-                }
-            }
-        }
-        
-        // initializing the system class loader
-        VM.initLevel(3);
-        
-        // system class loader initialized
-        ClassLoader scl = ClassLoader.initSystemClassLoader();
-        
-        // set TCCL
-        Thread.currentThread().setContextClassLoader(scl);
-        
-        // system is fully initialized
-        VM.initLevel(4);
-    }
-    
     
     
     /**
@@ -1737,6 +1803,7 @@ public final class System {
      * @see java.lang.System.LoggerFinder
      * @since 9
      */
+    // 日志接口
     public interface Logger {
         
         /**
@@ -2273,6 +2340,5 @@ public final class System {
         public Logger getLocalizedLogger(String name, ResourceBundle bundle, Module module) {
             return new LocalizedLoggerWrapper<>(getLogger(name, module), bundle);
         }
-        
     }
 }

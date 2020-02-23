@@ -176,6 +176,7 @@ import static java.util.concurrent.Flow.Subscription;
  * 生产/发布/推送者，是Flow.Publisher的一个实现
  */
 public class SubmissionPublisher<T> implements Publisher<T>, AutoCloseable {
+    
     /*
      * Most mechanics are handled by BufferedSubscription. This class
      * mainly tracks subscribers and ensures sequentiality, by using
@@ -1092,9 +1093,15 @@ public class SubmissionPublisher<T> implements Publisher<T>, AutoCloseable {
         if(consumer == null) {
             throw new NullPointerException();
         }
+    
         CompletableFuture<Void> status = new CompletableFuture<>();
+    
+        // 消费者，【消费】消息和信号
         ConsumerSubscriber<T> subscriber = new ConsumerSubscriber<>(status, consumer);
+    
+        // 注册消费者
         subscribe(subscriber);
+    
         return status;
     }
     
@@ -2029,33 +2036,35 @@ public class SubmissionPublisher<T> implements Publisher<T>, AutoCloseable {
     }
     
     /** Subscriber for method consume */
+    // 消费者，【消费】消息和信号
     static final class ConsumerSubscriber<T> implements Subscriber<T> {
         final CompletableFuture<Void> status;
         final Consumer<? super T> consumer;
         Subscription subscription;
-        
+    
         ConsumerSubscriber(CompletableFuture<Void> status, Consumer<? super T> consumer) {
             this.status = status;
             this.consumer = consumer;
         }
-        
+    
+        /*
+         * 中介已准备就绪时的回调（中介刚刚设置了OPEN标记）
+         * 一般在这里需要拿到中介的引用，进而向生产者发出消费请求
+         */
         public final void onSubscribe(Subscription subscription) {
             this.subscription = subscription;
-            
+        
             status.whenComplete((v, e) -> subscription.cancel());
+        
             if(!status.isDone()) {
                 subscription.request(Long.MAX_VALUE);
             }
         }
-        
-        public final void onError(Throwable ex) {
-            status.completeExceptionally(ex);
-        }
-        
-        public final void onComplete() {
-            status.complete(null);
-        }
-        
+    
+        /*
+         * 消费者开始消费指定的消息(item)
+         * 一般在这里消费完成后，需要继续向生产者发出消费请求
+         */
         public final void onNext(T item) {
             try {
                 consumer.accept(item);
@@ -2064,6 +2073,17 @@ public class SubmissionPublisher<T> implements Publisher<T>, AutoCloseable {
                 status.completeExceptionally(ex);
             }
         }
+    
+        // （从中介内部调用）如果消费者在消费的时候，消息队列已经消费完了，且中介已被关闭时，回调此方法
+        public final void onComplete() {
+            status.complete(null);
+        }
+    
+        // （从中介内部调用）如果消费者在注册时（onSubscribe()内部）发生了异常，或者在消费中（onNext()内部）发生了异常，回调此方法
+        public final void onError(Throwable ex) {
+            status.completeExceptionally(ex);
+        }
+    
     }
     
     /** Fallback if ForkJoinPool.commonPool() cannot support parallelism */

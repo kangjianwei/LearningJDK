@@ -27,24 +27,30 @@ package jdk.internal.reflect;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Constructor;
+import jdk.internal.misc.Unsafe;
 
-/** Uses Unsafe.allocateObject() to instantiate classes; only used for
-    bootstrapping. */
-
+/**
+ * Uses Unsafe.allocateObject() to instantiate classes; only used for bootstrapping.
+ */
+/*
+ * 如果需要创建ConstructorAccessorImpl类的构造器访问器，那么需要使用当前类。
+ * 因为当前类的newInstance()可以不调用构造器就生成对象，
+ * 这就避免了在创建ConstructorAccessorImpl类的构造器访问器时触发无限递归。
+ */
 class BootstrapConstructorAccessorImpl extends ConstructorAccessorImpl {
     private final Constructor<?> constructor;
-
-    BootstrapConstructorAccessorImpl(Constructor<?> c) {
-        this.constructor = c;
+    
+    BootstrapConstructorAccessorImpl(Constructor<?> constructor) {
+        this.constructor = constructor;
     }
-
-    public Object newInstance(Object[] args)
-        throws IllegalArgumentException, InvocationTargetException
-    {
+    
+    public Object newInstance(Object[] args) throws IllegalArgumentException, InvocationTargetException {
         try {
-            return UnsafeFieldAccessorImpl.unsafe.
-                allocateInstance(constructor.getDeclaringClass());
-        } catch (InstantiationException e) {
+            Unsafe unsafe = UnsafeFieldAccessorImpl.unsafe;
+            
+            // 不调用构造器就生成对象，但是该对象的字段会被赋为对应类型的"零值"，为该对象赋过的默认值也无效
+            return unsafe.allocateInstance(constructor.getDeclaringClass());
+        } catch(InstantiationException e) {
             throw new InvocationTargetException(e);
         }
     }

@@ -25,28 +25,28 @@
 
 package jdk.internal.reflect;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 
-/** Throws an InstantiationException with given error message upon
-    newInstance() call */
-
-class InstantiationExceptionConstructorAccessorImpl
-    extends ConstructorAccessorImpl {
+/**
+ * Throws an InstantiationException with given error message upon newInstance() call
+ */
+/*
+ * 适用于抽象类和Class类的构造器访问器：当尝试调用newInstance()方法构造对象时，会抛出异常
+ * 1.不允许构造抽象类的对象
+ * 2.不允许构造Class类的对象
+ */
+class InstantiationExceptionConstructorAccessorImpl extends ConstructorAccessorImpl {
     private final String message;
-
+    
     InstantiationExceptionConstructorAccessorImpl(String message) {
         this.message = message;
     }
-
-    public Object newInstance(Object[] args)
-        throws InstantiationException,
-               IllegalArgumentException,
-               InvocationTargetException
-    {
-        if (message == null) {
+    
+    public Object newInstance(Object[] args) throws InstantiationException, IllegalArgumentException, InvocationTargetException {
+        if(message == null) {
             throw new InstantiationException();
         }
+        
         throw new InstantiationException(message);
     }
 }

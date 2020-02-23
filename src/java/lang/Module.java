@@ -56,6 +56,7 @@ import java.util.stream.Stream;
 import jdk.internal.loader.BootLoader;
 import jdk.internal.loader.BuiltinClassLoader;
 import jdk.internal.loader.ClassLoaders;
+import jdk.internal.misc.VM;
 import jdk.internal.module.IllegalAccessLogger;
 import jdk.internal.module.ModuleLoaderMap;
 import jdk.internal.module.Resources;
@@ -97,59 +98,81 @@ import sun.security.util.SecurityConstants;
  * @spec JPMS
  * @see Class#getModule()
  */
-// 模块（表示一个运行时模块）
+// 反射元素-模块（表示一个运行时模块）
 public final class Module implements AnnotatedElement {
     
-    // the module descriptor
+    /** the module descriptor */
+    // 当前模块的模块描述符(module-info)
     private final ModuleDescriptor descriptor;
     
-    // the layer that contains this module, can be null
+    /** the layer that contains this module, can be null */
+    // 当前模块所处的模块层
     private final ModuleLayer layer;
     
-    // module name and loader, these fields are read by VM
+    /** module name and loader, these fields are read by VM */
+    // 模块名称，对于未命名模块，name为null
     private final String name;
     
+    // 加载该模块的类加载器
     private final ClassLoader loader;
     
-    // the modules that this module reads
+    /** the modules that this module reads */
+    // (运行时)记录当前模块依赖(requires)哪些模块
     private volatile Set<Module> reads;
     
-    // the packages are open to other modules, can be null if the value contains EVERYONE_MODULE then the package is open to all
-    private volatile Map<String, Set<Module>> openPackages;
-    
-    // the packages that are exported, can be null if the value contains EVERYONE_MODULE then the package is exported to all
+    /** the packages that are exported, can be null if the value contains EVERYONE_MODULE then the package is exported to all */
+    /*
+     * (运行时)记录当前模块将哪些包导出(exports)给了哪些模块
+     *
+     * 注：opens行为会覆盖exports行为，即开放(open)会包含导出(exports)；
+     * 换句话说，isOpen()成立，则isExported()也成立。
+     */
     private volatile Map<String, Set<Module>> exportedPackages;
     
-    // special Module to mean "all unnamed modules"
+    /** the packages are open to other modules, can be null if the value contains EVERYONE_MODULE then the package is open to all */
+    /*
+     * (运行时)记录当前模块将哪些包开放(open)给了哪些模块
+     *
+     * 注：opens行为会覆盖exports行为，即开放(open)会包含导出(exports)；
+     * 换句话说，isOpen()成立，则isExported()也成立。
+     */
+    private volatile Map<String, Set<Module>> openPackages;
+    
+    /** special Module to mean "all unnamed modules" */
     private static final Module ALL_UNNAMED_MODULE = new Module(null);
     private static final Set<Module> ALL_UNNAMED_MODULE_SET = Set.of(ALL_UNNAMED_MODULE);
     
-    // special Module to mean "everyone"
+    /** special Module to mean "everyone" */
     private static final Module EVERYONE_MODULE = new Module(null);
     private static final Set<Module> EVERYONE_SET = Set.of(EVERYONE_MODULE);
+    
+    // cached class file with annotations
+    private volatile Class<?> moduleInfoClass;  // module-info.class
     
     
     
     /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
-     * Creates a new named Module. The resulting Module will be defined to the
-     * VM but will not read any other modules, will not have any exports setup
-     * and will not be registered in the service catalog.
+     * Creates a new named Module.
+     * The resulting Module will be defined to the VM but will not read any other modules,
+     * will not have any exports setup and will not be registered in the service catalog.
      */
+    // 构造模块一个命名模块，会通知虚拟机
     Module(ModuleLayer layer, ClassLoader loader, ModuleDescriptor descriptor, URI uri) {
         this.layer = layer;
         this.name = descriptor.name();
         this.loader = loader;
         this.descriptor = descriptor;
-        
-        // define module to VM
+    
+        /* define module to VM */
         
         boolean isOpen = descriptor.isOpen() || descriptor.isAutomatic();
         Version version = descriptor.version().orElse(null);
         String vs = Objects.toString(version, null);
         String loc = Objects.toString(uri, null);
         String[] packages = descriptor.packages().toArray(new String[0]);
+    
         defineModule0(this, isOpen, vs, loc, packages);
     }
     
@@ -170,6 +193,7 @@ public final class Module implements AnnotatedElement {
      *
      * @apiNote This constructor is for VM white-box testing.
      */
+    // 创建一个命名模块，由虚拟机调用
     Module(ClassLoader loader, ModuleDescriptor descriptor) {
         this.layer = null;
         this.name = descriptor.name();
@@ -190,7 +214,7 @@ public final class Module implements AnnotatedElement {
      *
      * @see ClassLoader#getUnnamedModule()
      */
-    // 该模块是否有名称
+    // 该模块是否有名称(是否为命名模块)
     public boolean isNamed() {
         return name != null;
     }
@@ -224,6 +248,7 @@ public final class Module implements AnnotatedElement {
         if(sm != null) {
             sm.checkPermission(SecurityConstants.GET_CLASSLOADER_PERMISSION);
         }
+    
         return loader;
     }
     
@@ -253,19 +278,22 @@ public final class Module implements AnnotatedElement {
      *
      * @see java.lang.reflect.Proxy
      */
-    // 获取该模块所在的模块层
+    // 获取该模块所在的模块层；如果是未命名模块，则返回null
     public ModuleLayer getLayer() {
-        if(isNamed()) {
-            ModuleLayer layer = this.layer;
-            if(layer != null) {
-                return layer;
-            }
-            
-            // special-case java.base as it is created before the boot layer
-            if(loader == null && name.equals("java.base")) {
-                return ModuleLayer.boot();
-            }
+        if(!isNamed()) {
+            return null;    // 未命名模块不在模块层中
         }
+    
+        ModuleLayer layer = this.layer;
+        if(layer != null) {
+            return layer;
+        }
+    
+        // special-case java.base as it is created before the boot layer
+        if(loader == null && name.equals("java.base")) {
+            return ModuleLayer.boot();
+        }
+    
         return null;
     }
     
@@ -345,60 +373,68 @@ public final class Module implements AnnotatedElement {
      * @throws IOException If an I/O error occurs
      * @see Class#getResourceAsStream(String)
      */
-    // 返回指定资源的输入流，以便调用者读取资源
+    /*
+     * 在当前模块路径(根目录)或加载当前模块的类加载器关联的类路径(根目录)下查找名称为resName的资源；如果成功找到资源，则返回其入流
+     *
+     * 注：resName前的"/"将被忽略
+     */
     @CallerSensitive
-    public InputStream getResourceAsStream(String name) throws IOException {
-        if(name.startsWith("/")) {
-            name = name.substring(1);
+    public InputStream getResourceAsStream(String resName) throws IOException {
+        if(resName.startsWith("/")) {
+            resName = resName.substring(1);
         }
+    
+        // 该模块为命名模块，且指定名称的资源可以被封装(resName不以"/"或".class"结尾)
+        if(isNamed() && Resources.canEncapsulate(resName)) {
+            // 获取getResourceAsStream()方法的调用者所处的类
+            Class<?> callerClass = Reflection.getCallerClass();
+            // 获取callerClass所在模块
+            Module callerModule = getCallerModule(callerClass);
         
-        if(isNamed() && Resources.canEncapsulate(name)) {
-            Module caller = getCallerModule(Reflection.getCallerClass());
-            // 调用者不在当前模块内，也不再java.base模块内
-            if(caller != this && caller != Object.class.getModule()) {
-                String pn = Resources.toPackageName(name);
+            // 调用者不是当前模块，也不是java.base模块(比如模块B的对象在模块A中的类上加载资源)
+            if(callerModule != this && callerModule != Object.class.getModule()) {
+                // 获取指定名称的资源所在的包
+                String pn = Resources.toPackageName(resName);
+            
+                // 如果资源所在的包隶属于当前模块下，则需要判断callerModule对pn包是否有访问权限
                 if(getPackages().contains(pn)) {
-                    if(caller == null && !isOpen(pn)) {
+                    // 如果调用者为null，且当前模块的pn包未open
+                    if(callerModule == null && !isOpen(pn)) {
                         // no caller, package not open
                         return null;
                     }
-                    
-                    if(!isOpen(pn, caller)) {
+                
+                    // 如果调用者存在，且当前模块没有将pn包open给other模块callerModule
+                    if(!isOpen(pn, callerModule)) {
                         // package not open to caller
                         return null;
                     }
                 }
             }
         }
-        
+    
+        // 获取当前模块的名称
         String mn = this.name;
-        
-        // special-case built-in class loaders to avoid URL connection
+    
+        /* special-case built-in class loaders to avoid URL connection */
         if(loader == null) {
-            return BootLoader.findResourceAsStream(mn, name);
+            // 在指定的模块路径(根目录)或bootstrap类加载器关联的类路径(根目录)下查找匹配的资源；如果成功找到资源，则返回其入流
+            return BootLoader.findResourceAsStream(mn, resName);
         } else if(loader instanceof BuiltinClassLoader) {
-            return ((BuiltinClassLoader) loader).findResourceAsStream(mn, name);
-        }
-        
-        // locate resource in module
-        URL url = loader.findResource(mn, name);
-        if(url != null) {
-            try {
-                return url.openStream();
-            } catch(SecurityException e) {
+            // 在指定的模块路径(根目录)或类加载器loader关联的类路径(根目录)下查找匹配的资源；如果成功找到资源，则返回其入流
+            return ((BuiltinClassLoader) loader).findResourceAsStream(mn, resName);
+        } else {
+            // 如果loader是自定义的类加载器，则在loader可以访问到的模块路径或类路径的根目录下查找匹配的资源
+            URL url = loader.findResource(mn, resName);
+            if(url != null) {
+                try {
+                    return url.openStream();
+                } catch(SecurityException ignored) {
+                }
             }
         }
         
         return null;
-    }
-    
-    /**
-     * Returns the module that a given caller class is a member of. Returns
-     * {@code null} if the caller is {@code null}.
-     */
-    // 获取caller所在的模块
-    private Module getCallerModule(Class<?> caller) {
-        return (caller != null) ? caller.getModule() : null;
     }
     
     /*▲ 关联信息 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -408,10 +444,9 @@ public final class Module implements AnnotatedElement {
     /*▼ reads ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
-     * Indicates if this module reads the given module. This method returns
-     * {@code true} if invoked to test if this module reads itself. It also
-     * returns {@code true} if invoked on an unnamed module (as unnamed
-     * modules read all modules).
+     * Indicates if this module reads the given module.
+     * This method returns {@code true} if invoked to test if this module reads itself.
+     * It also returns {@code true} if invoked on an unnamed module (as unnamed modules read all modules).
      *
      * @param other The other module
      *
@@ -419,34 +454,39 @@ public final class Module implements AnnotatedElement {
      *
      * @see #addReads(Module)
      */
-    // 当前模块是否可读取other模块
+    // 判断当前模块是否依赖(requires)other模块
     public boolean canRead(Module other) {
         Objects.requireNonNull(other);
-        
-        // an unnamed module reads all modules
-        if(!this.isNamed())
-            return true;
-        
-        // all modules read themselves
-        if(other == this)
-            return true;
-        
-        // check if this module reads other
-        if(other.isNamed()) {
-            Set<Module> reads = this.reads; // volatile read
-            if(reads != null && reads.contains(other))
-                return true;
+    
+        // 未命名模块默认依赖所有模块
+        if(!this.isNamed()) {
+            return true;    // an unnamed module reads all modules
         }
-        
-        // check if this module reads the other module reflectively
-        if(ReflectionData.reads.containsKeyPair(this, other))
-            return true;
-        
-        // if other is an unnamed module then check if this module reads
-        // all unnamed modules
-        if(!other.isNamed() && ReflectionData.reads.containsKeyPair(this, ALL_UNNAMED_MODULE))
-            return true;
-        
+    
+        // 模块依赖自身
+        if(other == this) {
+            return true;    // all modules read themselves
+        }
+    
+        // 如果other是命名模块，从静态配置中查找依赖(requires)信息
+        if(other.isNamed()) {   // check if this module reads other
+            // 当前模块依赖(requires)哪些模块
+            Set<Module> reads = this.reads; // volatile read
+            if(reads != null && reads.contains(other)) {
+                return true;
+            }
+        }
+    
+        // 从动态配置中查找依赖(requires)信息
+        if(ReflectionData.reads.containsKeyPair(this, other)) {
+            return true;    // check if this module reads the other module reflectively
+        }
+    
+        // 如果other是未命名模块，且当前模块依赖所有未命名模块
+        if(!other.isNamed() && ReflectionData.reads.containsKeyPair(this, ALL_UNNAMED_MODULE)) {
+            return true;    // if other is an unnamed module then check if this module reads all unnamed modules
+        }
+    
         return false;
     }
     
@@ -469,88 +509,48 @@ public final class Module implements AnnotatedElement {
      * strongly reachable.
      * @see #canRead
      */
-    // 使当前模块读取other模块（必须在当前模块内调用）
+    // (动态配置)使当前模块依赖(requires)other模块（必须在当前模块内调用）
     @CallerSensitive
     public Module addReads(Module other) {
         Objects.requireNonNull(other);
-        if(this.isNamed()) {
-            Module caller = getCallerModule(Reflection.getCallerClass());
-            if(caller != this) {
-                throw new IllegalCallerException(caller + " != " + this);
-            }
-            implAddReads(other, true);
-        }
-        return this;
-    }
     
-    /**
-     * Updates this module to read another module.
-     *
-     * @apiNote Used by the --add-reads command line option.
-     */
-    // 使当前模块读取other模块，相当于--add-reads命令行
-    void implAddReads(Module other) {
+        // 未命名模块依赖(requires)所有模块
+        if(!isNamed()) {
+            return this;
+        }
+    
+        // 获取addReads()的调用者所处的类
+        Class<?> callerClass = Reflection.getCallerClass();
+        // 获取callerClass所处的模块
+        Module caller = getCallerModule(callerClass);
+    
+        // 必须保证addReads()方法在当前命名模块中调用
+        if(caller != this) {
+            throw new IllegalCallerException(caller + " != " + this);
+        }
+    
+        // 使当前模块依赖(requires)other模块，需要通知VM
         implAddReads(other, true);
-    }
     
-    /**
-     * Updates this module to read all unnamed modules.
-     *
-     * @apiNote Used by the --add-reads command line option.
-     */
-    // 使当前模块读取所有未命名模块，相当于--add-reads命令行
-    void implAddReadsAllUnnamed() {
-        implAddReads(Module.ALL_UNNAMED_MODULE, true);
-    }
-    
-    /**
-     * Updates this module to read another module without notifying the VM.
-     *
-     * @apiNote This method is for VM white-box testing.
-     */
-    // 在不通知VM的情形下读取另一个模块
-    void implAddReadsNoSync(Module other) {
-        implAddReads(other, false);
-    }
-    
-    /**
-     * Makes the given {@code Module} readable to this module.
-     *
-     * If {@code syncVM} is {@code true} then the VM is notified.
-     */
-    // 使当前模块读取other模块，syncVM决定是否通知VM
-    private void implAddReads(Module other, boolean syncVM) {
-        Objects.requireNonNull(other);
-        if(!canRead(other)) {
-            // update VM first, just in case it fails
-            if(syncVM) {
-                if(other == ALL_UNNAMED_MODULE) {
-                    addReads0(this, null);
-                } else {
-                    addReads0(this, other);
-                }
-            }
-            
-            // add reflective read
-            ReflectionData.reads.putIfAbsent(this, other, Boolean.TRUE);
-        }
+        return this;
     }
     
     /*▲ reads ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
-    /*▼ exported 和 open ████████████████████████████████████████████████████████████████████████████████┓ */
-    
     /*
-     * exported：显式使用公开元素，反射公开元素
-     * open：反射非公开元素
-     * 如果只打开exported权限，不影响open权限
-     * 如果只打开open权限，则exported打开一半，即允许反射公开元素，但无法显式使用公开元素
+     * exports: 类之间允许显式访问，且允许访问public元素，包括反射，通常与requires配合使用
+     * opens  :
+     * 编译时 - 无作用
+     * 运行时 - 类之间允许显式访问，且允许访问非public元素，包括反射
+     *
+     * 注：在运行时，opens行为会覆盖exports行为
      */
     
     
-    /* ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ */
+    
+    /*▼ exports ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Returns {@code true} if this module exports the given package
@@ -569,7 +569,7 @@ public final class Module implements AnnotatedElement {
      *
      * @see ModuleDescriptor#exports()
      */
-    // 判断当前模块是否将pn包export/open给了所有模块
+    // 判断当前模块是否将pn包导出(exports)给了所有模块
     public boolean isExported(String pn) {
         Objects.requireNonNull(pn);
         return implIsExportedOrOpen(pn, EVERYONE_MODULE, /*open*/false);
@@ -597,10 +597,11 @@ public final class Module implements AnnotatedElement {
      * @see ModuleDescriptor#exports()
      * @see #addExports(String, Module)
      */
-    // 判断当前模块是否将pn包export/open给了other模块
+    // 判断当前模块是否将pn包导出(exports)给了other模块
     public boolean isExported(String pn, Module other) {
         Objects.requireNonNull(pn);
         Objects.requireNonNull(other);
+    
         return implIsExportedOrOpen(pn, other, /*open*/false);
     }
     
@@ -628,91 +629,40 @@ public final class Module implements AnnotatedElement {
      * @jvms 5.4.3 Resolution
      * @see #isExported(String, Module)
      */
-    // 将当前模块的pn包export给other模块
+    // (动态配置)将当前模块的pn包导出(exports)给other模块（必须在当前模块内调用）
     @CallerSensitive
     public Module addExports(String pn, Module other) {
         if(pn == null) {
             throw new IllegalArgumentException("package is null");
         }
         Objects.requireNonNull(other);
-        
-        if(isNamed()) {
-            Module caller = getCallerModule(Reflection.getCallerClass());
-            if(caller != this) {
-                throw new IllegalCallerException(caller + " != " + this);
-            }
-            
-            // 将当前模块的pn包export给other模块
-            implAddExportsOrOpens(pn, other, /*open*/false, /*syncVM*/true);
+    
+        // 未命名模块导出(exports)所有包
+        if(!isNamed()) {
+            return this;
         }
-        
+    
+        // 获取addExports()的调用者所处的类
+        Class<?> callerClass = Reflection.getCallerClass();
+        // 获取callerClass所处的模块
+        Module caller = getCallerModule(callerClass);
+    
+        // 必须保证addExports()方法在当前命名模块中调用
+        if(caller != this) {
+            throw new IllegalCallerException(caller + " != " + this);
+        }
+    
+        // 将当前模块的pn包导出(exports)给other模块，需要通知VM
+        implAddExportsOrOpens(pn, other, /*open*/false, /*syncVM*/true);
+    
         return this;
     }
     
-    /**
-     * Returns {@code true} if this module reflectively exports the given package to the given module.
-     */
-    // 判断当前模块是否将pn包动态export给了other模块
-    boolean isReflectivelyExported(String pn, Module other) {
-        return isReflectivelyExportedOrOpen(pn, other, false);
-    }
-    
-    /**
-     * Updates this module to export a package to another module.
-     *
-     * @apiNote Used by Instrumentation::redefineModule and --add-exports
-     */
-    // 将当前模块的pn包export给other模块
-    void implAddExports(String pn, Module other) {
-        implAddExportsOrOpens(pn, other, false, true);
-    }
-    
-    /**
-     * Updates this module to export a package unconditionally.
-     *
-     * @apiNote This method is for JDK tests only.
-     */
-    // 将当前模块的pn包export给所有模块
-    void implAddExports(String pn) {
-        implAddExportsOrOpens(pn, Module.EVERYONE_MODULE, false, true);
-    }
-    
-    /**
-     * Updates this module to export a package to all unnamed modules.
-     *
-     * @apiNote Used by the --add-exports command line option.
-     */
-    // 将当前模块的pn包export给未命名模块
-    void implAddExportsToAllUnnamed(String pn) {
-        implAddExportsOrOpens(pn, Module.ALL_UNNAMED_MODULE, false, true);
-    }
-    
-    /**
-     * Updates a module to export a package to another module without
-     * notifying the VM.
-     *
-     * @apiNote This method is for VM white-box testing.
-     */
-    // 将当前模块的pn包export给other模块，不通知VM
-    void implAddExportsNoSync(String pn, Module other) {
-        implAddExportsOrOpens(pn.replace('/', '.'), other, false, false);
-    }
-    
-    /**
-     * Updates this export to export a package unconditionally without
-     * notifying the VM.
-     *
-     * @apiNote This method is for VM white-box testing.
-     */
-    // 将当前模块的pn包export给所有模块，不通知VM
-    void implAddExportsNoSync(String pn) {
-        implAddExportsOrOpens(pn.replace('/', '.'), Module.EVERYONE_MODULE, false, false);
-    }
-    
-    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
+    /*▲ exports ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
-    /* ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ */
+    
+    /*▼ opens ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Returns {@code true} if this module has <em>opened</em> a package
@@ -732,7 +682,7 @@ public final class Module implements AnnotatedElement {
      *
      * @see ModuleDescriptor#opens()
      */
-    // 判断当前模块是否将pn包open给了所有模块
+    // 判断当前模块是否将pn包(开放)opens给了所有模块
     public boolean isOpen(String pn) {
         Objects.requireNonNull(pn);
         return implIsExportedOrOpen(pn, EVERYONE_MODULE, /*open*/true);
@@ -760,10 +710,11 @@ public final class Module implements AnnotatedElement {
      * @see java.lang.reflect.AccessibleObject#setAccessible(boolean)
      * @see java.lang.invoke.MethodHandles#privateLookupIn
      */
-    // 判断当前模块是否将pn包open给了other模块
+    // 判断当前模块是否将pn包(开放)opens给了other模块
     public boolean isOpen(String pn, Module other) {
         Objects.requireNonNull(pn);
         Objects.requireNonNull(other);
+    
         return implIsExportedOrOpen(pn, other, /*open*/true);
     }
     
@@ -798,314 +749,40 @@ public final class Module implements AnnotatedElement {
      * @see java.lang.reflect.AccessibleObject#setAccessible(boolean)
      * @see java.lang.invoke.MethodHandles#privateLookupIn
      */
-    // 将当前模块的pn包open给other模块
+    // (动态配置)将当前模块的pn包(开放)opens给other模块（必须在当前模块内调用）
     @CallerSensitive
     public Module addOpens(String pn, Module other) {
         if(pn == null) {
             throw new IllegalArgumentException("package is null");
         }
         Objects.requireNonNull(other);
-        
-        if(isNamed()) {
-            Module caller = getCallerModule(Reflection.getCallerClass());
-            if(caller != this && (caller == null || !isOpen(pn, caller))) {
-                throw new IllegalCallerException(pn + " is not open to " + caller);
-            }
-            
-            // 将当前模块的pn包open给other模块
-            implAddExportsOrOpens(pn, other, /*open*/true, /*syncVM*/true);
+    
+        // 未命名模块(开放)opens所有包
+        if(!isNamed()) {
+            return this;
         }
-        
+    
+        // 获取addOpens()的调用者所处的类
+        Class<?> callerClass = Reflection.getCallerClass();
+        // 获取callerClass所处的模块
+        Module caller = getCallerModule(callerClass);
+    
+        // 必须保证addOpens()方法在当前命名模块中调用
+        if(caller != this && (caller == null || !isOpen(pn, caller))) {
+            throw new IllegalCallerException(pn + " is not open to " + caller);
+        }
+    
+        // 将当前模块的pn包(开放)opens给other模块，需要通知VM
+        implAddExportsOrOpens(pn, other, /*open*/true, /*syncVM*/true);
+    
         return this;
     }
     
-    /**
-     * Returns {@code true} if this module reflectively opens the
-     * given package to the given module.
-     */
-    // 判断当前模块是否将pn包动态open给了other模块
-    boolean isReflectivelyOpened(String pn, Module other) {
-        return isReflectivelyExportedOrOpen(pn, other, true);
-    }
-    
-    /**
-     * Updates this module to open a package to another module.
-     *
-     * @apiNote Used by Instrumentation::redefineModule and --add-opens
-     */
-    // 将当前模块的pn包open给other模块
-    void implAddOpens(String pn, Module other) {
-        implAddExportsOrOpens(pn, other, true, true);
-    }
-    
-    /**
-     * Updates this module to open a package unconditionally.
-     *
-     * @apiNote This method is for JDK tests only.
-     */
-    // 将当前模块的pn包open给所有模块
-    void implAddOpens(String pn) {
-        implAddExportsOrOpens(pn, Module.EVERYONE_MODULE, true, true);
-    }
-    
-    /**
-     * Updates this module to open a package to all unnamed modules.
-     *
-     * @apiNote Used by the --add-opens command line option.
-     */
-    // 将当前模块的pn包open给未命名模块
-    void implAddOpensToAllUnnamed(String pn) {
-        implAddExportsOrOpens(pn, Module.ALL_UNNAMED_MODULE, true, true);
-    }
-    
-    /**
-     * Updates a module to open all packages returned by the given iterator to
-     * all unnamed modules.
-     *
-     * @apiNote Used during startup to open packages for illegal access.
-     */
-    // 将迭代器中所有的包open给未命名模块
-    void implAddOpensToAllUnnamed(Iterator<String> iterator) {
-        if(jdk.internal.misc.VM.isModuleSystemInited()) {
-            throw new IllegalStateException("Module system already initialized");
-        }
-        
-        // replace this module's openPackages map with a new map that opens
-        // the packages to all unnamed modules.
-        Map<String, Set<Module>> openPackages = this.openPackages;
-        if(openPackages == null) {
-            openPackages = new HashMap<>();
-        } else {
-            openPackages = new HashMap<>(openPackages);
-        }
-        while(iterator.hasNext()) {
-            String pn = iterator.next();
-            Set<Module> prev = openPackages.putIfAbsent(pn, ALL_UNNAMED_MODULE_SET);
-            if(prev != null) {
-                prev.add(ALL_UNNAMED_MODULE);
-            }
-            
-            // update VM to export the package
-            addExportsToAllUnnamed0(this, pn);
-        }
-        this.openPackages = openPackages;
-    }
-    
-    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
-    
-    
-    /**
-     * Returns {@code true} if this module exports or opens the given package to the given module.
-     * If the other module is {@code EVERYONE_MODULE} then this method tests if the package is exported or opened unconditionally.
-     */
-    // 判断当前模块是否将pn包导出/开放给了other模块
-    private boolean implIsExportedOrOpen(String pn, Module other, boolean open) {
-        // all packages in unnamed modules are open
-        if(!isNamed()) {
-            // 未命名模块导出所有包
-            return true;
-        }
-        
-        // all packages are exported/open to self
-        if(other == this && descriptor.packages().contains(pn)) {
-            // 自身对自身导出所有包
-            return true;
-        }
-        
-        // all packages in open and automatic modules are open
-        if(descriptor.isOpen() || descriptor.isAutomatic()) {
-            // open模块或自动模块也可看做导出了所有包
-            return descriptor.packages().contains(pn);
-        }
-        
-        // exported/opened via module declaration/descriptor
-        if(isStaticallyExportedOrOpen(pn, other, open)) {
-            // 当前模块将pn包静态导出/开放给了other模块
-            return true;
-        }
-        
-        // exported via addExports/addOpens
-        if(isReflectivelyExportedOrOpen(pn, other, open)) {
-            // 当前模块将pn包动态导出/开放给了other模块
-            return true;
-        }
-        
-        // not exported or open to other
-        return false;
-    }
-    
-    /**
-     * Returns {@code true} if this module exports or opens a package to
-     * the given module via its module declaration or CLI options.
-     */
-    // 判断当前模块是否将pn包静态导出/开放给了other模块
-    private boolean isStaticallyExportedOrOpen(String pn, Module other, boolean open) {
-        // test if package is open to everyone or <other>
-        Map<String, Set<Module>> openPackages = this.openPackages;
-        if(openPackages != null && allows(openPackages.get(pn), other)) {
-            // 判断当前模块是否将pn包静态开放给了other模块
-            return true;
-        }
-        
-        // 如果是在判断静态导出
-        if(!open) {
-            // test package is exported to everyone or <other>
-            Map<String, Set<Module>> exportedPackages = this.exportedPackages;
-            return exportedPackages != null && allows(exportedPackages.get(pn), other);
-        }
-        
-        // 如果是在判断静态开放，这里可以返回false了
-        return false;
-    }
-    
-    /**
-     * Returns {@code true} if this module reflectively exports or opens the
-     * given package to the given module.
-     */
-    // 判断当前模块是否将pn包动态导出/开放给了other模块
-    private boolean isReflectivelyExportedOrOpen(String pn, Module other, boolean open) {
-        // exported or open to all modules
-        Map<String, Boolean> exports = ReflectionData.exports.get(this, EVERYONE_MODULE);
-        if(exports != null) {
-            Boolean b = exports.get(pn);
-            if(b != null) {
-                boolean isOpen = b;
-                if(!open || isOpen) {
-                    return true;
-                }
-            }
-        }
-        
-        if(other != EVERYONE_MODULE) {
-            // exported or open to other
-            exports = ReflectionData.exports.get(this, other);
-            if(exports != null) {
-                Boolean b = exports.get(pn);
-                if(b != null) {
-                    boolean isOpen = b;
-                    if(!open || isOpen) {
-                        return true;
-                    }
-                }
-            }
-            
-            // other is an unnamed module && exported or open to all unnamed
-            if(!other.isNamed()) {
-                exports = ReflectionData.exports.get(this, ALL_UNNAMED_MODULE);
-                if(exports != null) {
-                    Boolean b = exports.get(pn);
-                    if(b != null) {
-                        boolean isOpen = b;
-                        if(!open || isOpen) {
-                            return true;
-                        }
-                    }
-                }
-            }
-            
-        }
-        
-        return false;
-    }
-    
-    /**
-     * Returns {@code true} if targets is non-null and contains EVERYONE_MODULE
-     * or the given module. Also returns true if the given module is an unnamed
-     * module and targets contains ALL_UNNAMED_MODULE.
-     */
-    // 判断module是否在targets集合表示的范畴内
-    private boolean allows(Set<Module> targets, Module module) {
-        if(targets != null) {
-            if(targets.contains(EVERYONE_MODULE)) {
-                return true;
-            }
-            
-            if(module != EVERYONE_MODULE) {
-                if(targets.contains(module)) {
-                    return true;
-                }
-                
-                if(!module.isNamed() && targets.contains(ALL_UNNAMED_MODULE)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-    
-    /**
-     * Updates a module to export or open a module to another module.
-     *
-     * If {@code syncVM} is {@code true} then the VM is notified.
-     */
-    /*
-     * 将当前模块的pn包export或open给other模块
-     * open指示是export操作还是open操作
-     * syncVM指示是否通知VM
-     */
-    private void implAddExportsOrOpens(String pn, Module other, boolean open, boolean syncVM) {
-        Objects.requireNonNull(other);
-        Objects.requireNonNull(pn);
-        
-        // all packages are open in unnamed, open, and automatic modules
-        if(!isNamed() || descriptor.isOpen() || descriptor.isAutomatic()) {
-            return;
-        }
-        
-        // check if the package is already exported/open to other
-        if(implIsExportedOrOpen(pn, other, open)) {
-            
-            // if the package is exported/open for illegal access then we need
-            // to record that it has also been exported/opened reflectively so
-            // that the IllegalAccessLogger doesn't emit a warning.
-            boolean needToAdd = false;
-            if(!other.isNamed()) {
-                IllegalAccessLogger l = IllegalAccessLogger.illegalAccessLogger();
-                if(l != null) {
-                    if(open) {
-                        needToAdd = l.isOpenForIllegalAccess(this, pn);
-                    } else {
-                        needToAdd = l.isExportedForIllegalAccess(this, pn);
-                    }
-                }
-            }
-            if(!needToAdd) {
-                // nothing to do
-                return;
-            }
-        }
-        
-        // can only export a package in the module
-        if(!descriptor.packages().contains(pn)) {
-            throw new IllegalArgumentException("package " + pn + " not in contents");
-        }
-        
-        // update VM first, just in case it fails
-        if(syncVM) {
-            if(other == EVERYONE_MODULE) {
-                addExportsToAll0(this, pn);
-            } else if(other == ALL_UNNAMED_MODULE) {
-                addExportsToAllUnnamed0(this, pn);
-            } else {
-                addExports0(this, pn, other);
-            }
-        }
-        
-        // add package name to exports if absent
-        Map<String, Boolean> map = ReflectionData.exports.computeIfAbsent(this, other, (m1, m2) -> new ConcurrentHashMap<>());
-        if(open) {
-            // 如果是open操作，也要打开部分export权限
-            map.put(pn, Boolean.TRUE);  // may need to promote from FALSE to TRUE
-        } else {
-            map.putIfAbsent(pn, Boolean.FALSE);
-        }
-    }
-    
-    /*▲ exported 和 open ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ opens ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
-    /*▼  ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ uses ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * If the caller's module is this module then update this module to add a
@@ -1127,18 +804,29 @@ public final class Module implements AnnotatedElement {
      * @see #canUse(Class)
      * @see ModuleDescriptor#uses()
      */
-    // 声明当前模块使用指定的服务
+    // (动态配置)声明当前模块将使用(uses)指定的服务（必须在当前模块内调用）
     @CallerSensitive
     public Module addUses(Class<?> service) {
         Objects.requireNonNull(service);
         
-        if(isNamed() && !descriptor.isAutomatic()) {
-            Module caller = getCallerModule(Reflection.getCallerClass());
-            if(caller != this) {
-                throw new IllegalCallerException(caller + " != " + this);
-            }
-            implAddUses(service);
+        // 如果是未命名模块，或者是自动模块，直接返回
+        if(!isNamed() || descriptor.isAutomatic()) {
+            // 未命名模块或自动模块可以使用所有注册的服务
+            return this;
         }
+        
+        // 获取addUses()的调用者所处的类
+        Class<?> callerClass = Reflection.getCallerClass();
+        // 获取callerClass所处的模块
+        Module caller = getCallerModule(callerClass);
+        
+        // 必须保证addOpens()方法在当前命名模块中调用
+        if(caller != this) {
+            throw new IllegalCallerException(caller + " != " + this);
+        }
+        
+        // 声明当前模块将使用(uses)指定的服务
+        implAddUses(service);
         
         return this;
     }
@@ -1153,17 +841,17 @@ public final class Module implements AnnotatedElement {
      *
      * @see #addUses(Class)
      */
-    // 判断当前模块是否声明使用指定的服务
+    // 判断当前模块是否声明使用(uses)指定的服务
     public boolean canUse(Class<?> service) {
         Objects.requireNonNull(service);
         
+        // 未命名模块可使用(uses)所有服务
         if(!isNamed()) {
-            // 未命名模块可使用所有服务
             return true;
         }
         
+        // 自动模块可使用(uses)所有服务
         if(descriptor.isAutomatic()) {
-            // 自动模块可使用所有服务
             return true;
         }
         
@@ -1174,7 +862,7 @@ public final class Module implements AnnotatedElement {
         }
         
         // uses added via addUses
-        if(ReflectionData.uses.containsKeyPair(this, service)){
+        if(ReflectionData.uses.containsKeyPair(this, service)) {
             // 存在动态声明
             return true;
         }
@@ -1182,355 +870,11 @@ public final class Module implements AnnotatedElement {
         return false;
     }
     
-    /**
-     * Update this module to add a service dependence on the given service
-     * type.
-     */
-    // 动态声明当前模块使用指定的服务
-    void implAddUses(Class<?> service) {
-        if(!canUse(service)) {
-            ReflectionData.uses.putIfAbsent(this, service, Boolean.TRUE);
-        }
-    }
-    
-    /*▲  ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
-    /*▼ 创建模块 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Defines all module in a configuration to the runtime.
-     *
-     * @return a map of module name to runtime {@code Module}
-     *
-     * @throws IllegalArgumentException If defining any of the modules to the VM fails
-     */
-    // 定义指定模块图中的所有模块，返回模块名到模块实例的映射
-    static Map<String, Module> defineModules(Configuration cf, Function<String, ClassLoader> clf, ModuleLayer layer) {
-        boolean isBootLayer = (ModuleLayer.boot() == null);
-        
-        int cap = (int) (cf.modules().size() / 0.75f + 1.0f);
-        
-        // 当前模块层中模块名称到模块实例的映射
-        Map<String, Module> nameToModule = new HashMap<>(cap);
-        
-        // 模块名称到模块类加载器的映射
-        Map<String, ClassLoader> nameToLoader = new HashMap<>(cap);
-        
-        Set<ClassLoader> loaders = new HashSet<>();
-        boolean hasPlatformModules = false;
-        
-        /* map each module to a class loader */
-        // 遍历指定模块图中的所有已解析模块，创建模块名称到模块类加载器的映射
-        for(ResolvedModule resolvedModule : cf.modules()) {
-            String name = resolvedModule.name();
-            ClassLoader loader = clf.apply(name);
-            nameToLoader.put(name, loader);
-            if(loader == null || loader == ClassLoaders.platformClassLoader()) {
-                if(!(clf instanceof ModuleLoaderMap.Mapper)) {
-                    throw new IllegalArgumentException("loader can't be 'null' or the platform class loader");
-                }
-                hasPlatformModules = true;
-            } else {
-                loaders.add(loader);
-            }
-        }
-        
-        /* define each module in the configuration to the VM */
-        // 遍历指定模块图中的所有已解析模块，创建模块名称到模块实例的映射
-        for(ResolvedModule resolvedModule : cf.modules()) {
-            ModuleReference mref = resolvedModule.reference();
-            ModuleDescriptor descriptor = mref.descriptor();
-            String name = descriptor.name();
-            ClassLoader loader = nameToLoader.get(name);
-            Module m;
-            if(loader == null && name.equals("java.base")) {
-                // java.base is already defined to the VM
-                m = Object.class.getModule();
-            } else {
-                URI uri = mref.location().orElse(null);
-                m = new Module(layer, loader, descriptor, uri);
-            }
-            nameToModule.put(name, m);
-        }
-        
-        /* setup readability and exports/opens */
-        // 遍历指定模块图中的所有已解析模块，解析依赖模块
-        for(ResolvedModule resolvedModule : cf.modules()) {
-            ModuleReference mref = resolvedModule.reference();
-            ModuleDescriptor descriptor = mref.descriptor();
-            
-            String mn = descriptor.name();
-            Module m = nameToModule.get(mn);
-            assert m != null;
-            
-            // reads
-            Set<Module> reads = new HashSet<>();
-            
-            // name -> source Module when in parent layer
-            Map<String, Module> nameToSource = Collections.emptyMap();  // 位于父模块层中的依赖模块
-            
-            // 遍历每个模块的模块依赖
-            for(ResolvedModule other : resolvedModule.reads()) {
-                // 依赖模块的实例
-                Module m2 = null;
-                
-                // 依赖模块与当前模块处于同一个模块图
-                if(other.configuration() == cf) {
-                    // this configuration
-                    m2 = nameToModule.get(other.name());
-                    assert m2 != null;
-                } else {
-                    // 遍历父模块层
-                    for(ModuleLayer parent : layer.parents()) {
-                        // 在模块层parent中查找与other对应的模块
-                        m2 = findModule(parent, other);
-                        if(m2 != null) {
-                            break;
-                        }
-                    }
-                    
-                    assert m2 != null;
-                    
-                    if(nameToSource.isEmpty()) {
-                        nameToSource = new HashMap<>();
-                    }
-                    
-                    nameToSource.put(other.name(), m2);
-                }
-                
-                reads.add(m2);
-                
-                // update VM view
-                addReads0(m, m2);
-            }
-            m.reads = reads;
-            
-            // automatic modules read all unnamed modules
-            if(descriptor.isAutomatic()) {
-                m.implAddReads(ALL_UNNAMED_MODULE, true);
-            }
-            
-            // 解析exports和opens的包，跳过open模块和自动模块
-            if(!descriptor.isOpen() && !descriptor.isAutomatic()) {
-                if(isBootLayer && descriptor.opens().isEmpty()) {
-                    // no open packages, no qualified exports to modules in parent layers
-                    initExports(m, nameToModule);
-                } else {
-                    // 在nameToSource、nameToModule、layer.parents()中依次查找模块m中标记为opens以及exports的包
-                    initExportsAndOpens(m, nameToSource, nameToModule, layer.parents());
-                }
-            }
-        }
-        
-        // if there are modules defined to the boot or platform class loaders
-        // then register the modules in the class loader's services catalog
-        if(hasPlatformModules) {
-            ClassLoader pcl = ClassLoaders.platformClassLoader();
-            ServicesCatalog bootCatalog = BootLoader.getServicesCatalog();
-            ServicesCatalog pclCatalog = ServicesCatalog.getServicesCatalog(pcl);
-            for(ResolvedModule resolvedModule : cf.modules()) {
-                ModuleReference mref = resolvedModule.reference();
-                ModuleDescriptor descriptor = mref.descriptor();
-                if(!descriptor.provides().isEmpty()) {
-                    String name = descriptor.name();
-                    Module m = nameToModule.get(name);
-                    ClassLoader loader = nameToLoader.get(name);
-                    if(loader == null) {
-                        bootCatalog.register(m);
-                    } else if(loader == pcl) {
-                        pclCatalog.register(m);
-                    }
-                }
-            }
-        }
-        
-        // record that there is a layer with modules defined to the class loader
-        for(ClassLoader loader : loaders) {
-            // 将layer缓存到loader内部的CLV
-            layer.bindToLoader(loader);
-        }
-        
-        return nameToModule;
-    }
-    
-    /**
-     * Find the runtime Module corresponding to the given ResolvedModule in the given parent layer (or its parents).
-     */
-    // 在模块层parent中查找与resolvedModule对应的模块
-    private static Module findModule(ModuleLayer parent, ResolvedModule resolvedModule) {
-        Configuration cf = resolvedModule.configuration();
-        String dn = resolvedModule.name();
-        return parent.layers().filter(l -> l.configuration() == cf).findAny().map(layer -> {
-            // 在当前模块层以及父模块层中查找指定名称的模块
-            Optional<Module> om = layer.findModule(dn);
-            assert om.isPresent() : dn + " not found in layer";
-            Module m = om.get();
-            assert m.getLayer() == layer : m + " not in expected layer";
-            return m;
-        }).orElse(null);
-    }
-    
-    /**
-     * Initialize/setup a module's exports.
-     *
-     * @param m            the module
-     * @param nameToModule map of module name to Module (for qualified exports)
-     */
-    // 初始化exports包
-    private static void initExports(Module m, Map<String, Module> nameToModule) {
-        Map<String, Set<Module>> exportedPackages = new HashMap<>();
-        
-        for(Exports exports : m.getDescriptor().exports()) {
-            String source = exports.source();
-            if(exports.isQualified()) {
-                // qualified exports
-                Set<Module> targets = new HashSet<>();
-                for(String target : exports.targets()) {
-                    Module m2 = nameToModule.get(target);
-                    if(m2 != null) {
-                        addExports0(m, source, m2);
-                        targets.add(m2);
-                    }
-                }
-                if(!targets.isEmpty()) {
-                    exportedPackages.put(source, targets);
-                }
-            } else {
-                // unqualified exports
-                addExportsToAll0(m, source);
-                exportedPackages.put(source, EVERYONE_SET);
-            }
-        }
-        
-        if(!exportedPackages.isEmpty())
-            m.exportedPackages = exportedPackages;
-    }
-    
-    /**
-     * Initialize/setup a module's exports.
-     *
-     * @param m            the module
-     * @param nameToSource map of module name to Module for modules that m reads
-     * @param nameToModule map of module name to Module for modules in the layer
-     *                     under construction
-     * @param parents      the parent layers
-     */
-    // 在nameToSource、nameToModule、parents中依次查找模块m中标记为opens以及exports的包
-    private static void initExportsAndOpens(Module m, Map<String, Module> nameToSource, Map<String, Module> nameToModule, List<ModuleLayer> parents) {
-        ModuleDescriptor descriptor = m.getDescriptor();
-        Map<String, Set<Module>> openPackages = new HashMap<>();    // 标记为opens的模块与其open的目标模块的映射
-        Map<String, Set<Module>> exportedPackages = new HashMap<>();    // 标记为exports的模块与其export的目标模块的映射
-        
-        // 首先遍历标记为opens的包
-        for(Opens opens : descriptor.opens()) {
-            String source = opens.source();
-            
-            // 如果包含指定的目标模块
-            if(opens.isQualified()) {
-                // qualified opens
-                Set<Module> targets = new HashSet<>();
-                
-                // 遍历指定的目标模块
-                for(String target : opens.targets()) {
-                    // 在nameToSource、nameToModule、parents中依次查找目标模块target
-                    Module m2 = findModule(target, nameToSource, nameToModule, parents);
-                    if(m2 != null) {
-                        addExports0(m, source, m2);
-                        targets.add(m2);
-                    }
-                }
-                if(!targets.isEmpty()) {
-                    openPackages.put(source, targets);
-                }
-            } else {
-                // 如果没有指定的目标模块，那就是open给所有模块
-                addExportsToAll0(m, source);
-                openPackages.put(source, EVERYONE_SET);
-            }
-        }
-        
-        // 其次遍历标记为exports的包，跳过已被标记为opens的包
-        for(Exports exports : descriptor.exports()) {
-            String source = exports.source();
-            
-            // skip export if package is already open to everyone
-            Set<Module> openToTargets = openPackages.get(source);
-            if(openToTargets != null && openToTargets.contains(EVERYONE_MODULE)) {
-                continue;
-            }
-            
-            if(exports.isQualified()) {
-                // qualified exports
-                Set<Module> targets = new HashSet<>();
-                
-                // 遍历指定的目标模块
-                for(String target : exports.targets()) {
-                    // 在nameToSource、nameToModule、parents中依次查找目标模块target
-                    Module m2 = findModule(target, nameToSource, nameToModule, parents);
-                    if(m2 != null) {
-                        // skip qualified export if already open to m2
-                        if(openToTargets == null || !openToTargets.contains(m2)) {
-                            addExports0(m, source, m2);
-                            targets.add(m2);
-                        }
-                    }
-                }
-                if(!targets.isEmpty()) {
-                    exportedPackages.put(source, targets);
-                }
-            } else {
-                // 如果没有指定的目标模块，那就是export给所有模块
-                addExportsToAll0(m, source);
-                exportedPackages.put(source, EVERYONE_SET);
-            }
-        }
-        
-        if(!openPackages.isEmpty()) {
-            m.openPackages = openPackages;
-        }
-        
-        if(!exportedPackages.isEmpty()) {
-            m.exportedPackages = exportedPackages;
-        }
-    }
-    
-    /**
-     * Find the runtime Module with the given name. The module name is the
-     * name of a target module in a qualified exports or opens directive.
-     *
-     * @param target       The target module to find
-     * @param nameToSource The modules in parent layers that are read
-     * @param nameToModule The modules in the layer under construction
-     * @param parents      The parent layers
-     */
-    // 在nameToSource、nameToModule、parents中依次查找目标模块target
-    private static Module findModule(String target, Map<String, Module> nameToSource, Map<String, Module> nameToModule, List<ModuleLayer> parents) {
-        Module m = nameToSource.get(target);
-        if(m == null) {
-            m = nameToModule.get(target);
-            if(m == null) {
-                for(ModuleLayer parent : parents) {
-                    // 在parent模块层及其祖先模块层中查找指定名称的模块
-                    m = parent.findModule(target).orElse(null);
-                    if(m != null) {
-                        break;
-                    }
-                }
-            }
-        }
-        return m;
-    }
-    
-    /*▲ 创建模块 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ uses ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 注解 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    // cached class file with annotations
-    private volatile Class<?> moduleInfoClass;
     
     /**
      * {@inheritDoc}
@@ -1560,6 +904,460 @@ public final class Module implements AnnotatedElement {
     @Override
     public Annotation[] getDeclaredAnnotations() {
         return moduleInfoClass().getDeclaredAnnotations();
+    }
+    
+    /*▲ 注解 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    /**
+     * Returns the string representation of this module. For a named module,
+     * the representation is the string {@code "module"}, followed by a space,
+     * and then the module name. For an unnamed module, the representation is
+     * the string {@code "unnamed module"}, followed by a space, and then an
+     * implementation specific string that identifies the unnamed module.
+     *
+     * @return The string representation of this module
+     */
+    @Override
+    public String toString() {
+        if(isNamed()) {
+            return "module " + name;
+        } else {
+            String id = Integer.toHexString(System.identityHashCode(this));
+            return "unnamed module @" + id;
+        }
+    }
+    
+    
+    /**
+     * Returns the module that a given caller class is a member of. Returns
+     * {@code null} if the caller is {@code null}.
+     */
+    // 获取callerClass所在的模块，如果callerClass为null，则返回null
+    private Module getCallerModule(Class<?> callerClass) {
+        return (callerClass != null) ? callerClass.getModule() : null;
+    }
+    
+    /**
+     * Updates this module to read another module.
+     *
+     * @apiNote Used by the --add-reads command line option.
+     */
+    // 使当前模块依赖(requires)other模块，需要通知VM
+    void implAddReads(Module other) {
+        implAddReads(other, true);
+    }
+    
+    /**
+     * Updates this module to read all unnamed modules.
+     *
+     * @apiNote Used by the --add-reads command line option.
+     */
+    // 使当前模块依赖(requires)所有未命名模块，需要通知VM
+    void implAddReadsAllUnnamed() {
+        implAddReads(Module.ALL_UNNAMED_MODULE, true);
+    }
+    
+    /**
+     * Updates this module to read another module without notifying the VM.
+     *
+     * @apiNote This method is for VM white-box testing.
+     */
+    // 使当前模块依赖(requires)other模块，不需要通知VM（仅用于测试）
+    void implAddReadsNoSync(Module other) {
+        implAddReads(other, false);
+    }
+    
+    /**
+     * Makes the given {@code Module} readable to this module.
+     *
+     * If {@code syncVM} is {@code true} then the VM is notified.
+     */
+    // 使当前模块依赖(requires)other模块，syncVM决定是否通知VM
+    private void implAddReads(Module other, boolean syncVM) {
+        Objects.requireNonNull(other);
+        
+        // 如果当前模块依赖(requires)other模块
+        if(canRead(other)) {
+            return;
+        }
+        
+        // update VM first, just in case it fails
+        if(syncVM) {
+            // 如果other代表所有未命名模块
+            if(other == ALL_UNNAMED_MODULE) {
+                addReads0(this, null);
+            } else {
+                addReads0(this, other);
+            }
+        }
+        
+        // add reflective read
+        ReflectionData.reads.putIfAbsent(this, other, Boolean.TRUE);
+    }
+    
+    /**
+     * Returns {@code true} if this module reflectively exports the given package to the given module.
+     */
+    // 判断当前模块是否将pn包动态导出(exports)给了other模块
+    boolean isReflectivelyExported(String pn, Module other) {
+        return isReflectivelyExportedOrOpen(pn, other, false);
+    }
+    
+    /**
+     * Updates this module to export a package to another module.
+     *
+     * @apiNote Used by Instrumentation::redefineModule and --add-exports
+     */
+    // 将当前模块的pn包导出(exports)给other模块，需要通知VM
+    void implAddExports(String pn, Module other) {
+        implAddExportsOrOpens(pn, other, false, true);
+    }
+    
+    /**
+     * Updates this module to export a package unconditionally.
+     *
+     * @apiNote This method is for JDK tests only.
+     */
+    // 将当前模块的pn包导出(exports)给所有模块，需要通知VM
+    void implAddExports(String pn) {
+        implAddExportsOrOpens(pn, Module.EVERYONE_MODULE, false, true);
+    }
+    
+    /**
+     * Updates this module to export a package to all unnamed modules.
+     *
+     * @apiNote Used by the --add-exports command line option.
+     */
+    // 将当前模块的pn包导出(exports)给所有未命名模块，需要通知VM
+    void implAddExportsToAllUnnamed(String pn) {
+        implAddExportsOrOpens(pn, Module.ALL_UNNAMED_MODULE, false, true);
+    }
+    
+    /**
+     * Updates a module to export a package to another module without notifying the VM.
+     *
+     * @apiNote This method is for VM white-box testing.
+     */
+    // 将当前模块的pn包导出(exports)给other模块，不通知VM（仅用于测试）
+    void implAddExportsNoSync(String pn, Module other) {
+        implAddExportsOrOpens(pn.replace('/', '.'), other, false, false);
+    }
+    
+    /**
+     * Updates this export to export a package unconditionally without
+     * notifying the VM.
+     *
+     * @apiNote This method is for VM white-box testing.
+     */
+    // 将当前模块的pn包导出(exports)给所有模块，不通知VM（仅用于测试）
+    void implAddExportsNoSync(String pn) {
+        implAddExportsOrOpens(pn.replace('/', '.'), Module.EVERYONE_MODULE, false, false);
+    }
+    
+    /**
+     * Returns {@code true} if this module reflectively opens the
+     * given package to the given module.
+     */
+    // 判断当前模块是否将pn包动态(开放)opens给了other模块
+    boolean isReflectivelyOpened(String pn, Module other) {
+        return isReflectivelyExportedOrOpen(pn, other, true);
+    }
+    
+    /**
+     * Updates this module to open a package to another module.
+     *
+     * @apiNote Used by Instrumentation::redefineModule and --add-opens
+     */
+    // 将当前模块的pn包(开放)opens给other模块，需要通知VM
+    void implAddOpens(String pn, Module other) {
+        implAddExportsOrOpens(pn, other, true, true);
+    }
+    
+    /**
+     * Updates this module to open a package unconditionally.
+     *
+     * @apiNote This method is for JDK tests only.
+     */
+    // 将当前模块的pn包(开放)opens给所有模块，需要通知VM
+    void implAddOpens(String pn) {
+        implAddExportsOrOpens(pn, Module.EVERYONE_MODULE, true, true);
+    }
+    
+    /**
+     * Updates this module to open a package to all unnamed modules.
+     *
+     * @apiNote Used by the --add-opens command line option.
+     */
+    // 将当前模块的pn包(开放)opens给所有未命名模块，需要通知VM
+    void implAddOpensToAllUnnamed(String pn) {
+        implAddExportsOrOpens(pn, Module.ALL_UNNAMED_MODULE, true, true);
+    }
+    
+    /**
+     * Updates a module to open all packages returned by the given iterator to all unnamed modules.
+     *
+     * @apiNote Used during startup to open packages for illegal access.
+     */
+    // 将迭代器中所有的包open给未命名模块
+    void implAddOpensToAllUnnamed(Iterator<String> iterator) {
+        if(VM.isModuleSystemInited()) {
+            throw new IllegalStateException("Module system already initialized");
+        }
+    
+        // replace this module's openPackages map with a new map that opens the packages to all unnamed modules.
+        Map<String, Set<Module>> openPackages = this.openPackages;
+        if(openPackages == null) {
+            openPackages = new HashMap<>();
+        } else {
+            openPackages = new HashMap<>(openPackages);
+        }
+    
+        while(iterator.hasNext()) {
+            String pn = iterator.next();
+            Set<Module> prev = openPackages.putIfAbsent(pn, ALL_UNNAMED_MODULE_SET);
+            if(prev != null) {
+                prev.add(ALL_UNNAMED_MODULE);
+            }
+            
+            // update VM to export the package
+            addExportsToAllUnnamed0(this, pn);
+        }
+    
+        this.openPackages = openPackages;
+    }
+    
+    /**
+     * Returns {@code true} if this module exports or opens the given package to the given module.
+     * If the other module is {@code EVERYONE_MODULE} then this method tests if the package is exported or opened unconditionally.
+     */
+    // 判断当前模块是否将pn包导出(exports)/(开放)opens给了other模块
+    private boolean implIsExportedOrOpen(String pn, Module other, boolean open) {
+        /* all packages in unnamed modules are open */
+        if(!isNamed()) {
+            // 未命名模块导出所有包
+            return true;
+        }
+    
+        /* all packages are exported/open to self */
+        if(other == this && descriptor.packages().contains(pn)) {
+            // 自身对自身导出所有包
+            return true;
+        }
+    
+        /* all packages in open and automatic modules are open */
+        if(descriptor.isOpen() || descriptor.isAutomatic()) {
+            // open模块或自动模块也可看做导出了所有包
+            return descriptor.packages().contains(pn);
+        }
+    
+        /* exported/opened via module declaration/descriptor */
+        if(isStaticallyExportedOrOpen(pn, other, open)) {
+            // 当前模块将pn包静态导出(exports)/(开放)opens给了other模块
+            return true;
+        }
+    
+        /* exported via addExports/addOpens */
+        if(isReflectivelyExportedOrOpen(pn, other, open)) {
+            // 当前模块将pn包动态导出(exports)/(开放)opens给了other模块
+            return true;
+        }
+    
+        /* not exported or open to other */
+        return false;
+    }
+    
+    /**
+     * Returns {@code true} if this module exports or opens a package to
+     * the given module via its module declaration or CLI options.
+     */
+    /*
+     * 判断当前模块是否将pn包静态导出(exports)/(开放)opens给了other模块
+     *
+     * 注：静态的含义是该声明出现在module-info文件或出现在JVM运行参数中
+     */
+    private boolean isStaticallyExportedOrOpen(String pn, Module other, boolean open) {
+        /* test if package is open to everyone or <other> */
+        // 判断静态opens
+        Map<String, Set<Module>> openPackages = this.openPackages;
+        // 判断当前模块是否将pn包静态开放给了other模块
+        if(openPackages != null && allows(openPackages.get(pn), other)) {
+            return true;
+        }
+        
+        // 如果是在判断静态opens，这里可以返回false了，因为上面已经判断完了
+        if(open) {
+            return false;
+        }
+        
+        /* test package is exported to everyone or <other> */
+        // 判断静态exports
+        Map<String, Set<Module>> exportedPackages = this.exportedPackages;
+        return exportedPackages != null && allows(exportedPackages.get(pn), other);
+    }
+    
+    /**
+     * Returns {@code true} if this module reflectively exports or opens the given package to the given module.
+     */
+    // 判断当前模块是否将pn包动态导出(exports)/(开放)opens给了other模块
+    private boolean isReflectivelyExportedOrOpen(String pn, Module other, boolean open) {
+        // exported or open to all modules
+        Map<String, Boolean> exports = ReflectionData.exports.get(this, EVERYONE_MODULE);
+        if(exports != null) {
+            Boolean b = exports.get(pn);
+            if(b != null) {
+                boolean isOpen = b;
+                if(!open || isOpen) {
+                    return true;
+                }
+            }
+        }
+    
+        if(other == EVERYONE_MODULE) {
+            return false;
+        }
+    
+        // exported or open to other
+        exports = ReflectionData.exports.get(this, other);
+        if(exports != null) {
+            Boolean b = exports.get(pn);
+            if(b != null) {
+                boolean isOpen = b;
+                if(!open || isOpen) {
+                    return true;
+                }
+            }
+        }
+    
+        // other is an unnamed module && exported or open to all unnamed
+        if(!other.isNamed()) {
+            exports = ReflectionData.exports.get(this, ALL_UNNAMED_MODULE);
+            if(exports != null) {
+                Boolean b = exports.get(pn);
+                if(b != null) {
+                    boolean isOpen = b;
+                    if(!open || isOpen) {
+                        return true;
+                    }
+                }
+            }
+        }
+    
+        return false;
+    }
+    
+    /**
+     * Returns {@code true} if targets is non-null and contains EVERYONE_MODULE or the given module.
+     * Also returns true if the given module is an unnamed module and targets contains ALL_UNNAMED_MODULE.
+     */
+    // 判断module是否在targets集合表示的范畴内
+    private boolean allows(Set<Module> targets, Module module) {
+        if(targets == null) {
+            return false;
+        }
+    
+        if(targets.contains(EVERYONE_MODULE)) {
+            return true;
+        }
+    
+        if(module != EVERYONE_MODULE) {
+            if(targets.contains(module)) {
+                return true;
+            }
+        
+            return !module.isNamed() && targets.contains(ALL_UNNAMED_MODULE);
+        }
+    
+        return false;
+    }
+    
+    /**
+     * Updates a module to export or open a module to another module.
+     *
+     * If {@code syncVM} is {@code true} then the VM is notified.
+     */
+    /*
+     * 将当前模块的pn包导出(exports)/(开放)opens给other模块
+     *
+     * open指示是export操作还是open操作
+     * syncVM指示是否通知VM
+     */
+    private void implAddExportsOrOpens(String pn, Module other, boolean open, boolean syncVM) {
+        Objects.requireNonNull(other);
+        Objects.requireNonNull(pn);
+    
+        /* all packages are open in unnamed, open, and automatic modules */
+        if(!isNamed() || descriptor.isOpen() || descriptor.isAutomatic()) {
+            // 未命名模块、open模块、自动模块将导出(exports)/(开放)opens所有包
+            return;
+        }
+    
+        /* check if the package is already exported/open to other */
+        // 如果当前模块将pn包导出(exports)/(开放)opens给了other模块
+        if(implIsExportedOrOpen(pn, other, open)) {
+        
+            /*
+             * if the package is exported/open for illegal access then we need
+             * to record that it has also been exported/opened reflectively so
+             * that the IllegalAccessLogger doesn't emit a warning.
+             */
+            boolean needToAdd = false;
+        
+            // 如果other是未命名模块
+            if(!other.isNamed()) {
+                // 检测--illegal-access的情形
+                IllegalAccessLogger logger = IllegalAccessLogger.illegalAccessLogger();
+                if(logger != null) {
+                    if(open) {
+                        needToAdd = logger.isOpenForIllegalAccess(this, pn);
+                    } else {
+                        needToAdd = logger.isExportedForIllegalAccess(this, pn);
+                    }
+                }
+            }
+        
+            if(!needToAdd) {
+                // nothing to do
+                return;
+            }
+        }
+        
+        // can only export a package in the module
+        if(!descriptor.packages().contains(pn)) {
+            throw new IllegalArgumentException("package " + pn + " not in contents");
+        }
+        
+        // update VM first, just in case it fails
+        if(syncVM) {
+            if(other == EVERYONE_MODULE) {
+                addExportsToAll0(this, pn);
+            } else if(other == ALL_UNNAMED_MODULE) {
+                addExportsToAllUnnamed0(this, pn);
+            } else {
+                addExports0(this, pn, other);
+            }
+        }
+        
+        // add package name to exports if absent
+        Map<String, Boolean> map = ReflectionData.exports.computeIfAbsent(this, other, (m1, m2) -> new ConcurrentHashMap<>());
+    
+        if(open) {
+            // 如果是open操作，也要打开export权限
+            map.put(pn, Boolean.TRUE);  // may need to promote from FALSE to TRUE
+        } else {
+            map.putIfAbsent(pn, Boolean.FALSE);
+        }
+    }
+    
+    /**
+     * Update this module to add a service dependence on the given service
+     * type.
+     */
+    // 声明当前模块将使用(uses)指定的服务
+    void implAddUses(Class<?> service) {
+        if(!canUse(service)) {
+            ReflectionData.uses.putIfAbsent(this, service, Boolean.TRUE);
+        }
     }
     
     // 加载module-info.class，并缓存到moduleInfoClass
@@ -1592,12 +1390,14 @@ public final class Module implements AnnotatedElement {
     // 加载module-info.class
     private Class<?> loadModuleInfoClass() {
         Class<?> clazz = null;
+        
         try(InputStream in = getResourceAsStream("module-info.class")) {
             if(in != null) {
                 clazz = loadModuleInfoClass(in);
             }
         } catch(Exception ignore) {
         }
+        
         return clazz;
     }
     
@@ -1656,32 +1456,403 @@ public final class Module implements AnnotatedElement {
         }
     }
     
-    /*▲ 注解 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /**
+     * Defines all module in a configuration to the runtime.
+     *
+     * @return a map of module name to runtime {@code Module}
+     *
+     * @throws IllegalArgumentException If defining any of the modules to the VM fails
+     */
+    // (批量)定义指定模块图中的所有模块，返回模块名到模块实例的映射
+    static Map<String, Module> defineModules(Configuration cf, Function<String, ClassLoader> clf, ModuleLayer layer) {
+        boolean isBootLayer = (ModuleLayer.boot() == null);
+        
+        int cap = (int) (cf.modules().size() / 0.75f + 1.0f);
+        
+        // 当前模块层中模块名称到模块实例的映射
+        Map<String, Module> nameToModule = new HashMap<>(cap);
+        
+        // 模块名称到模块类加载器的映射
+        Map<String, ClassLoader> nameToLoader = new HashMap<>(cap);
+        
+        // 记录加载module的普通类加载器(除boot/platform之外的类加载器)
+        Set<ClassLoader> loaders = new HashSet<>();
+        
+        // 是否存在boot类加载器或platform类加载器
+        boolean hasPlatformModules = false;
+        
+        /* map each module to a class loader */
+        // 遍历指定模块图中的所有已解析模块，创建模块名称到模块类加载器的映射
+        for(ResolvedModule resolvedModule : cf.modules()) {
+            String name = resolvedModule.name();
+            
+            // 获取加载该模块的类加载器
+            ClassLoader loader = clf.apply(name);
+            nameToLoader.put(name, loader);
+            
+            if(loader == null || loader == ClassLoaders.platformClassLoader()) {
+                if(!(clf instanceof ModuleLoaderMap.Mapper)) {
+                    throw new IllegalArgumentException("loader can't be 'null' or the platform class loader");
+                }
+                
+                hasPlatformModules = true;
+            } else {
+                loaders.add(loader);
+            }
+        }
+        
+        /* define each module in the configuration to the VM */
+        // 遍历指定模块图中的所有已解析模块，创建模块名称到模块实例的映射
+        for(ResolvedModule resolvedModule : cf.modules()) {
+            ModuleReference mref = resolvedModule.reference();
+            ModuleDescriptor descriptor = mref.descriptor();
     
+            String name = descriptor.name();
     
+            ClassLoader loader = nameToLoader.get(name);
+    
+            // 定义模块
+            Module m;
+    
+            // "java.base"模块已由虚拟机定义，参见ModuleBootstrap#boot()方法中的Step 2
+            if(loader == null && name.equals("java.base")) {
+                // java.base is already defined to the VM
+                m = Object.class.getModule();
+            } else {
+                URI uri = mref.location().orElse(null);
+                // 构造模块一个新的命名模块，会通知虚拟机
+                m = new Module(layer, loader, descriptor, uri);
+            }
+    
+            nameToModule.put(name, m);
+        }
+        
+        /* setup readability and exports/opens */
+        // 遍历指定模块图中的所有已解析模块，解析依赖模块
+        for(ResolvedModule resolvedModule : cf.modules()) {
+            ModuleReference mref = resolvedModule.reference();
+            ModuleDescriptor descriptor = mref.descriptor();
+    
+            String mn = descriptor.name();
+            Module m = nameToModule.get(mn);
+            assert m != null;
+    
+            // 当前模块依赖(requires)的模块
+            Set<Module> reads = new HashSet<>();    // reads
+    
+            // 位于父模块层中的模块名称到模块实例的映射，这些模块被模块当前模块依赖
+            Map<String, Module> nameToSource = Collections.emptyMap();  // name -> source Module when in parent layer
+    
+            // 遍历每个模块的模块依赖(requires的模块)
+            for(ResolvedModule requires : resolvedModule.reads()) {
+                // 依赖模块的实例
+                Module m2 = null;
+        
+                // 依赖模块与当前模块处于同一个模块图
+                if(requires.configuration() == cf) {
+                    // this configuration
+                    m2 = nameToModule.get(requires.name());
+                    assert m2 != null;
+                } else {
+                    // 遍历父模块层
+                    for(ModuleLayer parentLayer : layer.parents()) {
+                        // 在模块层parentLayer及其父模块层中查找与requires对应的模块
+                        m2 = findModule(parentLayer, requires);
+                        if(m2 != null) {
+                            break;
+                        }
+                    }
+            
+                    assert m2 != null;
+            
+                    if(nameToSource.isEmpty()) {
+                        nameToSource = new HashMap<>();
+                    }
+            
+                    nameToSource.put(requires.name(), m2);
+                }
+        
+                reads.add(m2);
+        
+                // 通知虚拟机进行更新
+                addReads0(m, m2);   // update VM view
+            }
+    
+            m.reads = reads;
+            
+            // automatic modules read all unnamed modules
+            if(descriptor.isAutomatic()) {
+                // 如果当前模块是自动模块，则使当前模块依赖(requires)所有未命名模块，需要通知VM
+                m.implAddReads(ALL_UNNAMED_MODULE, true);
+            }
+            
+            // 解析exports和opens的包，跳过open模块和自动模块
+            if(!descriptor.isOpen() && !descriptor.isAutomatic()) {
+                // 如果当前模块位于Boot Layer，且没有open的包
+                if(isBootLayer && descriptor.opens().isEmpty()) {
+                    // 初始化模块m中导出(exports)的包
+                    initExports(m, nameToModule);   // no open packages, no qualified exports to modules in parent layers
+                } else {
+                    // 初始化模块m中导出(exports)/开放(open)的包到目标模块的映射
+                    initExportsAndOpens(m, nameToSource, nameToModule, layer.parents());
+                }
+            }
+        }
+        
+        /*
+         * if there are modules defined to the boot or platform class loaders,
+         * then register the modules in the class loader's services catalog
+         *
+         * 如果存在platform类加载器，则需要为boot类加载器和platform类加载器登记模块内注册的服务
+         */
+        if(hasPlatformModules) {
+            // 获取boot class loader的ServicesCatalog
+            ServicesCatalog bootCatalog = BootLoader.getServicesCatalog();
+            
+            // 获取PlatformClassLoader
+            ClassLoader platform = ClassLoaders.platformClassLoader();
+            
+            // 返回platform类加载器可以加载到的服务目录，如果不存在则返回一个空的服务目录
+            ServicesCatalog pclCatalog = ServicesCatalog.getServicesCatalog(platform);
+            
+            // 遍历已解析的模块
+            for(ResolvedModule resolvedModule : cf.modules()) {
+                ModuleReference mref = resolvedModule.reference();
+                ModuleDescriptor descriptor = mref.descriptor();
+                
+                // 如果当前模块provides的服务不为空
+                if(!descriptor.provides().isEmpty()) {
+                    String name = descriptor.name();
+                    Module m = nameToModule.get(name);
+                    ClassLoader loader = nameToLoader.get(name);
+                    
+                    // 注册当前模块m内的所有服务，即将所有服务实现者缓存到服务目录中
+                    if(loader == null) {
+                        bootCatalog.register(m);
+                    } else if(loader == platform) {
+                        pclCatalog.register(m);
+                    }
+                }
+            }
+        }
+        
+        // record that there is a layer with modules defined to the class loader
+        for(ClassLoader loader : loaders) {
+            // 将layer模块层缓存到指定loader内部的类加载器局部缓存中
+            layer.bindToLoader(loader);
+        }
+        
+        return nameToModule;
+    }
     
     /**
-     * Returns the string representation of this module. For a named module,
-     * the representation is the string {@code "module"}, followed by a space,
-     * and then the module name. For an unnamed module, the representation is
-     * the string {@code "unnamed module"}, followed by a space, and then an
-     * implementation specific string that identifies the unnamed module.
-     *
-     * @return The string representation of this module
+     * Find the runtime Module corresponding to the given ResolvedModule in the given parent layer (or its parents).
      */
-    @Override
-    public String toString() {
-        if(isNamed()) {
-            return "module " + name;
-        } else {
-            String id = Integer.toHexString(System.identityHashCode(this));
-            return "unnamed module @" + id;
+    // 在模块层layer及其父模块层中查找与resolvedModule对应的模块
+    private static Module findModule(ModuleLayer layer, ResolvedModule resolvedModule) {
+        Configuration cf = resolvedModule.configuration();
+        String dn = resolvedModule.name();
+        
+        return layer.layers().filter(l -> l.configuration() == cf).findAny().map(moduleLayer -> {
+            // 在当前模块层以及父模块层中查找指定名称的模块
+            Optional<Module> om = moduleLayer.findModule(dn);
+            assert om.isPresent() : dn + " not found in layer";
+            Module m = om.get();
+            assert m.getLayer() == moduleLayer : m + " not in expected layer";
+            return m;
+        }).orElse(null);
+    }
+    
+    /**
+     * Initialize/setup a module's exports.
+     *
+     * @param m            the module
+     * @param nameToModule map of module name to Module (for qualified exports)
+     */
+    // 初始化模块m中导出(exports)的包到目标模块的映射
+    private static void initExports(Module m, Map<String, Module> nameToModule) {
+        Map<String, Set<Module>> exportedPackages = new HashMap<>();
+    
+        // 遍历模块m中导出(exports)的包
+        for(Exports exports : m.getDescriptor().exports()) {
+            // 获取标记为exports的包的名称
+            String source = exports.source();
+    
+            // 如果是exports...to...
+            if(exports.isQualified()) {
+                // qualified exports
+                Set<Module> targets = new HashSet<>();
+        
+                // 遍历目标模块
+                for(String target : exports.targets()) {
+                    Module m2 = nameToModule.get(target);
+                    if(m2 != null) {
+                        addExports0(m, source, m2);
+                        targets.add(m2);
+                    }
+                }
+        
+                if(!targets.isEmpty()) {
+                    exportedPackages.put(source, targets);
+                }
+        
+                // 如果只是exports...
+            } else {
+                // 将当前包导出(exports)给所有模块
+                addExportsToAll0(m, source);
+                exportedPackages.put(source, EVERYONE_SET);
+            }
         }
+    
+        if(!exportedPackages.isEmpty()) {
+            m.exportedPackages = exportedPackages;
+        }
+    }
+    
+    /**
+     * Initialize/setup a module's exports.
+     *
+     * @param m            the module
+     * @param nameToSource map of module name to Module for modules that m reads
+     * @param nameToModule map of module name to Module for modules in the layer under construction
+     * @param parents      the parent layers
+     */
+    /*
+     * 初始化模块m中导出(exports)/开放(open)的包到目标模块的映射
+     *
+     * nameToSource: 位于父模块层中的模块名称到模块实例的映射，这些模块被模块m依赖
+     * nameToModule: 当前模块层中模块名称到模块实例的映射
+     * parents     : 父模块层
+     *
+     * 注：会在nameToSource、nameToModule、parents中依次查找目标模块
+     */
+    private static void initExportsAndOpens(Module m, Map<String, Module> nameToSource, Map<String, Module> nameToModule, List<ModuleLayer> parents) {
+        ModuleDescriptor descriptor = m.getDescriptor();
+        
+        Map<String, Set<Module>> openPackages = new HashMap<>();        // 标记为opens的模块与其open的目标模块的映射
+        Map<String, Set<Module>> exportedPackages = new HashMap<>();    // 标记为exports的模块与其export的目标模块的映射
+        
+        // 首先遍历模块m中开放(open)的包
+        for(Opens opens : descriptor.opens()) {
+            // 获取标记为opens的包的名称
+            String source = opens.source();
+            
+            // 如果是opens...to...
+            if(opens.isQualified()) {
+                // qualified opens
+                Set<Module> targets = new HashSet<>();
+                
+                // 遍历目标模块
+                for(String target : opens.targets()) {
+                    // 在nameToSource、nameToModule、parents中依次查找目标模块target
+                    Module m2 = findModule(target, nameToSource, nameToModule, parents);
+                    if(m2 != null) {
+                        addExports0(m, source, m2);
+                        targets.add(m2);
+                    }
+                }
+                
+                if(!targets.isEmpty()) {
+                    openPackages.put(source, targets);
+                }
+                
+                // 如果只是opens...
+            } else {
+                // 将当前包开放(open)给所有模块
+                addExportsToAll0(m, source);
+                openPackages.put(source, EVERYONE_SET);
+            }
+        }
+        
+        // 其次遍历模块m中导出(exports)的包，跳过其中开放(open)的包
+        for(Exports exports : descriptor.exports()) {
+            // 获取标记为exports的包的名称
+            String source = exports.source();
+    
+            /* skip export if package is already open to everyone */
+            // 跳过已经开放(open)给所有模块的包
+            Set<Module> openToTargets = openPackages.get(source);
+            if(openToTargets != null && openToTargets.contains(EVERYONE_MODULE)) {
+                continue;
+            }
+    
+            // 如果是exports...to...
+            if(exports.isQualified()) {
+                // qualified exports
+                Set<Module> targets = new HashSet<>();
+        
+                // 遍历目标模块
+                for(String target : exports.targets()) {
+                    // 在nameToSource、nameToModule、parents中依次查找目标模块target
+                    Module m2 = findModule(target, nameToSource, nameToModule, parents);
+                    if(m2 != null) {
+                        /* skip qualified export if already open to m2 */
+                        // 如果当前包已经开放(open)给目标模块，则跳过它
+                        if(openToTargets != null && openToTargets.contains(m2)) {
+                            continue;
+                        }
+                
+                        addExports0(m, source, m2);
+                        targets.add(m2);
+                    }
+                }
+        
+                if(!targets.isEmpty()) {
+                    exportedPackages.put(source, targets);
+                }
+        
+                // 如果只是exports...
+            } else {
+                // 将当前包导出(exports)给所有模块
+                addExportsToAll0(m, source);
+                exportedPackages.put(source, EVERYONE_SET);
+            }
+        }
+        
+        if(!openPackages.isEmpty()) {
+            m.openPackages = openPackages;
+        }
+        
+        if(!exportedPackages.isEmpty()) {
+            m.exportedPackages = exportedPackages;
+        }
+    }
+    
+    /**
+     * Find the runtime Module with the given name. The module name is the
+     * name of a target module in a qualified exports or opens directive.
+     *
+     * @param target       The target module to find
+     * @param nameToSource The modules in parent layers that are read
+     * @param nameToModule The modules in the layer under construction
+     * @param parents      The parent layers
+     */
+    // 在nameToSource、nameToModule、parents中依次查找目标模块target
+    private static Module findModule(String target, Map<String, Module> nameToSource, Map<String, Module> nameToModule, List<ModuleLayer> parents) {
+        Module m = nameToSource.get(target);
+        if(m != null) {
+            return m;
+        }
+    
+        m = nameToModule.get(target);
+        if(m != null) {
+            return m;
+        }
+    
+        for(ModuleLayer parent : parents) {
+            // 在parent模块层及其祖先模块层中查找指定名称的模块
+            m = parent.findModule(target).orElse(null);
+            if(m != null) {
+                return m;
+            }
+        }
+    
+        return m;
     }
     
     
     
-    // -- native methods --
+    /* -- native methods -- */
     
     // JVM_DefineModule
     private static native void defineModule0(Module module, boolean isOpen, String version, String location, String[] pns);
@@ -1703,23 +1874,29 @@ public final class Module implements AnnotatedElement {
      * The holder of data structures to support readability, exports, and
      * service use added at runtime with the reflective APIs.
      */
-    // 记录运行时添加的read、export、open、use描述符
+    // 记录运行时添加的requires、export、open、use描述符
     private static class ReflectionData {
         /**
          * A module (1st key) reads another module (2nd key)
          */
+        // 记录动态requires信息
         static final WeakPairMap<Module, Module, Boolean> reads = new WeakPairMap<>();
-        
+    
         /**
          * A module (1st key) exports or opens a package to another module (2nd key).
          * The map value is a map of package name to a boolean that indicates if the package is opened.
          */
-        // 如果是open操作，标记为true，如果是export操作，标记为false
+        /*
+         * 记录动态opens/exports信息
+         *
+         * 如果是opens操作，标记为true，如果是exports操作，标记为false
+         */
         static final WeakPairMap<Module, Module, Map<String, Boolean>> exports = new WeakPairMap<>();
         
         /**
          * A module (1st key) uses a service (2nd key)
          */
+        // 记录动态use信息
         static final WeakPairMap<Module, Class<?>, Boolean> uses = new WeakPairMap<>();
     }
     

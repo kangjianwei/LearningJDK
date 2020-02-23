@@ -195,24 +195,16 @@ public final class Flow {
     
     
     /**
-     * A producer of items (and related control messages) received by
-     * Subscribers.  Each current {@link Subscriber} receives the same
-     * items (via method {@code onNext}) in the same order, unless
-     * drops or errors are encountered. If a Publisher encounters an
-     * error that does not allow items to be issued to a Subscriber,
-     * that Subscriber receives {@code onError}, and then receives no
-     * further messages.  Otherwise, when it is known that no further
-     * messages will be issued to it, a subscriber receives {@code
-     * onComplete}.  Publishers ensure that Subscriber method
-     * invocations for each subscription are strictly ordered in <a
-     * href="package-summary.html#MemoryVisibility"><i>happens-before</i></a>
-     * order.
+     * A producer of items (and related control messages) received by Subscribers.
+     * Each current {@link Subscriber} receives the same items (via method {@code onNext}) in the same order,
+     * unless drops or errors are encountered.
+     * If a Publisher encounters an error that does not allow items to be issued to a Subscriber,
+     * that Subscriber receives {@code onError}, and then receives no further messages.
+     * Otherwise, when it is known that no further messages will be issued to it, a subscriber receives {@code onComplete}.
+     * Publishers ensure that Subscriber method invocations for each subscription are strictly ordered in <a href="package-summary.html#MemoryVisibility"><i>happens-before</i></a> order.
      *
-     * <p>Publishers may vary in policy about whether drops (failures
-     * to issue an item because of resource limitations) are treated
-     * as unrecoverable errors.  Publishers may also vary about
-     * whether Subscribers receive items that were produced or
-     * available before they subscribed.
+     * Publishers may vary in policy about whether drops (failures to issue an item because of resource limitations) are treated as unrecoverable errors.
+     * Publishers may also vary about whether Subscribers receive items that were produced or available before they subscribed.
      *
      * @param <T> the published item type
      */
@@ -239,9 +231,8 @@ public final class Flow {
     }
     
     /**
-     * A receiver of messages.  The methods in this interface are
-     * invoked in strict sequential order for each {@link
-     * Subscription}.
+     * A receiver of messages.
+     * The methods in this interface are invoked in strict sequential order for each {@link Subscription}.
      *
      * @param <T> the subscribed item type
      */
@@ -302,11 +293,10 @@ public final class Flow {
     }
     
     /**
-     * Message control linking a {@link Publisher} and {@link
-     * Subscriber}.  Subscribers receive items only when requested,
-     * and may cancel at any time. The methods in this interface are
-     * intended to be invoked only by their Subscribers; usages in
-     * other contexts have undefined effects.
+     * Message control linking a {@link Publisher} and {@link Subscriber}.
+     * Subscribers receive items only when requested, and may cancel at any time.
+     * The methods in this interface are intended to be invoked only by their Subscribers;
+     * usages in other contexts have undefined effects.
      */
     // 中介，内部包含注册的消费者，自身注册在生产者内。用于连接生产者与消费者，为它们提供通讯渠道
     public interface Subscription {

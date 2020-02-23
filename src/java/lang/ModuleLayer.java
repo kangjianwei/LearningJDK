@@ -146,17 +146,17 @@ import sun.security.util.SecurityConstants;
 // 模块层，包含了模块图
 public final class ModuleLayer {
     
-    // the empty layer
-    private static final ModuleLayer EMPTY_LAYER = new ModuleLayer(Configuration.empty(), List.of(), null);
+    // 空模块层，内部包含一个空模块图，该模块层通常作为Boot Layer的父模块层(最底下的一个模块层)
+    private static final ModuleLayer EMPTY_LAYER = new ModuleLayer(Configuration.empty(), List.of(), null); // the empty layer
     
-    // the configuration from which this layer was created
-    private final Configuration cf; // 模块图
+    // 模块图
+    private final Configuration configuration;  // the configuration from which this layer was created
     
-    // parent layers, empty in the case of the empty layer
-    private final List<ModuleLayer> parents;    // 父模块层
+    // 父模块层
+    private final List<ModuleLayer> parents;    // parent layers, empty in the case of the empty layer
     
-    // maps module name to jlr.Module
-    private final Map<String, Module> nameToModule; // 模块名到模块实例的映射
+    // 模块名到模块实例的映射
+    private final Map<String, Module> nameToModule; // maps module name to jlr.Module
     
     // 当前模块层及其父模块层的集合
     private volatile List<ModuleLayer> allLayers;
@@ -164,10 +164,14 @@ public final class ModuleLayer {
     // 当前模块层内所有模块
     private volatile Set<Module> modules;
     
-    // 当前模块层的服务目录（包含所有模块内的所有服务）
+    // 当前模块层的服务目录（包含所有模块内的所有提供的服务）
     private volatile ServicesCatalog servicesCatalog;
     
-    // 缓存了当前模块层对应的ClassLoader下所有的模块层信息
+    /*
+     * 模块层CLV，由所有模块层对象共享
+     *
+     * 该CLV映射的值是其所在类加载器参与定义过的所有模块层
+     */
     private static final ClassLoaderValue<List<ModuleLayer>> CLV = new ClassLoaderValue<>();
     
     
@@ -177,16 +181,20 @@ public final class ModuleLayer {
     /**
      * Creates a new module layer from the modules in the given configuration.
      */
-    private ModuleLayer(Configuration cf, List<ModuleLayer> parents, Function<String, ClassLoader> clf) {
-        this.cf = cf;
+    private ModuleLayer(Configuration configuration, List<ModuleLayer> parents, Function<String, ClassLoader> fn) {
+        this.configuration = configuration;
         this.parents = parents; // no need to do defensive copy
         
         Map<String, Module> map;
+        
+        // 如果不存在父模块层(Boot Layer存在一个EMPTY_LAYER的父模块层)
         if(parents.isEmpty()) {
             map = Collections.emptyMap();
         } else {
-            map = Module.defineModules(cf, clf, this);
+            // 定义指定模块图中的所有模块，返回模块名到模块实例的映射
+            map = Module.defineModules(configuration, fn, this);
         }
+        
         this.nameToModule = map; // no need to do defensive copy
     }
     
@@ -195,6 +203,127 @@ public final class ModuleLayer {
     
     
     /*▼ 定义模块层 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Creates a new module layer, with this layer as its parent, by defining the
+     * modules in the given {@code Configuration} to the Java virtual machine.
+     * Each module is mapped, by name, to its class loader by means of the
+     * given function. This method works exactly as specified by the static
+     * {@link #defineModules(Configuration, List, Function) defineModules}
+     * method when invoked with this layer as the parent. In other words, if
+     * this layer is {@code thisLayer} then this method is equivalent to
+     * invoking:
+     * <pre> {@code
+     *     ModuleLayer.defineModules(cf, List.of(thisLayer), clf).layer();
+     * }</pre>
+     *
+     * @param cf  The configuration for the layer
+     * @param clf The function to map a module name to a class loader
+     *
+     * @return The newly created layer
+     *
+     * @throws IllegalArgumentException    If the given configuration has more than one parent or the parent
+     *                                     of the configuration is not the configuration for this layer
+     * @throws LayerInstantiationException If the layer cannot be created for any of the reasons specified
+     *                                     by the static {@code defineModules} method
+     * @throws SecurityException           If {@code RuntimePermission("getClassLoader")} is denied by
+     *                                     the security manager
+     */
+    /*
+     * 构造新的模块层，父模块层就是当前模块层
+     *
+     * cf          : 模块图
+     * clf         : 加载指定模块时用到的类加载器集合
+     */
+    public ModuleLayer defineModules(Configuration cf, Function<String, ClassLoader> clf) {
+        return defineModules(cf, List.of(this), clf).layer();
+    }
+    
+    /**
+     * Creates a new module layer by defining the modules in the given {@code
+     * Configuration} to the Java virtual machine. The given function maps each
+     * module in the configuration, by name, to a class loader. Creating the
+     * layer informs the Java virtual machine about the classes that may be
+     * loaded so that the Java virtual machine knows which module that each
+     * class is a member of.
+     *
+     * <p> The class loader delegation implemented by the class loaders must
+     * respect module readability. The class loaders should be
+     * {@link ClassLoader#registerAsParallelCapable parallel-capable} so as to
+     * avoid deadlocks during class loading. In addition, the entity creating
+     * a new layer with this method should arrange that the class loaders be
+     * ready to load from these modules before there are any attempts to load
+     * classes or resources. </p>
+     *
+     * <p> Creating a layer can fail for the following reasons: </p>
+     *
+     * <ul>
+     *
+     * <li><p> Two or more modules with the same package are mapped to the
+     * same class loader. </p></li>
+     *
+     * <li><p> A module is mapped to a class loader that already has a
+     * module of the same name defined to it. </p></li>
+     *
+     * <li><p> A module is mapped to a class loader that has already
+     * defined types in any of the packages in the module. </p></li>
+     *
+     * </ul>
+     *
+     * <p> In addition, a layer cannot be created if the configuration contains
+     * a module named "{@code java.base}", a configuration contains a module
+     * with a package named "{@code java}" or a package name starting with
+     * "{@code java.}", or the function to map a module name to a class loader
+     * returns {@code null} or the {@linkplain ClassLoader#getPlatformClassLoader()
+     * platform class loader}. </p>
+     *
+     * <p> If the function to map a module name to class loader throws an error
+     * or runtime exception then it is propagated to the caller of this method.
+     * </p>
+     *
+     * @param cf           The configuration for the layer
+     * @param parentLayers The list of parent layers in search order
+     * @param clf          The function to map a module name to a class loader
+     *
+     * @return A controller that controls the newly created layer
+     *
+     * @throws IllegalArgumentException    If the parent(s) of the given configuration do not match the
+     *                                     configuration of the parent layers, including order
+     * @throws LayerInstantiationException If creating the layer fails for any of the reasons listed above
+     * @throws SecurityException           If {@code RuntimePermission("getClassLoader")} is denied by
+     *                                     the security manager
+     * @apiNote It is implementation specific as to whether creating a layer
+     * with this method is an atomic operation or not. Consequentially it is
+     * possible for this method to fail with some modules, but not all, defined
+     * to the Java virtual machine.
+     */
+    /*
+     * 构造新的模块层
+     *
+     * cf          : 模块图
+     * parentLayers: 父模块层
+     * clf         : 加载指定模块时用到的类加载器集合
+     */
+    public static Controller defineModules(Configuration cf, List<ModuleLayer> parentLayers, Function<String, ClassLoader> clf) {
+        List<ModuleLayer> parents = new ArrayList<>(parentLayers);
+        
+        checkConfiguration(cf, parents);
+        Objects.requireNonNull(clf);
+        checkGetClassLoaderPermission();
+        
+        // The boot layer is checked during module system initialization
+        if(boot() != null) {
+            checkForDuplicatePkgs(cf, clf);
+        }
+        
+        try {
+            ModuleLayer layer = new ModuleLayer(cf, parents, clf);
+            return new Controller(layer);
+        } catch(IllegalArgumentException | IllegalStateException e) {
+            throw new LayerInstantiationException(e.getMessage());
+        }
+    }
+    
     
     /**
      * Creates a new module layer, with this layer as its parent, by defining the
@@ -226,71 +355,14 @@ public final class ModuleLayer {
      *                                     the security manager
      * @see #findLoader
      */
+    /*
+     * 构造新的模块层，父模块层就是当前模块层
+     *
+     * cf          : 模块图
+     * parentLoader: 所有模块会用到一个模块类加载器，该类加载器的父级类加载器是parentLoader
+     */
     public ModuleLayer defineModulesWithOneLoader(Configuration cf, ClassLoader parentLoader) {
         return defineModulesWithOneLoader(cf, List.of(this), parentLoader).layer();
-    }
-    
-    /**
-     * Creates a new module layer, with this layer as its parent, by defining the
-     * modules in the given {@code Configuration} to the Java virtual machine.
-     * Each module is defined to its own {@link ClassLoader} created by this
-     * method. The {@link ClassLoader#getParent() parent} of each class loader
-     * is the given parent class loader. This method works exactly as specified
-     * by the static {@link
-     * #defineModulesWithManyLoaders(Configuration, List, ClassLoader)
-     * defineModulesWithManyLoaders} method when invoked with this layer as the
-     * parent. In other words, if this layer is {@code thisLayer} then this
-     * method is equivalent to invoking:
-     * <pre> {@code
-     *     ModuleLayer.defineModulesWithManyLoaders(cf, List.of(thisLayer), parentLoader).layer();
-     * }</pre>
-     *
-     * @param cf           The configuration for the layer
-     * @param parentLoader The parent class loader for each of the class loaders created by
-     *                     this method; may be {@code null} for the bootstrap class loader
-     *
-     * @return The newly created layer
-     *
-     * @throws IllegalArgumentException    If the given configuration has more than one parent or the parent
-     *                                     of the configuration is not the configuration for this layer
-     * @throws LayerInstantiationException If the layer cannot be created for any of the reasons specified
-     *                                     by the static {@code defineModulesWithManyLoaders} method
-     * @throws SecurityException           If {@code RuntimePermission("createClassLoader")} or
-     *                                     {@code RuntimePermission("getClassLoader")} is denied by
-     *                                     the security manager
-     * @see #findLoader
-     */
-    public ModuleLayer defineModulesWithManyLoaders(Configuration cf, ClassLoader parentLoader) {
-        return defineModulesWithManyLoaders(cf, List.of(this), parentLoader).layer();
-    }
-    
-    /**
-     * Creates a new module layer, with this layer as its parent, by defining the
-     * modules in the given {@code Configuration} to the Java virtual machine.
-     * Each module is mapped, by name, to its class loader by means of the
-     * given function. This method works exactly as specified by the static
-     * {@link #defineModules(Configuration, List, Function) defineModules}
-     * method when invoked with this layer as the parent. In other words, if
-     * this layer is {@code thisLayer} then this method is equivalent to
-     * invoking:
-     * <pre> {@code
-     *     ModuleLayer.defineModules(cf, List.of(thisLayer), clf).layer();
-     * }</pre>
-     *
-     * @param cf  The configuration for the layer
-     * @param clf The function to map a module name to a class loader
-     *
-     * @return The newly created layer
-     *
-     * @throws IllegalArgumentException    If the given configuration has more than one parent or the parent
-     *                                     of the configuration is not the configuration for this layer
-     * @throws LayerInstantiationException If the layer cannot be created for any of the reasons specified
-     *                                     by the static {@code defineModules} method
-     * @throws SecurityException           If {@code RuntimePermission("getClassLoader")} is denied by
-     *                                     the security manager
-     */
-    public ModuleLayer defineModules(Configuration cf, Function<String, ClassLoader> clf) {
-        return defineModules(cf, List.of(this), clf).layer();
     }
     
     /**
@@ -354,21 +426,76 @@ public final class ModuleLayer {
      *                                     the security manager
      * @see #findLoader
      */
+    /*
+     * 构造新的模块层
+     *
+     * cf          : 模块图
+     * parentLayers: 父模块层
+     * parentLoader: 所有模块会用到一个模块类加载器，该类加载器的父级类加载器是parentLoader
+     */
     public static Controller defineModulesWithOneLoader(Configuration cf, List<ModuleLayer> parentLayers, ClassLoader parentLoader) {
         List<ModuleLayer> parents = new ArrayList<>(parentLayers);
-        
+    
         checkConfiguration(cf, parents);
         checkCreateClassLoaderPermission();
         checkGetClassLoaderPermission();
-        
+    
         try {
-            Loader loader = new Loader(cf.modules(), parentLoader);
+            // 获取模块图中的模块集
+            Set<ResolvedModule> modules = cf.modules();
+        
+            // 用parent作为父级类加载器，为指定模块集合中的所有模块构造一个模块类加载器
+            Loader loader = new Loader(modules, parentLoader);
+        
+            // 初始化依赖包到类加载器的映射，参见字段remotePackageToLoader的说明
             loader.initRemotePackageMap(cf, parents);
+        
             ModuleLayer layer = new ModuleLayer(cf, parents, mn -> loader);
             return new Controller(layer);
         } catch(IllegalArgumentException | IllegalStateException e) {
             throw new LayerInstantiationException(e.getMessage());
         }
+    }
+    
+    
+    /**
+     * Creates a new module layer, with this layer as its parent, by defining the
+     * modules in the given {@code Configuration} to the Java virtual machine.
+     * Each module is defined to its own {@link ClassLoader} created by this
+     * method. The {@link ClassLoader#getParent() parent} of each class loader
+     * is the given parent class loader. This method works exactly as specified
+     * by the static {@link
+     * #defineModulesWithManyLoaders(Configuration, List, ClassLoader)
+     * defineModulesWithManyLoaders} method when invoked with this layer as the
+     * parent. In other words, if this layer is {@code thisLayer} then this
+     * method is equivalent to invoking:
+     * <pre> {@code
+     *     ModuleLayer.defineModulesWithManyLoaders(cf, List.of(thisLayer), parentLoader).layer();
+     * }</pre>
+     *
+     * @param cf           The configuration for the layer
+     * @param parentLoader The parent class loader for each of the class loaders created by
+     *                     this method; may be {@code null} for the bootstrap class loader
+     *
+     * @return The newly created layer
+     *
+     * @throws IllegalArgumentException    If the given configuration has more than one parent or the parent
+     *                                     of the configuration is not the configuration for this layer
+     * @throws LayerInstantiationException If the layer cannot be created for any of the reasons specified
+     *                                     by the static {@code defineModulesWithManyLoaders} method
+     * @throws SecurityException           If {@code RuntimePermission("createClassLoader")} or
+     *                                     {@code RuntimePermission("getClassLoader")} is denied by
+     *                                     the security manager
+     * @see #findLoader
+     */
+    /*
+     * 构造新的模块层，父模块层就是当前模块层
+     *
+     * cf          : 模块图
+     * parentLoader: 所有模块类加载器的父级类加载器(不同的模块使用不同的类加载器)
+     */
+    public ModuleLayer defineModulesWithManyLoaders(Configuration cf, ClassLoader parentLoader) {
+        return defineModulesWithManyLoaders(cf, List.of(this), parentLoader).layer();
     }
     
     /**
@@ -419,6 +546,13 @@ public final class ModuleLayer {
      *                                     the security manager
      * @see #findLoader
      */
+    /*
+     * 构造新的模块层
+     *
+     * cf          : 模块图
+     * parentLayers: 父模块层
+     * parentLoader: 所有模块类加载器的父级类加载器(不同的模块使用不同的类加载器)
+     */
     public static Controller defineModulesWithManyLoaders(Configuration cf, List<ModuleLayer> parentLayers, ClassLoader parentLoader) {
         List<ModuleLayer> parents = new ArrayList<>(parentLayers);
         
@@ -426,87 +560,10 @@ public final class ModuleLayer {
         checkCreateClassLoaderPermission();
         checkGetClassLoaderPermission();
         
+        // 使用同一个父级类加载器构造模块类加载器池，不同的模块使用各自的模块类加载器
         LoaderPool pool = new LoaderPool(cf, parents, parentLoader);
         try {
             ModuleLayer layer = new ModuleLayer(cf, parents, pool::loaderFor);
-            return new Controller(layer);
-        } catch(IllegalArgumentException | IllegalStateException e) {
-            throw new LayerInstantiationException(e.getMessage());
-        }
-    }
-    
-    /**
-     * Creates a new module layer by defining the modules in the given {@code
-     * Configuration} to the Java virtual machine. The given function maps each
-     * module in the configuration, by name, to a class loader. Creating the
-     * layer informs the Java virtual machine about the classes that may be
-     * loaded so that the Java virtual machine knows which module that each
-     * class is a member of.
-     *
-     * <p> The class loader delegation implemented by the class loaders must
-     * respect module readability. The class loaders should be
-     * {@link ClassLoader#registerAsParallelCapable parallel-capable} so as to
-     * avoid deadlocks during class loading. In addition, the entity creating
-     * a new layer with this method should arrange that the class loaders be
-     * ready to load from these modules before there are any attempts to load
-     * classes or resources. </p>
-     *
-     * <p> Creating a layer can fail for the following reasons: </p>
-     *
-     * <ul>
-     *
-     * <li><p> Two or more modules with the same package are mapped to the
-     * same class loader. </p></li>
-     *
-     * <li><p> A module is mapped to a class loader that already has a
-     * module of the same name defined to it. </p></li>
-     *
-     * <li><p> A module is mapped to a class loader that has already
-     * defined types in any of the packages in the module. </p></li>
-     *
-     * </ul>
-     *
-     * <p> In addition, a layer cannot be created if the configuration contains
-     * a module named "{@code java.base}", a configuration contains a module
-     * with a package named "{@code java}" or a package name starting with
-     * "{@code java.}", or the function to map a module name to a class loader
-     * returns {@code null} or the {@linkplain ClassLoader#getPlatformClassLoader()
-     * platform class loader}. </p>
-     *
-     * <p> If the function to map a module name to class loader throws an error
-     * or runtime exception then it is propagated to the caller of this method.
-     * </p>
-     *
-     * @param cf           The configuration for the layer
-     * @param parentLayers The list of parent layers in search order
-     * @param clf          The function to map a module name to a class loader
-     *
-     * @return A controller that controls the newly created layer
-     *
-     * @throws IllegalArgumentException    If the parent(s) of the given configuration do not match the
-     *                                     configuration of the parent layers, including order
-     * @throws LayerInstantiationException If creating the layer fails for any of the reasons listed above
-     * @throws SecurityException           If {@code RuntimePermission("getClassLoader")} is denied by
-     *                                     the security manager
-     * @apiNote It is implementation specific as to whether creating a layer
-     * with this method is an atomic operation or not. Consequentially it is
-     * possible for this method to fail with some modules, but not all, defined
-     * to the Java virtual machine.
-     */
-    public static Controller defineModules(Configuration cf, List<ModuleLayer> parentLayers, Function<String, ClassLoader> clf) {
-        List<ModuleLayer> parents = new ArrayList<>(parentLayers);
-        
-        checkConfiguration(cf, parents);
-        Objects.requireNonNull(clf);
-        checkGetClassLoaderPermission();
-        
-        // The boot layer is checked during module system initialization
-        if(boot() != null) {
-            checkForDuplicatePkgs(cf, clf);
-        }
-        
-        try {
-            ModuleLayer layer = new ModuleLayer(cf, parents, clf);
             return new Controller(layer);
         } catch(IllegalArgumentException | IllegalStateException e) {
             throw new LayerInstantiationException(e.getMessage());
@@ -551,7 +608,7 @@ public final class ModuleLayer {
      */
     // 获取模块图
     public Configuration configuration() {
-        return cf;
+        return configuration;
     }
     
     /**
@@ -561,7 +618,7 @@ public final class ModuleLayer {
      *
      * @return The list of this layer's parents
      */
-    // 获取服模块层
+    // 获取父模块层
     public List<ModuleLayer> parents() {
         return parents;
     }
@@ -668,7 +725,7 @@ public final class ModuleLayer {
      * Returns a stream of the layers that have at least one module defined to
      * the given class loader.
      */
-    // 返回一个流，包含了loader对应的所有模块层
+    // 返回一个流，其中包含了loader参与定义过的所有模块层
     static Stream<ModuleLayer> layers(ClassLoader loader) {
         List<ModuleLayer> list = CLV.get(loader);
         if(list != null) {
@@ -713,28 +770,33 @@ public final class ModuleLayer {
         }
         
         this.allLayers = allLayers = Collections.unmodifiableList(allLayers);
+    
         return allLayers.stream();
     }
     
     /**
      * Returns the ServicesCatalog for this Layer, creating it if not already created.
      */
-    // 返回当前模块层的服务目录（包含所有模块内的所有服务）
+    // 返回当前模块层的服务目录（包含所有模块内的所有提供的服务）
     ServicesCatalog getServicesCatalog() {
         ServicesCatalog servicesCatalog = this.servicesCatalog;
-        if(servicesCatalog != null)
+        if(servicesCatalog != null) {
             return servicesCatalog;
+        }
         
         synchronized(this) {
             servicesCatalog = this.servicesCatalog;
+    
             if(servicesCatalog == null) {
                 // 创建一个空的服务目录
                 servicesCatalog = ServicesCatalog.create();
-                /*
-                 * 遍历当前模块层所有模块，然后注册每个模块内的所有服务
-                 * 即将每个模块内的所有服务实现者缓存到服务目录中
-                 */
-                nameToModule.values().forEach(servicesCatalog::register);
+        
+                // 遍历当前模块层所有模块，然后对每个模块内的所有服务进行注册
+                for(Module module : nameToModule.values()) {
+                    // 注册指定模块内的所有服务，即将指定模块内所有服务及其对应的服务提供者缓存到服务目录中
+                    servicesCatalog.register(module);
+                }
+        
                 this.servicesCatalog = servicesCatalog;
             }
         }
@@ -746,17 +808,22 @@ public final class ModuleLayer {
      * Record that this layer has at least one module defined to the given
      * class loader.
      */
-    // 将当前模块层缓存到loader内部的CLV
+    // 将当前模块层缓存到指定loader内部的类加载器局部缓存中
     void bindToLoader(ClassLoader loader) {
-        // CLV.computeIfAbsent(loader, (cl, clv) -> new CopyOnWriteArrayList<>())
+        // 从loader的类加载器局部缓存中提取CLV对象映射的值
         List<ModuleLayer> list = CLV.get(loader);
+    
+        // 如果目标值为空
         if(list == null) {
             list = new CopyOnWriteArrayList<>();
+        
+            // 向loader的类加载器局部缓存中存入一个CLV对象到list的映射，并返回旧(目标)值，不允许覆盖
             List<ModuleLayer> previous = CLV.putIfAbsent(loader, list);
             if(previous != null) {
                 list = previous;
             }
         }
+    
         list.add(this);
     }
     
@@ -874,6 +941,7 @@ public final class ModuleLayer {
          * is strongly reachable.
          * @see Module#addReads
          */
+        // 使模块source依赖(requires)模块target，需要通知VM
         public Controller addReads(Module source, Module target) {
             ensureInLayer(source);
             source.implAddReads(target);
@@ -895,6 +963,7 @@ public final class ModuleLayer {
          *                                  is not in the source module
          * @see Module#addExports
          */
+        // 将模块source的pn包导出(exports)给模块target，需要通知VM
         public Controller addExports(Module source, String pn, Module target) {
             ensureInLayer(source);
             source.implAddExports(pn, target);
@@ -916,15 +985,18 @@ public final class ModuleLayer {
          *                                  is not in the source module
          * @see Module#addOpens
          */
+        // 将模块source的pn包(开放)opens给模块target，需要通知VM
         public Controller addOpens(Module source, String pn, Module target) {
             ensureInLayer(source);
             source.implAddOpens(pn, target);
             return this;
         }
-        
+    
+        // 确保模块source在当前模块中
         private void ensureInLayer(Module source) {
-            if(source.getLayer() != layer)
+            if(source.getLayer() != layer) {
                 throw new IllegalArgumentException(source + " not in layer");
+            }
         }
     }
     

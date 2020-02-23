@@ -38,45 +38,39 @@ import java.util.function.Supplier;
  * A ModuleReference implementation that supports referencing a module that
  * is patched and/or can be tied to other modules by means of hashes.
  */
-
+// 模块引用的实现类，支持引用patch module
 public class ModuleReferenceImpl extends ModuleReference {
-
-    // location of module
-    private final URI location;
-
-    // the module reader
-    private final Supplier<ModuleReader> readerSupplier;
-
-    // non-null if the module is patched
-    private final ModulePatcher patcher;
-
+    
+    // 模块位置，不能为null
+    private final URI location; // location of module
+    
+    // 一个生产者，用来提供模块阅读器
+    private final Supplier<ModuleReader> readerSupplier; // the module reader
+    
+    // 持有对当前模块应用了--patch-module之后的模块引用
+    private final ModulePatcher patcher;    // non-null if the module is patched
+    
     // ModuleTarget if the module is OS/architecture specific
     private final ModuleTarget target;
-
+    
     // the hashes of other modules recorded in this module
     private final ModuleHashes recordedHashes;
-
+    
     // the function that computes the hash of this module
     private final ModuleHashes.HashSupplier hasher;
-
+    
     // ModuleResolution flags
     private final ModuleResolution moduleResolution;
-
+    
     // cached hash of this module to avoid needing to compute it many times
     private byte[] cachedHash;
-
+    
+    private int hash;
+    
     /**
      * Constructs a new instance of this class.
      */
-    public ModuleReferenceImpl(ModuleDescriptor descriptor,
-                               URI location,
-                               Supplier<ModuleReader> readerSupplier,
-                               ModulePatcher patcher,
-                               ModuleTarget target,
-                               ModuleHashes recordedHashes,
-                               ModuleHashes.HashSupplier hasher,
-                               ModuleResolution moduleResolution)
-    {
+    public ModuleReferenceImpl(ModuleDescriptor descriptor, URI location, Supplier<ModuleReader> readerSupplier, ModulePatcher patcher, ModuleTarget target, ModuleHashes recordedHashes, ModuleHashes.HashSupplier hasher, ModuleResolution moduleResolution) {
         super(descriptor, Objects.requireNonNull(location));
         this.location = location;
         this.readerSupplier = readerSupplier;
@@ -86,30 +80,32 @@ public class ModuleReferenceImpl extends ModuleReference {
         this.hasher = hasher;
         this.moduleResolution = moduleResolution;
     }
-
+    
+    // 返回模块阅读器，以便读取模块内的资源
     @Override
     public ModuleReader open() throws IOException {
         try {
             return readerSupplier.get();
-        } catch (UncheckedIOException e) {
+        } catch(UncheckedIOException e) {
             throw e.getCause();
         }
     }
-
+    
     /**
      * Returns {@code true} if this module has been patched via --patch-module.
      */
+    // 判断当前模块是否为patch module
     public boolean isPatched() {
         return (patcher != null);
     }
-
+    
     /**
      * Returns the ModuleTarget or {@code null} if the no target platform.
      */
     public ModuleTarget moduleTarget() {
         return target;
     }
-
+    
     /**
      * Returns the hashes recorded in this module or {@code null} if there
      * are no hashes recorded.
@@ -117,21 +113,14 @@ public class ModuleReferenceImpl extends ModuleReference {
     public ModuleHashes recordedHashes() {
         return recordedHashes;
     }
-
-    /**
-     * Returns the supplier that computes the hash of this module.
-     */
-    ModuleHashes.HashSupplier hasher() {
-        return hasher;
-    }
-
+    
     /**
      * Returns the ModuleResolution flags.
      */
     public ModuleResolution moduleResolution() {
         return moduleResolution;
     }
-
+    
     /**
      * Computes the hash of this module. Returns {@code null} if the hash
      * cannot be computed.
@@ -140,44 +129,40 @@ public class ModuleReferenceImpl extends ModuleReference {
      */
     public byte[] computeHash(String algorithm) {
         byte[] result = cachedHash;
-        if (result != null)
+        if(result != null)
             return result;
-        if (hasher == null)
+        if(hasher == null)
             return null;
         cachedHash = result = hasher.generate(algorithm);
         return result;
     }
-
+    
     @Override
     public int hashCode() {
         int hc = hash;
-        if (hc == 0) {
+        if(hc == 0) {
             hc = descriptor().hashCode();
             hc = 43 * hc + Objects.hashCode(location);
             hc = 43 * hc + Objects.hashCode(patcher);
-            if (hc == 0)
+            if(hc == 0)
                 hc = -1;
             hash = hc;
         }
         return hc;
     }
-
-    private int hash;
-
+    
     @Override
     public boolean equals(Object ob) {
-        if (!(ob instanceof ModuleReferenceImpl))
+        if(!(ob instanceof ModuleReferenceImpl))
             return false;
-        ModuleReferenceImpl that = (ModuleReferenceImpl)ob;
-
+        ModuleReferenceImpl that = (ModuleReferenceImpl) ob;
+        
         // assume module content, recorded hashes, etc. are the same
         // when the modules have equal module descriptors, are at the
         // same location, and are patched by the same patcher.
-        return Objects.equals(this.descriptor(), that.descriptor())
-                && Objects.equals(this.location, that.location)
-                && Objects.equals(this.patcher, that.patcher);
+        return Objects.equals(this.descriptor(), that.descriptor()) && Objects.equals(this.location, that.location) && Objects.equals(this.patcher, that.patcher);
     }
-
+    
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -185,9 +170,17 @@ public class ModuleReferenceImpl extends ModuleReference {
         sb.append(descriptor().name());
         sb.append(", location=");
         sb.append(location);
-        if (isPatched()) sb.append(" (patched)");
+        if(isPatched())
+            sb.append(" (patched)");
         sb.append("]");
         return sb.toString();
     }
-
+    
+    /**
+     * Returns the supplier that computes the hash of this module.
+     */
+    ModuleHashes.HashSupplier hasher() {
+        return hasher;
+    }
+    
 }

@@ -134,12 +134,16 @@ public final class ModuleLoaderMap {
         // 遍历当前模块所在的模块图
         for (ResolvedModule resolvedModule : cf.modules()) {
             String mn = resolvedModule.name();
-            if (!bootModules.contains(mn)) {
-                if (platformModules.contains(mn)) {
-                    map.put(mn, platformClassLoader);
-                } else {
-                    map.put(mn, appClassLoader);
-                }
+    
+            // 忽略bootModules
+            if(bootModules.contains(mn)) {
+                continue;
+            }
+    
+            if(platformModules.contains(mn)) {
+                map.put(mn, platformClassLoader);
+            } else {
+                map.put(mn, appClassLoader);
             }
         }
         

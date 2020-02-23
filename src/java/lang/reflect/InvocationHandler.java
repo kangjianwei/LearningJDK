@@ -38,7 +38,11 @@ package java.lang.reflect;
  * @see Proxy
  * @since 1.3
  */
-// 代理对象的回调处理器，用来完成目标操作
+/*
+ * 回调处理器，由被代理类实现
+ *
+ * 参见Proxy中的描述
+ */
 public interface InvocationHandler {
     
     /**
@@ -89,36 +93,12 @@ public interface InvocationHandler {
      * @see UndeclaredThrowableException
      */
     /*
-     * 被代理对象回调，用以完成目标操作
+     * 代理回调方法，可由被代理类实现，也可由独立的回调处理器实现
      *
-     * 假设有抽象接口：
-     * package com.kang;
-     *
-     * interface Subject {
-     *     void request();  // 目标操作
-     * }
-     *
-     * 则系统生成的代理类为（除去了无关枝节）：
-     * final class $Proxy0 extends Proxy implements Subject {
-     *     private static Method method;
-     *
-     *     static {
-     *          method = Class.forName("com.kang.Subject").getMethod("request");
-     *     }
-     *
-     *     public $Proxy0(InvocationHandler h) {
-     *         super(h);
-     *     }
-     *
-     *     public final void request() {
-     *          super.h.invoke(this, method, (Object[])null);
-     *     }
-     * }
-     *
-     *
-     * proxy：代理类$Proxy0的对象，上述request()中的this
-     * method：将要完成的操作，即Subject中的request()方法
-     * args：request()方法的参数
+     * proxy  : 代理类对象
+     * method : 被代理方法
+     * args   : 被代理方法的参数
+     * 返回值 : 被代理方法的返回值，如果被代理方法的返回值是void，那么该方法的实现中应该返回null
      */
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable;
 }

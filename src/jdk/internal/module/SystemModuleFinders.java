@@ -73,279 +73,228 @@ import jdk.internal.module.ModuleHashes.HashSupplier;
  * by an exploded java.base. It also supports a testing mode that re-parses
  * the module-info.class resources in the run-time image.
  */
-
+// 系统模块查找器
 public final class SystemModuleFinders {
+    
     private static final JavaNetUriAccess JNUA = SharedSecrets.getJavaNetUriAccess();
-
+    
+    /*
+     * 是否使用"快速途径"获取系统模块信息，默认为true。
+     * 如果是的话，会从预先生成的静态数据中读取系统模块信息。
+     */
     private static final boolean USE_FAST_PATH;
-    static {
-        String value = System.getProperty("jdk.system.module.finder.disableFastPath");
-        if (value == null) {
-            USE_FAST_PATH = true;
-        } else {
-            USE_FAST_PATH = (value.length() > 0) && !Boolean.parseBoolean(value);
-        }
-    }
-
+    
     // cached ModuleFinder returned from ofSystem
     private static volatile ModuleFinder cachedSystemModuleFinder;
-
-    private SystemModuleFinders() { }
-
+    
+    static {
+        String value = System.getProperty("jdk.system.module.finder.disableFastPath");
+        
+        if(value == null) {
+            USE_FAST_PATH = true;
+        } else {
+            USE_FAST_PATH = (value.length()>0) && !Boolean.parseBoolean(value);
+        }
+    }
+    
+    private SystemModuleFinders() {
+    }
+    
+    /**
+     * Returns the ModuleFinder to find all system modules.
+     * Supports both images and exploded builds.
+     *
+     * @apiNote Used by ModuleFinder.ofSystem()
+     */
+    // 返回一个系统模块查找器
+    public static ModuleFinder ofSystem() {
+        ModuleFinder finder = cachedSystemModuleFinder;
+        if(finder != null) {
+            return finder;
+        }
+        
+        // probe to see if this is an images build
+        String home = StaticProperty.javaHome();
+        
+        // {JAVA_HOME}/lib/modules文件
+        Path modules = Path.of(home, "lib", "modules");
+        
+        // 如果是常规文件
+        if(Files.isRegularFile(modules)) {
+            // 如果允许使用"快速途径"
+            if(USE_FAST_PATH) {
+                // 获取所有系统模块信息
+                SystemModules systemModules = allSystemModules();
+                if(systemModules != null) {
+                    // 构造模块查找器
+                    finder = of(systemModules);
+                }
+            }
+            
+            /* fall back to parsing the module-info.class files in image */
+            if(finder == null) {
+                // 如果上面的构造没有成功，则尝试从jimage文件中中解析module-info.class文件，返回所有找到的模块的模块查找器
+                finder = ofModuleInfos();
+            }
+            
+            // 缓存系统模块查找器
+            cachedSystemModuleFinder = finder;
+            
+            return finder;
+        }
+        
+        /* exploded build (do not cache module finder) */
+        // {JAVA_HOME}/modules目录
+        Path dir = Path.of(home, "modules");
+        if(!Files.isDirectory(dir)) {
+            throw new InternalError("Unable to detect the run-time image");
+        }
+        
+        // 获取--patch-module
+        ModulePatcher patcher = ModuleBootstrap.patcher();
+        
+        // patch module查找器
+        ModuleFinder patchModuleFinder = ModulePath.of(patcher, dir);
+        
+        return new ModuleFinder() {
+            @Override
+            public Optional<ModuleReference> find(String name) {
+                PrivilegedAction<Optional<ModuleReference>> pa = () -> patchModuleFinder.find(name);
+                return AccessController.doPrivileged(pa);
+            }
+            
+            @Override
+            public Set<ModuleReference> findAll() {
+                PrivilegedAction<Set<ModuleReference>> pa = patchModuleFinder::findAll;
+                return AccessController.doPrivileged(pa);
+            }
+        };
+    }
+    
     /**
      * Returns the SystemModules object to reconstitute all modules. Returns
      * null if this is an exploded build or java.base is patched by an exploded
      * build.
      */
+    // 返回所有系统模块信息
     static SystemModules allSystemModules() {
-        if (USE_FAST_PATH) {
-            return SystemModulesMap.allSystemModules();
-        } else {
+        if(!USE_FAST_PATH) {
             return null;
         }
+        
+        return SystemModulesMap.allSystemModules();
     }
-
+    
     /**
-     * Returns a SystemModules object to reconstitute the modules for the
-     * given initial module. If the initial module is null then return the
-     * SystemModules object to reconstitute the default modules.
+     * Returns a SystemModules object to reconstitute the modules for the given initial module.
+     * If the initial module is null then return the SystemModules object to reconstitute the default modules.
      *
      * Return null if there is no SystemModules class for the initial module,
      * this is an exploded build, or java.base is patched by an exploded build.
      */
+    // 获取初始模块关联的系统模块信息
     static SystemModules systemModules(String initialModule) {
-        if (USE_FAST_PATH) {
-            if (initialModule == null) {
-                return SystemModulesMap.defaultSystemModules();
-            }
-
-            String[] initialModules = SystemModulesMap.moduleNames();
-            for (int i = 0; i < initialModules.length; i++) {
-                String moduleName = initialModules[i];
-                if (initialModule.equals(moduleName)) {
-                    String cn = SystemModulesMap.classNames()[i];
-                    try {
-                        // one-arg Class.forName as java.base may not be defined
-                        Constructor<?> ctor = Class.forName(cn).getConstructor();
-                        return (SystemModules) ctor.newInstance();
-                    } catch (Exception e) {
-                        throw new InternalError(e);
-                    }
+        if(!USE_FAST_PATH) {
+            return null;
+        }
+    
+        // 主模块为null，则获取默认的系统模块信息
+        if(initialModule == null) {
+            return SystemModulesMap.defaultSystemModules();
+        }
+    
+        // 获取初始模块名称
+        String[] initialModules = SystemModulesMap.moduleNames();
+        for(int i = 0; i<initialModules.length; i++) {
+            String moduleName = initialModules[i];
+            if(initialModule.equals(moduleName)) {
+                String cn = SystemModulesMap.classNames()[i];
+                try {
+                    // one-arg Class.forName as java.base may not be defined
+                    Constructor<?> ctor = Class.forName(cn).getConstructor();
+                    return (SystemModules) ctor.newInstance();
+                } catch(Exception e) {
+                    throw new InternalError(e);
                 }
             }
         }
+    
         return null;
     }
-
+    
     /**
      * Returns a ModuleFinder that is backed by the given SystemModules object.
      *
      * @apiNote The returned ModuleFinder is thread safe.
      */
+    // 返回指定模块集的模块查找器
     static ModuleFinder of(SystemModules systemModules) {
         ModuleDescriptor[] descriptors = systemModules.moduleDescriptors();
         ModuleTarget[] targets = systemModules.moduleTargets();
         ModuleHashes[] recordedHashes = systemModules.moduleHashes();
         ModuleResolution[] moduleResolutions = systemModules.moduleResolutions();
-
+    
         int moduleCount = descriptors.length;
-        ModuleReference[] mrefs = new ModuleReference[moduleCount];
+    
         @SuppressWarnings(value = {"rawtypes", "unchecked"})
-        Map.Entry<String, ModuleReference>[] map
-            = (Map.Entry<String, ModuleReference>[])new Map.Entry[moduleCount];
-
+        Map.Entry<String, ModuleReference>[] map = (Map.Entry<String, ModuleReference>[]) new Map.Entry[moduleCount];
+    
+        ModuleReference[] mrefs = new ModuleReference[moduleCount];
+    
         Map<String, byte[]> nameToHash = generateNameToHash(recordedHashes);
-
-        for (int i = 0; i < moduleCount; i++) {
+    
+        for(int i = 0; i<moduleCount; i++) {
             String name = descriptors[i].name();
             HashSupplier hashSupplier = hashSupplier(nameToHash, name);
-            ModuleReference mref = toModuleReference(descriptors[i],
-                                                     targets[i],
-                                                     recordedHashes[i],
-                                                     hashSupplier,
-                                                     moduleResolutions[i]);
-            mrefs[i] = mref;
-            map[i] = Map.entry(name, mref);
+        
+            mrefs[i] = toModuleReference(descriptors[i], targets[i], recordedHashes[i], hashSupplier, moduleResolutions[i]);
+        
+            map[i] = Map.entry(name, mrefs[i]);
         }
-
+    
         return new SystemModuleFinder(mrefs, map);
     }
-
-    /**
-     * Returns the ModuleFinder to find all system modules. Supports both
-     * images and exploded builds.
-     *
-     * @apiNote Used by ModuleFinder.ofSystem()
-     */
-    public static ModuleFinder ofSystem() {
-        ModuleFinder finder = cachedSystemModuleFinder;
-        if (finder != null) {
-            return finder;
-        }
-
-        // probe to see if this is an images build
-        String home = StaticProperty.javaHome();
-        Path modules = Path.of(home, "lib", "modules");
-        if (Files.isRegularFile(modules)) {
-            if (USE_FAST_PATH) {
-                SystemModules systemModules = allSystemModules();
-                if (systemModules != null) {
-                    finder = of(systemModules);
-                }
-            }
-
-            // fall back to parsing the module-info.class files in image
-            if (finder == null) {
-                finder = ofModuleInfos();
-            }
-
-            cachedSystemModuleFinder = finder;
-            return finder;
-
-        }
-
-        // exploded build (do not cache module finder)
-        Path dir = Path.of(home, "modules");
-        if (!Files.isDirectory(dir))
-            throw new InternalError("Unable to detect the run-time image");
-        ModuleFinder f = ModulePath.of(ModuleBootstrap.patcher(), dir);
-        return new ModuleFinder() {
-            @Override
-            public Optional<ModuleReference> find(String name) {
-                PrivilegedAction<Optional<ModuleReference>> pa = () -> f.find(name);
-                return AccessController.doPrivileged(pa);
-            }
-            @Override
-            public Set<ModuleReference> findAll() {
-                PrivilegedAction<Set<ModuleReference>> pa = f::findAll;
-                return AccessController.doPrivileged(pa);
-            }
-        };
-    }
-
-    /**
-     * Parses the module-info.class of all module in the runtime image and
-     * returns a ModuleFinder to find the modules.
-     *
-     * @apiNote The returned ModuleFinder is thread safe.
-     */
-    private static ModuleFinder ofModuleInfos() {
-        // parse the module-info.class in every module
-        Map<String, ModuleInfo.Attributes> nameToAttributes = new HashMap<>();
-        Map<String, byte[]> nameToHash = new HashMap<>();
-        ImageReader reader = SystemImage.reader();
-        for (String mn : reader.getModuleNames()) {
-            ImageLocation loc = reader.findLocation(mn, "module-info.class");
-            ModuleInfo.Attributes attrs
-                = ModuleInfo.read(reader.getResourceBuffer(loc), null);
-
-            nameToAttributes.put(mn, attrs);
-            ModuleHashes hashes = attrs.recordedHashes();
-            if (hashes != null) {
-                for (String name : hashes.names()) {
-                    nameToHash.computeIfAbsent(name, k -> hashes.hashFor(name));
-                }
-            }
-        }
-
-        // create a ModuleReference for each module
-        Set<ModuleReference> mrefs = new HashSet<>();
-        Map<String, ModuleReference> nameToModule = new HashMap<>();
-        for (Map.Entry<String, ModuleInfo.Attributes> e : nameToAttributes.entrySet()) {
-            String mn = e.getKey();
-            ModuleInfo.Attributes attrs = e.getValue();
-            HashSupplier hashSupplier = hashSupplier(nameToHash, mn);
-            ModuleReference mref = toModuleReference(attrs.descriptor(),
-                                                     attrs.target(),
-                                                     attrs.recordedHashes(),
-                                                     hashSupplier,
-                                                     attrs.moduleResolution());
-            mrefs.add(mref);
-            nameToModule.put(mn, mref);
-        }
-
-        return new SystemModuleFinder(mrefs, nameToModule);
-    }
-
-    /**
-     * A ModuleFinder that finds module in an array or set of modules.
-     */
-    private static class SystemModuleFinder implements ModuleFinder {
-        final Set<ModuleReference> mrefs;
-        final Map<String, ModuleReference> nameToModule;
-
-        SystemModuleFinder(ModuleReference[] array,
-                           Map.Entry<String, ModuleReference>[] map) {
-            this.mrefs = Set.of(array);
-            this.nameToModule = Map.ofEntries(map);
-        }
-
-        SystemModuleFinder(Set<ModuleReference> mrefs,
-                           Map<String, ModuleReference> nameToModule) {
-            this.mrefs = Collections.unmodifiableSet(mrefs);
-            this.nameToModule = Collections.unmodifiableMap(nameToModule);
-        }
-
-        @Override
-        public Optional<ModuleReference> find(String name) {
-            Objects.requireNonNull(name);
-            return Optional.ofNullable(nameToModule.get(name));
-        }
-
-        @Override
-        public Set<ModuleReference> findAll() {
-            return mrefs;
-        }
-    }
-
+    
     /**
      * Creates a ModuleReference to the system module.
      */
-    static ModuleReference toModuleReference(ModuleDescriptor descriptor,
-                                             ModuleTarget target,
-                                             ModuleHashes recordedHashes,
-                                             HashSupplier hasher,
-                                             ModuleResolution mres) {
+    // 为指定的模块创建一个模块引用
+    static ModuleReference toModuleReference(ModuleDescriptor descriptor, ModuleTarget target, ModuleHashes recordedHashes, HashSupplier hasher, ModuleResolution mres) {
         String mn = descriptor.name();
+        
         URI uri = JNUA.create("jrt", "/".concat(mn));
-
+        
+        // 一个生产者，用来提供系统模块阅读器
         Supplier<ModuleReader> readerSupplier = new Supplier<>() {
             @Override
             public ModuleReader get() {
                 return new SystemModuleReader(mn, uri);
             }
         };
-
-        ModuleReference mref = new ModuleReferenceImpl(descriptor,
-                                                       uri,
-                                                       readerSupplier,
-                                                       null,
-                                                       target,
-                                                       recordedHashes,
-                                                       hasher,
-                                                       mres);
-
+        
+        ModuleReference mref = new ModuleReferenceImpl(descriptor, uri, readerSupplier, null, target, recordedHashes, hasher, mres);
+        
         // may need a reference to a patched module if --patch-module specified
         mref = ModuleBootstrap.patcher().patchIfNeeded(mref);
-
+        
         return mref;
     }
-
+    
     /**
      * Generates a map of module name to hash value.
      */
     static Map<String, byte[]> generateNameToHash(ModuleHashes[] recordedHashes) {
         Map<String, byte[]> nameToHash = null;
-
+        
         boolean secondSeen = false;
         // record the hashes to build HashSupplier
-        for (ModuleHashes mh : recordedHashes) {
-            if (mh != null) {
+        for(ModuleHashes mh : recordedHashes) {
+            if(mh != null) {
                 // if only one module contain ModuleHashes, use it
-                if (nameToHash == null) {
+                if(nameToHash == null) {
                     nameToHash = mh.hashes();
                 } else {
-                    if (!secondSeen) {
+                    if(!secondSeen) {
                         nameToHash = new HashMap<>(nameToHash);
                         secondSeen = true;
                     }
@@ -355,13 +304,13 @@ public final class SystemModuleFinders {
         }
         return (nameToHash != null) ? nameToHash : Collections.emptyMap();
     }
-
+    
     /**
      * Returns a HashSupplier that returns the hash of the given module.
      */
     static HashSupplier hashSupplier(Map<String, byte[]> nameToHash, String name) {
         byte[] hash = nameToHash.get(name);
-        if (hash != null) {
+        if(hash != null) {
             // avoid lambda here
             return new HashSupplier() {
                 @Override
@@ -373,81 +322,189 @@ public final class SystemModuleFinders {
             return null;
         }
     }
-
+    
+    /**
+     * Parses the module-info.class of all module in the runtime image and returns a ModuleFinder to find the modules.
+     *
+     * @apiNote The returned ModuleFinder is thread safe.
+     */
+    // 从jimage中解析module-info.class文件，返回所有找到的模块的模块查找器
+    private static ModuleFinder ofModuleInfos() {
+        // parse the module-info.class in every module
+        Map<String, ModuleInfo.Attributes> nameToAttributes = new HashMap<>();
+        Map<String, byte[]> nameToHash = new HashMap<>();
+        ImageReader reader = SystemImage.reader();
+        
+        for(String mn : reader.getModuleNames()) {
+            ImageLocation loc = reader.findLocation(mn, "module-info.class");
+            ModuleInfo.Attributes attrs = ModuleInfo.read(reader.getResourceBuffer(loc), null);
+            
+            nameToAttributes.put(mn, attrs);
+            ModuleHashes hashes = attrs.recordedHashes();
+            if(hashes != null) {
+                for(String name : hashes.names()) {
+                    nameToHash.computeIfAbsent(name, k -> hashes.hashFor(name));
+                }
+            }
+        }
+        
+        // create a ModuleReference for each module
+        Set<ModuleReference> mrefs = new HashSet<>();
+        Map<String, ModuleReference> nameToModule = new HashMap<>();
+        for(Map.Entry<String, ModuleInfo.Attributes> e : nameToAttributes.entrySet()) {
+            String mn = e.getKey();
+            ModuleInfo.Attributes attrs = e.getValue();
+            
+            HashSupplier hashSupplier = hashSupplier(nameToHash, mn);
+            
+            ModuleReference mref = toModuleReference(attrs.descriptor(), attrs.target(), attrs.recordedHashes(), hashSupplier, attrs.moduleResolution());
+            
+            mrefs.add(mref);
+            nameToModule.put(mn, mref);
+        }
+        
+        return new SystemModuleFinder(mrefs, nameToModule);
+    }
+    
+    
+    /**
+     * A ModuleFinder that finds module in an array or set of modules.
+     */
+    // 系统模块查找器
+    private static class SystemModuleFinder implements ModuleFinder {
+        final Set<ModuleReference> mrefs;                   // 所有模块引用
+        final Map<String, ModuleReference> nameToModule;    // 模块名称与模块引用的映射
+        
+        SystemModuleFinder(ModuleReference[] array, Map.Entry<String, ModuleReference>[] map) {
+            this.mrefs = Set.of(array);
+            this.nameToModule = Map.ofEntries(map);
+        }
+        
+        SystemModuleFinder(Set<ModuleReference> mrefs, Map<String, ModuleReference> nameToModule) {
+            this.mrefs = Collections.unmodifiableSet(mrefs);
+            this.nameToModule = Collections.unmodifiableMap(nameToModule);
+        }
+        
+        @Override
+        public Optional<ModuleReference> find(String name) {
+            Objects.requireNonNull(name);
+            return Optional.ofNullable(nameToModule.get(name));
+        }
+        
+        @Override
+        public Set<ModuleReference> findAll() {
+            return mrefs;
+        }
+    }
+    
     /**
      * Holder class for the ImageReader
      *
      * @apiNote This class must be loaded before a security manager is set.
      */
+    // 系统镜像(jimage)，持有一个镜像阅读器
     private static class SystemImage {
         static final ImageReader READER = ImageReaderFactory.getImageReader();
+        
         static ImageReader reader() {
             return READER;
         }
     }
-
+    
     /**
-     * A ModuleReader for reading resources from a module linked into the
-     * run-time image.
+     * A ModuleReader for reading resources from a module linked into the run-time image.
      */
+    // 系统镜像(jimage)阅读器
     private static class SystemModuleReader implements ModuleReader {
         private final String module;
         private volatile boolean closed;
-
-        /**
-         * If there is a security manager set then check permission to
-         * connect to the run-time image.
-         */
-        private static void checkPermissionToConnect(URI uri) {
-            SecurityManager sm = System.getSecurityManager();
-            if (sm != null) {
-                try {
-                    URLConnection uc = uri.toURL().openConnection();
-                    sm.checkPermission(uc.getPermission());
-                } catch (IOException ioe) {
-                    throw new UncheckedIOException(ioe);
-                }
-            }
-        }
-
+        
         SystemModuleReader(String module, URI uri) {
             checkPermissionToConnect(uri);
             this.module = module;
         }
-
-        /**
-         * Returns the ImageLocation for the given resource, {@code null}
-         * if not found.
-         */
-        private ImageLocation findImageLocation(String name) throws IOException {
-            Objects.requireNonNull(name);
-            if (closed)
-                throw new IOException("ModuleReader is closed");
-            ImageReader imageReader = SystemImage.reader();
-            if (imageReader != null) {
-                return imageReader.findLocation(module, name);
-            } else {
-                // not an images build
-                return null;
-            }
-        }
-
+        
         @Override
         public Optional<URI> find(String name) throws IOException {
             ImageLocation location = findImageLocation(name);
-            if (location != null) {
+            
+            if(location != null) {
                 URI u = URI.create("jrt:/" + module + "/" + name);
                 return Optional.of(u);
             } else {
                 return Optional.empty();
             }
         }
-
+        
         @Override
         public Optional<InputStream> open(String name) throws IOException {
             return read(name).map(this::toInputStream);
         }
-
+        
+        @Override
+        public Optional<ByteBuffer> read(String name) throws IOException {
+            ImageLocation location = findImageLocation(name);
+            if(location != null) {
+                return Optional.of(SystemImage.reader().getResourceBuffer(location));
+            } else {
+                return Optional.empty();
+            }
+        }
+        
+        @Override
+        public void release(ByteBuffer bb) {
+            Objects.requireNonNull(bb);
+            ImageReader.releaseByteBuffer(bb);
+        }
+        
+        @Override
+        public Stream<String> list() throws IOException {
+            if(closed)
+                throw new IOException("ModuleReader is closed");
+            
+            Spliterator<String> s = new ModuleContentSpliterator(module);
+            return StreamSupport.stream(s, false);
+        }
+        
+        @Override
+        public void close() {
+            // nothing else to do
+            closed = true;
+        }
+        
+        /**
+         * If there is a security manager set then check permission to
+         * connect to the run-time image.
+         */
+        private static void checkPermissionToConnect(URI uri) {
+            SecurityManager sm = System.getSecurityManager();
+            if(sm != null) {
+                try {
+                    URLConnection uc = uri.toURL().openConnection();
+                    sm.checkPermission(uc.getPermission());
+                } catch(IOException ioe) {
+                    throw new UncheckedIOException(ioe);
+                }
+            }
+        }
+        
+        /**
+         * Returns the ImageLocation for the given resource, {@code null}
+         * if not found.
+         */
+        private ImageLocation findImageLocation(String name) throws IOException {
+            Objects.requireNonNull(name);
+            if(closed)
+                throw new IOException("ModuleReader is closed");
+            ImageReader imageReader = SystemImage.reader();
+            if(imageReader != null) {
+                return imageReader.findLocation(module, name);
+            } else {
+                // not an images build
+                return null;
+            }
+        }
+        
         private InputStream toInputStream(ByteBuffer bb) { // ## -> ByteBuffer?
             try {
                 int rem = bb.remaining();
@@ -458,39 +515,8 @@ public final class SystemModuleFinders {
                 release(bb);
             }
         }
-
-        @Override
-        public Optional<ByteBuffer> read(String name) throws IOException {
-            ImageLocation location = findImageLocation(name);
-            if (location != null) {
-                return Optional.of(SystemImage.reader().getResourceBuffer(location));
-            } else {
-                return Optional.empty();
-            }
-        }
-
-        @Override
-        public void release(ByteBuffer bb) {
-            Objects.requireNonNull(bb);
-            ImageReader.releaseByteBuffer(bb);
-        }
-
-        @Override
-        public Stream<String> list() throws IOException {
-            if (closed)
-                throw new IOException("ModuleReader is closed");
-
-            Spliterator<String> s = new ModuleContentSpliterator(module);
-            return StreamSupport.stream(s, false);
-        }
-
-        @Override
-        public void close() {
-            // nothing else to do
-            closed = true;
-        }
     }
-
+    
     /**
      * A Spliterator for traversing the resources of a module linked into the
      * run-time image.
@@ -499,29 +525,60 @@ public final class SystemModuleFinders {
         final String moduleRoot;
         final Deque<ImageReader.Node> stack;
         Iterator<ImageReader.Node> iterator;
-
+        
         ModuleContentSpliterator(String module) throws IOException {
             moduleRoot = "/modules/" + module;
             stack = new ArrayDeque<>();
-
+            
             // push the root node to the stack to get started
             ImageReader.Node dir = SystemImage.reader().findNode(moduleRoot);
-            if (dir == null || !dir.isDirectory())
+            if(dir == null || !dir.isDirectory())
                 throw new IOException(moduleRoot + " not a directory");
             stack.push(dir);
             iterator = Collections.emptyIterator();
         }
-
+        
+        @Override
+        public boolean tryAdvance(Consumer<? super String> action) {
+            String next;
+            try {
+                next = next();
+            } catch(IOException ioe) {
+                throw new UncheckedIOException(ioe);
+            }
+            if(next != null) {
+                action.accept(next);
+                return true;
+            } else {
+                return false;
+            }
+        }
+        
+        @Override
+        public Spliterator<String> trySplit() {
+            return null;
+        }
+        
+        @Override
+        public int characteristics() {
+            return Spliterator.DISTINCT + Spliterator.NONNULL + Spliterator.IMMUTABLE;
+        }
+        
+        @Override
+        public long estimateSize() {
+            return Long.MAX_VALUE;
+        }
+        
         /**
          * Returns the name of the next non-directory node or {@code null} if
          * there are no remaining nodes to visit.
          */
         private String next() throws IOException {
-            for (;;) {
-                while (iterator.hasNext()) {
+            for(; ; ) {
+                while(iterator.hasNext()) {
                     ImageReader.Node node = iterator.next();
                     String name = node.getName();
-                    if (node.isDirectory()) {
+                    if(node.isDirectory()) {
                         // build node
                         ImageReader.Node dir = SystemImage.reader().findNode(name);
                         assert dir.isDirectory();
@@ -531,8 +588,8 @@ public final class SystemModuleFinders {
                         return name.substring(moduleRoot.length() + 1);
                     }
                 }
-
-                if (stack.isEmpty()) {
+                
+                if(stack.isEmpty()) {
                     return null;
                 } else {
                     ImageReader.Node dir = stack.poll();
@@ -541,36 +598,6 @@ public final class SystemModuleFinders {
                 }
             }
         }
-
-        @Override
-        public boolean tryAdvance(Consumer<? super String> action) {
-            String next;
-            try {
-                next = next();
-            } catch (IOException ioe) {
-                throw new UncheckedIOException(ioe);
-            }
-            if (next != null) {
-                action.accept(next);
-                return true;
-            } else {
-                return false;
-            }
-        }
-
-        @Override
-        public Spliterator<String> trySplit() {
-            return null;
-        }
-
-        @Override
-        public int characteristics() {
-            return Spliterator.DISTINCT + Spliterator.NONNULL + Spliterator.IMMUTABLE;
-        }
-
-        @Override
-        public long estimateSize() {
-            return Long.MAX_VALUE;
-        }
     }
+    
 }

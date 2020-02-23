@@ -170,9 +170,57 @@ public class Arrays {
      *
      * @since 1.8
      */
+    // 从数组中创建一个int类型的Stream
     public static IntStream stream(int[] array) {
         return stream(array, 0, array.length);
     }
+    
+    /**
+     * Returns a sequential {@link LongStream} with the specified array as its
+     * source.
+     *
+     * @param array the array, assumed to be unmodified during use
+     *
+     * @return a {@code LongStream} for the array
+     *
+     * @since 1.8
+     */
+    // 从数组中创建一个long类型的Stream
+    public static LongStream stream(long[] array) {
+        return stream(array, 0, array.length);
+    }
+    
+    /**
+     * Returns a sequential {@link DoubleStream} with the specified array as its
+     * source.
+     *
+     * @param array the array, assumed to be unmodified during use
+     *
+     * @return a {@code DoubleStream} for the array
+     *
+     * @since 1.8
+     */
+    // 从数组中创建一个double类型的Stream
+    public static DoubleStream stream(double[] array) {
+        return stream(array, 0, array.length);
+    }
+    
+    /**
+     * Returns a sequential {@link Stream} with the specified array as its
+     * source.
+     *
+     * @param <T>   The type of the array elements
+     * @param array The array, assumed to be unmodified during use
+     *
+     * @return a {@code Stream} for the array
+     *
+     * @since 1.8
+     */
+    // 从数组中创建一个T类型的Stream
+    public static <T> Stream<T> stream(T[] array) {
+        return stream(array, 0, array.length);
+    }
+    
     
     /**
      * Returns a sequential {@link IntStream} with the specified range of the
@@ -190,22 +238,9 @@ public class Arrays {
      *                                        the array size
      * @since 1.8
      */
+    // 从数组的指定范围中创建一个int类型的Stream
     public static IntStream stream(int[] array, int startInclusive, int endExclusive) {
         return StreamSupport.intStream(spliterator(array, startInclusive, endExclusive), false);
-    }
-    
-    /**
-     * Returns a sequential {@link LongStream} with the specified array as its
-     * source.
-     *
-     * @param array the array, assumed to be unmodified during use
-     *
-     * @return a {@code LongStream} for the array
-     *
-     * @since 1.8
-     */
-    public static LongStream stream(long[] array) {
-        return stream(array, 0, array.length);
     }
     
     /**
@@ -224,22 +259,9 @@ public class Arrays {
      *                                        the array size
      * @since 1.8
      */
+    // 从数组的指定范围中创建一个long类型的Stream
     public static LongStream stream(long[] array, int startInclusive, int endExclusive) {
         return StreamSupport.longStream(spliterator(array, startInclusive, endExclusive), false);
-    }
-    
-    /**
-     * Returns a sequential {@link DoubleStream} with the specified array as its
-     * source.
-     *
-     * @param array the array, assumed to be unmodified during use
-     *
-     * @return a {@code DoubleStream} for the array
-     *
-     * @since 1.8
-     */
-    public static DoubleStream stream(double[] array) {
-        return stream(array, 0, array.length);
     }
     
     /**
@@ -258,22 +280,9 @@ public class Arrays {
      *                                        the array size
      * @since 1.8
      */
+    // 从数组的指定范围中创建一个double类型的Stream
     public static DoubleStream stream(double[] array, int startInclusive, int endExclusive) {
         return StreamSupport.doubleStream(spliterator(array, startInclusive, endExclusive), false);
-    }
-    
-    /**
-     * Returns a sequential {@link Stream} with the specified array as its
-     * source.
-     *
-     * @param <T> The type of the array elements
-     * @param array The array, assumed to be unmodified during use
-     * @return a {@code Stream} for the array
-     * @since 1.8
-     */
-    // 从数组中创建一个Stream
-    public static <T> Stream<T> stream(T[] array) {
-        return stream(array, 0, array.length);
     }
     
     /**
@@ -291,7 +300,7 @@ public class Arrays {
      *         the array size
      * @since 1.8
      */
-    // 从数组中（可限定范围）创建一个Stream
+    // 从数组的指定范围中创建一个T类型的Stream
     public static <T> Stream<T> stream(T[] array, int startInclusive, int endExclusive) {
         return StreamSupport.stream(spliterator(array, startInclusive, endExclusive), false);
     }
@@ -300,7 +309,7 @@ public class Arrays {
     
     
     
-    /*▼ 迭代器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 可分割迭代器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Returns a {@link Spliterator.OfInt} covering all of the specified array.
@@ -315,9 +324,67 @@ public class Arrays {
      *
      * @since 1.8
      */
+    // 将数组元素打包到IntArraySpliterator中返回
     public static Spliterator.OfInt spliterator(int[] array) {
         return Spliterators.spliterator(array, Spliterator.ORDERED | Spliterator.IMMUTABLE);
     }
+    
+    /**
+     * Returns a {@link Spliterator.OfLong} covering all of the specified array.
+     *
+     * <p>The spliterator reports {@link Spliterator#SIZED},
+     * {@link Spliterator#SUBSIZED}, {@link Spliterator#ORDERED}, and
+     * {@link Spliterator#IMMUTABLE}.
+     *
+     * @param array the array, assumed to be unmodified during use
+     *
+     * @return the spliterator for the array elements
+     *
+     * @since 1.8
+     */
+    // 将数组元素打包到LongArraySpliterator中返回
+    public static Spliterator.OfLong spliterator(long[] array) {
+        return Spliterators.spliterator(array, Spliterator.ORDERED | Spliterator.IMMUTABLE);
+    }
+    
+    /**
+     * Returns a {@link Spliterator.OfDouble} covering all of the specified
+     * array.
+     *
+     * <p>The spliterator reports {@link Spliterator#SIZED},
+     * {@link Spliterator#SUBSIZED}, {@link Spliterator#ORDERED}, and
+     * {@link Spliterator#IMMUTABLE}.
+     *
+     * @param array the array, assumed to be unmodified during use
+     *
+     * @return a spliterator for the array elements
+     *
+     * @since 1.8
+     */
+    // 将数组元素打包到DoubleArraySpliterator中返回
+    public static Spliterator.OfDouble spliterator(double[] array) {
+        return Spliterators.spliterator(array, Spliterator.ORDERED | Spliterator.IMMUTABLE);
+    }
+    
+    /**
+     * Returns a {@link Spliterator} covering all of the specified array.
+     *
+     * <p>The spliterator reports {@link Spliterator#SIZED},
+     * {@link Spliterator#SUBSIZED}, {@link Spliterator#ORDERED}, and
+     * {@link Spliterator#IMMUTABLE}.
+     *
+     * @param <T>   type of elements
+     * @param array the array, assumed to be unmodified during use
+     *
+     * @return a spliterator for the array elements
+     *
+     * @since 1.8
+     */
+    // 将数组元素打包到ArraySpliterator中返回
+    public static <T> Spliterator<T> spliterator(T[] array) {
+        return Spliterators.spliterator(array, Spliterator.ORDERED | Spliterator.IMMUTABLE);
+    }
+    
     
     /**
      * Returns a {@link Spliterator.OfInt} covering the specified range of the
@@ -339,25 +406,9 @@ public class Arrays {
      *                                        the array size
      * @since 1.8
      */
+    // 将数组指定范围的元素打包到IntArraySpliterator中返回
     public static Spliterator.OfInt spliterator(int[] array, int startInclusive, int endExclusive) {
         return Spliterators.spliterator(array, startInclusive, endExclusive, Spliterator.ORDERED | Spliterator.IMMUTABLE);
-    }
-    
-    /**
-     * Returns a {@link Spliterator.OfLong} covering all of the specified array.
-     *
-     * <p>The spliterator reports {@link Spliterator#SIZED},
-     * {@link Spliterator#SUBSIZED}, {@link Spliterator#ORDERED}, and
-     * {@link Spliterator#IMMUTABLE}.
-     *
-     * @param array the array, assumed to be unmodified during use
-     *
-     * @return the spliterator for the array elements
-     *
-     * @since 1.8
-     */
-    public static Spliterator.OfLong spliterator(long[] array) {
-        return Spliterators.spliterator(array, Spliterator.ORDERED | Spliterator.IMMUTABLE);
     }
     
     /**
@@ -380,26 +431,9 @@ public class Arrays {
      *                                        the array size
      * @since 1.8
      */
+    // 将数组指定范围的元素打包到LongArraySpliterator中返回
     public static Spliterator.OfLong spliterator(long[] array, int startInclusive, int endExclusive) {
         return Spliterators.spliterator(array, startInclusive, endExclusive, Spliterator.ORDERED | Spliterator.IMMUTABLE);
-    }
-    
-    /**
-     * Returns a {@link Spliterator.OfDouble} covering all of the specified
-     * array.
-     *
-     * <p>The spliterator reports {@link Spliterator#SIZED},
-     * {@link Spliterator#SUBSIZED}, {@link Spliterator#ORDERED}, and
-     * {@link Spliterator#IMMUTABLE}.
-     *
-     * @param array the array, assumed to be unmodified during use
-     *
-     * @return a spliterator for the array elements
-     *
-     * @since 1.8
-     */
-    public static Spliterator.OfDouble spliterator(double[] array) {
-        return Spliterators.spliterator(array, Spliterator.ORDERED | Spliterator.IMMUTABLE);
     }
     
     /**
@@ -422,27 +456,9 @@ public class Arrays {
      *                                        the array size
      * @since 1.8
      */
+    // 将数组指定范围的元素打包到DoubleArraySpliterator中返回
     public static Spliterator.OfDouble spliterator(double[] array, int startInclusive, int endExclusive) {
         return Spliterators.spliterator(array, startInclusive, endExclusive, Spliterator.ORDERED | Spliterator.IMMUTABLE);
-    }
-    
-    /**
-     * Returns a {@link Spliterator} covering all of the specified array.
-     *
-     * <p>The spliterator reports {@link Spliterator#SIZED},
-     * {@link Spliterator#SUBSIZED}, {@link Spliterator#ORDERED}, and
-     * {@link Spliterator#IMMUTABLE}.
-     *
-     * @param <T>   type of elements
-     * @param array the array, assumed to be unmodified during use
-     *
-     * @return a spliterator for the array elements
-     *
-     * @since 1.8
-     */
-    // 将数组元素打包到ArraySpliterator中返回
-    public static <T> Spliterator<T> spliterator(T[] array) {
-        return Spliterators.spliterator(array, Spliterator.ORDERED | Spliterator.IMMUTABLE);
     }
     
     /**
@@ -466,12 +482,12 @@ public class Arrays {
      *                                        the array size
      * @since 1.8
      */
-    // 将数组array打包到ArraySpliterator中返回
+    // 将数组指定范围的元素打包到ArraySpliterator中返回
     public static <T> Spliterator<T> spliterator(T[] array, int startInclusive, int endExclusive) {
         return Spliterators.spliterator(array, startInclusive, endExclusive, Spliterator.ORDERED | Spliterator.IMMUTABLE);
     }
     
-    /*▲ 迭代器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 可分割迭代器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -488,35 +504,12 @@ public class Arrays {
      *
      * @param a the array to be sorted
      */
+    // 将数组元素按升序排列
     public static void sort(char[] a) {
         DualPivotQuicksort.sort(a, 0, a.length - 1, null, 0, 0);
     }
     
     /**
-     * Sorts the specified range of the array into ascending order. The range
-     * to be sorted extends from the index {@code fromIndex}, inclusive, to
-     * the index {@code toIndex}, exclusive. If {@code fromIndex == toIndex},
-     * the range to be sorted is empty.
-     *
-     * <p>Implementation note: The sorting algorithm is a Dual-Pivot Quicksort
-     * by Vladimir Yaroslavskiy, Jon Bentley, and Joshua Bloch. This algorithm
-     * offers O(n log(n)) performance on many data sets that cause other
-     * quicksorts to degrade to quadratic performance, and is typically
-     * faster than traditional (one-pivot) Quicksort implementations.
-     *
-     * @param a         the array to be sorted
-     * @param fromIndex the index of the first element, inclusive, to be sorted
-     * @param toIndex   the index of the last element, exclusive, to be sorted
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
-     */
-    public static void sort(char[] a, int fromIndex, int toIndex) {
-        rangeCheck(a.length, fromIndex, toIndex);
-        DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
-    }
-    
-    /**
      * Sorts the specified array into ascending numerical order.
      *
      * <p>Implementation note: The sorting algorithm is a Dual-Pivot Quicksort
@@ -527,35 +520,12 @@ public class Arrays {
      *
      * @param a the array to be sorted
      */
+    // 将数组元素按升序排列
     public static void sort(byte[] a) {
         DualPivotQuicksort.sort(a, 0, a.length - 1);
     }
     
     /**
-     * Sorts the specified range of the array into ascending order. The range
-     * to be sorted extends from the index {@code fromIndex}, inclusive, to
-     * the index {@code toIndex}, exclusive. If {@code fromIndex == toIndex},
-     * the range to be sorted is empty.
-     *
-     * <p>Implementation note: The sorting algorithm is a Dual-Pivot Quicksort
-     * by Vladimir Yaroslavskiy, Jon Bentley, and Joshua Bloch. This algorithm
-     * offers O(n log(n)) performance on many data sets that cause other
-     * quicksorts to degrade to quadratic performance, and is typically
-     * faster than traditional (one-pivot) Quicksort implementations.
-     *
-     * @param a         the array to be sorted
-     * @param fromIndex the index of the first element, inclusive, to be sorted
-     * @param toIndex   the index of the last element, exclusive, to be sorted
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
-     */
-    public static void sort(byte[] a, int fromIndex, int toIndex) {
-        rangeCheck(a.length, fromIndex, toIndex);
-        DualPivotQuicksort.sort(a, fromIndex, toIndex - 1);
-    }
-    
-    /**
      * Sorts the specified array into ascending numerical order.
      *
      * <p>Implementation note: The sorting algorithm is a Dual-Pivot Quicksort
@@ -566,35 +536,12 @@ public class Arrays {
      *
      * @param a the array to be sorted
      */
+    // 将数组元素按升序排列
     public static void sort(short[] a) {
         DualPivotQuicksort.sort(a, 0, a.length - 1, null, 0, 0);
     }
     
     /**
-     * Sorts the specified range of the array into ascending order. The range
-     * to be sorted extends from the index {@code fromIndex}, inclusive, to
-     * the index {@code toIndex}, exclusive. If {@code fromIndex == toIndex},
-     * the range to be sorted is empty.
-     *
-     * <p>Implementation note: The sorting algorithm is a Dual-Pivot Quicksort
-     * by Vladimir Yaroslavskiy, Jon Bentley, and Joshua Bloch. This algorithm
-     * offers O(n log(n)) performance on many data sets that cause other
-     * quicksorts to degrade to quadratic performance, and is typically
-     * faster than traditional (one-pivot) Quicksort implementations.
-     *
-     * @param a         the array to be sorted
-     * @param fromIndex the index of the first element, inclusive, to be sorted
-     * @param toIndex   the index of the last element, exclusive, to be sorted
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
-     */
-    public static void sort(short[] a, int fromIndex, int toIndex) {
-        rangeCheck(a.length, fromIndex, toIndex);
-        DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
-    }
-    
-    /**
      * Sorts the specified array into ascending numerical order.
      *
      * <p>Implementation note: The sorting algorithm is a Dual-Pivot Quicksort
@@ -605,35 +552,12 @@ public class Arrays {
      *
      * @param a the array to be sorted
      */
+    // 将数组元素按升序排列
     public static void sort(int[] a) {
         DualPivotQuicksort.sort(a, 0, a.length - 1, null, 0, 0);
     }
     
     /**
-     * Sorts the specified range of the array into ascending order. The range
-     * to be sorted extends from the index {@code fromIndex}, inclusive, to
-     * the index {@code toIndex}, exclusive. If {@code fromIndex == toIndex},
-     * the range to be sorted is empty.
-     *
-     * <p>Implementation note: The sorting algorithm is a Dual-Pivot Quicksort
-     * by Vladimir Yaroslavskiy, Jon Bentley, and Joshua Bloch. This algorithm
-     * offers O(n log(n)) performance on many data sets that cause other
-     * quicksorts to degrade to quadratic performance, and is typically
-     * faster than traditional (one-pivot) Quicksort implementations.
-     *
-     * @param a         the array to be sorted
-     * @param fromIndex the index of the first element, inclusive, to be sorted
-     * @param toIndex   the index of the last element, exclusive, to be sorted
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
-     */
-    public static void sort(int[] a, int fromIndex, int toIndex) {
-        rangeCheck(a.length, fromIndex, toIndex);
-        DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
-    }
-    
-    /**
      * Sorts the specified array into ascending numerical order.
      *
      * <p>Implementation note: The sorting algorithm is a Dual-Pivot Quicksort
@@ -644,35 +568,12 @@ public class Arrays {
      *
      * @param a the array to be sorted
      */
+    // 将数组元素按升序排列
     public static void sort(long[] a) {
         DualPivotQuicksort.sort(a, 0, a.length - 1, null, 0, 0);
     }
     
     /**
-     * Sorts the specified range of the array into ascending order. The range
-     * to be sorted extends from the index {@code fromIndex}, inclusive, to
-     * the index {@code toIndex}, exclusive. If {@code fromIndex == toIndex},
-     * the range to be sorted is empty.
-     *
-     * <p>Implementation note: The sorting algorithm is a Dual-Pivot Quicksort
-     * by Vladimir Yaroslavskiy, Jon Bentley, and Joshua Bloch. This algorithm
-     * offers O(n log(n)) performance on many data sets that cause other
-     * quicksorts to degrade to quadratic performance, and is typically
-     * faster than traditional (one-pivot) Quicksort implementations.
-     *
-     * @param a         the array to be sorted
-     * @param fromIndex the index of the first element, inclusive, to be sorted
-     * @param toIndex   the index of the last element, exclusive, to be sorted
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
-     */
-    public static void sort(long[] a, int fromIndex, int toIndex) {
-        rangeCheck(a.length, fromIndex, toIndex);
-        DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
-    }
-    
-    /**
      * Sorts the specified array into ascending numerical order.
      *
      * <p>The {@code <} relation does not provide a total order on all float
@@ -691,43 +592,12 @@ public class Arrays {
      *
      * @param a the array to be sorted
      */
+    // 将数组元素按升序排列
     public static void sort(float[] a) {
         DualPivotQuicksort.sort(a, 0, a.length - 1, null, 0, 0);
     }
     
     /**
-     * Sorts the specified range of the array into ascending order. The range
-     * to be sorted extends from the index {@code fromIndex}, inclusive, to
-     * the index {@code toIndex}, exclusive. If {@code fromIndex == toIndex},
-     * the range to be sorted is empty.
-     *
-     * <p>The {@code <} relation does not provide a total order on all float
-     * values: {@code -0.0f == 0.0f} is {@code true} and a {@code Float.NaN}
-     * value compares neither less than, greater than, nor equal to any value,
-     * even itself. This method uses the total order imposed by the method
-     * {@link Float#compareTo}: {@code -0.0f} is treated as less than value
-     * {@code 0.0f} and {@code Float.NaN} is considered greater than any
-     * other value and all {@code Float.NaN} values are considered equal.
-     *
-     * <p>Implementation note: The sorting algorithm is a Dual-Pivot Quicksort
-     * by Vladimir Yaroslavskiy, Jon Bentley, and Joshua Bloch. This algorithm
-     * offers O(n log(n)) performance on many data sets that cause other
-     * quicksorts to degrade to quadratic performance, and is typically
-     * faster than traditional (one-pivot) Quicksort implementations.
-     *
-     * @param a         the array to be sorted
-     * @param fromIndex the index of the first element, inclusive, to be sorted
-     * @param toIndex   the index of the last element, exclusive, to be sorted
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
-     */
-    public static void sort(float[] a, int fromIndex, int toIndex) {
-        rangeCheck(a.length, fromIndex, toIndex);
-        DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
-    }
-    
-    /**
      * Sorts the specified array into ascending numerical order.
      *
      * <p>The {@code <} relation does not provide a total order on all double
@@ -746,40 +616,9 @@ public class Arrays {
      *
      * @param a the array to be sorted
      */
+    // 将数组元素按升序排列
     public static void sort(double[] a) {
         DualPivotQuicksort.sort(a, 0, a.length - 1, null, 0, 0);
-    }
-    
-    /**
-     * Sorts the specified range of the array into ascending order. The range
-     * to be sorted extends from the index {@code fromIndex}, inclusive, to
-     * the index {@code toIndex}, exclusive. If {@code fromIndex == toIndex},
-     * the range to be sorted is empty.
-     *
-     * <p>The {@code <} relation does not provide a total order on all double
-     * values: {@code -0.0d == 0.0d} is {@code true} and a {@code Double.NaN}
-     * value compares neither less than, greater than, nor equal to any value,
-     * even itself. This method uses the total order imposed by the method
-     * {@link Double#compareTo}: {@code -0.0d} is treated as less than value
-     * {@code 0.0d} and {@code Double.NaN} is considered greater than any
-     * other value and all {@code Double.NaN} values are considered equal.
-     *
-     * <p>Implementation note: The sorting algorithm is a Dual-Pivot Quicksort
-     * by Vladimir Yaroslavskiy, Jon Bentley, and Joshua Bloch. This algorithm
-     * offers O(n log(n)) performance on many data sets that cause other
-     * quicksorts to degrade to quadratic performance, and is typically
-     * faster than traditional (one-pivot) Quicksort implementations.
-     *
-     * @param a         the array to be sorted
-     * @param fromIndex the index of the first element, inclusive, to be sorted
-     * @param toIndex   the index of the last element, exclusive, to be sorted
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
-     */
-    public static void sort(double[] a, int fromIndex, int toIndex) {
-        rangeCheck(a.length, fromIndex, toIndex);
-        DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
     }
     
     /**
@@ -825,11 +664,262 @@ public class Arrays {
      *                                  ordering of the array elements is found to violate the
      *                                  {@link Comparable} contract
      */
+    // 将数组元素按升序排列
     public static void sort(Object[] a) {
-        if(LegacyMergeSort.userRequested)
+        if(LegacyMergeSort.userRequested) {
             legacyMergeSort(a);
-        else
+        } else {
             ComparableTimSort.sort(a, 0, a.length, null, 0, 0);
+        }
+    }
+    
+    /**
+     * Sorts the specified array of objects according to the order induced by
+     * the specified comparator.  All elements in the array must be
+     * <i>mutually comparable</i> by the specified comparator (that is,
+     * {@code c.compare(e1, e2)} must not throw a {@code ClassCastException}
+     * for any elements {@code e1} and {@code e2} in the array).
+     *
+     * <p>This sort is guaranteed to be <i>stable</i>:  equal elements will
+     * not be reordered as a result of the sort.
+     *
+     * <p>Implementation note: This implementation is a stable, adaptive,
+     * iterative mergesort that requires far fewer than n lg(n) comparisons
+     * when the input array is partially sorted, while offering the
+     * performance of a traditional mergesort when the input array is
+     * randomly ordered.  If the input array is nearly sorted, the
+     * implementation requires approximately n comparisons.  Temporary
+     * storage requirements vary from a small constant for nearly sorted
+     * input arrays to n/2 object references for randomly ordered input
+     * arrays.
+     *
+     * <p>The implementation takes equal advantage of ascending and
+     * descending order in its input array, and can take advantage of
+     * ascending and descending order in different parts of the same
+     * input array.  It is well-suited to merging two or more sorted arrays:
+     * simply concatenate the arrays and sort the resulting array.
+     *
+     * <p>The implementation was adapted from Tim Peters's list sort for Python
+     * (<a href="http://svn.python.org/projects/python/trunk/Objects/listsort.txt">
+     * TimSort</a>).  It uses techniques from Peter McIlroy's "Optimistic
+     * Sorting and Information Theoretic Complexity", in Proceedings of the
+     * Fourth Annual ACM-SIAM Symposium on Discrete Algorithms, pp 467-474,
+     * January 1993.
+     *
+     * @param <T> the class of the objects to be sorted
+     * @param a   the array to be sorted
+     * @param c   the comparator to determine the order of the array.  A
+     *            {@code null} value indicates that the elements'
+     *            {@linkplain Comparable natural ordering} should be used.
+     *
+     * @throws ClassCastException       if the array contains elements that are
+     *                                  not <i>mutually comparable</i> using the specified comparator
+     * @throws IllegalArgumentException (optional) if the comparator is
+     *                                  found to violate the {@link Comparator} contract
+     */
+    // 将数组元素按升序排列，需要借助外部比较器
+    public static <T> void sort(T[] a, Comparator<? super T> c) {
+        if(c == null) {
+            sort(a);
+        } else {
+            if(LegacyMergeSort.userRequested) {
+                legacyMergeSort(a, c);
+            } else {
+                TimSort.sort(a, 0, a.length, c, null, 0, 0);
+            }
+        }
+    }
+    
+    
+    /**
+     * Sorts the specified range of the array into ascending order. The range
+     * to be sorted extends from the index {@code fromIndex}, inclusive, to
+     * the index {@code toIndex}, exclusive. If {@code fromIndex == toIndex},
+     * the range to be sorted is empty.
+     *
+     * <p>Implementation note: The sorting algorithm is a Dual-Pivot Quicksort
+     * by Vladimir Yaroslavskiy, Jon Bentley, and Joshua Bloch. This algorithm
+     * offers O(n log(n)) performance on many data sets that cause other
+     * quicksorts to degrade to quadratic performance, and is typically
+     * faster than traditional (one-pivot) Quicksort implementations.
+     *
+     * @param a         the array to be sorted
+     * @param fromIndex the index of the first element, inclusive, to be sorted
+     * @param toIndex   the index of the last element, exclusive, to be sorted
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
+     */
+    // 将数组指定范围的元素按升序排列
+    public static void sort(char[] a, int fromIndex, int toIndex) {
+        rangeCheck(a.length, fromIndex, toIndex);
+        DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
+    }
+    
+    /**
+     * Sorts the specified range of the array into ascending order. The range
+     * to be sorted extends from the index {@code fromIndex}, inclusive, to
+     * the index {@code toIndex}, exclusive. If {@code fromIndex == toIndex},
+     * the range to be sorted is empty.
+     *
+     * <p>Implementation note: The sorting algorithm is a Dual-Pivot Quicksort
+     * by Vladimir Yaroslavskiy, Jon Bentley, and Joshua Bloch. This algorithm
+     * offers O(n log(n)) performance on many data sets that cause other
+     * quicksorts to degrade to quadratic performance, and is typically
+     * faster than traditional (one-pivot) Quicksort implementations.
+     *
+     * @param a         the array to be sorted
+     * @param fromIndex the index of the first element, inclusive, to be sorted
+     * @param toIndex   the index of the last element, exclusive, to be sorted
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
+     */
+    // 将数组指定范围的元素按升序排列
+    public static void sort(byte[] a, int fromIndex, int toIndex) {
+        rangeCheck(a.length, fromIndex, toIndex);
+        DualPivotQuicksort.sort(a, fromIndex, toIndex - 1);
+    }
+    
+    /**
+     * Sorts the specified range of the array into ascending order. The range
+     * to be sorted extends from the index {@code fromIndex}, inclusive, to
+     * the index {@code toIndex}, exclusive. If {@code fromIndex == toIndex},
+     * the range to be sorted is empty.
+     *
+     * <p>Implementation note: The sorting algorithm is a Dual-Pivot Quicksort
+     * by Vladimir Yaroslavskiy, Jon Bentley, and Joshua Bloch. This algorithm
+     * offers O(n log(n)) performance on many data sets that cause other
+     * quicksorts to degrade to quadratic performance, and is typically
+     * faster than traditional (one-pivot) Quicksort implementations.
+     *
+     * @param a         the array to be sorted
+     * @param fromIndex the index of the first element, inclusive, to be sorted
+     * @param toIndex   the index of the last element, exclusive, to be sorted
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
+     */
+    // 将数组指定范围的元素按升序排列
+    public static void sort(short[] a, int fromIndex, int toIndex) {
+        rangeCheck(a.length, fromIndex, toIndex);
+        DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
+    }
+    
+    /**
+     * Sorts the specified range of the array into ascending order. The range
+     * to be sorted extends from the index {@code fromIndex}, inclusive, to
+     * the index {@code toIndex}, exclusive. If {@code fromIndex == toIndex},
+     * the range to be sorted is empty.
+     *
+     * <p>Implementation note: The sorting algorithm is a Dual-Pivot Quicksort
+     * by Vladimir Yaroslavskiy, Jon Bentley, and Joshua Bloch. This algorithm
+     * offers O(n log(n)) performance on many data sets that cause other
+     * quicksorts to degrade to quadratic performance, and is typically
+     * faster than traditional (one-pivot) Quicksort implementations.
+     *
+     * @param a         the array to be sorted
+     * @param fromIndex the index of the first element, inclusive, to be sorted
+     * @param toIndex   the index of the last element, exclusive, to be sorted
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
+     */
+    // 将数组指定范围的元素按升序排列
+    public static void sort(int[] a, int fromIndex, int toIndex) {
+        rangeCheck(a.length, fromIndex, toIndex);
+        DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
+    }
+    
+    /**
+     * Sorts the specified range of the array into ascending order. The range
+     * to be sorted extends from the index {@code fromIndex}, inclusive, to
+     * the index {@code toIndex}, exclusive. If {@code fromIndex == toIndex},
+     * the range to be sorted is empty.
+     *
+     * <p>Implementation note: The sorting algorithm is a Dual-Pivot Quicksort
+     * by Vladimir Yaroslavskiy, Jon Bentley, and Joshua Bloch. This algorithm
+     * offers O(n log(n)) performance on many data sets that cause other
+     * quicksorts to degrade to quadratic performance, and is typically
+     * faster than traditional (one-pivot) Quicksort implementations.
+     *
+     * @param a         the array to be sorted
+     * @param fromIndex the index of the first element, inclusive, to be sorted
+     * @param toIndex   the index of the last element, exclusive, to be sorted
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
+     */
+    // 将数组指定范围的元素按升序排列
+    public static void sort(long[] a, int fromIndex, int toIndex) {
+        rangeCheck(a.length, fromIndex, toIndex);
+        DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
+    }
+    
+    /**
+     * Sorts the specified range of the array into ascending order. The range
+     * to be sorted extends from the index {@code fromIndex}, inclusive, to
+     * the index {@code toIndex}, exclusive. If {@code fromIndex == toIndex},
+     * the range to be sorted is empty.
+     *
+     * <p>The {@code <} relation does not provide a total order on all float
+     * values: {@code -0.0f == 0.0f} is {@code true} and a {@code Float.NaN}
+     * value compares neither less than, greater than, nor equal to any value,
+     * even itself. This method uses the total order imposed by the method
+     * {@link Float#compareTo}: {@code -0.0f} is treated as less than value
+     * {@code 0.0f} and {@code Float.NaN} is considered greater than any
+     * other value and all {@code Float.NaN} values are considered equal.
+     *
+     * <p>Implementation note: The sorting algorithm is a Dual-Pivot Quicksort
+     * by Vladimir Yaroslavskiy, Jon Bentley, and Joshua Bloch. This algorithm
+     * offers O(n log(n)) performance on many data sets that cause other
+     * quicksorts to degrade to quadratic performance, and is typically
+     * faster than traditional (one-pivot) Quicksort implementations.
+     *
+     * @param a         the array to be sorted
+     * @param fromIndex the index of the first element, inclusive, to be sorted
+     * @param toIndex   the index of the last element, exclusive, to be sorted
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
+     */
+    // 将数组指定范围的元素按升序排列
+    public static void sort(float[] a, int fromIndex, int toIndex) {
+        rangeCheck(a.length, fromIndex, toIndex);
+        DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
+    }
+    
+    /**
+     * Sorts the specified range of the array into ascending order. The range
+     * to be sorted extends from the index {@code fromIndex}, inclusive, to
+     * the index {@code toIndex}, exclusive. If {@code fromIndex == toIndex},
+     * the range to be sorted is empty.
+     *
+     * <p>The {@code <} relation does not provide a total order on all double
+     * values: {@code -0.0d == 0.0d} is {@code true} and a {@code Double.NaN}
+     * value compares neither less than, greater than, nor equal to any value,
+     * even itself. This method uses the total order imposed by the method
+     * {@link Double#compareTo}: {@code -0.0d} is treated as less than value
+     * {@code 0.0d} and {@code Double.NaN} is considered greater than any
+     * other value and all {@code Double.NaN} values are considered equal.
+     *
+     * <p>Implementation note: The sorting algorithm is a Dual-Pivot Quicksort
+     * by Vladimir Yaroslavskiy, Jon Bentley, and Joshua Bloch. This algorithm
+     * offers O(n log(n)) performance on many data sets that cause other
+     * quicksorts to degrade to quadratic performance, and is typically
+     * faster than traditional (one-pivot) Quicksort implementations.
+     *
+     * @param a         the array to be sorted
+     * @param fromIndex the index of the first element, inclusive, to be sorted
+     * @param toIndex   the index of the last element, exclusive, to be sorted
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
+     */
+    // 将数组指定范围的元素按升序排列
+    public static void sort(double[] a, int fromIndex, int toIndex) {
+        rangeCheck(a.length, fromIndex, toIndex);
+        DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
     }
     
     /**
@@ -885,66 +975,13 @@ public class Arrays {
      *                                        not <i>mutually comparable</i> (for example, strings and
      *                                        integers).
      */
+    // 将数组指定范围的元素按升序排列
     public static void sort(Object[] a, int fromIndex, int toIndex) {
         rangeCheck(a.length, fromIndex, toIndex);
-        if(LegacyMergeSort.userRequested)
+        if(LegacyMergeSort.userRequested) {
             legacyMergeSort(a, fromIndex, toIndex);
-        else
-            ComparableTimSort.sort(a, fromIndex, toIndex, null, 0, 0);
-    }
-    
-    /**
-     * Sorts the specified array of objects according to the order induced by
-     * the specified comparator.  All elements in the array must be
-     * <i>mutually comparable</i> by the specified comparator (that is,
-     * {@code c.compare(e1, e2)} must not throw a {@code ClassCastException}
-     * for any elements {@code e1} and {@code e2} in the array).
-     *
-     * <p>This sort is guaranteed to be <i>stable</i>:  equal elements will
-     * not be reordered as a result of the sort.
-     *
-     * <p>Implementation note: This implementation is a stable, adaptive,
-     * iterative mergesort that requires far fewer than n lg(n) comparisons
-     * when the input array is partially sorted, while offering the
-     * performance of a traditional mergesort when the input array is
-     * randomly ordered.  If the input array is nearly sorted, the
-     * implementation requires approximately n comparisons.  Temporary
-     * storage requirements vary from a small constant for nearly sorted
-     * input arrays to n/2 object references for randomly ordered input
-     * arrays.
-     *
-     * <p>The implementation takes equal advantage of ascending and
-     * descending order in its input array, and can take advantage of
-     * ascending and descending order in different parts of the same
-     * input array.  It is well-suited to merging two or more sorted arrays:
-     * simply concatenate the arrays and sort the resulting array.
-     *
-     * <p>The implementation was adapted from Tim Peters's list sort for Python
-     * (<a href="http://svn.python.org/projects/python/trunk/Objects/listsort.txt">
-     * TimSort</a>).  It uses techniques from Peter McIlroy's "Optimistic
-     * Sorting and Information Theoretic Complexity", in Proceedings of the
-     * Fourth Annual ACM-SIAM Symposium on Discrete Algorithms, pp 467-474,
-     * January 1993.
-     *
-     * @param <T> the class of the objects to be sorted
-     * @param a   the array to be sorted
-     * @param c   the comparator to determine the order of the array.  A
-     *            {@code null} value indicates that the elements'
-     *            {@linkplain Comparable natural ordering} should be used.
-     *
-     * @throws ClassCastException       if the array contains elements that are
-     *                                  not <i>mutually comparable</i> using the specified comparator
-     * @throws IllegalArgumentException (optional) if the comparator is
-     *                                  found to violate the {@link Comparator} contract
-     */
-    public static <T> void sort(T[] a, Comparator<? super T> c) {
-        if(c == null) {
-            sort(a);
         } else {
-            if(LegacyMergeSort.userRequested)
-                legacyMergeSort(a, c);
-            else
-                TimSort.sort(a, 0, a.length, c, null, 0, 0);
+            ComparableTimSort.sort(a, fromIndex, toIndex, null, 0, 0);
         }
     }
     
@@ -1001,15 +1038,17 @@ public class Arrays {
      * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or
      *                                        {@code toIndex > a.length}
      */
+    // 将数组指定范围的元素按升序排列，需要借助外部比较器
     public static <T> void sort(T[] a, int fromIndex, int toIndex, Comparator<? super T> c) {
         if(c == null) {
             sort(a, fromIndex, toIndex);
         } else {
             rangeCheck(a.length, fromIndex, toIndex);
-            if(LegacyMergeSort.userRequested)
+            if(LegacyMergeSort.userRequested) {
                 legacyMergeSort(a, fromIndex, toIndex, c);
-            else
+            } else {
                 TimSort.sort(a, fromIndex, toIndex, c, null, 0, 0);
+            }
         }
     }
     
@@ -1018,6 +1057,39 @@ public class Arrays {
     
     
     /*▼ 并行排序 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Sorts the specified array into ascending numerical order.
+     *
+     * @param a the array to be sorted
+     *
+     * @implNote The sorting algorithm is a parallel sort-merge that breaks the
+     * array into sub-arrays that are themselves sorted and then merged. When
+     * the sub-array length reaches a minimum granularity, the sub-array is
+     * sorted using the appropriate {@link Arrays#sort(char[]) Arrays.sort}
+     * method. If the length of the specified array is less than the minimum
+     * granularity, then it is sorted using the appropriate {@link
+     * Arrays#sort(char[]) Arrays.sort} method. The algorithm requires a
+     * working space no greater than the size of the original array. The
+     * {@link ForkJoinPool#commonPool() ForkJoin common pool} is used to
+     * execute any parallel tasks.
+     * @since 1.8
+     */
+    // 将数组元素按升序并行排列
+    public static void parallelSort(char[] a) {
+        int n = a.length;
+        int p = ForkJoinPool.getCommonPoolParallelism();
+    
+        // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
+        if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
+            // 执行非并行排序
+            DualPivotQuicksort.sort(a, 0, n - 1, null, 0, 0);
+        } else {
+            int g = n / (p << 2);
+            int gran = (g<=MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
+            new ArraysParallelSortHelpers.FJChar.Sorter(null, a, new char[n], 0, n, 0, gran).invoke();
+        }
+    }
     
     /**
      * Sorts the specified array into ascending numerical order.
@@ -1036,58 +1108,19 @@ public class Arrays {
      * execute any parallel tasks.
      * @since 1.8
      */
+    // 将数组元素按升序并行排列
     public static void parallelSort(byte[] a) {
         int n = a.length;
         int p = ForkJoinPool.getCommonPoolParallelism();
         
         // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
-        if(n <= MIN_ARRAY_SORT_GRAN || p == 1) {
+        if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
             // 执行非并行排序
             DualPivotQuicksort.sort(a, 0, n - 1);
         } else {
             int g = n / (p << 2);
-            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
+            int gran = (g<=MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
             new ArraysParallelSortHelpers.FJByte.Sorter(null, a, new byte[n], 0, n, 0, gran).invoke();
-        }
-    }
-    
-    /**
-     * Sorts the specified range of the array into ascending numerical order.
-     * The range to be sorted extends from the index {@code fromIndex},
-     * inclusive, to the index {@code toIndex}, exclusive. If
-     * {@code fromIndex == toIndex}, the range to be sorted is empty.
-     *
-     * @param a         the array to be sorted
-     * @param fromIndex the index of the first element, inclusive, to be sorted
-     * @param toIndex   the index of the last element, exclusive, to be sorted
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
-     * @implNote The sorting algorithm is a parallel sort-merge that breaks the
-     * array into sub-arrays that are themselves sorted and then merged. When
-     * the sub-array length reaches a minimum granularity, the sub-array is
-     * sorted using the appropriate {@link Arrays#sort(byte[]) Arrays.sort}
-     * method. If the length of the specified array is less than the minimum
-     * granularity, then it is sorted using the appropriate {@link
-     * Arrays#sort(byte[]) Arrays.sort} method. The algorithm requires a working
-     * space no greater than the size of the specified range of the original
-     * array. The {@link ForkJoinPool#commonPool() ForkJoin common pool} is
-     * used to execute any parallel tasks.
-     * @since 1.8
-     */
-    public static void parallelSort(byte[] a, int fromIndex, int toIndex) {
-        rangeCheck(a.length, fromIndex, toIndex);
-        
-        int n = toIndex - fromIndex;
-        int p = ForkJoinPool.getCommonPoolParallelism();
-        
-        // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
-        if(n <= MIN_ARRAY_SORT_GRAN || p == 1) {
-            DualPivotQuicksort.sort(a, fromIndex, toIndex - 1);
-        } else {
-            int g = n / (p << 2);
-            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
-            new ArraysParallelSortHelpers.FJByte.Sorter(null, a, new byte[n], fromIndex, n, 0, gran).invoke();
         }
     }
     
@@ -1108,6 +1141,7 @@ public class Arrays {
      * execute any parallel tasks.
      * @since 1.8
      */
+    // 将数组元素按升序并行排列
     public static void parallelSort(short[] a) {
         int n = a.length;
         int p = ForkJoinPool.getCommonPoolParallelism();
@@ -1120,47 +1154,6 @@ public class Arrays {
             int g = n / (p << 2);
             int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
             new ArraysParallelSortHelpers.FJShort.Sorter(null, a, new short[n], 0, n, 0, gran).invoke();
-        }
-    }
-    
-    /**
-     * Sorts the specified range of the array into ascending numerical order.
-     * The range to be sorted extends from the index {@code fromIndex},
-     * inclusive, to the index {@code toIndex}, exclusive. If
-     * {@code fromIndex == toIndex}, the range to be sorted is empty.
-     *
-     * @param a         the array to be sorted
-     * @param fromIndex the index of the first element, inclusive, to be sorted
-     * @param toIndex   the index of the last element, exclusive, to be sorted
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
-     * @implNote The sorting algorithm is a parallel sort-merge that breaks the
-     * array into sub-arrays that are themselves sorted and then merged. When
-     * the sub-array length reaches a minimum granularity, the sub-array is
-     * sorted using the appropriate {@link Arrays#sort(short[]) Arrays.sort}
-     * method. If the length of the specified array is less than the minimum
-     * granularity, then it is sorted using the appropriate {@link
-     * Arrays#sort(short[]) Arrays.sort} method. The algorithm requires a working
-     * space no greater than the size of the specified range of the original
-     * array. The {@link ForkJoinPool#commonPool() ForkJoin common pool} is
-     * used to execute any parallel tasks.
-     * @since 1.8
-     */
-    public static void parallelSort(short[] a, int fromIndex, int toIndex) {
-        rangeCheck(a.length, fromIndex, toIndex);
-        
-        int n = toIndex - fromIndex;
-        int p = ForkJoinPool.getCommonPoolParallelism();
-        
-        // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
-        if(n <= MIN_ARRAY_SORT_GRAN || p == 1) {
-            // 执行非并行排序
-            DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
-        } else {
-            int g = n / (p << 2);
-            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
-            new ArraysParallelSortHelpers.FJShort.Sorter(null, a, new short[n], fromIndex, n, 0, gran).invoke();
         }
     }
     
@@ -1181,59 +1174,19 @@ public class Arrays {
      * execute any parallel tasks.
      * @since 1.8
      */
+    // 将数组元素按升序并行排列
     public static void parallelSort(int[] a) {
         int n = a.length;
         int p = ForkJoinPool.getCommonPoolParallelism();
         
         // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
-        if(n <= MIN_ARRAY_SORT_GRAN || p == 1) {
+        if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
             // 执行非并行排序
             DualPivotQuicksort.sort(a, 0, n - 1, null, 0, 0);
         } else {
             int g = n / (p << 2);
-            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
+            int gran = (g<=MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
             new ArraysParallelSortHelpers.FJInt.Sorter(null, a, new int[n], 0, n, 0, gran).invoke();
-        }
-    }
-    
-    /**
-     * Sorts the specified range of the array into ascending numerical order.
-     * The range to be sorted extends from the index {@code fromIndex},
-     * inclusive, to the index {@code toIndex}, exclusive. If
-     * {@code fromIndex == toIndex}, the range to be sorted is empty.
-     *
-     * @param a         the array to be sorted
-     * @param fromIndex the index of the first element, inclusive, to be sorted
-     * @param toIndex   the index of the last element, exclusive, to be sorted
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
-     * @implNote The sorting algorithm is a parallel sort-merge that breaks the
-     * array into sub-arrays that are themselves sorted and then merged. When
-     * the sub-array length reaches a minimum granularity, the sub-array is
-     * sorted using the appropriate {@link Arrays#sort(int[]) Arrays.sort}
-     * method. If the length of the specified array is less than the minimum
-     * granularity, then it is sorted using the appropriate {@link
-     * Arrays#sort(int[]) Arrays.sort} method. The algorithm requires a working
-     * space no greater than the size of the specified range of the original
-     * array. The {@link ForkJoinPool#commonPool() ForkJoin common pool} is
-     * used to execute any parallel tasks.
-     * @since 1.8
-     */
-    public static void parallelSort(int[] a, int fromIndex, int toIndex) {
-        rangeCheck(a.length, fromIndex, toIndex);
-        
-        int n = toIndex - fromIndex;
-        int p = ForkJoinPool.getCommonPoolParallelism();
-        
-        // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
-        if(n <= MIN_ARRAY_SORT_GRAN || p == 1) {
-            // 执行非并行排序
-            DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
-        } else {
-            int g = n / (p << 2);
-            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
-            new ArraysParallelSortHelpers.FJInt.Sorter(null, a, new int[n], fromIndex, n, 0, gran).invoke();
         }
     }
     
@@ -1254,59 +1207,19 @@ public class Arrays {
      * execute any parallel tasks.
      * @since 1.8
      */
+    // 将数组元素按升序并行排列
     public static void parallelSort(long[] a) {
         int n = a.length;
         int p = ForkJoinPool.getCommonPoolParallelism();
-        
+    
         // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
-        if(n <= MIN_ARRAY_SORT_GRAN || p == 1) {
+        if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
             // 执行非并行排序
             DualPivotQuicksort.sort(a, 0, n - 1, null, 0, 0);
         } else {
             int g = n / (p << 2);
-            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
+            int gran = (g<=MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
             new ArraysParallelSortHelpers.FJLong.Sorter(null, a, new long[n], 0, n, 0, gran).invoke();
-        }
-    }
-    
-    /**
-     * Sorts the specified range of the array into ascending numerical order.
-     * The range to be sorted extends from the index {@code fromIndex},
-     * inclusive, to the index {@code toIndex}, exclusive. If
-     * {@code fromIndex == toIndex}, the range to be sorted is empty.
-     *
-     * @param a         the array to be sorted
-     * @param fromIndex the index of the first element, inclusive, to be sorted
-     * @param toIndex   the index of the last element, exclusive, to be sorted
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
-     * @implNote The sorting algorithm is a parallel sort-merge that breaks the
-     * array into sub-arrays that are themselves sorted and then merged. When
-     * the sub-array length reaches a minimum granularity, the sub-array is
-     * sorted using the appropriate {@link Arrays#sort(long[]) Arrays.sort}
-     * method. If the length of the specified array is less than the minimum
-     * granularity, then it is sorted using the appropriate {@link
-     * Arrays#sort(long[]) Arrays.sort} method. The algorithm requires a working
-     * space no greater than the size of the specified range of the original
-     * array. The {@link ForkJoinPool#commonPool() ForkJoin common pool} is
-     * used to execute any parallel tasks.
-     * @since 1.8
-     */
-    public static void parallelSort(long[] a, int fromIndex, int toIndex) {
-        rangeCheck(a.length, fromIndex, toIndex);
-        
-        int n = toIndex - fromIndex;
-        int p = ForkJoinPool.getCommonPoolParallelism();
-        
-        // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
-        if(n <= MIN_ARRAY_SORT_GRAN || p == 1) {
-            // 执行非并行排序
-            DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
-        } else {
-            int g = n / (p << 2);
-            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
-            new ArraysParallelSortHelpers.FJLong.Sorter(null, a, new long[n], fromIndex, n, 0, gran).invoke();
         }
     }
     
@@ -1335,67 +1248,19 @@ public class Arrays {
      * execute any parallel tasks.
      * @since 1.8
      */
+    // 将数组元素按升序并行排列
     public static void parallelSort(float[] a) {
         int n = a.length;
         int p = ForkJoinPool.getCommonPoolParallelism();
         
         // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
-        if(n <= MIN_ARRAY_SORT_GRAN || p == 1) {
+        if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
             // 执行非并行排序
             DualPivotQuicksort.sort(a, 0, n - 1, null, 0, 0);
         } else {
             int g = n / (p << 2);
-            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
+            int gran = (g<=MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
             new ArraysParallelSortHelpers.FJFloat.Sorter(null, a, new float[n], 0, n, 0, gran).invoke();
-        }
-    }
-    
-    /**
-     * Sorts the specified range of the array into ascending numerical order.
-     * The range to be sorted extends from the index {@code fromIndex},
-     * inclusive, to the index {@code toIndex}, exclusive. If
-     * {@code fromIndex == toIndex}, the range to be sorted is empty.
-     *
-     * <p>The {@code <} relation does not provide a total order on all float
-     * values: {@code -0.0f == 0.0f} is {@code true} and a {@code Float.NaN}
-     * value compares neither less than, greater than, nor equal to any value,
-     * even itself. This method uses the total order imposed by the method
-     * {@link Float#compareTo}: {@code -0.0f} is treated as less than value
-     * {@code 0.0f} and {@code Float.NaN} is considered greater than any
-     * other value and all {@code Float.NaN} values are considered equal.
-     *
-     * @param a         the array to be sorted
-     * @param fromIndex the index of the first element, inclusive, to be sorted
-     * @param toIndex   the index of the last element, exclusive, to be sorted
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
-     * @implNote The sorting algorithm is a parallel sort-merge that breaks the
-     * array into sub-arrays that are themselves sorted and then merged. When
-     * the sub-array length reaches a minimum granularity, the sub-array is
-     * sorted using the appropriate {@link Arrays#sort(float[]) Arrays.sort}
-     * method. If the length of the specified array is less than the minimum
-     * granularity, then it is sorted using the appropriate {@link
-     * Arrays#sort(float[]) Arrays.sort} method. The algorithm requires a working
-     * space no greater than the size of the specified range of the original
-     * array. The {@link ForkJoinPool#commonPool() ForkJoin common pool} is
-     * used to execute any parallel tasks.
-     * @since 1.8
-     */
-    public static void parallelSort(float[] a, int fromIndex, int toIndex) {
-        rangeCheck(a.length, fromIndex, toIndex);
-        
-        int n = toIndex - fromIndex;
-        int p = ForkJoinPool.getCommonPoolParallelism();
-        
-        // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
-        if(n <= MIN_ARRAY_SORT_GRAN || p == 1) {
-            // 执行非并行排序
-            DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
-        } else {
-            int g = n / (p << 2);
-            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
-            new ArraysParallelSortHelpers.FJFloat.Sorter(null, a, new float[n], fromIndex, n, 0, gran).invoke();
         }
     }
     
@@ -1424,140 +1289,19 @@ public class Arrays {
      * execute any parallel tasks.
      * @since 1.8
      */
+    // 将数组元素按升序并行排列
     public static void parallelSort(double[] a) {
         int n = a.length;
         int p = ForkJoinPool.getCommonPoolParallelism();
         
         // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
-        if(n <= MIN_ARRAY_SORT_GRAN || p == 1) {
+        if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
             // 执行非并行排序
             DualPivotQuicksort.sort(a, 0, n - 1, null, 0, 0);
         } else {
             int g = n / (p << 2);
-            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
+            int gran = (g<=MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
             new ArraysParallelSortHelpers.FJDouble.Sorter(null, a, new double[n], 0, n, 0, gran).invoke();
-        }
-    }
-    
-    /**
-     * Sorts the specified range of the array into ascending numerical order.
-     * The range to be sorted extends from the index {@code fromIndex},
-     * inclusive, to the index {@code toIndex}, exclusive. If
-     * {@code fromIndex == toIndex}, the range to be sorted is empty.
-     *
-     * <p>The {@code <} relation does not provide a total order on all double
-     * values: {@code -0.0d == 0.0d} is {@code true} and a {@code Double.NaN}
-     * value compares neither less than, greater than, nor equal to any value,
-     * even itself. This method uses the total order imposed by the method
-     * {@link Double#compareTo}: {@code -0.0d} is treated as less than value
-     * {@code 0.0d} and {@code Double.NaN} is considered greater than any
-     * other value and all {@code Double.NaN} values are considered equal.
-     *
-     * @param a         the array to be sorted
-     * @param fromIndex the index of the first element, inclusive, to be sorted
-     * @param toIndex   the index of the last element, exclusive, to be sorted
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
-     * @implNote The sorting algorithm is a parallel sort-merge that breaks the
-     * array into sub-arrays that are themselves sorted and then merged. When
-     * the sub-array length reaches a minimum granularity, the sub-array is
-     * sorted using the appropriate {@link Arrays#sort(double[]) Arrays.sort}
-     * method. If the length of the specified array is less than the minimum
-     * granularity, then it is sorted using the appropriate {@link
-     * Arrays#sort(double[]) Arrays.sort} method. The algorithm requires a working
-     * space no greater than the size of the specified range of the original
-     * array. The {@link ForkJoinPool#commonPool() ForkJoin common pool} is
-     * used to execute any parallel tasks.
-     * @since 1.8
-     */
-    public static void parallelSort(double[] a, int fromIndex, int toIndex) {
-        rangeCheck(a.length, fromIndex, toIndex);
-        
-        int n = toIndex - fromIndex;
-        int p = ForkJoinPool.getCommonPoolParallelism();
-        
-        // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
-        if(n <= MIN_ARRAY_SORT_GRAN || p == 1) {
-            // 执行非并行排序
-            DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
-        } else {
-            int g = n / (p << 2);
-            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
-            new ArraysParallelSortHelpers.FJDouble.Sorter(null, a, new double[n], fromIndex, n, 0, gran).invoke();
-        }
-    }
-    
-    /**
-     * Sorts the specified array into ascending numerical order.
-     *
-     * @param a the array to be sorted
-     *
-     * @implNote The sorting algorithm is a parallel sort-merge that breaks the
-     * array into sub-arrays that are themselves sorted and then merged. When
-     * the sub-array length reaches a minimum granularity, the sub-array is
-     * sorted using the appropriate {@link Arrays#sort(char[]) Arrays.sort}
-     * method. If the length of the specified array is less than the minimum
-     * granularity, then it is sorted using the appropriate {@link
-     * Arrays#sort(char[]) Arrays.sort} method. The algorithm requires a
-     * working space no greater than the size of the original array. The
-     * {@link ForkJoinPool#commonPool() ForkJoin common pool} is used to
-     * execute any parallel tasks.
-     * @since 1.8
-     */
-    public static void parallelSort(char[] a) {
-        int n = a.length;
-        int p = ForkJoinPool.getCommonPoolParallelism();
-        
-        // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
-        if(n <= MIN_ARRAY_SORT_GRAN || p == 1) {
-            // 执行非并行排序
-            DualPivotQuicksort.sort(a, 0, n - 1, null, 0, 0);
-        } else {
-            int g = n / (p << 2);
-            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
-            new ArraysParallelSortHelpers.FJChar.Sorter(null, a, new char[n], 0, n, 0, gran).invoke();
-        }
-    }
-    
-    /**
-     * Sorts the specified range of the array into ascending numerical order.
-     * The range to be sorted extends from the index {@code fromIndex},
-     * inclusive, to the index {@code toIndex}, exclusive. If
-     * {@code fromIndex == toIndex}, the range to be sorted is empty.
-     *
-     * @param a         the array to be sorted
-     * @param fromIndex the index of the first element, inclusive, to be sorted
-     * @param toIndex   the index of the last element, exclusive, to be sorted
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
-     * @implNote The sorting algorithm is a parallel sort-merge that breaks the
-     * array into sub-arrays that are themselves sorted and then merged. When
-     * the sub-array length reaches a minimum granularity, the sub-array is
-     * sorted using the appropriate {@link Arrays#sort(char[]) Arrays.sort}
-     * method. If the length of the specified array is less than the minimum
-     * granularity, then it is sorted using the appropriate {@link
-     * Arrays#sort(char[]) Arrays.sort} method. The algorithm requires a working
-     * space no greater than the size of the specified range of the original
-     * array. The {@link ForkJoinPool#commonPool() ForkJoin common pool} is
-     * used to execute any parallel tasks.
-     * @since 1.8
-     */
-    public static void parallelSort(char[] a, int fromIndex, int toIndex) {
-        rangeCheck(a.length, fromIndex, toIndex);
-        
-        int n = toIndex - fromIndex;
-        int p = ForkJoinPool.getCommonPoolParallelism();
-        
-        // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
-        if(n <= MIN_ARRAY_SORT_GRAN || p == 1) {
-            // 执行非并行排序
-            DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
-        } else {
-            int g = n / (p << 2);
-            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
-            new ArraysParallelSortHelpers.FJChar.Sorter(null, a, new char[n], fromIndex, n, 0, gran).invoke();
         }
     }
     
@@ -1593,20 +1337,385 @@ public class Arrays {
      * execute any parallel tasks.
      * @since 1.8
      */
+    // 将数组元素按升序并行排列
     @SuppressWarnings("unchecked")
     public static <T extends Comparable<? super T>> void parallelSort(T[] a) {
         int n = a.length;
         int p = ForkJoinPool.getCommonPoolParallelism();
         
         // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
-        if(n <= MIN_ARRAY_SORT_GRAN || p == 1) {
+        if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
             // 执行非并行排序
             TimSort.sort(a, 0, n, NaturalOrder.INSTANCE, null, 0, 0);
         } else {
             T[] w = (T[]) Array.newInstance(a.getClass().getComponentType(), n);
             int g = n / (p << 2);
-            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
+            int gran = (g<=MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
             new ArraysParallelSortHelpers.FJObject.Sorter<>(null, a, w, 0, n, 0, gran, NaturalOrder.INSTANCE).invoke();
+        }
+    }
+    
+    /**
+     * Sorts the specified array of objects according to the order induced by
+     * the specified comparator.  All elements in the array must be
+     * <i>mutually comparable</i> by the specified comparator (that is,
+     * {@code c.compare(e1, e2)} must not throw a {@code ClassCastException}
+     * for any elements {@code e1} and {@code e2} in the array).
+     *
+     * <p>This sort is guaranteed to be <i>stable</i>:  equal elements will
+     * not be reordered as a result of the sort.
+     *
+     * @param <T> the class of the objects to be sorted
+     * @param a   the array to be sorted
+     * @param cmp the comparator to determine the order of the array.  A
+     *            {@code null} value indicates that the elements'
+     *            {@linkplain Comparable natural ordering} should be used.
+     *
+     * @throws ClassCastException       if the array contains elements that are
+     *                                  not <i>mutually comparable</i> using the specified comparator
+     * @throws IllegalArgumentException (optional) if the comparator is
+     *                                  found to violate the {@link java.util.Comparator} contract
+     * @implNote The sorting algorithm is a parallel sort-merge that breaks the
+     * array into sub-arrays that are themselves sorted and then merged. When
+     * the sub-array length reaches a minimum granularity, the sub-array is
+     * sorted using the appropriate {@link Arrays#sort(Object[]) Arrays.sort}
+     * method. If the length of the specified array is less than the minimum
+     * granularity, then it is sorted using the appropriate {@link
+     * Arrays#sort(Object[]) Arrays.sort} method. The algorithm requires a
+     * working space no greater than the size of the original array. The
+     * {@link ForkJoinPool#commonPool() ForkJoin common pool} is used to
+     * execute any parallel tasks.
+     * @since 1.8
+     */
+    // 将数组元素按升序并行排列，需要借助外部比较器
+    @SuppressWarnings("unchecked")
+    public static <T> void parallelSort(T[] a, Comparator<? super T> cmp) {
+        if(cmp == null) {
+            cmp = NaturalOrder.INSTANCE;
+        }
+        
+        int n = a.length;
+        int p = ForkJoinPool.getCommonPoolParallelism();
+        
+        // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
+        if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
+            // 执行非并行排序
+            TimSort.sort(a, 0, n, cmp, null, 0, 0);
+        } else {
+            T[] w = (T[]) Array.newInstance(a.getClass().getComponentType(), n);
+            int g = n / (p << 2);
+            int gran = (g<=MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
+            new ArraysParallelSortHelpers.FJObject.Sorter<>(null, a, w, 0, n, 0, gran, cmp).invoke();
+        }
+    }
+    
+    
+    /**
+     * Sorts the specified range of the array into ascending numerical order.
+     * The range to be sorted extends from the index {@code fromIndex},
+     * inclusive, to the index {@code toIndex}, exclusive. If
+     * {@code fromIndex == toIndex}, the range to be sorted is empty.
+     *
+     * @param a         the array to be sorted
+     * @param fromIndex the index of the first element, inclusive, to be sorted
+     * @param toIndex   the index of the last element, exclusive, to be sorted
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
+     * @implNote The sorting algorithm is a parallel sort-merge that breaks the
+     * array into sub-arrays that are themselves sorted and then merged. When
+     * the sub-array length reaches a minimum granularity, the sub-array is
+     * sorted using the appropriate {@link Arrays#sort(char[]) Arrays.sort}
+     * method. If the length of the specified array is less than the minimum
+     * granularity, then it is sorted using the appropriate {@link
+     * Arrays#sort(char[]) Arrays.sort} method. The algorithm requires a working
+     * space no greater than the size of the specified range of the original
+     * array. The {@link ForkJoinPool#commonPool() ForkJoin common pool} is
+     * used to execute any parallel tasks.
+     * @since 1.8
+     */
+    // 将数组指定范围的元素按升序排列
+    public static void parallelSort(char[] a, int fromIndex, int toIndex) {
+        rangeCheck(a.length, fromIndex, toIndex);
+    
+        int n = toIndex - fromIndex;
+        int p = ForkJoinPool.getCommonPoolParallelism();
+    
+        // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
+        if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
+            // 执行非并行排序
+            DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
+        } else {
+            int g = n / (p << 2);
+            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
+            new ArraysParallelSortHelpers.FJChar.Sorter(null, a, new char[n], fromIndex, n, 0, gran).invoke();
+        }
+    }
+    
+    /**
+     * Sorts the specified range of the array into ascending numerical order.
+     * The range to be sorted extends from the index {@code fromIndex},
+     * inclusive, to the index {@code toIndex}, exclusive. If
+     * {@code fromIndex == toIndex}, the range to be sorted is empty.
+     *
+     * @param a         the array to be sorted
+     * @param fromIndex the index of the first element, inclusive, to be sorted
+     * @param toIndex   the index of the last element, exclusive, to be sorted
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
+     * @implNote The sorting algorithm is a parallel sort-merge that breaks the
+     * array into sub-arrays that are themselves sorted and then merged. When
+     * the sub-array length reaches a minimum granularity, the sub-array is
+     * sorted using the appropriate {@link Arrays#sort(byte[]) Arrays.sort}
+     * method. If the length of the specified array is less than the minimum
+     * granularity, then it is sorted using the appropriate {@link
+     * Arrays#sort(byte[]) Arrays.sort} method. The algorithm requires a working
+     * space no greater than the size of the specified range of the original
+     * array. The {@link ForkJoinPool#commonPool() ForkJoin common pool} is
+     * used to execute any parallel tasks.
+     * @since 1.8
+     */
+    // 将数组指定范围的元素按升序排列
+    public static void parallelSort(byte[] a, int fromIndex, int toIndex) {
+        rangeCheck(a.length, fromIndex, toIndex);
+        
+        int n = toIndex - fromIndex;
+        int p = ForkJoinPool.getCommonPoolParallelism();
+        
+        // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
+        if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
+            DualPivotQuicksort.sort(a, fromIndex, toIndex - 1);
+        } else {
+            int g = n / (p << 2);
+            int gran = (g<=MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
+            new ArraysParallelSortHelpers.FJByte.Sorter(null, a, new byte[n], fromIndex, n, 0, gran).invoke();
+        }
+    }
+    
+    /**
+     * Sorts the specified range of the array into ascending numerical order.
+     * The range to be sorted extends from the index {@code fromIndex},
+     * inclusive, to the index {@code toIndex}, exclusive. If
+     * {@code fromIndex == toIndex}, the range to be sorted is empty.
+     *
+     * @param a         the array to be sorted
+     * @param fromIndex the index of the first element, inclusive, to be sorted
+     * @param toIndex   the index of the last element, exclusive, to be sorted
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
+     * @implNote The sorting algorithm is a parallel sort-merge that breaks the
+     * array into sub-arrays that are themselves sorted and then merged. When
+     * the sub-array length reaches a minimum granularity, the sub-array is
+     * sorted using the appropriate {@link Arrays#sort(short[]) Arrays.sort}
+     * method. If the length of the specified array is less than the minimum
+     * granularity, then it is sorted using the appropriate {@link
+     * Arrays#sort(short[]) Arrays.sort} method. The algorithm requires a working
+     * space no greater than the size of the specified range of the original
+     * array. The {@link ForkJoinPool#commonPool() ForkJoin common pool} is
+     * used to execute any parallel tasks.
+     * @since 1.8
+     */
+    // 将数组指定范围的元素按升序排列
+    public static void parallelSort(short[] a, int fromIndex, int toIndex) {
+        rangeCheck(a.length, fromIndex, toIndex);
+        
+        int n = toIndex - fromIndex;
+        int p = ForkJoinPool.getCommonPoolParallelism();
+        
+        // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
+        if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
+            // 执行非并行排序
+            DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
+        } else {
+            int g = n / (p << 2);
+            int gran = (g<=MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
+            new ArraysParallelSortHelpers.FJShort.Sorter(null, a, new short[n], fromIndex, n, 0, gran).invoke();
+        }
+    }
+    
+    /**
+     * Sorts the specified range of the array into ascending numerical order.
+     * The range to be sorted extends from the index {@code fromIndex},
+     * inclusive, to the index {@code toIndex}, exclusive. If
+     * {@code fromIndex == toIndex}, the range to be sorted is empty.
+     *
+     * @param a         the array to be sorted
+     * @param fromIndex the index of the first element, inclusive, to be sorted
+     * @param toIndex   the index of the last element, exclusive, to be sorted
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
+     * @implNote The sorting algorithm is a parallel sort-merge that breaks the
+     * array into sub-arrays that are themselves sorted and then merged. When
+     * the sub-array length reaches a minimum granularity, the sub-array is
+     * sorted using the appropriate {@link Arrays#sort(int[]) Arrays.sort}
+     * method. If the length of the specified array is less than the minimum
+     * granularity, then it is sorted using the appropriate {@link
+     * Arrays#sort(int[]) Arrays.sort} method. The algorithm requires a working
+     * space no greater than the size of the specified range of the original
+     * array. The {@link ForkJoinPool#commonPool() ForkJoin common pool} is
+     * used to execute any parallel tasks.
+     * @since 1.8
+     */
+    // 将数组指定范围的元素按升序排列
+    public static void parallelSort(int[] a, int fromIndex, int toIndex) {
+        rangeCheck(a.length, fromIndex, toIndex);
+    
+        int n = toIndex - fromIndex;
+        int p = ForkJoinPool.getCommonPoolParallelism();
+    
+        // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
+        if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
+            // 执行非并行排序
+            DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
+        } else {
+            int g = n / (p << 2);
+            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
+            new ArraysParallelSortHelpers.FJInt.Sorter(null, a, new int[n], fromIndex, n, 0, gran).invoke();
+        }
+    }
+    
+    /**
+     * Sorts the specified range of the array into ascending numerical order.
+     * The range to be sorted extends from the index {@code fromIndex},
+     * inclusive, to the index {@code toIndex}, exclusive. If
+     * {@code fromIndex == toIndex}, the range to be sorted is empty.
+     *
+     * @param a         the array to be sorted
+     * @param fromIndex the index of the first element, inclusive, to be sorted
+     * @param toIndex   the index of the last element, exclusive, to be sorted
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
+     * @implNote The sorting algorithm is a parallel sort-merge that breaks the
+     * array into sub-arrays that are themselves sorted and then merged. When
+     * the sub-array length reaches a minimum granularity, the sub-array is
+     * sorted using the appropriate {@link Arrays#sort(long[]) Arrays.sort}
+     * method. If the length of the specified array is less than the minimum
+     * granularity, then it is sorted using the appropriate {@link
+     * Arrays#sort(long[]) Arrays.sort} method. The algorithm requires a working
+     * space no greater than the size of the specified range of the original
+     * array. The {@link ForkJoinPool#commonPool() ForkJoin common pool} is
+     * used to execute any parallel tasks.
+     * @since 1.8
+     */
+    // 将数组指定范围的元素按升序排列
+    public static void parallelSort(long[] a, int fromIndex, int toIndex) {
+        rangeCheck(a.length, fromIndex, toIndex);
+        
+        int n = toIndex - fromIndex;
+        int p = ForkJoinPool.getCommonPoolParallelism();
+        
+        // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
+        if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
+            // 执行非并行排序
+            DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
+        } else {
+            int g = n / (p << 2);
+            int gran = (g<=MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
+            new ArraysParallelSortHelpers.FJLong.Sorter(null, a, new long[n], fromIndex, n, 0, gran).invoke();
+        }
+    }
+    
+    /**
+     * Sorts the specified range of the array into ascending numerical order.
+     * The range to be sorted extends from the index {@code fromIndex},
+     * inclusive, to the index {@code toIndex}, exclusive. If
+     * {@code fromIndex == toIndex}, the range to be sorted is empty.
+     *
+     * <p>The {@code <} relation does not provide a total order on all float
+     * values: {@code -0.0f == 0.0f} is {@code true} and a {@code Float.NaN}
+     * value compares neither less than, greater than, nor equal to any value,
+     * even itself. This method uses the total order imposed by the method
+     * {@link Float#compareTo}: {@code -0.0f} is treated as less than value
+     * {@code 0.0f} and {@code Float.NaN} is considered greater than any
+     * other value and all {@code Float.NaN} values are considered equal.
+     *
+     * @param a         the array to be sorted
+     * @param fromIndex the index of the first element, inclusive, to be sorted
+     * @param toIndex   the index of the last element, exclusive, to be sorted
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
+     * @implNote The sorting algorithm is a parallel sort-merge that breaks the
+     * array into sub-arrays that are themselves sorted and then merged. When
+     * the sub-array length reaches a minimum granularity, the sub-array is
+     * sorted using the appropriate {@link Arrays#sort(float[]) Arrays.sort}
+     * method. If the length of the specified array is less than the minimum
+     * granularity, then it is sorted using the appropriate {@link
+     * Arrays#sort(float[]) Arrays.sort} method. The algorithm requires a working
+     * space no greater than the size of the specified range of the original
+     * array. The {@link ForkJoinPool#commonPool() ForkJoin common pool} is
+     * used to execute any parallel tasks.
+     * @since 1.8
+     */
+    // 将数组指定范围的元素按升序排列
+    public static void parallelSort(float[] a, int fromIndex, int toIndex) {
+        rangeCheck(a.length, fromIndex, toIndex);
+        
+        int n = toIndex - fromIndex;
+        int p = ForkJoinPool.getCommonPoolParallelism();
+        
+        // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
+        if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
+            // 执行非并行排序
+            DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
+        } else {
+            int g = n / (p << 2);
+            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
+            new ArraysParallelSortHelpers.FJFloat.Sorter(null, a, new float[n], fromIndex, n, 0, gran).invoke();
+        }
+    }
+    
+    /**
+     * Sorts the specified range of the array into ascending numerical order.
+     * The range to be sorted extends from the index {@code fromIndex},
+     * inclusive, to the index {@code toIndex}, exclusive. If
+     * {@code fromIndex == toIndex}, the range to be sorted is empty.
+     *
+     * <p>The {@code <} relation does not provide a total order on all double
+     * values: {@code -0.0d == 0.0d} is {@code true} and a {@code Double.NaN}
+     * value compares neither less than, greater than, nor equal to any value,
+     * even itself. This method uses the total order imposed by the method
+     * {@link Double#compareTo}: {@code -0.0d} is treated as less than value
+     * {@code 0.0d} and {@code Double.NaN} is considered greater than any
+     * other value and all {@code Double.NaN} values are considered equal.
+     *
+     * @param a         the array to be sorted
+     * @param fromIndex the index of the first element, inclusive, to be sorted
+     * @param toIndex   the index of the last element, exclusive, to be sorted
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > a.length}
+     * @implNote The sorting algorithm is a parallel sort-merge that breaks the
+     * array into sub-arrays that are themselves sorted and then merged. When
+     * the sub-array length reaches a minimum granularity, the sub-array is
+     * sorted using the appropriate {@link Arrays#sort(double[]) Arrays.sort}
+     * method. If the length of the specified array is less than the minimum
+     * granularity, then it is sorted using the appropriate {@link
+     * Arrays#sort(double[]) Arrays.sort} method. The algorithm requires a working
+     * space no greater than the size of the specified range of the original
+     * array. The {@link ForkJoinPool#commonPool() ForkJoin common pool} is
+     * used to execute any parallel tasks.
+     * @since 1.8
+     */
+    // 将数组指定范围的元素按升序排列
+    public static void parallelSort(double[] a, int fromIndex, int toIndex) {
+        rangeCheck(a.length, fromIndex, toIndex);
+        
+        int n = toIndex - fromIndex;
+        int p = ForkJoinPool.getCommonPoolParallelism();
+        
+        // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
+        if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
+            // 执行非并行排序
+            DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
+        } else {
+            int g = n / (p << 2);
+            int gran = (g<=MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
+            new ArraysParallelSortHelpers.FJDouble.Sorter(null, a, new double[n], fromIndex, n, 0, gran).invoke();
         }
     }
     
@@ -1652,6 +1761,7 @@ public class Arrays {
      * used to execute any parallel tasks.
      * @since 1.8
      */
+    // 将数组指定范围的元素按升序排列
     @SuppressWarnings("unchecked")
     public static <T extends Comparable<? super T>> void parallelSort(T[] a, int fromIndex, int toIndex) {
         rangeCheck(a.length, fromIndex, toIndex);
@@ -1668,59 +1778,6 @@ public class Arrays {
             int g = n / (p << 2);
             int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
             new ArraysParallelSortHelpers.FJObject.Sorter<>(null, a, w, fromIndex, n, 0, gran, NaturalOrder.INSTANCE).invoke();
-        }
-    }
-    
-    /**
-     * Sorts the specified array of objects according to the order induced by
-     * the specified comparator.  All elements in the array must be
-     * <i>mutually comparable</i> by the specified comparator (that is,
-     * {@code c.compare(e1, e2)} must not throw a {@code ClassCastException}
-     * for any elements {@code e1} and {@code e2} in the array).
-     *
-     * <p>This sort is guaranteed to be <i>stable</i>:  equal elements will
-     * not be reordered as a result of the sort.
-     *
-     * @param <T> the class of the objects to be sorted
-     * @param a   the array to be sorted
-     * @param cmp the comparator to determine the order of the array.  A
-     *            {@code null} value indicates that the elements'
-     *            {@linkplain Comparable natural ordering} should be used.
-     *
-     * @throws ClassCastException       if the array contains elements that are
-     *                                  not <i>mutually comparable</i> using the specified comparator
-     * @throws IllegalArgumentException (optional) if the comparator is
-     *                                  found to violate the {@link java.util.Comparator} contract
-     * @implNote The sorting algorithm is a parallel sort-merge that breaks the
-     * array into sub-arrays that are themselves sorted and then merged. When
-     * the sub-array length reaches a minimum granularity, the sub-array is
-     * sorted using the appropriate {@link Arrays#sort(Object[]) Arrays.sort}
-     * method. If the length of the specified array is less than the minimum
-     * granularity, then it is sorted using the appropriate {@link
-     * Arrays#sort(Object[]) Arrays.sort} method. The algorithm requires a
-     * working space no greater than the size of the original array. The
-     * {@link ForkJoinPool#commonPool() ForkJoin common pool} is used to
-     * execute any parallel tasks.
-     * @since 1.8
-     */
-    @SuppressWarnings("unchecked")
-    public static <T> void parallelSort(T[] a, Comparator<? super T> cmp) {
-        if(cmp == null) {
-            cmp = NaturalOrder.INSTANCE;
-        }
-        
-        int n = a.length;
-        int p = ForkJoinPool.getCommonPoolParallelism();
-        
-        // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
-        if(n <= MIN_ARRAY_SORT_GRAN || p == 1){
-            // 执行非并行排序
-            TimSort.sort(a, 0, n, cmp, null, 0, 0);
-        } else {
-            T[] w = (T[]) Array.newInstance(a.getClass().getComponentType(), n);
-            int g = n / (p << 2);
-            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
-            new ArraysParallelSortHelpers.FJObject.Sorter<>(null, a, w, 0, n, 0, gran, cmp).invoke();
         }
     }
     
@@ -1766,6 +1823,7 @@ public class Arrays {
      * used to execute any parallel tasks.
      * @since 1.8
      */
+    // 将数组指定范围的元素按升序排列，需要借助外部比较器
     @SuppressWarnings("unchecked")
     public static <T> void parallelSort(T[] a, int fromIndex, int toIndex, Comparator<? super T> cmp) {
         rangeCheck(a.length, fromIndex, toIndex);
@@ -1815,9 +1873,235 @@ public class Arrays {
      * that this guarantees that the return value will be &gt;= 0 if
      * and only if the key is found.
      */
+    // 返回指定的key在数组中的位置
     public static int binarySearch(char[] a, char key) {
         return binarySearch0(a, 0, a.length, key);
     }
+    
+    /**
+     * Searches the specified array of bytes for the specified value using the
+     * binary search algorithm.  The array must be sorted (as
+     * by the {@link #sort(byte[])} method) prior to making this call.  If it
+     * is not sorted, the results are undefined.  If the array contains
+     * multiple elements with the specified value, there is no guarantee which
+     * one will be found.
+     *
+     * @param a   the array to be searched
+     * @param key the value to be searched for
+     *
+     * @return index of the search key, if it is contained in the array;
+     * otherwise, <code>(-(<i>insertion point</i>) - 1)</code>.  The
+     * <i>insertion point</i> is defined as the point at which the
+     * key would be inserted into the array: the index of the first
+     * element greater than the key, or {@code a.length} if all
+     * elements in the array are less than the specified key.  Note
+     * that this guarantees that the return value will be &gt;= 0 if
+     * and only if the key is found.
+     */
+    // 返回指定的key在数组中的位置
+    public static int binarySearch(byte[] a, byte key) {
+        return binarySearch0(a, 0, a.length, key);
+    }
+    
+    /**
+     * Searches the specified array of shorts for the specified value using
+     * the binary search algorithm.  The array must be sorted
+     * (as by the {@link #sort(short[])} method) prior to making this call.  If
+     * it is not sorted, the results are undefined.  If the array contains
+     * multiple elements with the specified value, there is no guarantee which
+     * one will be found.
+     *
+     * @param a   the array to be searched
+     * @param key the value to be searched for
+     *
+     * @return index of the search key, if it is contained in the array;
+     * otherwise, <code>(-(<i>insertion point</i>) - 1)</code>.  The
+     * <i>insertion point</i> is defined as the point at which the
+     * key would be inserted into the array: the index of the first
+     * element greater than the key, or {@code a.length} if all
+     * elements in the array are less than the specified key.  Note
+     * that this guarantees that the return value will be &gt;= 0 if
+     * and only if the key is found.
+     */
+    // 返回指定的key在数组中的位置
+    public static int binarySearch(short[] a, short key) {
+        return binarySearch0(a, 0, a.length, key);
+    }
+    
+    /**
+     * Searches the specified array of ints for the specified value using the
+     * binary search algorithm.  The array must be sorted (as
+     * by the {@link #sort(int[])} method) prior to making this call.  If it
+     * is not sorted, the results are undefined.  If the array contains
+     * multiple elements with the specified value, there is no guarantee which
+     * one will be found.
+     *
+     * @param a   the array to be searched
+     * @param key the value to be searched for
+     *
+     * @return index of the search key, if it is contained in the array;
+     * otherwise, <code>(-(<i>insertion point</i>) - 1)</code>.  The
+     * <i>insertion point</i> is defined as the point at which the
+     * key would be inserted into the array: the index of the first
+     * element greater than the key, or {@code a.length} if all
+     * elements in the array are less than the specified key.  Note
+     * that this guarantees that the return value will be &gt;= 0 if
+     * and only if the key is found.
+     */
+    // 返回指定的key在数组中的位置
+    public static int binarySearch(int[] a, int key) {
+        return binarySearch0(a, 0, a.length, key);
+    }
+    
+    /**
+     * Searches the specified array of longs for the specified value using the
+     * binary search algorithm.  The array must be sorted (as
+     * by the {@link #sort(long[])} method) prior to making this call.  If it
+     * is not sorted, the results are undefined.  If the array contains
+     * multiple elements with the specified value, there is no guarantee which
+     * one will be found.
+     *
+     * @param a   the array to be searched
+     * @param key the value to be searched for
+     *
+     * @return index of the search key, if it is contained in the array;
+     * otherwise, <code>(-(<i>insertion point</i>) - 1)</code>.  The
+     * <i>insertion point</i> is defined as the point at which the
+     * key would be inserted into the array: the index of the first
+     * element greater than the key, or {@code a.length} if all
+     * elements in the array are less than the specified key.  Note
+     * that this guarantees that the return value will be &gt;= 0 if
+     * and only if the key is found.
+     */
+    // 返回指定的key在数组中的位置
+    public static int binarySearch(long[] a, long key) {
+        return binarySearch0(a, 0, a.length, key);
+    }
+    
+    /**
+     * Searches the specified array of floats for the specified value using
+     * the binary search algorithm. The array must be sorted
+     * (as by the {@link #sort(float[])} method) prior to making this call. If
+     * it is not sorted, the results are undefined. If the array contains
+     * multiple elements with the specified value, there is no guarantee which
+     * one will be found. This method considers all NaN values to be
+     * equivalent and equal.
+     *
+     * @param a   the array to be searched
+     * @param key the value to be searched for
+     *
+     * @return index of the search key, if it is contained in the array;
+     * otherwise, <code>(-(<i>insertion point</i>) - 1)</code>. The
+     * <i>insertion point</i> is defined as the point at which the
+     * key would be inserted into the array: the index of the first
+     * element greater than the key, or {@code a.length} if all
+     * elements in the array are less than the specified key. Note
+     * that this guarantees that the return value will be &gt;= 0 if
+     * and only if the key is found.
+     */
+    // 返回指定的key在数组中的位置
+    public static int binarySearch(float[] a, float key) {
+        return binarySearch0(a, 0, a.length, key);
+    }
+    
+    /**
+     * Searches the specified array of doubles for the specified value using
+     * the binary search algorithm.  The array must be sorted
+     * (as by the {@link #sort(double[])} method) prior to making this call.
+     * If it is not sorted, the results are undefined.  If the array contains
+     * multiple elements with the specified value, there is no guarantee which
+     * one will be found.  This method considers all NaN values to be
+     * equivalent and equal.
+     *
+     * @param a   the array to be searched
+     * @param key the value to be searched for
+     *
+     * @return index of the search key, if it is contained in the array;
+     * otherwise, <code>(-(<i>insertion point</i>) - 1)</code>.  The
+     * <i>insertion point</i> is defined as the point at which the
+     * key would be inserted into the array: the index of the first
+     * element greater than the key, or {@code a.length} if all
+     * elements in the array are less than the specified key.  Note
+     * that this guarantees that the return value will be &gt;= 0 if
+     * and only if the key is found.
+     */
+    // 返回指定的key在数组中的位置
+    public static int binarySearch(double[] a, double key) {
+        return binarySearch0(a, 0, a.length, key);
+    }
+    
+    /**
+     * Searches the specified array for the specified object using the binary
+     * search algorithm. The array must be sorted into ascending order
+     * according to the
+     * {@linkplain Comparable natural ordering}
+     * of its elements (as by the
+     * {@link #sort(Object[])} method) prior to making this call.
+     * If it is not sorted, the results are undefined.
+     * (If the array contains elements that are not mutually comparable (for
+     * example, strings and integers), it <i>cannot</i> be sorted according
+     * to the natural ordering of its elements, hence results are undefined.)
+     * If the array contains multiple
+     * elements equal to the specified object, there is no guarantee which
+     * one will be found.
+     *
+     * @param a   the array to be searched
+     * @param key the value to be searched for
+     *
+     * @return index of the search key, if it is contained in the array;
+     * otherwise, <code>(-(<i>insertion point</i>) - 1)</code>.  The
+     * <i>insertion point</i> is defined as the point at which the
+     * key would be inserted into the array: the index of the first
+     * element greater than the key, or {@code a.length} if all
+     * elements in the array are less than the specified key.  Note
+     * that this guarantees that the return value will be &gt;= 0 if
+     * and only if the key is found.
+     *
+     * @throws ClassCastException if the search key is not comparable to the
+     *                            elements of the array.
+     */
+    // 返回指定的key在数组中的位置
+    public static int binarySearch(Object[] a, Object key) {
+        return binarySearch0(a, 0, a.length, key);
+    }
+    
+    /**
+     * Searches the specified array for the specified object using the binary
+     * search algorithm.  The array must be sorted into ascending order
+     * according to the specified comparator (as by the
+     * {@link #sort(Object[], Comparator) sort(T[], Comparator)}
+     * method) prior to making this call.  If it is
+     * not sorted, the results are undefined.
+     * If the array contains multiple
+     * elements equal to the specified object, there is no guarantee which one
+     * will be found.
+     *
+     * @param <T> the class of the objects in the array
+     * @param a   the array to be searched
+     * @param key the value to be searched for
+     * @param c   the comparator by which the array is ordered.  A
+     *            {@code null} value indicates that the elements'
+     *            {@linkplain Comparable natural ordering} should be used.
+     *
+     * @return index of the search key, if it is contained in the array;
+     * otherwise, <code>(-(<i>insertion point</i>) - 1)</code>.  The
+     * <i>insertion point</i> is defined as the point at which the
+     * key would be inserted into the array: the index of the first
+     * element greater than the key, or {@code a.length} if all
+     * elements in the array are less than the specified key.  Note
+     * that this guarantees that the return value will be &gt;= 0 if
+     * and only if the key is found.
+     *
+     * @throws ClassCastException if the array contains elements that are not
+     *                            <i>mutually comparable</i> using the specified comparator,
+     *                            or the search key is not comparable to the
+     *                            elements of the array using this comparator.
+     */
+    // 返回指定的key在数组中的位置，需要借助外部比较器
+    public static <T> int binarySearch(T[] a, T key, Comparator<? super T> c) {
+        return binarySearch0(a, 0, a.length, key, c);
+    }
+    
     
     /**
      * Searches a range of
@@ -1851,33 +2135,10 @@ public class Arrays {
      * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0 or toIndex > a.length}
      * @since 1.6
      */
+    // 在数组指定范围内查找key，如果找到，返回其位置
     public static int binarySearch(char[] a, int fromIndex, int toIndex, char key) {
         rangeCheck(a.length, fromIndex, toIndex);
         return binarySearch0(a, fromIndex, toIndex, key);
-    }
-    
-    /**
-     * Searches the specified array of bytes for the specified value using the
-     * binary search algorithm.  The array must be sorted (as
-     * by the {@link #sort(byte[])} method) prior to making this call.  If it
-     * is not sorted, the results are undefined.  If the array contains
-     * multiple elements with the specified value, there is no guarantee which
-     * one will be found.
-     *
-     * @param a   the array to be searched
-     * @param key the value to be searched for
-     *
-     * @return index of the search key, if it is contained in the array;
-     * otherwise, <code>(-(<i>insertion point</i>) - 1)</code>.  The
-     * <i>insertion point</i> is defined as the point at which the
-     * key would be inserted into the array: the index of the first
-     * element greater than the key, or {@code a.length} if all
-     * elements in the array are less than the specified key.  Note
-     * that this guarantees that the return value will be &gt;= 0 if
-     * and only if the key is found.
-     */
-    public static int binarySearch(byte[] a, byte key) {
-        return binarySearch0(a, 0, a.length, key);
     }
     
     /**
@@ -1912,33 +2173,10 @@ public class Arrays {
      * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0 or toIndex > a.length}
      * @since 1.6
      */
+    // 在数组指定范围内查找key，如果找到，返回其位置
     public static int binarySearch(byte[] a, int fromIndex, int toIndex, byte key) {
         rangeCheck(a.length, fromIndex, toIndex);
         return binarySearch0(a, fromIndex, toIndex, key);
-    }
-    
-    /**
-     * Searches the specified array of shorts for the specified value using
-     * the binary search algorithm.  The array must be sorted
-     * (as by the {@link #sort(short[])} method) prior to making this call.  If
-     * it is not sorted, the results are undefined.  If the array contains
-     * multiple elements with the specified value, there is no guarantee which
-     * one will be found.
-     *
-     * @param a   the array to be searched
-     * @param key the value to be searched for
-     *
-     * @return index of the search key, if it is contained in the array;
-     * otherwise, <code>(-(<i>insertion point</i>) - 1)</code>.  The
-     * <i>insertion point</i> is defined as the point at which the
-     * key would be inserted into the array: the index of the first
-     * element greater than the key, or {@code a.length} if all
-     * elements in the array are less than the specified key.  Note
-     * that this guarantees that the return value will be &gt;= 0 if
-     * and only if the key is found.
-     */
-    public static int binarySearch(short[] a, short key) {
-        return binarySearch0(a, 0, a.length, key);
     }
     
     /**
@@ -1973,33 +2211,10 @@ public class Arrays {
      * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0 or toIndex > a.length}
      * @since 1.6
      */
+    // 在数组指定范围内查找key，如果找到，返回其位置
     public static int binarySearch(short[] a, int fromIndex, int toIndex, short key) {
         rangeCheck(a.length, fromIndex, toIndex);
         return binarySearch0(a, fromIndex, toIndex, key);
-    }
-    
-    /**
-     * Searches the specified array of ints for the specified value using the
-     * binary search algorithm.  The array must be sorted (as
-     * by the {@link #sort(int[])} method) prior to making this call.  If it
-     * is not sorted, the results are undefined.  If the array contains
-     * multiple elements with the specified value, there is no guarantee which
-     * one will be found.
-     *
-     * @param a   the array to be searched
-     * @param key the value to be searched for
-     *
-     * @return index of the search key, if it is contained in the array;
-     * otherwise, <code>(-(<i>insertion point</i>) - 1)</code>.  The
-     * <i>insertion point</i> is defined as the point at which the
-     * key would be inserted into the array: the index of the first
-     * element greater than the key, or {@code a.length} if all
-     * elements in the array are less than the specified key.  Note
-     * that this guarantees that the return value will be &gt;= 0 if
-     * and only if the key is found.
-     */
-    public static int binarySearch(int[] a, int key) {
-        return binarySearch0(a, 0, a.length, key);
     }
     
     /**
@@ -2034,33 +2249,10 @@ public class Arrays {
      * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0 or toIndex > a.length}
      * @since 1.6
      */
+    // 在数组指定范围内查找key，如果找到，返回其位置
     public static int binarySearch(int[] a, int fromIndex, int toIndex, int key) {
         rangeCheck(a.length, fromIndex, toIndex);
         return binarySearch0(a, fromIndex, toIndex, key);
-    }
-    
-    /**
-     * Searches the specified array of longs for the specified value using the
-     * binary search algorithm.  The array must be sorted (as
-     * by the {@link #sort(long[])} method) prior to making this call.  If it
-     * is not sorted, the results are undefined.  If the array contains
-     * multiple elements with the specified value, there is no guarantee which
-     * one will be found.
-     *
-     * @param a   the array to be searched
-     * @param key the value to be searched for
-     *
-     * @return index of the search key, if it is contained in the array;
-     * otherwise, <code>(-(<i>insertion point</i>) - 1)</code>.  The
-     * <i>insertion point</i> is defined as the point at which the
-     * key would be inserted into the array: the index of the first
-     * element greater than the key, or {@code a.length} if all
-     * elements in the array are less than the specified key.  Note
-     * that this guarantees that the return value will be &gt;= 0 if
-     * and only if the key is found.
-     */
-    public static int binarySearch(long[] a, long key) {
-        return binarySearch0(a, 0, a.length, key);
     }
     
     /**
@@ -2095,34 +2287,10 @@ public class Arrays {
      * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0 or toIndex > a.length}
      * @since 1.6
      */
+    // 在数组指定范围内查找key，如果找到，返回其位置
     public static int binarySearch(long[] a, int fromIndex, int toIndex, long key) {
         rangeCheck(a.length, fromIndex, toIndex);
         return binarySearch0(a, fromIndex, toIndex, key);
-    }
-    
-    /**
-     * Searches the specified array of floats for the specified value using
-     * the binary search algorithm. The array must be sorted
-     * (as by the {@link #sort(float[])} method) prior to making this call. If
-     * it is not sorted, the results are undefined. If the array contains
-     * multiple elements with the specified value, there is no guarantee which
-     * one will be found. This method considers all NaN values to be
-     * equivalent and equal.
-     *
-     * @param a   the array to be searched
-     * @param key the value to be searched for
-     *
-     * @return index of the search key, if it is contained in the array;
-     * otherwise, <code>(-(<i>insertion point</i>) - 1)</code>. The
-     * <i>insertion point</i> is defined as the point at which the
-     * key would be inserted into the array: the index of the first
-     * element greater than the key, or {@code a.length} if all
-     * elements in the array are less than the specified key. Note
-     * that this guarantees that the return value will be &gt;= 0 if
-     * and only if the key is found.
-     */
-    public static int binarySearch(float[] a, float key) {
-        return binarySearch0(a, 0, a.length, key);
     }
     
     /**
@@ -2158,34 +2326,10 @@ public class Arrays {
      * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0 or toIndex > a.length}
      * @since 1.6
      */
+    // 在数组指定范围内查找key，如果找到，返回其位置
     public static int binarySearch(float[] a, int fromIndex, int toIndex, float key) {
         rangeCheck(a.length, fromIndex, toIndex);
         return binarySearch0(a, fromIndex, toIndex, key);
-    }
-    
-    /**
-     * Searches the specified array of doubles for the specified value using
-     * the binary search algorithm.  The array must be sorted
-     * (as by the {@link #sort(double[])} method) prior to making this call.
-     * If it is not sorted, the results are undefined.  If the array contains
-     * multiple elements with the specified value, there is no guarantee which
-     * one will be found.  This method considers all NaN values to be
-     * equivalent and equal.
-     *
-     * @param a   the array to be searched
-     * @param key the value to be searched for
-     *
-     * @return index of the search key, if it is contained in the array;
-     * otherwise, <code>(-(<i>insertion point</i>) - 1)</code>.  The
-     * <i>insertion point</i> is defined as the point at which the
-     * key would be inserted into the array: the index of the first
-     * element greater than the key, or {@code a.length} if all
-     * elements in the array are less than the specified key.  Note
-     * that this guarantees that the return value will be &gt;= 0 if
-     * and only if the key is found.
-     */
-    public static int binarySearch(double[] a, double key) {
-        return binarySearch0(a, 0, a.length, key);
     }
     
     /**
@@ -2221,43 +2365,10 @@ public class Arrays {
      * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0 or toIndex > a.length}
      * @since 1.6
      */
+    // 在数组指定范围内查找key，如果找到，返回其位置
     public static int binarySearch(double[] a, int fromIndex, int toIndex, double key) {
         rangeCheck(a.length, fromIndex, toIndex);
         return binarySearch0(a, fromIndex, toIndex, key);
-    }
-    
-    /**
-     * Searches the specified array for the specified object using the binary
-     * search algorithm. The array must be sorted into ascending order
-     * according to the
-     * {@linkplain Comparable natural ordering}
-     * of its elements (as by the
-     * {@link #sort(Object[])} method) prior to making this call.
-     * If it is not sorted, the results are undefined.
-     * (If the array contains elements that are not mutually comparable (for
-     * example, strings and integers), it <i>cannot</i> be sorted according
-     * to the natural ordering of its elements, hence results are undefined.)
-     * If the array contains multiple
-     * elements equal to the specified object, there is no guarantee which
-     * one will be found.
-     *
-     * @param a   the array to be searched
-     * @param key the value to be searched for
-     *
-     * @return index of the search key, if it is contained in the array;
-     * otherwise, <code>(-(<i>insertion point</i>) - 1)</code>.  The
-     * <i>insertion point</i> is defined as the point at which the
-     * key would be inserted into the array: the index of the first
-     * element greater than the key, or {@code a.length} if all
-     * elements in the array are less than the specified key.  Note
-     * that this guarantees that the return value will be &gt;= 0 if
-     * and only if the key is found.
-     *
-     * @throws ClassCastException if the search key is not comparable to the
-     *                            elements of the array.
-     */
-    public static int binarySearch(Object[] a, Object key) {
-        return binarySearch0(a, 0, a.length, key);
     }
     
     /**
@@ -2300,45 +2411,10 @@ public class Arrays {
      * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0 or toIndex > a.length}
      * @since 1.6
      */
+    // 在数组指定范围内查找key，如果找到，返回其位置
     public static int binarySearch(Object[] a, int fromIndex, int toIndex, Object key) {
         rangeCheck(a.length, fromIndex, toIndex);
         return binarySearch0(a, fromIndex, toIndex, key);
-    }
-    
-    /**
-     * Searches the specified array for the specified object using the binary
-     * search algorithm.  The array must be sorted into ascending order
-     * according to the specified comparator (as by the
-     * {@link #sort(Object[], Comparator) sort(T[], Comparator)}
-     * method) prior to making this call.  If it is
-     * not sorted, the results are undefined.
-     * If the array contains multiple
-     * elements equal to the specified object, there is no guarantee which one
-     * will be found.
-     *
-     * @param <T> the class of the objects in the array
-     * @param a   the array to be searched
-     * @param key the value to be searched for
-     * @param c   the comparator by which the array is ordered.  A
-     *            {@code null} value indicates that the elements'
-     *            {@linkplain Comparable natural ordering} should be used.
-     *
-     * @return index of the search key, if it is contained in the array;
-     * otherwise, <code>(-(<i>insertion point</i>) - 1)</code>.  The
-     * <i>insertion point</i> is defined as the point at which the
-     * key would be inserted into the array: the index of the first
-     * element greater than the key, or {@code a.length} if all
-     * elements in the array are less than the specified key.  Note
-     * that this guarantees that the return value will be &gt;= 0 if
-     * and only if the key is found.
-     *
-     * @throws ClassCastException if the array contains elements that are not
-     *                            <i>mutually comparable</i> using the specified comparator,
-     *                            or the search key is not comparable to the
-     *                            elements of the array using this comparator.
-     */
-    public static <T> int binarySearch(T[] a, T key, Comparator<? super T> c) {
-        return binarySearch0(a, 0, a.length, key, c);
     }
     
     /**
@@ -2383,6 +2459,7 @@ public class Arrays {
      * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0 or toIndex > a.length}
      * @since 1.6
      */
+    // 在数组指定范围内查找key，如果找到，返回其位置，需要借助外部比较器
     public static <T> int binarySearch(T[] a, int fromIndex, int toIndex, T key, Comparator<? super T> c) {
         rangeCheck(a.length, fromIndex, toIndex);
         return binarySearch0(a, fromIndex, toIndex, key, c);
@@ -2395,154 +2472,15 @@ public class Arrays {
     /*▼ 填充 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
-     * Assigns the specified byte value to each element of the specified array
-     * of bytes.
+     * Assigns the specified boolean value to each element of the specified
+     * array of booleans.
      *
      * @param a   the array to be filled
      * @param val the value to be stored in all elements of the array
      */
     // 用val填充数组a
-    public static void fill(byte[] a, byte val) {
-        for(int i = 0, len = a.length; i < len; i++)
-            a[i] = val;
-    }
-    
-    /**
-     * Assigns the specified byte value to each element of the specified
-     * range of the specified array of bytes.  The range to be filled
-     * extends from index {@code fromIndex}, inclusive, to index
-     * {@code toIndex}, exclusive.  (If {@code fromIndex==toIndex}, the
-     * range to be filled is empty.)
-     *
-     * @param a         the array to be filled
-     * @param fromIndex the index of the first element (inclusive) to be
-     *                  filled with the specified value
-     * @param toIndex   the index of the last element (exclusive) to be
-     *                  filled with the specified value
-     * @param val       the value to be stored in all elements of the array
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or
-     *                                        {@code toIndex > a.length}
-     */
-    // 用val填充数组a[fromIndex, toIndex)
-    public static void fill(byte[] a, int fromIndex, int toIndex, byte val) {
-        rangeCheck(a.length, fromIndex, toIndex);
-        for(int i = fromIndex; i < toIndex; i++)
-            a[i] = val;
-    }
-    
-    /**
-     * Assigns the specified short value to each element of the specified array
-     * of shorts.
-     *
-     * @param a   the array to be filled
-     * @param val the value to be stored in all elements of the array
-     */
-    // 用val填充数组a
-    public static void fill(short[] a, short val) {
-        for(int i = 0, len = a.length; i < len; i++)
-            a[i] = val;
-    }
-    
-    /**
-     * Assigns the specified short value to each element of the specified
-     * range of the specified array of shorts.  The range to be filled
-     * extends from index {@code fromIndex}, inclusive, to index
-     * {@code toIndex}, exclusive.  (If {@code fromIndex==toIndex}, the
-     * range to be filled is empty.)
-     *
-     * @param a         the array to be filled
-     * @param fromIndex the index of the first element (inclusive) to be
-     *                  filled with the specified value
-     * @param toIndex   the index of the last element (exclusive) to be
-     *                  filled with the specified value
-     * @param val       the value to be stored in all elements of the array
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or
-     *                                        {@code toIndex > a.length}
-     */
-    // 用val填充数组a[fromIndex, toIndex)
-    public static void fill(short[] a, int fromIndex, int toIndex, short val) {
-        rangeCheck(a.length, fromIndex, toIndex);
-        for(int i = fromIndex; i < toIndex; i++)
-            a[i] = val;
-    }
-    
-    /**
-     * Assigns the specified int value to each element of the specified array
-     * of ints.
-     *
-     * @param a   the array to be filled
-     * @param val the value to be stored in all elements of the array
-     */
-    // 用val填充数组a
-    public static void fill(int[] a, int val) {
-        for(int i = 0, len = a.length; i < len; i++)
-            a[i] = val;
-    }
-    
-    /**
-     * Assigns the specified int value to each element of the specified
-     * range of the specified array of ints.  The range to be filled
-     * extends from index {@code fromIndex}, inclusive, to index
-     * {@code toIndex}, exclusive.  (If {@code fromIndex==toIndex}, the
-     * range to be filled is empty.)
-     *
-     * @param a         the array to be filled
-     * @param fromIndex the index of the first element (inclusive) to be
-     *                  filled with the specified value
-     * @param toIndex   the index of the last element (exclusive) to be
-     *                  filled with the specified value
-     * @param val       the value to be stored in all elements of the array
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or
-     *                                        {@code toIndex > a.length}
-     */
-    // 用val填充数组a[fromIndex, toIndex)
-    public static void fill(int[] a, int fromIndex, int toIndex, int val) {
-        rangeCheck(a.length, fromIndex, toIndex);
-        for(int i = fromIndex; i < toIndex; i++)
-            a[i] = val;
-    }
-    
-    /**
-     * Assigns the specified long value to each element of the specified array
-     * of longs.
-     *
-     * @param a   the array to be filled
-     * @param val the value to be stored in all elements of the array
-     */
-    // 用val填充数组a
-    public static void fill(long[] a, long val) {
-        for(int i = 0, len = a.length; i < len; i++)
-            a[i] = val;
-    }
-    
-    /**
-     * Assigns the specified long value to each element of the specified
-     * range of the specified array of longs.  The range to be filled
-     * extends from index {@code fromIndex}, inclusive, to index
-     * {@code toIndex}, exclusive.  (If {@code fromIndex==toIndex}, the
-     * range to be filled is empty.)
-     *
-     * @param a         the array to be filled
-     * @param fromIndex the index of the first element (inclusive) to be
-     *                  filled with the specified value
-     * @param toIndex   the index of the last element (exclusive) to be
-     *                  filled with the specified value
-     * @param val       the value to be stored in all elements of the array
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or
-     *                                        {@code toIndex > a.length}
-     */
-    // 用val填充数组a[fromIndex, toIndex)
-    public static void fill(long[] a, int fromIndex, int toIndex, long val) {
-        rangeCheck(a.length, fromIndex, toIndex);
-        for(int i = fromIndex; i < toIndex; i++)
+    public static void fill(boolean[] a, boolean val) {
+        for(int i = 0, len = a.length; i<len; i++)
             a[i] = val;
     }
     
@@ -2555,7 +2493,127 @@ public class Arrays {
      */
     // 用val填充数组a
     public static void fill(char[] a, char val) {
-        for(int i = 0, len = a.length; i < len; i++)
+        for(int i = 0, len = a.length; i<len; i++)
+            a[i] = val;
+    }
+    
+    /**
+     * Assigns the specified byte value to each element of the specified array
+     * of bytes.
+     *
+     * @param a   the array to be filled
+     * @param val the value to be stored in all elements of the array
+     */
+    // 用val填充数组a
+    public static void fill(byte[] a, byte val) {
+        for(int i = 0, len = a.length; i<len; i++)
+            a[i] = val;
+    }
+    
+    /**
+     * Assigns the specified short value to each element of the specified array
+     * of shorts.
+     *
+     * @param a   the array to be filled
+     * @param val the value to be stored in all elements of the array
+     */
+    // 用val填充数组a
+    public static void fill(short[] a, short val) {
+        for(int i = 0, len = a.length; i<len; i++)
+            a[i] = val;
+    }
+    
+    /**
+     * Assigns the specified int value to each element of the specified array
+     * of ints.
+     *
+     * @param a   the array to be filled
+     * @param val the value to be stored in all elements of the array
+     */
+    // 用val填充数组a
+    public static void fill(int[] a, int val) {
+        for(int i = 0, len = a.length; i<len; i++)
+            a[i] = val;
+    }
+    
+    /**
+     * Assigns the specified long value to each element of the specified array
+     * of longs.
+     *
+     * @param a   the array to be filled
+     * @param val the value to be stored in all elements of the array
+     */
+    // 用val填充数组a
+    public static void fill(long[] a, long val) {
+        for(int i = 0, len = a.length; i<len; i++)
+            a[i] = val;
+    }
+    
+    /**
+     * Assigns the specified float value to each element of the specified array
+     * of floats.
+     *
+     * @param a   the array to be filled
+     * @param val the value to be stored in all elements of the array
+     */
+    // 用val填充数组a
+    public static void fill(float[] a, float val) {
+        for(int i = 0, len = a.length; i<len; i++)
+            a[i] = val;
+    }
+    
+    /**
+     * Assigns the specified double value to each element of the specified
+     * array of doubles.
+     *
+     * @param a   the array to be filled
+     * @param val the value to be stored in all elements of the array
+     */
+    // 用val填充数组a
+    public static void fill(double[] a, double val) {
+        for(int i = 0, len = a.length; i<len; i++)
+            a[i] = val;
+    }
+    
+    /**
+     * Assigns the specified Object reference to each element of the specified
+     * array of Objects.
+     *
+     * @param a   the array to be filled
+     * @param val the value to be stored in all elements of the array
+     *
+     * @throws ArrayStoreException if the specified value is not of a
+     *                             runtime type that can be stored in the specified array
+     */
+    // 用val填充数组a
+    public static void fill(Object[] a, Object val) {
+        for(int i = 0, len = a.length; i<len; i++)
+            a[i] = val;
+    }
+    
+    
+    /**
+     * Assigns the specified boolean value to each element of the specified
+     * range of the specified array of booleans.  The range to be filled
+     * extends from index {@code fromIndex}, inclusive, to index
+     * {@code toIndex}, exclusive.  (If {@code fromIndex==toIndex}, the
+     * range to be filled is empty.)
+     *
+     * @param a         the array to be filled
+     * @param fromIndex the index of the first element (inclusive) to be
+     *                  filled with the specified value
+     * @param toIndex   the index of the last element (exclusive) to be
+     *                  filled with the specified value
+     * @param val       the value to be stored in all elements of the array
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or
+     *                                        {@code toIndex > a.length}
+     */
+    // 用val填充数组a[fromIndex, toIndex)
+    public static void fill(boolean[] a, int fromIndex, int toIndex, boolean val) {
+        rangeCheck(a.length, fromIndex, toIndex);
+        for(int i = fromIndex; i<toIndex; i++)
             a[i] = val;
     }
     
@@ -2580,20 +2638,107 @@ public class Arrays {
     // 用val填充数组a[fromIndex, toIndex)
     public static void fill(char[] a, int fromIndex, int toIndex, char val) {
         rangeCheck(a.length, fromIndex, toIndex);
-        for(int i = fromIndex; i < toIndex; i++)
+        for(int i = fromIndex; i<toIndex; i++)
             a[i] = val;
     }
     
     /**
-     * Assigns the specified float value to each element of the specified array
-     * of floats.
+     * Assigns the specified byte value to each element of the specified
+     * range of the specified array of bytes.  The range to be filled
+     * extends from index {@code fromIndex}, inclusive, to index
+     * {@code toIndex}, exclusive.  (If {@code fromIndex==toIndex}, the
+     * range to be filled is empty.)
      *
-     * @param a   the array to be filled
-     * @param val the value to be stored in all elements of the array
+     * @param a         the array to be filled
+     * @param fromIndex the index of the first element (inclusive) to be
+     *                  filled with the specified value
+     * @param toIndex   the index of the last element (exclusive) to be
+     *                  filled with the specified value
+     * @param val       the value to be stored in all elements of the array
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or
+     *                                        {@code toIndex > a.length}
      */
-    // 用val填充数组a
-    public static void fill(float[] a, float val) {
-        for(int i = 0, len = a.length; i < len; i++)
+    // 用val填充数组a[fromIndex, toIndex)
+    public static void fill(byte[] a, int fromIndex, int toIndex, byte val) {
+        rangeCheck(a.length, fromIndex, toIndex);
+        for(int i = fromIndex; i<toIndex; i++)
+            a[i] = val;
+    }
+    
+    /**
+     * Assigns the specified short value to each element of the specified
+     * range of the specified array of shorts.  The range to be filled
+     * extends from index {@code fromIndex}, inclusive, to index
+     * {@code toIndex}, exclusive.  (If {@code fromIndex==toIndex}, the
+     * range to be filled is empty.)
+     *
+     * @param a         the array to be filled
+     * @param fromIndex the index of the first element (inclusive) to be
+     *                  filled with the specified value
+     * @param toIndex   the index of the last element (exclusive) to be
+     *                  filled with the specified value
+     * @param val       the value to be stored in all elements of the array
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or
+     *                                        {@code toIndex > a.length}
+     */
+    // 用val填充数组a[fromIndex, toIndex)
+    public static void fill(short[] a, int fromIndex, int toIndex, short val) {
+        rangeCheck(a.length, fromIndex, toIndex);
+        for(int i = fromIndex; i<toIndex; i++)
+            a[i] = val;
+    }
+    
+    /**
+     * Assigns the specified int value to each element of the specified
+     * range of the specified array of ints.  The range to be filled
+     * extends from index {@code fromIndex}, inclusive, to index
+     * {@code toIndex}, exclusive.  (If {@code fromIndex==toIndex}, the
+     * range to be filled is empty.)
+     *
+     * @param a         the array to be filled
+     * @param fromIndex the index of the first element (inclusive) to be
+     *                  filled with the specified value
+     * @param toIndex   the index of the last element (exclusive) to be
+     *                  filled with the specified value
+     * @param val       the value to be stored in all elements of the array
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or
+     *                                        {@code toIndex > a.length}
+     */
+    // 用val填充数组a[fromIndex, toIndex)
+    public static void fill(int[] a, int fromIndex, int toIndex, int val) {
+        rangeCheck(a.length, fromIndex, toIndex);
+        for(int i = fromIndex; i<toIndex; i++)
+            a[i] = val;
+    }
+    
+    /**
+     * Assigns the specified long value to each element of the specified
+     * range of the specified array of longs.  The range to be filled
+     * extends from index {@code fromIndex}, inclusive, to index
+     * {@code toIndex}, exclusive.  (If {@code fromIndex==toIndex}, the
+     * range to be filled is empty.)
+     *
+     * @param a         the array to be filled
+     * @param fromIndex the index of the first element (inclusive) to be
+     *                  filled with the specified value
+     * @param toIndex   the index of the last element (exclusive) to be
+     *                  filled with the specified value
+     * @param val       the value to be stored in all elements of the array
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or
+     *                                        {@code toIndex > a.length}
+     */
+    // 用val填充数组a[fromIndex, toIndex)
+    public static void fill(long[] a, int fromIndex, int toIndex, long val) {
+        rangeCheck(a.length, fromIndex, toIndex);
+        for(int i = fromIndex; i<toIndex; i++)
             a[i] = val;
     }
     
@@ -2618,20 +2763,7 @@ public class Arrays {
     // 用val填充数组a[fromIndex, toIndex)
     public static void fill(float[] a, int fromIndex, int toIndex, float val) {
         rangeCheck(a.length, fromIndex, toIndex);
-        for(int i = fromIndex; i < toIndex; i++)
-            a[i] = val;
-    }
-    
-    /**
-     * Assigns the specified double value to each element of the specified
-     * array of doubles.
-     *
-     * @param a   the array to be filled
-     * @param val the value to be stored in all elements of the array
-     */
-    // 用val填充数组a
-    public static void fill(double[] a, double val) {
-        for(int i = 0, len = a.length; i < len; i++)
+        for(int i = fromIndex; i<toIndex; i++)
             a[i] = val;
     }
     
@@ -2656,61 +2788,7 @@ public class Arrays {
     // 用val填充数组a[fromIndex, toIndex)
     public static void fill(double[] a, int fromIndex, int toIndex, double val) {
         rangeCheck(a.length, fromIndex, toIndex);
-        for(int i = fromIndex; i < toIndex; i++)
-            a[i] = val;
-    }
-    
-    /**
-     * Assigns the specified boolean value to each element of the specified
-     * array of booleans.
-     *
-     * @param a   the array to be filled
-     * @param val the value to be stored in all elements of the array
-     */
-    // 用val填充数组a
-    public static void fill(boolean[] a, boolean val) {
-        for(int i = 0, len = a.length; i < len; i++)
-            a[i] = val;
-    }
-    
-    /**
-     * Assigns the specified boolean value to each element of the specified
-     * range of the specified array of booleans.  The range to be filled
-     * extends from index {@code fromIndex}, inclusive, to index
-     * {@code toIndex}, exclusive.  (If {@code fromIndex==toIndex}, the
-     * range to be filled is empty.)
-     *
-     * @param a         the array to be filled
-     * @param fromIndex the index of the first element (inclusive) to be
-     *                  filled with the specified value
-     * @param toIndex   the index of the last element (exclusive) to be
-     *                  filled with the specified value
-     * @param val       the value to be stored in all elements of the array
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or
-     *                                        {@code toIndex > a.length}
-     */
-    // 用val填充数组a[fromIndex, toIndex)
-    public static void fill(boolean[] a, int fromIndex, int toIndex, boolean val) {
-        rangeCheck(a.length, fromIndex, toIndex);
-        for(int i = fromIndex; i < toIndex; i++)
-            a[i] = val;
-    }
-    
-    /**
-     * Assigns the specified Object reference to each element of the specified
-     * array of Objects.
-     *
-     * @param a   the array to be filled
-     * @param val the value to be stored in all elements of the array
-     *
-     * @throws ArrayStoreException if the specified value is not of a
-     *                             runtime type that can be stored in the specified array
-     */
-    // 用val填充数组a
-    public static void fill(Object[] a, Object val) {
-        for(int i = 0, len = a.length; i < len; i++)
+        for(int i = fromIndex; i<toIndex; i++)
             a[i] = val;
     }
     
@@ -2766,7 +2844,10 @@ public class Arrays {
      * @throws NullPointerException       if {@code original} is null
      * @since 1.6
      */
-    // 截取original中newLength个char值
+    /*
+     * 创建容量为newLength(可能大于original的容量)的新数组，
+     * 并将数组original中最多newLength个元素拷贝到新数组后返回。
+     */
     public static char[] copyOf(char[] original, int newLength) {
         char[] copy = new char[newLength];
         System.arraycopy(original, 0, copy, 0, Math.min(original.length, newLength));
@@ -2792,7 +2873,10 @@ public class Arrays {
      * @throws NullPointerException       if {@code original} is null
      * @since 1.6
      */
-    // 截取original中newLength个byte值
+    /*
+     * 创建容量为newLength(可能大于original的容量)的新数组，
+     * 并将数组original中最多newLength个元素拷贝到新数组后返回。
+     */
     public static byte[] copyOf(byte[] original, int newLength) {
         byte[] copy = new byte[newLength];
         System.arraycopy(original, 0, copy, 0, Math.min(original.length, newLength));
@@ -2818,7 +2902,10 @@ public class Arrays {
      * @throws NullPointerException       if {@code original} is null
      * @since 1.6
      */
-    // 截取original中newLength个short值
+    /*
+     * 创建容量为newLength(可能大于original的容量)的新数组，
+     * 并将数组original中最多newLength个元素拷贝到新数组后返回。
+     */
     public static short[] copyOf(short[] original, int newLength) {
         short[] copy = new short[newLength];
         System.arraycopy(original, 0, copy, 0, Math.min(original.length, newLength));
@@ -2844,7 +2931,10 @@ public class Arrays {
      * @throws NullPointerException       if {@code original} is null
      * @since 1.6
      */
-    // 截取original中newLength个int值
+    /*
+     * 创建容量为newLength(可能大于original的容量)的新数组，
+     * 并将数组original中最多newLength个元素拷贝到新数组后返回。
+     */
     public static int[] copyOf(int[] original, int newLength) {
         int[] copy = new int[newLength];
         System.arraycopy(original, 0, copy, 0, Math.min(original.length, newLength));
@@ -2870,7 +2960,10 @@ public class Arrays {
      * @throws NullPointerException       if {@code original} is null
      * @since 1.6
      */
-    // 截取original中newLength个long值
+    /*
+     * 创建容量为newLength(可能大于original的容量)的新数组，
+     * 并将数组original中最多newLength个元素拷贝到新数组后返回。
+     */
     public static long[] copyOf(long[] original, int newLength) {
         long[] copy = new long[newLength];
         System.arraycopy(original, 0, copy, 0, Math.min(original.length, newLength));
@@ -2896,7 +2989,10 @@ public class Arrays {
      * @throws NullPointerException       if {@code original} is null
      * @since 1.6
      */
-    // 截取original中newLength个float值
+    /*
+     * 创建容量为newLength(可能大于original的容量)的新数组，
+     * 并将数组original中最多newLength个元素拷贝到新数组后返回。
+     */
     public static float[] copyOf(float[] original, int newLength) {
         float[] copy = new float[newLength];
         System.arraycopy(original, 0, copy, 0, Math.min(original.length, newLength));
@@ -2922,7 +3018,10 @@ public class Arrays {
      * @throws NullPointerException       if {@code original} is null
      * @since 1.6
      */
-    // 截取original中newLength个double值
+    /*
+     * 创建容量为newLength(可能大于original的容量)的新数组，
+     * 并将数组original中最多newLength个元素拷贝到新数组后返回。
+     */
     public static double[] copyOf(double[] original, int newLength) {
         double[] copy = new double[newLength];
         System.arraycopy(original, 0, copy, 0, Math.min(original.length, newLength));
@@ -2948,7 +3047,10 @@ public class Arrays {
      * @throws NullPointerException       if {@code original} is null
      * @since 1.6
      */
-    // 截取original中newLength个boolean值
+    /*
+     * 创建容量为newLength(可能大于original的容量)的新数组，
+     * 并将数组original中最多newLength个元素拷贝到新数组后返回。
+     */
     public static boolean[] copyOf(boolean[] original, int newLength) {
         boolean[] copy = new boolean[newLength];
         System.arraycopy(original, 0, copy, 0, Math.min(original.length, newLength));
@@ -2976,7 +3078,10 @@ public class Arrays {
      * @throws NullPointerException       if {@code original} is null
      * @since 1.6
      */
-    // 截取original中newLength个T值
+    /*
+     * 创建容量为newLength(可能大于original的容量)的新数组，
+     * 并将数组original中最多newLength个元素拷贝到新数组后返回。
+     */
     @SuppressWarnings("unchecked")
     public static <T> T[] copyOf(T[] original, int newLength) {
         return (T[]) copyOf(original, newLength, original.getClass());
@@ -3008,22 +3113,19 @@ public class Arrays {
      *                                    an array of class {@code newType}
      * @since 1.6
      */
-    // 截取original中newLength个U值，并强转为T值，然后返回
+    /*
+     * 创建容量为newLength(可能大于original的容量)的新数组，
+     * 并将数组original中最多newLength个元素拷贝到新数组后返回。
+     * 注：如果U和T类型不同，则会发生类型转换
+     */
     @HotSpotIntrinsicCandidate
     public static <T, U> T[] copyOf(U[] original, int newLength, Class<? extends T[]> newType) {
         @SuppressWarnings("unchecked")
-        T[] copy = ((Object) newType == (Object) Object[].class)
-            ? (T[]) new Object[newLength]
-            : (T[]) Array.newInstance(newType.getComponentType(), newLength);
+        T[] copy = ((Object) newType == (Object) Object[].class) ? (T[]) new Object[newLength] : (T[]) Array.newInstance(newType.getComponentType(), newLength);
         System.arraycopy(original, 0, copy, 0, Math.min(original.length, newLength));
         return copy;
     }
     
-    /*▲ 复制 ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
-    /*▼ 范围复制 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Copies the specified range of the specified array into a new array.
@@ -3053,11 +3155,16 @@ public class Arrays {
      * @throws NullPointerException           if {@code original} is null
      * @since 1.6
      */
-    // 截取original中[from, from+to)范围内的char值
+    /*
+     * 创建容量为to-from(可能大于original的容量)的新数组，
+     * 并将数组original[from, from+to)范围内的元素拷贝到新数组后返回。
+     * 如果from+to超出了数组original的上限，则只截取存在的那部分元素。
+     */
     public static char[] copyOfRange(char[] original, int from, int to) {
         int newLength = to - from;
-        if(newLength < 0)
+        if(newLength<0) {
             throw new IllegalArgumentException(from + " > " + to);
+        }
         char[] copy = new char[newLength];
         System.arraycopy(original, from, copy, 0, Math.min(original.length - from, newLength));
         return copy;
@@ -3091,11 +3198,16 @@ public class Arrays {
      * @throws NullPointerException           if {@code original} is null
      * @since 1.6
      */
-    // 截取original中[from, from+to)范围内的byte值
+    /*
+     * 创建容量为to-from(可能大于original的容量)的新数组，
+     * 并将数组original[from, from+to)范围内的元素拷贝到新数组后返回。
+     * 如果from+to超出了数组original的上限，则只截取存在的那部分元素。
+     */
     public static byte[] copyOfRange(byte[] original, int from, int to) {
         int newLength = to - from;
-        if(newLength < 0)
+        if(newLength<0) {
             throw new IllegalArgumentException(from + " > " + to);
+        }
         byte[] copy = new byte[newLength];
         System.arraycopy(original, from, copy, 0, Math.min(original.length - from, newLength));
         return copy;
@@ -3129,11 +3241,16 @@ public class Arrays {
      * @throws NullPointerException           if {@code original} is null
      * @since 1.6
      */
-    // 截取original中[from, from+to)范围内的short值
+    /*
+     * 创建容量为to-from(可能大于original的容量)的新数组，
+     * 并将数组original[from, from+to)范围内的元素拷贝到新数组后返回。
+     * 如果from+to超出了数组original的上限，则只截取存在的那部分元素。
+     */
     public static short[] copyOfRange(short[] original, int from, int to) {
         int newLength = to - from;
-        if(newLength < 0)
+        if(newLength<0) {
             throw new IllegalArgumentException(from + " > " + to);
+        }
         short[] copy = new short[newLength];
         System.arraycopy(original, from, copy, 0, Math.min(original.length - from, newLength));
         return copy;
@@ -3167,11 +3284,16 @@ public class Arrays {
      * @throws NullPointerException           if {@code original} is null
      * @since 1.6
      */
-    // 截取original中[from, from+to)范围内的int值
+    /*
+     * 创建容量为to-from(可能大于original的容量)的新数组，
+     * 并将数组original[from, from+to)范围内的元素拷贝到新数组后返回。
+     * 如果from+to超出了数组original的上限，则只截取存在的那部分元素。
+     */
     public static int[] copyOfRange(int[] original, int from, int to) {
         int newLength = to - from;
-        if(newLength < 0)
+        if(newLength<0) {
             throw new IllegalArgumentException(from + " > " + to);
+        }
         int[] copy = new int[newLength];
         System.arraycopy(original, from, copy, 0, Math.min(original.length - from, newLength));
         return copy;
@@ -3205,11 +3327,16 @@ public class Arrays {
      * @throws NullPointerException           if {@code original} is null
      * @since 1.6
      */
-    // 截取original中[from, from+to)范围内的long值
+    /*
+     * 创建容量为to-from(可能大于original的容量)的新数组，
+     * 并将数组original[from, from+to)范围内的元素拷贝到新数组后返回。
+     * 如果from+to超出了数组original的上限，则只截取存在的那部分元素。
+     */
     public static long[] copyOfRange(long[] original, int from, int to) {
         int newLength = to - from;
-        if(newLength < 0)
+        if(newLength<0) {
             throw new IllegalArgumentException(from + " > " + to);
+        }
         long[] copy = new long[newLength];
         System.arraycopy(original, from, copy, 0, Math.min(original.length - from, newLength));
         return copy;
@@ -3243,11 +3370,16 @@ public class Arrays {
      * @throws NullPointerException           if {@code original} is null
      * @since 1.6
      */
-    // 截取original中[from, from+to)范围内的float值
+    /*
+     * 创建容量为to-from(可能大于original的容量)的新数组，
+     * 并将数组original[from, from+to)范围内的元素拷贝到新数组后返回。
+     * 如果from+to超出了数组original的上限，则只截取存在的那部分元素。
+     */
     public static float[] copyOfRange(float[] original, int from, int to) {
         int newLength = to - from;
-        if(newLength < 0)
+        if(newLength<0) {
             throw new IllegalArgumentException(from + " > " + to);
+        }
         float[] copy = new float[newLength];
         System.arraycopy(original, from, copy, 0, Math.min(original.length - from, newLength));
         return copy;
@@ -3281,11 +3413,16 @@ public class Arrays {
      * @throws NullPointerException           if {@code original} is null
      * @since 1.6
      */
-    // 截取original中[from, from+to)范围内的double值
+    /*
+     * 创建容量为to-from(可能大于original的容量)的新数组，
+     * 并将数组original[from, from+to)范围内的元素拷贝到新数组后返回。
+     * 如果from+to超出了数组original的上限，则只截取存在的那部分元素。
+     */
     public static double[] copyOfRange(double[] original, int from, int to) {
         int newLength = to - from;
-        if(newLength < 0)
+        if(newLength<0) {
             throw new IllegalArgumentException(from + " > " + to);
+        }
         double[] copy = new double[newLength];
         System.arraycopy(original, from, copy, 0, Math.min(original.length - from, newLength));
         return copy;
@@ -3319,11 +3456,16 @@ public class Arrays {
      * @throws NullPointerException           if {@code original} is null
      * @since 1.6
      */
-    // 截取original中[from, from+to)范围内的boolean值
+    /*
+     * 创建容量为to-from(可能大于original的容量)的新数组，
+     * 并将数组original[from, from+to)范围内的元素拷贝到新数组后返回。
+     * 如果from+to超出了数组original的上限，则只截取存在的那部分元素。
+     */
     public static boolean[] copyOfRange(boolean[] original, int from, int to) {
         int newLength = to - from;
-        if(newLength < 0)
+        if(newLength<0) {
             throw new IllegalArgumentException(from + " > " + to);
+        }
         boolean[] copy = new boolean[newLength];
         System.arraycopy(original, from, copy, 0, Math.min(original.length - from, newLength));
         return copy;
@@ -3360,7 +3502,11 @@ public class Arrays {
      * @throws NullPointerException           if {@code original} is null
      * @since 1.6
      */
-    // 截取original中[from, from+to)范围内的T值
+    /*
+     * 创建容量为to-from(可能大于original的容量)的新数组，
+     * 并将数组original[from, from+to)范围内的元素拷贝到新数组后返回。
+     * 如果from+to超出了数组original的上限，则只截取存在的那部分元素。
+     */
     @SuppressWarnings("unchecked")
     public static <T> T[] copyOfRange(T[] original, int from, int to) {
         return copyOfRange(original, from, to, (Class<? extends T[]>) original.getClass());
@@ -3401,23 +3547,61 @@ public class Arrays {
      *                                        an array of class {@code newType}.
      * @since 1.6
      */
-    // 截取original中[from, from+to)范围内的U值，并强转为T值，然后返回
+    /*
+     * 创建容量为to-from(可能大于original的容量)的新数组，
+     * 并将数组original[from, from+to)范围内的元素拷贝到新数组后返回。
+     * 如果from+to超出了数组original的上限，则只截取存在的那部分元素。
+     *
+     * 注：如果U和T类型不同，则会发生类型转换
+     */
     @HotSpotIntrinsicCandidate
     public static <T, U> T[] copyOfRange(U[] original, int from, int to, Class<? extends T[]> newType) {
         int newLength = to - from;
-        if(newLength < 0)
+        if(newLength<0) {
             throw new IllegalArgumentException(from + " > " + to);
+        }
         @SuppressWarnings("unchecked")
         T[] copy = ((Object) newType == (Object) Object[].class) ? (T[]) new Object[newLength] : (T[]) Array.newInstance(newType.getComponentType(), newLength);
         System.arraycopy(original, from, copy, 0, Math.min(original.length - from, newLength));
         return copy;
     }
     
-    /*▲ 范围复制 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 复制 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 判等 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns {@code true} if the two specified arrays of booleans are
+     * <i>equal</i> to one another.  Two arrays are considered equal if both
+     * arrays contain the same number of elements, and all corresponding pairs
+     * of elements in the two arrays are equal.  In other words, two arrays
+     * are equal if they contain the same elements in the same order.  Also,
+     * two array references are considered equal if both are {@code null}.
+     *
+     * @param a  one array to be tested for equality
+     * @param a2 the other array to be tested for equality
+     *
+     * @return {@code true} if the two arrays are equal
+     */
+    // 判断两个数组中的元素是否相等
+    public static boolean equals(boolean[] a, boolean[] a2) {
+        if(a == a2) {
+            return true;
+        }
+        
+        if(a == null || a2 == null) {
+            return false;
+        }
+        
+        int length = a.length;
+        if(a2.length != length) {
+            return false;
+        }
+        
+        return ArraysSupport.mismatch(a, a2, length)<0;
+    }
     
     /**
      * Returns {@code true} if the two specified arrays of chars are
@@ -3432,18 +3616,359 @@ public class Arrays {
      *
      * @return {@code true} if the two arrays are equal
      */
+    // 判断两个数组中的元素是否相等
     @HotSpotIntrinsicCandidate
     public static boolean equals(char[] a, char[] a2) {
-        if(a == a2)
+        if(a == a2) {
             return true;
-        if(a == null || a2 == null)
+        }
+    
+        if(a == null || a2 == null) {
             return false;
+        }
+    
+        int length = a.length;
+        if(a2.length != length) {
+            return false;
+        }
+    
+        return ArraysSupport.mismatch(a, a2, length)<0;
+    }
+    
+    /**
+     * Returns {@code true} if the two specified arrays of bytes are
+     * <i>equal</i> to one another.  Two arrays are considered equal if both
+     * arrays contain the same number of elements, and all corresponding pairs
+     * of elements in the two arrays are equal.  In other words, two arrays
+     * are equal if they contain the same elements in the same order.  Also,
+     * two array references are considered equal if both are {@code null}.
+     *
+     * @param a  one array to be tested for equality
+     * @param a2 the other array to be tested for equality
+     *
+     * @return {@code true} if the two arrays are equal
+     */
+    // 判断两个数组中的元素是否相等
+    @HotSpotIntrinsicCandidate
+    public static boolean equals(byte[] a, byte[] a2) {
+        if(a == a2) {
+            return true;
+        }
+        
+        if(a == null || a2 == null) {
+            return false;
+        }
         
         int length = a.length;
-        if(a2.length != length)
+        if(a2.length != length) {
             return false;
+        }
         
-        return ArraysSupport.mismatch(a, a2, length) < 0;
+        // 比较两个数组内容是否相同
+        return ArraysSupport.mismatch(a, a2, length)<0;
+    }
+    
+    /**
+     * Returns {@code true} if the two specified arrays of shorts are
+     * <i>equal</i> to one another.  Two arrays are considered equal if both
+     * arrays contain the same number of elements, and all corresponding pairs
+     * of elements in the two arrays are equal.  In other words, two arrays
+     * are equal if they contain the same elements in the same order.  Also,
+     * two array references are considered equal if both are {@code null}.
+     *
+     * @param a  one array to be tested for equality
+     * @param a2 the other array to be tested for equality
+     *
+     * @return {@code true} if the two arrays are equal
+     */
+    // 判断两个数组中的元素是否相等
+    public static boolean equals(short[] a, short a2[]) {
+        if(a == a2) {
+            return true;
+        }
+        
+        if(a == null || a2 == null) {
+            return false;
+        }
+        
+        int length = a.length;
+        if(a2.length != length) {
+            return false;
+        }
+        
+        return ArraysSupport.mismatch(a, a2, length)<0;
+    }
+    
+    /**
+     * Returns {@code true} if the two specified arrays of ints are
+     * <i>equal</i> to one another.  Two arrays are considered equal if both
+     * arrays contain the same number of elements, and all corresponding pairs
+     * of elements in the two arrays are equal.  In other words, two arrays
+     * are equal if they contain the same elements in the same order.  Also,
+     * two array references are considered equal if both are {@code null}.
+     *
+     * @param a  one array to be tested for equality
+     * @param a2 the other array to be tested for equality
+     *
+     * @return {@code true} if the two arrays are equal
+     */
+    // 判断两个数组中的元素是否相等
+    public static boolean equals(int[] a, int[] a2) {
+        if(a == a2) {
+            return true;
+        }
+        
+        if(a == null || a2 == null) {
+            return false;
+        }
+        
+        int length = a.length;
+        if(a2.length != length) {
+            return false;
+        }
+        
+        return ArraysSupport.mismatch(a, a2, length)<0;
+    }
+    
+    /**
+     * Returns {@code true} if the two specified arrays of longs are
+     * <i>equal</i> to one another.  Two arrays are considered equal if both
+     * arrays contain the same number of elements, and all corresponding pairs
+     * of elements in the two arrays are equal.  In other words, two arrays
+     * are equal if they contain the same elements in the same order.  Also,
+     * two array references are considered equal if both are {@code null}.
+     *
+     * @param a  one array to be tested for equality
+     * @param a2 the other array to be tested for equality
+     *
+     * @return {@code true} if the two arrays are equal
+     */
+    // 判断两个数组中的元素是否相等
+    public static boolean equals(long[] a, long[] a2) {
+        if(a == a2) {
+            return true;
+        }
+        
+        if(a == null || a2 == null) {
+            return false;
+        }
+        
+        int length = a.length;
+        if(a2.length != length) {
+            return false;
+        }
+        
+        return ArraysSupport.mismatch(a, a2, length)<0;
+    }
+    
+    /**
+     * Returns {@code true} if the two specified arrays of floats are
+     * <i>equal</i> to one another.  Two arrays are considered equal if both
+     * arrays contain the same number of elements, and all corresponding pairs
+     * of elements in the two arrays are equal.  In other words, two arrays
+     * are equal if they contain the same elements in the same order.  Also,
+     * two array references are considered equal if both are {@code null}.
+     *
+     * Two floats {@code f1} and {@code f2} are considered equal if:
+     * <pre>    {@code new Float(f1).equals(new Float(f2))}</pre>
+     * (Unlike the {@code ==} operator, this method considers
+     * {@code NaN} equals to itself, and 0.0f unequal to -0.0f.)
+     *
+     * @param a  one array to be tested for equality
+     * @param a2 the other array to be tested for equality
+     *
+     * @return {@code true} if the two arrays are equal
+     *
+     * @see Float#equals(Object)
+     */
+    // 判断两个数组中的元素是否相等
+    public static boolean equals(float[] a, float[] a2) {
+        if(a == a2) {
+            return true;
+        }
+        
+        if(a == null || a2 == null) {
+            return false;
+        }
+        
+        int length = a.length;
+        if(a2.length != length) {
+            return false;
+        }
+        
+        return ArraysSupport.mismatch(a, a2, length)<0;
+    }
+    
+    /**
+     * Returns {@code true} if the two specified arrays of doubles are
+     * <i>equal</i> to one another.  Two arrays are considered equal if both
+     * arrays contain the same number of elements, and all corresponding pairs
+     * of elements in the two arrays are equal.  In other words, two arrays
+     * are equal if they contain the same elements in the same order.  Also,
+     * two array references are considered equal if both are {@code null}.
+     *
+     * Two doubles {@code d1} and {@code d2} are considered equal if:
+     * <pre>    {@code new Double(d1).equals(new Double(d2))}</pre>
+     * (Unlike the {@code ==} operator, this method considers
+     * {@code NaN} equals to itself, and 0.0d unequal to -0.0d.)
+     *
+     * @param a  one array to be tested for equality
+     * @param a2 the other array to be tested for equality
+     *
+     * @return {@code true} if the two arrays are equal
+     *
+     * @see Double#equals(Object)
+     */
+    // 判断两个数组中的元素是否相等
+    public static boolean equals(double[] a, double[] a2) {
+        if(a == a2) {
+            return true;
+        }
+        
+        if(a == null || a2 == null) {
+            return false;
+        }
+        
+        int length = a.length;
+        if(a2.length != length) {
+            return false;
+        }
+        
+        return ArraysSupport.mismatch(a, a2, length)<0;
+    }
+    
+    /**
+     * Returns {@code true} if the two specified arrays of Objects are
+     * <i>equal</i> to one another.  The two arrays are considered equal if
+     * both arrays contain the same number of elements, and all corresponding
+     * pairs of elements in the two arrays are equal.  Two objects {@code e1}
+     * and {@code e2} are considered <i>equal</i> if
+     * {@code Objects.equals(e1, e2)}.
+     * In other words, the two arrays are equal if
+     * they contain the same elements in the same order.  Also, two array
+     * references are considered equal if both are {@code null}.
+     *
+     * @param a  one array to be tested for equality
+     * @param a2 the other array to be tested for equality
+     *
+     * @return {@code true} if the two arrays are equal
+     */
+    // 判断两个数组中的元素是否相等（会调用对象的equals方法）
+    public static boolean equals(Object[] a, Object[] a2) {
+        if(a == a2) {
+            return true;
+        }
+        
+        if(a == null || a2 == null) {
+            return false;
+        }
+        
+        int length = a.length;
+        if(a2.length != length) {
+            return false;
+        }
+        
+        for(int i = 0; i<length; i++) {
+            if(!Objects.equals(a[i], a2[i])) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Returns {@code true} if the two specified arrays of Objects are
+     * <i>equal</i> to one another.
+     *
+     * <p>Two arrays are considered equal if both arrays contain the same number
+     * of elements, and all corresponding pairs of elements in the two arrays
+     * are equal.  In other words, the two arrays are equal if they contain the
+     * same elements in the same order.  Also, two array references are
+     * considered equal if both are {@code null}.
+     *
+     * <p>Two objects {@code e1} and {@code e2} are considered <i>equal</i> if,
+     * given the specified comparator, {@code cmp.compare(e1, e2) == 0}.
+     *
+     * @param a   one array to be tested for equality
+     * @param a2  the other array to be tested for equality
+     * @param cmp the comparator to compare array elements
+     * @param <T> the type of array elements
+     *
+     * @return {@code true} if the two arrays are equal
+     *
+     * @throws NullPointerException if the comparator is {@code null}
+     * @since 9
+     */
+    // 判断两个数组中的元素是否相等（会借助外部比较器cmp）
+    public static <T> boolean equals(T[] a, T[] a2, Comparator<? super T> cmp) {
+        Objects.requireNonNull(cmp);
+        if(a == a2) {
+            return true;
+        }
+        
+        if(a == null || a2 == null) {
+            return false;
+        }
+        
+        int length = a.length;
+        if(a2.length != length) {
+            return false;
+        }
+        
+        for(int i = 0; i<length; i++) {
+            if(cmp.compare(a[i], a2[i]) != 0) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    
+    /**
+     * Returns true if the two specified arrays of booleans, over the specified
+     * ranges, are <i>equal</i> to one another.
+     *
+     * <p>Two arrays are considered equal if the number of elements covered by
+     * each range is the same, and all corresponding pairs of elements over the
+     * specified ranges in the two arrays are equal.  In other words, two arrays
+     * are equal if they contain, over the specified ranges, the same elements
+     * in the same order.
+     *
+     * @param a          the first array to be tested for equality
+     * @param aFromIndex the index (inclusive) of the first element in the
+     *                   first array to be tested
+     * @param aToIndex   the index (exclusive) of the last element in the
+     *                   first array to be tested
+     * @param b          the second array to be tested fro equality
+     * @param bFromIndex the index (inclusive) of the first element in the
+     *                   second array to be tested
+     * @param bToIndex   the index (exclusive) of the last element in the
+     *                   second array to be tested
+     *
+     * @return {@code true} if the two arrays, over the specified ranges, are
+     * equal
+     *
+     * @throws IllegalArgumentException       if {@code aFromIndex > aToIndex} or
+     *                                        if {@code bFromIndex > bToIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code aFromIndex < 0 or aToIndex > a.length} or
+     *                                        if {@code bFromIndex < 0 or bToIndex > b.length}
+     * @throws NullPointerException           if either array is {@code null}
+     * @since 9
+     */
+    // 判断两个数组中指定范围的元素是否相等
+    public static boolean equals(boolean[] a, int aFromIndex, int aToIndex, boolean[] b, int bFromIndex, int bToIndex) {
+        rangeCheck(a.length, aFromIndex, aToIndex);
+        rangeCheck(b.length, bFromIndex, bToIndex);
+        
+        int aLength = aToIndex - aFromIndex;
+        int bLength = bToIndex - bFromIndex;
+        if(aLength != bLength) {
+            return false;
+        }
+        
+        return ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, aLength) < 0;
     }
     
     /**
@@ -3477,48 +4002,18 @@ public class Arrays {
      * @throws NullPointerException           if either array is {@code null}
      * @since 9
      */
+    // 判断两个数组中指定范围的元素是否相等
     public static boolean equals(char[] a, int aFromIndex, int aToIndex, char[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
         
         int aLength = aToIndex - aFromIndex;
         int bLength = bToIndex - bFromIndex;
-        if(aLength != bLength)
+        if(aLength != bLength) {
             return false;
+        }
         
         return ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, aLength) < 0;
-    }
-    
-    /**
-     * Returns {@code true} if the two specified arrays of bytes are
-     * <i>equal</i> to one another.  Two arrays are considered equal if both
-     * arrays contain the same number of elements, and all corresponding pairs
-     * of elements in the two arrays are equal.  In other words, two arrays
-     * are equal if they contain the same elements in the same order.  Also,
-     * two array references are considered equal if both are {@code null}.
-     *
-     * @param a  one array to be tested for equality
-     * @param a2 the other array to be tested for equality
-     *
-     * @return {@code true} if the two arrays are equal
-     */
-    @HotSpotIntrinsicCandidate
-    public static boolean equals(byte[] a, byte[] a2) {
-        if(a == a2) {
-            return true;
-        }
-        
-        if(a == null || a2 == null) {
-            return false;
-        }
-        
-        int length = a.length;
-        if(a2.length != length) {
-            return false;
-        }
-        
-        // 比较两个数组内容是否相同
-        return ArraysSupport.mismatch(a, a2, length) < 0;
     }
     
     /**
@@ -3552,6 +4047,7 @@ public class Arrays {
      * @throws NullPointerException           if either array is {@code null}
      * @since 9
      */
+    // 判断两个数组中指定范围的元素是否相等
     public static boolean equals(byte[] a, int aFromIndex, int aToIndex, byte[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
@@ -3562,32 +4058,6 @@ public class Arrays {
             return false;
         
         return ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, aLength) < 0;
-    }
-    
-    /**
-     * Returns {@code true} if the two specified arrays of shorts are
-     * <i>equal</i> to one another.  Two arrays are considered equal if both
-     * arrays contain the same number of elements, and all corresponding pairs
-     * of elements in the two arrays are equal.  In other words, two arrays
-     * are equal if they contain the same elements in the same order.  Also,
-     * two array references are considered equal if both are {@code null}.
-     *
-     * @param a  one array to be tested for equality
-     * @param a2 the other array to be tested for equality
-     *
-     * @return {@code true} if the two arrays are equal
-     */
-    public static boolean equals(short[] a, short a2[]) {
-        if(a == a2)
-            return true;
-        if(a == null || a2 == null)
-            return false;
-        
-        int length = a.length;
-        if(a2.length != length)
-            return false;
-        
-        return ArraysSupport.mismatch(a, a2, length) < 0;
     }
     
     /**
@@ -3621,42 +4091,18 @@ public class Arrays {
      * @throws NullPointerException           if either array is {@code null}
      * @since 9
      */
+    // 判断两个数组中指定范围的元素是否相等
     public static boolean equals(short[] a, int aFromIndex, int aToIndex, short[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
         
         int aLength = aToIndex - aFromIndex;
         int bLength = bToIndex - bFromIndex;
-        if(aLength != bLength)
+        if(aLength != bLength) {
             return false;
+        }
         
         return ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, aLength) < 0;
-    }
-    
-    /**
-     * Returns {@code true} if the two specified arrays of ints are
-     * <i>equal</i> to one another.  Two arrays are considered equal if both
-     * arrays contain the same number of elements, and all corresponding pairs
-     * of elements in the two arrays are equal.  In other words, two arrays
-     * are equal if they contain the same elements in the same order.  Also,
-     * two array references are considered equal if both are {@code null}.
-     *
-     * @param a  one array to be tested for equality
-     * @param a2 the other array to be tested for equality
-     *
-     * @return {@code true} if the two arrays are equal
-     */
-    public static boolean equals(int[] a, int[] a2) {
-        if(a == a2)
-            return true;
-        if(a == null || a2 == null)
-            return false;
-        
-        int length = a.length;
-        if(a2.length != length)
-            return false;
-        
-        return ArraysSupport.mismatch(a, a2, length) < 0;
     }
     
     /**
@@ -3690,6 +4136,7 @@ public class Arrays {
      * @throws NullPointerException           if either array is {@code null}
      * @since 9
      */
+    // 判断两个数组中指定范围的元素是否相等
     public static boolean equals(int[] a, int aFromIndex, int aToIndex, int[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
@@ -3700,32 +4147,6 @@ public class Arrays {
             return false;
         
         return ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, aLength) < 0;
-    }
-    
-    /**
-     * Returns {@code true} if the two specified arrays of longs are
-     * <i>equal</i> to one another.  Two arrays are considered equal if both
-     * arrays contain the same number of elements, and all corresponding pairs
-     * of elements in the two arrays are equal.  In other words, two arrays
-     * are equal if they contain the same elements in the same order.  Also,
-     * two array references are considered equal if both are {@code null}.
-     *
-     * @param a  one array to be tested for equality
-     * @param a2 the other array to be tested for equality
-     *
-     * @return {@code true} if the two arrays are equal
-     */
-    public static boolean equals(long[] a, long[] a2) {
-        if(a == a2)
-            return true;
-        if(a == null || a2 == null)
-            return false;
-        
-        int length = a.length;
-        if(a2.length != length)
-            return false;
-        
-        return ArraysSupport.mismatch(a, a2, length) < 0;
     }
     
     /**
@@ -3759,118 +4180,18 @@ public class Arrays {
      * @throws NullPointerException           if either array is {@code null}
      * @since 9
      */
+    // 判断两个数组中指定范围的元素是否相等
     public static boolean equals(long[] a, int aFromIndex, int aToIndex, long[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
         
         int aLength = aToIndex - aFromIndex;
         int bLength = bToIndex - bFromIndex;
-        if(aLength != bLength)
+        if(aLength != bLength) {
             return false;
+        }
         
         return ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, aLength) < 0;
-    }
-    
-    /**
-     * Returns {@code true} if the two specified arrays of booleans are
-     * <i>equal</i> to one another.  Two arrays are considered equal if both
-     * arrays contain the same number of elements, and all corresponding pairs
-     * of elements in the two arrays are equal.  In other words, two arrays
-     * are equal if they contain the same elements in the same order.  Also,
-     * two array references are considered equal if both are {@code null}.
-     *
-     * @param a  one array to be tested for equality
-     * @param a2 the other array to be tested for equality
-     *
-     * @return {@code true} if the two arrays are equal
-     */
-    public static boolean equals(boolean[] a, boolean[] a2) {
-        if(a == a2)
-            return true;
-        if(a == null || a2 == null)
-            return false;
-        
-        int length = a.length;
-        if(a2.length != length)
-            return false;
-        
-        return ArraysSupport.mismatch(a, a2, length) < 0;
-    }
-    
-    /**
-     * Returns true if the two specified arrays of booleans, over the specified
-     * ranges, are <i>equal</i> to one another.
-     *
-     * <p>Two arrays are considered equal if the number of elements covered by
-     * each range is the same, and all corresponding pairs of elements over the
-     * specified ranges in the two arrays are equal.  In other words, two arrays
-     * are equal if they contain, over the specified ranges, the same elements
-     * in the same order.
-     *
-     * @param a          the first array to be tested for equality
-     * @param aFromIndex the index (inclusive) of the first element in the
-     *                   first array to be tested
-     * @param aToIndex   the index (exclusive) of the last element in the
-     *                   first array to be tested
-     * @param b          the second array to be tested fro equality
-     * @param bFromIndex the index (inclusive) of the first element in the
-     *                   second array to be tested
-     * @param bToIndex   the index (exclusive) of the last element in the
-     *                   second array to be tested
-     *
-     * @return {@code true} if the two arrays, over the specified ranges, are
-     * equal
-     *
-     * @throws IllegalArgumentException       if {@code aFromIndex > aToIndex} or
-     *                                        if {@code bFromIndex > bToIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code aFromIndex < 0 or aToIndex > a.length} or
-     *                                        if {@code bFromIndex < 0 or bToIndex > b.length}
-     * @throws NullPointerException           if either array is {@code null}
-     * @since 9
-     */
-    public static boolean equals(boolean[] a, int aFromIndex, int aToIndex, boolean[] b, int bFromIndex, int bToIndex) {
-        rangeCheck(a.length, aFromIndex, aToIndex);
-        rangeCheck(b.length, bFromIndex, bToIndex);
-        
-        int aLength = aToIndex - aFromIndex;
-        int bLength = bToIndex - bFromIndex;
-        if(aLength != bLength)
-            return false;
-        
-        return ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, aLength) < 0;
-    }
-    
-    /**
-     * Returns {@code true} if the two specified arrays of floats are
-     * <i>equal</i> to one another.  Two arrays are considered equal if both
-     * arrays contain the same number of elements, and all corresponding pairs
-     * of elements in the two arrays are equal.  In other words, two arrays
-     * are equal if they contain the same elements in the same order.  Also,
-     * two array references are considered equal if both are {@code null}.
-     *
-     * Two floats {@code f1} and {@code f2} are considered equal if:
-     * <pre>    {@code new Float(f1).equals(new Float(f2))}</pre>
-     * (Unlike the {@code ==} operator, this method considers
-     * {@code NaN} equals to itself, and 0.0f unequal to -0.0f.)
-     *
-     * @param a  one array to be tested for equality
-     * @param a2 the other array to be tested for equality
-     *
-     * @return {@code true} if the two arrays are equal
-     *
-     * @see Float#equals(Object)
-     */
-    public static boolean equals(float[] a, float[] a2) {
-        if(a == a2)
-            return true;
-        if(a == null || a2 == null)
-            return false;
-        
-        int length = a.length;
-        if(a2.length != length)
-            return false;
-        
-        return ArraysSupport.mismatch(a, a2, length) < 0;
     }
     
     /**
@@ -3910,49 +4231,18 @@ public class Arrays {
      * @see Float#equals(Object)
      * @since 9
      */
+    // 判断两个数组中指定范围的元素是否相等
     public static boolean equals(float[] a, int aFromIndex, int aToIndex, float[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
         
         int aLength = aToIndex - aFromIndex;
         int bLength = bToIndex - bFromIndex;
-        if(aLength != bLength)
+        if(aLength != bLength) {
             return false;
+        }
         
         return ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, aLength) < 0;
-    }
-    
-    /**
-     * Returns {@code true} if the two specified arrays of doubles are
-     * <i>equal</i> to one another.  Two arrays are considered equal if both
-     * arrays contain the same number of elements, and all corresponding pairs
-     * of elements in the two arrays are equal.  In other words, two arrays
-     * are equal if they contain the same elements in the same order.  Also,
-     * two array references are considered equal if both are {@code null}.
-     *
-     * Two doubles {@code d1} and {@code d2} are considered equal if:
-     * <pre>    {@code new Double(d1).equals(new Double(d2))}</pre>
-     * (Unlike the {@code ==} operator, this method considers
-     * {@code NaN} equals to itself, and 0.0d unequal to -0.0d.)
-     *
-     * @param a  one array to be tested for equality
-     * @param a2 the other array to be tested for equality
-     *
-     * @return {@code true} if the two arrays are equal
-     *
-     * @see Double#equals(Object)
-     */
-    public static boolean equals(double[] a, double[] a2) {
-        if(a == a2)
-            return true;
-        if(a == null || a2 == null)
-            return false;
-        
-        int length = a.length;
-        if(a2.length != length)
-            return false;
-        
-        return ArraysSupport.mismatch(a, a2, length) < 0;
     }
     
     /**
@@ -3992,50 +4282,18 @@ public class Arrays {
      * @see Double#equals(Object)
      * @since 9
      */
+    // 判断两个数组中指定范围的元素是否相等
     public static boolean equals(double[] a, int aFromIndex, int aToIndex, double[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
         
         int aLength = aToIndex - aFromIndex;
         int bLength = bToIndex - bFromIndex;
-        if(aLength != bLength)
+        if(aLength != bLength) {
             return false;
-        
-        return ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, aLength) < 0;
-    }
-    
-    /**
-     * Returns {@code true} if the two specified arrays of Objects are
-     * <i>equal</i> to one another.  The two arrays are considered equal if
-     * both arrays contain the same number of elements, and all corresponding
-     * pairs of elements in the two arrays are equal.  Two objects {@code e1}
-     * and {@code e2} are considered <i>equal</i> if
-     * {@code Objects.equals(e1, e2)}.
-     * In other words, the two arrays are equal if
-     * they contain the same elements in the same order.  Also, two array
-     * references are considered equal if both are {@code null}.
-     *
-     * @param a  one array to be tested for equality
-     * @param a2 the other array to be tested for equality
-     *
-     * @return {@code true} if the two arrays are equal
-     */
-    public static boolean equals(Object[] a, Object[] a2) {
-        if(a == a2)
-            return true;
-        if(a == null || a2 == null)
-            return false;
-        
-        int length = a.length;
-        if(a2.length != length)
-            return false;
-        
-        for(int i = 0; i < length; i++) {
-            if(!Objects.equals(a[i], a2[i]))
-                return false;
         }
         
-        return true;
+        return ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, aLength) < 0;
     }
     
     /**
@@ -4072,60 +4330,21 @@ public class Arrays {
      * @throws NullPointerException           if either array is {@code null}
      * @since 9
      */
+    // 判断两个数组中指定范围的元素是否相等（会调用对象的equals方法）
     public static boolean equals(Object[] a, int aFromIndex, int aToIndex, Object[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
         
         int aLength = aToIndex - aFromIndex;
         int bLength = bToIndex - bFromIndex;
-        if(aLength != bLength)
+        if(aLength != bLength) {
             return false;
-        
-        for(int i = 0; i < aLength; i++) {
-            if(!Objects.equals(a[aFromIndex++], b[bFromIndex++]))
-                return false;
         }
         
-        return true;
-    }
-    
-    /**
-     * Returns {@code true} if the two specified arrays of Objects are
-     * <i>equal</i> to one another.
-     *
-     * <p>Two arrays are considered equal if both arrays contain the same number
-     * of elements, and all corresponding pairs of elements in the two arrays
-     * are equal.  In other words, the two arrays are equal if they contain the
-     * same elements in the same order.  Also, two array references are
-     * considered equal if both are {@code null}.
-     *
-     * <p>Two objects {@code e1} and {@code e2} are considered <i>equal</i> if,
-     * given the specified comparator, {@code cmp.compare(e1, e2) == 0}.
-     *
-     * @param a   one array to be tested for equality
-     * @param a2  the other array to be tested for equality
-     * @param cmp the comparator to compare array elements
-     * @param <T> the type of array elements
-     *
-     * @return {@code true} if the two arrays are equal
-     *
-     * @throws NullPointerException if the comparator is {@code null}
-     * @since 9
-     */
-    public static <T> boolean equals(T[] a, T[] a2, Comparator<? super T> cmp) {
-        Objects.requireNonNull(cmp);
-        if(a == a2)
-            return true;
-        if(a == null || a2 == null)
-            return false;
-        
-        int length = a.length;
-        if(a2.length != length)
-            return false;
-        
-        for(int i = 0; i < length; i++) {
-            if(cmp.compare(a[i], a2[i]) != 0)
+        for(int i = 0; i < aLength; i++) {
+            if(!Objects.equals(a[aFromIndex++], b[bFromIndex++])) {
                 return false;
+            }
         }
         
         return true;
@@ -4167,6 +4386,7 @@ public class Arrays {
      * @throws NullPointerException           if either array or the comparator is {@code null}
      * @since 9
      */
+    // 判断两个数组中指定范围的元素是否相等（会借助外部比较器cmp）
     public static <T> boolean equals(T[] a, int aFromIndex, int aToIndex, T[] b, int bFromIndex, int bToIndex, Comparator<? super T> cmp) {
         Objects.requireNonNull(cmp);
         rangeCheck(a.length, aFromIndex, aToIndex);
@@ -4174,12 +4394,14 @@ public class Arrays {
         
         int aLength = aToIndex - aFromIndex;
         int bLength = bToIndex - bFromIndex;
-        if(aLength != bLength)
+        if(aLength != bLength) {
             return false;
+        }
         
         for(int i = 0; i < aLength; i++) {
-            if(cmp.compare(a[aFromIndex++], b[bFromIndex++]) != 0)
+            if(cmp.compare(a[aFromIndex++], b[bFromIndex++]) != 0) {
                 return false;
+            }
         }
         
         return true;
@@ -4267,7 +4489,7 @@ public class Arrays {
                 return false;
             }
         }
-        
+    
         return true;
     }
     
@@ -4276,6 +4498,65 @@ public class Arrays {
     
     
     /*▼ 比较 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Compares two {@code boolean} arrays lexicographically.
+     *
+     * <p>If the two arrays share a common prefix then the lexicographic
+     * comparison is the result of comparing two elements, as if by
+     * {@link Boolean#compare(boolean, boolean)}, at an index within the
+     * respective arrays that is the prefix length.
+     * Otherwise, one array is a proper prefix of the other and, lexicographic
+     * comparison is the result of comparing the two array lengths.
+     * (See {@link #mismatch(boolean[], boolean[])} for the definition of a
+     * common and proper prefix.)
+     *
+     * <p>A {@code null} array reference is considered lexicographically less
+     * than a non-{@code null} array reference.  Two {@code null} array
+     * references are considered equal.
+     *
+     * <p>The comparison is consistent with {@link #equals(boolean[], boolean[]) equals},
+     * more specifically the following holds for arrays {@code a} and {@code b}:
+     * <pre>{@code
+     *     Arrays.equals(a, b) == (Arrays.compare(a, b) == 0)
+     * }</pre>
+     *
+     * @param a the first array to compare
+     * @param b the second array to compare
+     *
+     * @return the value {@code 0} if the first and second array are equal and
+     * contain the same elements in the same order;
+     * a value less than {@code 0} if the first array is
+     * lexicographically less than the second array; and
+     * a value greater than {@code 0} if the first array is
+     * lexicographically greater than the second array
+     *
+     * @apiNote <p>This method behaves as if (for non-{@code null} array references):
+     * <pre>{@code
+     *     int i = Arrays.mismatch(a, b);
+     *     if (i >= 0 && i < Math.min(a.length, b.length))
+     *         return Boolean.compare(a[i], b[i]);
+     *     return a.length - b.length;
+     * }</pre>
+     * @since 9
+     */
+    // 按照Boolean的compare()规则比较两个数组的大小
+    public static int compare(boolean[] a, boolean[] b) {
+        if(a == b) {
+            return 0;
+        }
+        
+        if(a == null || b == null) {
+            return a == null ? -1 : 1;
+        }
+        
+        int i = ArraysSupport.mismatch(a, b, Math.min(a.length, b.length));
+        if(i >= 0) {
+            return Boolean.compare(a[i], b[i]);
+        }
+        
+        return a.length - b.length;
+    }
     
     /**
      * Compares two {@code char} arrays lexicographically.
@@ -4318,11 +4599,15 @@ public class Arrays {
      * }</pre>
      * @since 9
      */
+    // 按照Character的compare()规则比较两个数组的大小
     public static int compare(char[] a, char[] b) {
-        if(a == b)
+        if(a == b) {
             return 0;
-        if(a == null || b == null)
+        }
+        
+        if(a == null || b == null) {
             return a == null ? -1 : 1;
+        }
         
         int i = ArraysSupport.mismatch(a, b, Math.min(a.length, b.length));
         if(i >= 0) {
@@ -4330,77 +4615,6 @@ public class Arrays {
         }
         
         return a.length - b.length;
-    }
-    
-    /**
-     * Compares two {@code char} arrays lexicographically over the specified
-     * ranges.
-     *
-     * <p>If the two arrays, over the specified ranges, share a common prefix
-     * then the lexicographic comparison is the result of comparing two
-     * elements, as if by {@link Character#compare(char, char)}, at a relative
-     * index within the respective arrays that is the length of the prefix.
-     * Otherwise, one array is a proper prefix of the other and, lexicographic
-     * comparison is the result of comparing the two range lengths.
-     * (See {@link #mismatch(char[], int, int, char[], int, int)} for the
-     * definition of a common and proper prefix.)
-     *
-     * <p>The comparison is consistent with
-     * {@link #equals(char[], int, int, char[], int, int) equals}, more
-     * specifically the following holds for arrays {@code a} and {@code b} with
-     * specified ranges [{@code aFromIndex}, {@code atoIndex}) and
-     * [{@code bFromIndex}, {@code btoIndex}) respectively:
-     * <pre>{@code
-     *     Arrays.equals(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) ==
-     *         (Arrays.compare(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) == 0)
-     * }</pre>
-     *
-     * @param a          the first array to compare
-     * @param aFromIndex the index (inclusive) of the first element in the
-     *                   first array to be compared
-     * @param aToIndex   the index (exclusive) of the last element in the
-     *                   first array to be compared
-     * @param b          the second array to compare
-     * @param bFromIndex the index (inclusive) of the first element in the
-     *                   second array to be compared
-     * @param bToIndex   the index (exclusive) of the last element in the
-     *                   second array to be compared
-     *
-     * @return the value {@code 0} if, over the specified ranges, the first and
-     * second array are equal and contain the same elements in the same
-     * order;
-     * a value less than {@code 0} if, over the specified ranges, the
-     * first array is lexicographically less than the second array; and
-     * a value greater than {@code 0} if, over the specified ranges, the
-     * first array is lexicographically greater than the second array
-     *
-     * @throws IllegalArgumentException       if {@code aFromIndex > aToIndex} or
-     *                                        if {@code bFromIndex > bToIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code aFromIndex < 0 or aToIndex > a.length} or
-     *                                        if {@code bFromIndex < 0 or bToIndex > b.length}
-     * @throws NullPointerException           if either array is {@code null}
-     * @apiNote <p>This method behaves as if:
-     * <pre>{@code
-     *     int i = Arrays.mismatch(a, aFromIndex, aToIndex,
-     *                             b, bFromIndex, bToIndex);
-     *     if (i >= 0 && i < Math.min(aToIndex - aFromIndex, bToIndex - bFromIndex))
-     *         return Character.compare(a[aFromIndex + i], b[bFromIndex + i]);
-     *     return (aToIndex - aFromIndex) - (bToIndex - bFromIndex);
-     * }</pre>
-     * @since 9
-     */
-    public static int compare(char[] a, int aFromIndex, int aToIndex, char[] b, int bFromIndex, int bToIndex) {
-        rangeCheck(a.length, aFromIndex, aToIndex);
-        rangeCheck(b.length, bFromIndex, bToIndex);
-        
-        int aLength = aToIndex - aFromIndex;
-        int bLength = bToIndex - bFromIndex;
-        int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, Math.min(aLength, bLength));
-        if(i >= 0) {
-            return Character.compare(a[aFromIndex + i], b[bFromIndex + i]);
-        }
-        
-        return aLength - bLength;
     }
     
     /**
@@ -4444,11 +4658,15 @@ public class Arrays {
      * }</pre>
      * @since 9
      */
+    // 按照Byte的compare()规则比较两个数组的大小
     public static int compare(byte[] a, byte[] b) {
-        if(a == b)
+        if(a == b) {
             return 0;
-        if(a == null || b == null)
+        }
+        
+        if(a == null || b == null) {
             return a == null ? -1 : 1;
+        }
         
         int i = ArraysSupport.mismatch(a, b, Math.min(a.length, b.length));
         if(i >= 0) {
@@ -4456,77 +4674,6 @@ public class Arrays {
         }
         
         return a.length - b.length;
-    }
-    
-    /**
-     * Compares two {@code byte} arrays lexicographically over the specified
-     * ranges.
-     *
-     * <p>If the two arrays, over the specified ranges, share a common prefix
-     * then the lexicographic comparison is the result of comparing two
-     * elements, as if by {@link Byte#compare(byte, byte)}, at a relative index
-     * within the respective arrays that is the length of the prefix.
-     * Otherwise, one array is a proper prefix of the other and, lexicographic
-     * comparison is the result of comparing the two range lengths.
-     * (See {@link #mismatch(byte[], int, int, byte[], int, int)} for the
-     * definition of a common and proper prefix.)
-     *
-     * <p>The comparison is consistent with
-     * {@link #equals(byte[], int, int, byte[], int, int) equals}, more
-     * specifically the following holds for arrays {@code a} and {@code b} with
-     * specified ranges [{@code aFromIndex}, {@code atoIndex}) and
-     * [{@code bFromIndex}, {@code btoIndex}) respectively:
-     * <pre>{@code
-     *     Arrays.equals(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) ==
-     *         (Arrays.compare(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) == 0)
-     * }</pre>
-     *
-     * @param a          the first array to compare
-     * @param aFromIndex the index (inclusive) of the first element in the
-     *                   first array to be compared
-     * @param aToIndex   the index (exclusive) of the last element in the
-     *                   first array to be compared
-     * @param b          the second array to compare
-     * @param bFromIndex the index (inclusive) of the first element in the
-     *                   second array to be compared
-     * @param bToIndex   the index (exclusive) of the last element in the
-     *                   second array to be compared
-     *
-     * @return the value {@code 0} if, over the specified ranges, the first and
-     * second array are equal and contain the same elements in the same
-     * order;
-     * a value less than {@code 0} if, over the specified ranges, the
-     * first array is lexicographically less than the second array; and
-     * a value greater than {@code 0} if, over the specified ranges, the
-     * first array is lexicographically greater than the second array
-     *
-     * @throws IllegalArgumentException       if {@code aFromIndex > aToIndex} or
-     *                                        if {@code bFromIndex > bToIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code aFromIndex < 0 or aToIndex > a.length} or
-     *                                        if {@code bFromIndex < 0 or bToIndex > b.length}
-     * @throws NullPointerException           if either array is {@code null}
-     * @apiNote <p>This method behaves as if:
-     * <pre>{@code
-     *     int i = Arrays.mismatch(a, aFromIndex, aToIndex,
-     *                             b, bFromIndex, bToIndex);
-     *     if (i >= 0 && i < Math.min(aToIndex - aFromIndex, bToIndex - bFromIndex))
-     *         return Byte.compare(a[aFromIndex + i], b[bFromIndex + i]);
-     *     return (aToIndex - aFromIndex) - (bToIndex - bFromIndex);
-     * }</pre>
-     * @since 9
-     */
-    public static int compare(byte[] a, int aFromIndex, int aToIndex, byte[] b, int bFromIndex, int bToIndex) {
-        rangeCheck(a.length, aFromIndex, aToIndex);
-        rangeCheck(b.length, bFromIndex, bToIndex);
-        
-        int aLength = aToIndex - aFromIndex;
-        int bLength = bToIndex - bFromIndex;
-        int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, Math.min(aLength, bLength));
-        if(i >= 0) {
-            return Byte.compare(a[aFromIndex + i], b[bFromIndex + i]);
-        }
-        
-        return aLength - bLength;
     }
     
     /**
@@ -4570,11 +4717,15 @@ public class Arrays {
      * }</pre>
      * @since 9
      */
+    // 按照Short的compare()规则比较两个数组的大小
     public static int compare(short[] a, short[] b) {
-        if(a == b)
+        if(a == b) {
             return 0;
-        if(a == null || b == null)
+        }
+        
+        if(a == null || b == null) {
             return a == null ? -1 : 1;
+        }
         
         int i = ArraysSupport.mismatch(a, b, Math.min(a.length, b.length));
         if(i >= 0) {
@@ -4582,77 +4733,6 @@ public class Arrays {
         }
         
         return a.length - b.length;
-    }
-    
-    /**
-     * Compares two {@code short} arrays lexicographically over the specified
-     * ranges.
-     *
-     * <p>If the two arrays, over the specified ranges, share a common prefix
-     * then the lexicographic comparison is the result of comparing two
-     * elements, as if by {@link Short#compare(short, short)}, at a relative
-     * index within the respective arrays that is the length of the prefix.
-     * Otherwise, one array is a proper prefix of the other and, lexicographic
-     * comparison is the result of comparing the two range lengths.
-     * (See {@link #mismatch(short[], int, int, short[], int, int)} for the
-     * definition of a common and proper prefix.)
-     *
-     * <p>The comparison is consistent with
-     * {@link #equals(short[], int, int, short[], int, int) equals}, more
-     * specifically the following holds for arrays {@code a} and {@code b} with
-     * specified ranges [{@code aFromIndex}, {@code atoIndex}) and
-     * [{@code bFromIndex}, {@code btoIndex}) respectively:
-     * <pre>{@code
-     *     Arrays.equals(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) ==
-     *         (Arrays.compare(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) == 0)
-     * }</pre>
-     *
-     * @param a          the first array to compare
-     * @param aFromIndex the index (inclusive) of the first element in the
-     *                   first array to be compared
-     * @param aToIndex   the index (exclusive) of the last element in the
-     *                   first array to be compared
-     * @param b          the second array to compare
-     * @param bFromIndex the index (inclusive) of the first element in the
-     *                   second array to be compared
-     * @param bToIndex   the index (exclusive) of the last element in the
-     *                   second array to be compared
-     *
-     * @return the value {@code 0} if, over the specified ranges, the first and
-     * second array are equal and contain the same elements in the same
-     * order;
-     * a value less than {@code 0} if, over the specified ranges, the
-     * first array is lexicographically less than the second array; and
-     * a value greater than {@code 0} if, over the specified ranges, the
-     * first array is lexicographically greater than the second array
-     *
-     * @throws IllegalArgumentException       if {@code aFromIndex > aToIndex} or
-     *                                        if {@code bFromIndex > bToIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code aFromIndex < 0 or aToIndex > a.length} or
-     *                                        if {@code bFromIndex < 0 or bToIndex > b.length}
-     * @throws NullPointerException           if either array is {@code null}
-     * @apiNote <p>This method behaves as if:
-     * <pre>{@code
-     *     int i = Arrays.mismatch(a, aFromIndex, aToIndex,
-     *                             b, bFromIndex, bToIndex);
-     *     if (i >= 0 && i < Math.min(aToIndex - aFromIndex, bToIndex - bFromIndex))
-     *         return Short.compare(a[aFromIndex + i], b[bFromIndex + i]);
-     *     return (aToIndex - aFromIndex) - (bToIndex - bFromIndex);
-     * }</pre>
-     * @since 9
-     */
-    public static int compare(short[] a, int aFromIndex, int aToIndex, short[] b, int bFromIndex, int bToIndex) {
-        rangeCheck(a.length, aFromIndex, aToIndex);
-        rangeCheck(b.length, bFromIndex, bToIndex);
-        
-        int aLength = aToIndex - aFromIndex;
-        int bLength = bToIndex - bFromIndex;
-        int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, Math.min(aLength, bLength));
-        if(i >= 0) {
-            return Short.compare(a[aFromIndex + i], b[bFromIndex + i]);
-        }
-        
-        return aLength - bLength;
     }
     
     /**
@@ -4696,11 +4776,15 @@ public class Arrays {
      * }</pre>
      * @since 9
      */
+    // 按照Integer的compare()规则比较两个数组的大小
     public static int compare(int[] a, int[] b) {
-        if(a == b)
+        if(a == b) {
             return 0;
-        if(a == null || b == null)
+        }
+        
+        if(a == null || b == null) {
             return a == null ? -1 : 1;
+        }
         
         int i = ArraysSupport.mismatch(a, b, Math.min(a.length, b.length));
         if(i >= 0) {
@@ -4708,77 +4792,6 @@ public class Arrays {
         }
         
         return a.length - b.length;
-    }
-    
-    /**
-     * Compares two {@code int} arrays lexicographically over the specified
-     * ranges.
-     *
-     * <p>If the two arrays, over the specified ranges, share a common prefix
-     * then the lexicographic comparison is the result of comparing two
-     * elements, as if by {@link Integer#compare(int, int)}, at a relative index
-     * within the respective arrays that is the length of the prefix.
-     * Otherwise, one array is a proper prefix of the other and, lexicographic
-     * comparison is the result of comparing the two range lengths.
-     * (See {@link #mismatch(int[], int, int, int[], int, int)} for the
-     * definition of a common and proper prefix.)
-     *
-     * <p>The comparison is consistent with
-     * {@link #equals(int[], int, int, int[], int, int) equals}, more
-     * specifically the following holds for arrays {@code a} and {@code b} with
-     * specified ranges [{@code aFromIndex}, {@code atoIndex}) and
-     * [{@code bFromIndex}, {@code btoIndex}) respectively:
-     * <pre>{@code
-     *     Arrays.equals(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) ==
-     *         (Arrays.compare(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) == 0)
-     * }</pre>
-     *
-     * @param a          the first array to compare
-     * @param aFromIndex the index (inclusive) of the first element in the
-     *                   first array to be compared
-     * @param aToIndex   the index (exclusive) of the last element in the
-     *                   first array to be compared
-     * @param b          the second array to compare
-     * @param bFromIndex the index (inclusive) of the first element in the
-     *                   second array to be compared
-     * @param bToIndex   the index (exclusive) of the last element in the
-     *                   second array to be compared
-     *
-     * @return the value {@code 0} if, over the specified ranges, the first and
-     * second array are equal and contain the same elements in the same
-     * order;
-     * a value less than {@code 0} if, over the specified ranges, the
-     * first array is lexicographically less than the second array; and
-     * a value greater than {@code 0} if, over the specified ranges, the
-     * first array is lexicographically greater than the second array
-     *
-     * @throws IllegalArgumentException       if {@code aFromIndex > aToIndex} or
-     *                                        if {@code bFromIndex > bToIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code aFromIndex < 0 or aToIndex > a.length} or
-     *                                        if {@code bFromIndex < 0 or bToIndex > b.length}
-     * @throws NullPointerException           if either array is {@code null}
-     * @apiNote <p>This method behaves as if:
-     * <pre>{@code
-     *     int i = Arrays.mismatch(a, aFromIndex, aToIndex,
-     *                             b, bFromIndex, bToIndex);
-     *     if (i >= 0 && i < Math.min(aToIndex - aFromIndex, bToIndex - bFromIndex))
-     *         return Integer.compare(a[aFromIndex + i], b[bFromIndex + i]);
-     *     return (aToIndex - aFromIndex) - (bToIndex - bFromIndex);
-     * }</pre>
-     * @since 9
-     */
-    public static int compare(int[] a, int aFromIndex, int aToIndex, int[] b, int bFromIndex, int bToIndex) {
-        rangeCheck(a.length, aFromIndex, aToIndex);
-        rangeCheck(b.length, bFromIndex, bToIndex);
-        
-        int aLength = aToIndex - aFromIndex;
-        int bLength = bToIndex - bFromIndex;
-        int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, Math.min(aLength, bLength));
-        if(i >= 0) {
-            return Integer.compare(a[aFromIndex + i], b[bFromIndex + i]);
-        }
-        
-        return aLength - bLength;
     }
     
     /**
@@ -4822,11 +4835,15 @@ public class Arrays {
      * }</pre>
      * @since 9
      */
+    // 按照Long的compare()规则比较两个数组的大小
     public static int compare(long[] a, long[] b) {
-        if(a == b)
+        if(a == b) {
             return 0;
-        if(a == null || b == null)
+        }
+        
+        if(a == null || b == null) {
             return a == null ? -1 : 1;
+        }
         
         int i = ArraysSupport.mismatch(a, b, Math.min(a.length, b.length));
         if(i >= 0) {
@@ -4837,130 +4854,269 @@ public class Arrays {
     }
     
     /**
-     * Compares two {@code long} arrays lexicographically over the specified
-     * ranges.
-     *
-     * <p>If the two arrays, over the specified ranges, share a common prefix
-     * then the lexicographic comparison is the result of comparing two
-     * elements, as if by {@link Long#compare(long, long)}, at a relative index
-     * within the respective arrays that is the length of the prefix.
-     * Otherwise, one array is a proper prefix of the other and, lexicographic
-     * comparison is the result of comparing the two range lengths.
-     * (See {@link #mismatch(long[], int, int, long[], int, int)} for the
-     * definition of a common and proper prefix.)
-     *
-     * <p>The comparison is consistent with
-     * {@link #equals(long[], int, int, long[], int, int) equals}, more
-     * specifically the following holds for arrays {@code a} and {@code b} with
-     * specified ranges [{@code aFromIndex}, {@code atoIndex}) and
-     * [{@code bFromIndex}, {@code btoIndex}) respectively:
-     * <pre>{@code
-     *     Arrays.equals(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) ==
-     *         (Arrays.compare(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) == 0)
-     * }</pre>
-     *
-     * @param a          the first array to compare
-     * @param aFromIndex the index (inclusive) of the first element in the
-     *                   first array to be compared
-     * @param aToIndex   the index (exclusive) of the last element in the
-     *                   first array to be compared
-     * @param b          the second array to compare
-     * @param bFromIndex the index (inclusive) of the first element in the
-     *                   second array to be compared
-     * @param bToIndex   the index (exclusive) of the last element in the
-     *                   second array to be compared
-     *
-     * @return the value {@code 0} if, over the specified ranges, the first and
-     * second array are equal and contain the same elements in the same
-     * order;
-     * a value less than {@code 0} if, over the specified ranges, the
-     * first array is lexicographically less than the second array; and
-     * a value greater than {@code 0} if, over the specified ranges, the
-     * first array is lexicographically greater than the second array
-     *
-     * @throws IllegalArgumentException       if {@code aFromIndex > aToIndex} or
-     *                                        if {@code bFromIndex > bToIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code aFromIndex < 0 or aToIndex > a.length} or
-     *                                        if {@code bFromIndex < 0 or bToIndex > b.length}
-     * @throws NullPointerException           if either array is {@code null}
-     * @apiNote <p>This method behaves as if:
-     * <pre>{@code
-     *     int i = Arrays.mismatch(a, aFromIndex, aToIndex,
-     *                             b, bFromIndex, bToIndex);
-     *     if (i >= 0 && i < Math.min(aToIndex - aFromIndex, bToIndex - bFromIndex))
-     *         return Long.compare(a[aFromIndex + i], b[bFromIndex + i]);
-     *     return (aToIndex - aFromIndex) - (bToIndex - bFromIndex);
-     * }</pre>
-     * @since 9
-     */
-    public static int compare(long[] a, int aFromIndex, int aToIndex, long[] b, int bFromIndex, int bToIndex) {
-        rangeCheck(a.length, aFromIndex, aToIndex);
-        rangeCheck(b.length, bFromIndex, bToIndex);
-        
-        int aLength = aToIndex - aFromIndex;
-        int bLength = bToIndex - bFromIndex;
-        int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, Math.min(aLength, bLength));
-        if(i >= 0) {
-            return Long.compare(a[aFromIndex + i], b[bFromIndex + i]);
-        }
-        
-        return aLength - bLength;
-    }
-    
-    /**
-     * Compares two {@code boolean} arrays lexicographically.
+     * Compares two {@code float} arrays lexicographically.
      *
      * <p>If the two arrays share a common prefix then the lexicographic
      * comparison is the result of comparing two elements, as if by
-     * {@link Boolean#compare(boolean, boolean)}, at an index within the
-     * respective arrays that is the prefix length.
+     * {@link Float#compare(float, float)}, at an index within the respective
+     * arrays that is the prefix length.
      * Otherwise, one array is a proper prefix of the other and, lexicographic
      * comparison is the result of comparing the two array lengths.
-     * (See {@link #mismatch(boolean[], boolean[])} for the definition of a
-     * common and proper prefix.)
+     * (See {@link #mismatch(float[], float[])} for the definition of a common
+     * and proper prefix.)
      *
      * <p>A {@code null} array reference is considered lexicographically less
      * than a non-{@code null} array reference.  Two {@code null} array
      * references are considered equal.
      *
-     * <p>The comparison is consistent with {@link #equals(boolean[], boolean[]) equals},
+     * <p>The comparison is consistent with {@link #equals(float[], float[]) equals},
      * more specifically the following holds for arrays {@code a} and {@code b}:
      * <pre>{@code
      *     Arrays.equals(a, b) == (Arrays.compare(a, b) == 0)
      * }</pre>
      *
-     * @apiNote
-     * <p>This method behaves as if (for non-{@code null} array references):
+     * @param a the first array to compare
+     * @param b the second array to compare
+     *
+     * @return the value {@code 0} if the first and second array are equal and
+     * contain the same elements in the same order;
+     * a value less than {@code 0} if the first array is
+     * lexicographically less than the second array; and
+     * a value greater than {@code 0} if the first array is
+     * lexicographically greater than the second array
+     *
+     * @apiNote <p>This method behaves as if (for non-{@code null} array references):
      * <pre>{@code
      *     int i = Arrays.mismatch(a, b);
      *     if (i >= 0 && i < Math.min(a.length, b.length))
-     *         return Boolean.compare(a[i], b[i]);
+     *         return Float.compare(a[i], b[i]);
      *     return a.length - b.length;
      * }</pre>
-     *
-     * @param a the first array to compare
-     * @param b the second array to compare
-     * @return the value {@code 0} if the first and second array are equal and
-     *         contain the same elements in the same order;
-     *         a value less than {@code 0} if the first array is
-     *         lexicographically less than the second array; and
-     *         a value greater than {@code 0} if the first array is
-     *         lexicographically greater than the second array
      * @since 9
      */
-    public static int compare(boolean[] a, boolean[] b) {
-        if(a == b)
+    // 按照Float的compare()规则比较两个数组的大小
+    public static int compare(float[] a, float[] b) {
+        if(a == b) {
             return 0;
-        if(a == null || b == null)
+        }
+        
+        if(a == null || b == null) {
             return a == null ? -1 : 1;
+        }
         
         int i = ArraysSupport.mismatch(a, b, Math.min(a.length, b.length));
         if(i >= 0) {
-            return Boolean.compare(a[i], b[i]);
+            return Float.compare(a[i], b[i]);
         }
         
         return a.length - b.length;
     }
+    
+    /**
+     * Compares two {@code double} arrays lexicographically.
+     *
+     * <p>If the two arrays share a common prefix then the lexicographic
+     * comparison is the result of comparing two elements, as if by
+     * {@link Double#compare(double, double)}, at an index within the respective
+     * arrays that is the prefix length.
+     * Otherwise, one array is a proper prefix of the other and, lexicographic
+     * comparison is the result of comparing the two array lengths.
+     * (See {@link #mismatch(double[], double[])} for the definition of a common
+     * and proper prefix.)
+     *
+     * <p>A {@code null} array reference is considered lexicographically less
+     * than a non-{@code null} array reference.  Two {@code null} array
+     * references are considered equal.
+     *
+     * <p>The comparison is consistent with {@link #equals(double[], double[]) equals},
+     * more specifically the following holds for arrays {@code a} and {@code b}:
+     * <pre>{@code
+     *     Arrays.equals(a, b) == (Arrays.compare(a, b) == 0)
+     * }</pre>
+     *
+     * @param a the first array to compare
+     * @param b the second array to compare
+     *
+     * @return the value {@code 0} if the first and second array are equal and
+     * contain the same elements in the same order;
+     * a value less than {@code 0} if the first array is
+     * lexicographically less than the second array; and
+     * a value greater than {@code 0} if the first array is
+     * lexicographically greater than the second array
+     *
+     * @apiNote <p>This method behaves as if (for non-{@code null} array references):
+     * <pre>{@code
+     *     int i = Arrays.mismatch(a, b);
+     *     if (i >= 0 && i < Math.min(a.length, b.length))
+     *         return Double.compare(a[i], b[i]);
+     *     return a.length - b.length;
+     * }</pre>
+     * @since 9
+     */
+    // 按照Double的compare()规则比较两个数组的大小
+    public static int compare(double[] a, double[] b) {
+        if(a == b) {
+            return 0;
+        }
+        
+        if(a == null || b == null) {
+            return a == null ? -1 : 1;
+        }
+        
+        int i = ArraysSupport.mismatch(a, b, Math.min(a.length, b.length));
+        if(i >= 0) {
+            return Double.compare(a[i], b[i]);
+        }
+        
+        return a.length - b.length;
+    }
+    
+    /**
+     * Compares two {@code Object} arrays, within comparable elements,
+     * lexicographically.
+     *
+     * <p>If the two arrays share a common prefix then the lexicographic
+     * comparison is the result of comparing two elements of type {@code T} at
+     * an index {@code i} within the respective arrays that is the prefix
+     * length, as if by:
+     * <pre>{@code
+     *     Comparator.nullsFirst(Comparator.<T>naturalOrder()).
+     *         compare(a[i], b[i])
+     * }</pre>
+     * Otherwise, one array is a proper prefix of the other and, lexicographic
+     * comparison is the result of comparing the two array lengths.
+     * (See {@link #mismatch(Object[], Object[])} for the definition of a common
+     * and proper prefix.)
+     *
+     * <p>A {@code null} array reference is considered lexicographically less
+     * than a non-{@code null} array reference.  Two {@code null} array
+     * references are considered equal.
+     * A {@code null} array element is considered lexicographically than a
+     * non-{@code null} array element.  Two {@code null} array elements are
+     * considered equal.
+     *
+     * <p>The comparison is consistent with {@link #equals(Object[], Object[]) equals},
+     * more specifically the following holds for arrays {@code a} and {@code b}:
+     * <pre>{@code
+     *     Arrays.equals(a, b) == (Arrays.compare(a, b) == 0)
+     * }</pre>
+     *
+     * @param a   the first array to compare
+     * @param b   the second array to compare
+     * @param <T> the type of comparable array elements
+     *
+     * @return the value {@code 0} if the first and second array are equal and
+     * contain the same elements in the same order;
+     * a value less than {@code 0} if the first array is
+     * lexicographically less than the second array; and
+     * a value greater than {@code 0} if the first array is
+     * lexicographically greater than the second array
+     *
+     * @apiNote <p>This method behaves as if (for non-{@code null} array references
+     * and elements):
+     * <pre>{@code
+     *     int i = Arrays.mismatch(a, b);
+     *     if (i >= 0 && i < Math.min(a.length, b.length))
+     *         return a[i].compareTo(b[i]);
+     *     return a.length - b.length;
+     * }</pre>
+     * @since 9
+     */
+    // 按照类型T的内部比较器的规则比较两个数组的大小
+    public static <T extends Comparable<? super T>> int compare(T[] a, T[] b) {
+        if(a == b)
+            return 0;
+        // A null array is less than a non-null array
+        if(a == null || b == null)
+            return a == null ? -1 : 1;
+        
+        int length = Math.min(a.length, b.length);
+        for(int i = 0; i<length; i++) {
+            T oa = a[i];
+            T ob = b[i];
+            if(oa != ob) {
+                // A null element is less than a non-null element
+                if(oa == null || ob == null) {
+                    return oa == null ? -1 : 1;
+                }
+                
+                int v = oa.compareTo(ob);
+                if(v != 0) {
+                    return v;
+                }
+            }
+        }
+        
+        return a.length - b.length;
+    }
+    
+    /**
+     * Compares two {@code Object} arrays lexicographically using a specified
+     * comparator.
+     *
+     * <p>If the two arrays share a common prefix then the lexicographic
+     * comparison is the result of comparing with the specified comparator two
+     * elements at an index within the respective arrays that is the prefix
+     * length.
+     * Otherwise, one array is a proper prefix of the other and, lexicographic
+     * comparison is the result of comparing the two array lengths.
+     * (See {@link #mismatch(Object[], Object[])} for the definition of a common
+     * and proper prefix.)
+     *
+     * <p>A {@code null} array reference is considered lexicographically less
+     * than a non-{@code null} array reference.  Two {@code null} array
+     * references are considered equal.
+     *
+     * @param a   the first array to compare
+     * @param b   the second array to compare
+     * @param cmp the comparator to compare array elements
+     * @param <T> the type of array elements
+     *
+     * @return the value {@code 0} if the first and second array are equal and
+     * contain the same elements in the same order;
+     * a value less than {@code 0} if the first array is
+     * lexicographically less than the second array; and
+     * a value greater than {@code 0} if the first array is
+     * lexicographically greater than the second array
+     *
+     * @throws NullPointerException if the comparator is {@code null}
+     * @apiNote <p>This method behaves as if (for non-{@code null} array references):
+     * <pre>{@code
+     *     int i = Arrays.mismatch(a, b, cmp);
+     *     if (i >= 0 && i < Math.min(a.length, b.length))
+     *         return cmp.compare(a[i], b[i]);
+     *     return a.length - b.length;
+     * }</pre>
+     * @since 9
+     */
+    // 按照外部比较器cmp的规则比较两个数组的大小
+    public static <T> int compare(T[] a, T[] b, Comparator<? super T> cmp) {
+        Objects.requireNonNull(cmp);
+        
+        if(a == b) {
+            return 0;
+        }
+        
+        if(a == null || b == null) {
+            return a == null ? -1 : 1;
+        }
+        
+        int length = Math.min(a.length, b.length);
+        for(int i = 0; i<length; i++) {
+            T oa = a[i];
+            T ob = b[i];
+            if(oa != ob) {
+                // Null-value comparison is deferred to the comparator
+                int v = cmp.compare(oa, ob);
+                if(v != 0) {
+                    return v;
+                }
+            }
+        }
+        
+        return a.length - b.length;
+    }
+    
     
     /**
      * Compares two {@code boolean} arrays lexicographically over the specified
@@ -5020,6 +5176,7 @@ public class Arrays {
      * }</pre>
      * @since 9
      */
+    // 按照Boolean的compare()规则比较两个数组指定范围内的元素的大小
     public static int compare(boolean[] a, int aFromIndex, int aToIndex, boolean[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
@@ -5035,58 +5192,363 @@ public class Arrays {
     }
     
     /**
-     * Compares two {@code float} arrays lexicographically.
+     * Compares two {@code char} arrays lexicographically over the specified
+     * ranges.
      *
-     * <p>If the two arrays share a common prefix then the lexicographic
-     * comparison is the result of comparing two elements, as if by
-     * {@link Float#compare(float, float)}, at an index within the respective
-     * arrays that is the prefix length.
+     * <p>If the two arrays, over the specified ranges, share a common prefix
+     * then the lexicographic comparison is the result of comparing two
+     * elements, as if by {@link Character#compare(char, char)}, at a relative
+     * index within the respective arrays that is the length of the prefix.
      * Otherwise, one array is a proper prefix of the other and, lexicographic
-     * comparison is the result of comparing the two array lengths.
-     * (See {@link #mismatch(float[], float[])} for the definition of a common
-     * and proper prefix.)
+     * comparison is the result of comparing the two range lengths.
+     * (See {@link #mismatch(char[], int, int, char[], int, int)} for the
+     * definition of a common and proper prefix.)
      *
-     * <p>A {@code null} array reference is considered lexicographically less
-     * than a non-{@code null} array reference.  Two {@code null} array
-     * references are considered equal.
-     *
-     * <p>The comparison is consistent with {@link #equals(float[], float[]) equals},
-     * more specifically the following holds for arrays {@code a} and {@code b}:
+     * <p>The comparison is consistent with
+     * {@link #equals(char[], int, int, char[], int, int) equals}, more
+     * specifically the following holds for arrays {@code a} and {@code b} with
+     * specified ranges [{@code aFromIndex}, {@code atoIndex}) and
+     * [{@code bFromIndex}, {@code btoIndex}) respectively:
      * <pre>{@code
-     *     Arrays.equals(a, b) == (Arrays.compare(a, b) == 0)
+     *     Arrays.equals(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) ==
+     *         (Arrays.compare(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) == 0)
      * }</pre>
      *
-     * @param a the first array to compare
-     * @param b the second array to compare
+     * @param a          the first array to compare
+     * @param aFromIndex the index (inclusive) of the first element in the
+     *                   first array to be compared
+     * @param aToIndex   the index (exclusive) of the last element in the
+     *                   first array to be compared
+     * @param b          the second array to compare
+     * @param bFromIndex the index (inclusive) of the first element in the
+     *                   second array to be compared
+     * @param bToIndex   the index (exclusive) of the last element in the
+     *                   second array to be compared
      *
-     * @return the value {@code 0} if the first and second array are equal and
-     * contain the same elements in the same order;
-     * a value less than {@code 0} if the first array is
-     * lexicographically less than the second array; and
-     * a value greater than {@code 0} if the first array is
-     * lexicographically greater than the second array
+     * @return the value {@code 0} if, over the specified ranges, the first and
+     * second array are equal and contain the same elements in the same
+     * order;
+     * a value less than {@code 0} if, over the specified ranges, the
+     * first array is lexicographically less than the second array; and
+     * a value greater than {@code 0} if, over the specified ranges, the
+     * first array is lexicographically greater than the second array
      *
-     * @apiNote <p>This method behaves as if (for non-{@code null} array references):
+     * @throws IllegalArgumentException       if {@code aFromIndex > aToIndex} or
+     *                                        if {@code bFromIndex > bToIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code aFromIndex < 0 or aToIndex > a.length} or
+     *                                        if {@code bFromIndex < 0 or bToIndex > b.length}
+     * @throws NullPointerException           if either array is {@code null}
+     * @apiNote <p>This method behaves as if:
      * <pre>{@code
-     *     int i = Arrays.mismatch(a, b);
-     *     if (i >= 0 && i < Math.min(a.length, b.length))
-     *         return Float.compare(a[i], b[i]);
-     *     return a.length - b.length;
+     *     int i = Arrays.mismatch(a, aFromIndex, aToIndex,
+     *                             b, bFromIndex, bToIndex);
+     *     if (i >= 0 && i < Math.min(aToIndex - aFromIndex, bToIndex - bFromIndex))
+     *         return Character.compare(a[aFromIndex + i], b[bFromIndex + i]);
+     *     return (aToIndex - aFromIndex) - (bToIndex - bFromIndex);
      * }</pre>
      * @since 9
      */
-    public static int compare(float[] a, float[] b) {
-        if(a == b)
-            return 0;
-        if(a == null || b == null)
-            return a == null ? -1 : 1;
-        
-        int i = ArraysSupport.mismatch(a, b, Math.min(a.length, b.length));
+    // 按照Character的compare()规则比较两个数组指定范围内的元素的大小
+    public static int compare(char[] a, int aFromIndex, int aToIndex, char[] b, int bFromIndex, int bToIndex) {
+        rangeCheck(a.length, aFromIndex, aToIndex);
+        rangeCheck(b.length, bFromIndex, bToIndex);
+    
+        int aLength = aToIndex - aFromIndex;
+        int bLength = bToIndex - bFromIndex;
+        int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, Math.min(aLength, bLength));
         if(i >= 0) {
-            return Float.compare(a[i], b[i]);
+            return Character.compare(a[aFromIndex + i], b[bFromIndex + i]);
+        }
+    
+        return aLength - bLength;
+    }
+    
+    /**
+     * Compares two {@code byte} arrays lexicographically over the specified
+     * ranges.
+     *
+     * <p>If the two arrays, over the specified ranges, share a common prefix
+     * then the lexicographic comparison is the result of comparing two
+     * elements, as if by {@link Byte#compare(byte, byte)}, at a relative index
+     * within the respective arrays that is the length of the prefix.
+     * Otherwise, one array is a proper prefix of the other and, lexicographic
+     * comparison is the result of comparing the two range lengths.
+     * (See {@link #mismatch(byte[], int, int, byte[], int, int)} for the
+     * definition of a common and proper prefix.)
+     *
+     * <p>The comparison is consistent with
+     * {@link #equals(byte[], int, int, byte[], int, int) equals}, more
+     * specifically the following holds for arrays {@code a} and {@code b} with
+     * specified ranges [{@code aFromIndex}, {@code atoIndex}) and
+     * [{@code bFromIndex}, {@code btoIndex}) respectively:
+     * <pre>{@code
+     *     Arrays.equals(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) ==
+     *         (Arrays.compare(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) == 0)
+     * }</pre>
+     *
+     * @param a          the first array to compare
+     * @param aFromIndex the index (inclusive) of the first element in the
+     *                   first array to be compared
+     * @param aToIndex   the index (exclusive) of the last element in the
+     *                   first array to be compared
+     * @param b          the second array to compare
+     * @param bFromIndex the index (inclusive) of the first element in the
+     *                   second array to be compared
+     * @param bToIndex   the index (exclusive) of the last element in the
+     *                   second array to be compared
+     *
+     * @return the value {@code 0} if, over the specified ranges, the first and
+     * second array are equal and contain the same elements in the same
+     * order;
+     * a value less than {@code 0} if, over the specified ranges, the
+     * first array is lexicographically less than the second array; and
+     * a value greater than {@code 0} if, over the specified ranges, the
+     * first array is lexicographically greater than the second array
+     *
+     * @throws IllegalArgumentException       if {@code aFromIndex > aToIndex} or
+     *                                        if {@code bFromIndex > bToIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code aFromIndex < 0 or aToIndex > a.length} or
+     *                                        if {@code bFromIndex < 0 or bToIndex > b.length}
+     * @throws NullPointerException           if either array is {@code null}
+     * @apiNote <p>This method behaves as if:
+     * <pre>{@code
+     *     int i = Arrays.mismatch(a, aFromIndex, aToIndex,
+     *                             b, bFromIndex, bToIndex);
+     *     if (i >= 0 && i < Math.min(aToIndex - aFromIndex, bToIndex - bFromIndex))
+     *         return Byte.compare(a[aFromIndex + i], b[bFromIndex + i]);
+     *     return (aToIndex - aFromIndex) - (bToIndex - bFromIndex);
+     * }</pre>
+     * @since 9
+     */
+    // 按照Byte的compare()规则比较两个数组指定范围内的元素的大小
+    public static int compare(byte[] a, int aFromIndex, int aToIndex, byte[] b, int bFromIndex, int bToIndex) {
+        rangeCheck(a.length, aFromIndex, aToIndex);
+        rangeCheck(b.length, bFromIndex, bToIndex);
+    
+        int aLength = aToIndex - aFromIndex;
+        int bLength = bToIndex - bFromIndex;
+        int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, Math.min(aLength, bLength));
+        if(i >= 0) {
+            return Byte.compare(a[aFromIndex + i], b[bFromIndex + i]);
+        }
+    
+        return aLength - bLength;
+    }
+    
+    /**
+     * Compares two {@code short} arrays lexicographically over the specified
+     * ranges.
+     *
+     * <p>If the two arrays, over the specified ranges, share a common prefix
+     * then the lexicographic comparison is the result of comparing two
+     * elements, as if by {@link Short#compare(short, short)}, at a relative
+     * index within the respective arrays that is the length of the prefix.
+     * Otherwise, one array is a proper prefix of the other and, lexicographic
+     * comparison is the result of comparing the two range lengths.
+     * (See {@link #mismatch(short[], int, int, short[], int, int)} for the
+     * definition of a common and proper prefix.)
+     *
+     * <p>The comparison is consistent with
+     * {@link #equals(short[], int, int, short[], int, int) equals}, more
+     * specifically the following holds for arrays {@code a} and {@code b} with
+     * specified ranges [{@code aFromIndex}, {@code atoIndex}) and
+     * [{@code bFromIndex}, {@code btoIndex}) respectively:
+     * <pre>{@code
+     *     Arrays.equals(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) ==
+     *         (Arrays.compare(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) == 0)
+     * }</pre>
+     *
+     * @param a          the first array to compare
+     * @param aFromIndex the index (inclusive) of the first element in the
+     *                   first array to be compared
+     * @param aToIndex   the index (exclusive) of the last element in the
+     *                   first array to be compared
+     * @param b          the second array to compare
+     * @param bFromIndex the index (inclusive) of the first element in the
+     *                   second array to be compared
+     * @param bToIndex   the index (exclusive) of the last element in the
+     *                   second array to be compared
+     *
+     * @return the value {@code 0} if, over the specified ranges, the first and
+     * second array are equal and contain the same elements in the same
+     * order;
+     * a value less than {@code 0} if, over the specified ranges, the
+     * first array is lexicographically less than the second array; and
+     * a value greater than {@code 0} if, over the specified ranges, the
+     * first array is lexicographically greater than the second array
+     *
+     * @throws IllegalArgumentException       if {@code aFromIndex > aToIndex} or
+     *                                        if {@code bFromIndex > bToIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code aFromIndex < 0 or aToIndex > a.length} or
+     *                                        if {@code bFromIndex < 0 or bToIndex > b.length}
+     * @throws NullPointerException           if either array is {@code null}
+     * @apiNote <p>This method behaves as if:
+     * <pre>{@code
+     *     int i = Arrays.mismatch(a, aFromIndex, aToIndex,
+     *                             b, bFromIndex, bToIndex);
+     *     if (i >= 0 && i < Math.min(aToIndex - aFromIndex, bToIndex - bFromIndex))
+     *         return Short.compare(a[aFromIndex + i], b[bFromIndex + i]);
+     *     return (aToIndex - aFromIndex) - (bToIndex - bFromIndex);
+     * }</pre>
+     * @since 9
+     */
+    // 按照Short的compare()规则比较两个数组指定范围内的元素的大小
+    public static int compare(short[] a, int aFromIndex, int aToIndex, short[] b, int bFromIndex, int bToIndex) {
+        rangeCheck(a.length, aFromIndex, aToIndex);
+        rangeCheck(b.length, bFromIndex, bToIndex);
+    
+        int aLength = aToIndex - aFromIndex;
+        int bLength = bToIndex - bFromIndex;
+        int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, Math.min(aLength, bLength));
+        if(i >= 0) {
+            return Short.compare(a[aFromIndex + i], b[bFromIndex + i]);
+        }
+    
+        return aLength - bLength;
+    }
+    
+    /**
+     * Compares two {@code int} arrays lexicographically over the specified
+     * ranges.
+     *
+     * <p>If the two arrays, over the specified ranges, share a common prefix
+     * then the lexicographic comparison is the result of comparing two
+     * elements, as if by {@link Integer#compare(int, int)}, at a relative index
+     * within the respective arrays that is the length of the prefix.
+     * Otherwise, one array is a proper prefix of the other and, lexicographic
+     * comparison is the result of comparing the two range lengths.
+     * (See {@link #mismatch(int[], int, int, int[], int, int)} for the
+     * definition of a common and proper prefix.)
+     *
+     * <p>The comparison is consistent with
+     * {@link #equals(int[], int, int, int[], int, int) equals}, more
+     * specifically the following holds for arrays {@code a} and {@code b} with
+     * specified ranges [{@code aFromIndex}, {@code atoIndex}) and
+     * [{@code bFromIndex}, {@code btoIndex}) respectively:
+     * <pre>{@code
+     *     Arrays.equals(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) ==
+     *         (Arrays.compare(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) == 0)
+     * }</pre>
+     *
+     * @param a          the first array to compare
+     * @param aFromIndex the index (inclusive) of the first element in the
+     *                   first array to be compared
+     * @param aToIndex   the index (exclusive) of the last element in the
+     *                   first array to be compared
+     * @param b          the second array to compare
+     * @param bFromIndex the index (inclusive) of the first element in the
+     *                   second array to be compared
+     * @param bToIndex   the index (exclusive) of the last element in the
+     *                   second array to be compared
+     *
+     * @return the value {@code 0} if, over the specified ranges, the first and
+     * second array are equal and contain the same elements in the same
+     * order;
+     * a value less than {@code 0} if, over the specified ranges, the
+     * first array is lexicographically less than the second array; and
+     * a value greater than {@code 0} if, over the specified ranges, the
+     * first array is lexicographically greater than the second array
+     *
+     * @throws IllegalArgumentException       if {@code aFromIndex > aToIndex} or
+     *                                        if {@code bFromIndex > bToIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code aFromIndex < 0 or aToIndex > a.length} or
+     *                                        if {@code bFromIndex < 0 or bToIndex > b.length}
+     * @throws NullPointerException           if either array is {@code null}
+     * @apiNote <p>This method behaves as if:
+     * <pre>{@code
+     *     int i = Arrays.mismatch(a, aFromIndex, aToIndex,
+     *                             b, bFromIndex, bToIndex);
+     *     if (i >= 0 && i < Math.min(aToIndex - aFromIndex, bToIndex - bFromIndex))
+     *         return Integer.compare(a[aFromIndex + i], b[bFromIndex + i]);
+     *     return (aToIndex - aFromIndex) - (bToIndex - bFromIndex);
+     * }</pre>
+     * @since 9
+     */
+    // 按照Integer的compare()规则比较两个数组指定范围内的元素的大小
+    public static int compare(int[] a, int aFromIndex, int aToIndex, int[] b, int bFromIndex, int bToIndex) {
+        rangeCheck(a.length, aFromIndex, aToIndex);
+        rangeCheck(b.length, bFromIndex, bToIndex);
+        
+        int aLength = aToIndex - aFromIndex;
+        int bLength = bToIndex - bFromIndex;
+        int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, Math.min(aLength, bLength));
+        if(i >= 0) {
+            return Integer.compare(a[aFromIndex + i], b[bFromIndex + i]);
         }
         
-        return a.length - b.length;
+        return aLength - bLength;
+    }
+    
+    /**
+     * Compares two {@code long} arrays lexicographically over the specified
+     * ranges.
+     *
+     * <p>If the two arrays, over the specified ranges, share a common prefix
+     * then the lexicographic comparison is the result of comparing two
+     * elements, as if by {@link Long#compare(long, long)}, at a relative index
+     * within the respective arrays that is the length of the prefix.
+     * Otherwise, one array is a proper prefix of the other and, lexicographic
+     * comparison is the result of comparing the two range lengths.
+     * (See {@link #mismatch(long[], int, int, long[], int, int)} for the
+     * definition of a common and proper prefix.)
+     *
+     * <p>The comparison is consistent with
+     * {@link #equals(long[], int, int, long[], int, int) equals}, more
+     * specifically the following holds for arrays {@code a} and {@code b} with
+     * specified ranges [{@code aFromIndex}, {@code atoIndex}) and
+     * [{@code bFromIndex}, {@code btoIndex}) respectively:
+     * <pre>{@code
+     *     Arrays.equals(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) ==
+     *         (Arrays.compare(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex) == 0)
+     * }</pre>
+     *
+     * @param a          the first array to compare
+     * @param aFromIndex the index (inclusive) of the first element in the
+     *                   first array to be compared
+     * @param aToIndex   the index (exclusive) of the last element in the
+     *                   first array to be compared
+     * @param b          the second array to compare
+     * @param bFromIndex the index (inclusive) of the first element in the
+     *                   second array to be compared
+     * @param bToIndex   the index (exclusive) of the last element in the
+     *                   second array to be compared
+     *
+     * @return the value {@code 0} if, over the specified ranges, the first and
+     * second array are equal and contain the same elements in the same
+     * order;
+     * a value less than {@code 0} if, over the specified ranges, the
+     * first array is lexicographically less than the second array; and
+     * a value greater than {@code 0} if, over the specified ranges, the
+     * first array is lexicographically greater than the second array
+     *
+     * @throws IllegalArgumentException       if {@code aFromIndex > aToIndex} or
+     *                                        if {@code bFromIndex > bToIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code aFromIndex < 0 or aToIndex > a.length} or
+     *                                        if {@code bFromIndex < 0 or bToIndex > b.length}
+     * @throws NullPointerException           if either array is {@code null}
+     * @apiNote <p>This method behaves as if:
+     * <pre>{@code
+     *     int i = Arrays.mismatch(a, aFromIndex, aToIndex,
+     *                             b, bFromIndex, bToIndex);
+     *     if (i >= 0 && i < Math.min(aToIndex - aFromIndex, bToIndex - bFromIndex))
+     *         return Long.compare(a[aFromIndex + i], b[bFromIndex + i]);
+     *     return (aToIndex - aFromIndex) - (bToIndex - bFromIndex);
+     * }</pre>
+     * @since 9
+     */
+    // 按照Long的compare()规则比较两个数组指定范围内的元素的大小
+    public static int compare(long[] a, int aFromIndex, int aToIndex, long[] b, int bFromIndex, int bToIndex) {
+        rangeCheck(a.length, aFromIndex, aToIndex);
+        rangeCheck(b.length, bFromIndex, bToIndex);
+    
+        int aLength = aToIndex - aFromIndex;
+        int bLength = bToIndex - bFromIndex;
+        int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, Math.min(aLength, bLength));
+        if(i >= 0) {
+            return Long.compare(a[aFromIndex + i], b[bFromIndex + i]);
+        }
+    
+        return aLength - bLength;
     }
     
     /**
@@ -5146,6 +5608,7 @@ public class Arrays {
      * }</pre>
      * @since 9
      */
+    // 按照Float的compare()规则比较两个数组指定范围内的元素的大小
     public static int compare(float[] a, int aFromIndex, int aToIndex, float[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
@@ -5158,61 +5621,6 @@ public class Arrays {
         }
         
         return aLength - bLength;
-    }
-    
-    /**
-     * Compares two {@code double} arrays lexicographically.
-     *
-     * <p>If the two arrays share a common prefix then the lexicographic
-     * comparison is the result of comparing two elements, as if by
-     * {@link Double#compare(double, double)}, at an index within the respective
-     * arrays that is the prefix length.
-     * Otherwise, one array is a proper prefix of the other and, lexicographic
-     * comparison is the result of comparing the two array lengths.
-     * (See {@link #mismatch(double[], double[])} for the definition of a common
-     * and proper prefix.)
-     *
-     * <p>A {@code null} array reference is considered lexicographically less
-     * than a non-{@code null} array reference.  Two {@code null} array
-     * references are considered equal.
-     *
-     * <p>The comparison is consistent with {@link #equals(double[], double[]) equals},
-     * more specifically the following holds for arrays {@code a} and {@code b}:
-     * <pre>{@code
-     *     Arrays.equals(a, b) == (Arrays.compare(a, b) == 0)
-     * }</pre>
-     *
-     * @param a the first array to compare
-     * @param b the second array to compare
-     *
-     * @return the value {@code 0} if the first and second array are equal and
-     * contain the same elements in the same order;
-     * a value less than {@code 0} if the first array is
-     * lexicographically less than the second array; and
-     * a value greater than {@code 0} if the first array is
-     * lexicographically greater than the second array
-     *
-     * @apiNote <p>This method behaves as if (for non-{@code null} array references):
-     * <pre>{@code
-     *     int i = Arrays.mismatch(a, b);
-     *     if (i >= 0 && i < Math.min(a.length, b.length))
-     *         return Double.compare(a[i], b[i]);
-     *     return a.length - b.length;
-     * }</pre>
-     * @since 9
-     */
-    public static int compare(double[] a, double[] b) {
-        if(a == b)
-            return 0;
-        if(a == null || b == null)
-            return a == null ? -1 : 1;
-        
-        int i = ArraysSupport.mismatch(a, b, Math.min(a.length, b.length));
-        if(i >= 0) {
-            return Double.compare(a[i], b[i]);
-        }
-        
-        return a.length - b.length;
     }
     
     /**
@@ -5272,6 +5680,7 @@ public class Arrays {
      * }</pre>
      * @since 9
      */
+    // 按照Double的compare()规则比较两个数组指定范围内的元素的大小
     public static int compare(double[] a, int aFromIndex, int aToIndex, double[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
@@ -5284,82 +5693,6 @@ public class Arrays {
         }
         
         return aLength - bLength;
-    }
-    
-    /**
-     * Compares two {@code Object} arrays, within comparable elements,
-     * lexicographically.
-     *
-     * <p>If the two arrays share a common prefix then the lexicographic
-     * comparison is the result of comparing two elements of type {@code T} at
-     * an index {@code i} within the respective arrays that is the prefix
-     * length, as if by:
-     * <pre>{@code
-     *     Comparator.nullsFirst(Comparator.<T>naturalOrder()).
-     *         compare(a[i], b[i])
-     * }</pre>
-     * Otherwise, one array is a proper prefix of the other and, lexicographic
-     * comparison is the result of comparing the two array lengths.
-     * (See {@link #mismatch(Object[], Object[])} for the definition of a common
-     * and proper prefix.)
-     *
-     * <p>A {@code null} array reference is considered lexicographically less
-     * than a non-{@code null} array reference.  Two {@code null} array
-     * references are considered equal.
-     * A {@code null} array element is considered lexicographically than a
-     * non-{@code null} array element.  Two {@code null} array elements are
-     * considered equal.
-     *
-     * <p>The comparison is consistent with {@link #equals(Object[], Object[]) equals},
-     * more specifically the following holds for arrays {@code a} and {@code b}:
-     * <pre>{@code
-     *     Arrays.equals(a, b) == (Arrays.compare(a, b) == 0)
-     * }</pre>
-     *
-     * @param a   the first array to compare
-     * @param b   the second array to compare
-     * @param <T> the type of comparable array elements
-     *
-     * @return the value {@code 0} if the first and second array are equal and
-     * contain the same elements in the same order;
-     * a value less than {@code 0} if the first array is
-     * lexicographically less than the second array; and
-     * a value greater than {@code 0} if the first array is
-     * lexicographically greater than the second array
-     *
-     * @apiNote <p>This method behaves as if (for non-{@code null} array references
-     * and elements):
-     * <pre>{@code
-     *     int i = Arrays.mismatch(a, b);
-     *     if (i >= 0 && i < Math.min(a.length, b.length))
-     *         return a[i].compareTo(b[i]);
-     *     return a.length - b.length;
-     * }</pre>
-     * @since 9
-     */
-    public static <T extends Comparable<? super T>> int compare(T[] a, T[] b) {
-        if(a == b)
-            return 0;
-        // A null array is less than a non-null array
-        if(a == null || b == null)
-            return a == null ? -1 : 1;
-        
-        int length = Math.min(a.length, b.length);
-        for(int i = 0; i < length; i++) {
-            T oa = a[i];
-            T ob = b[i];
-            if(oa != ob) {
-                // A null element is less than a non-null element
-                if(oa == null || ob == null)
-                    return oa == null ? -1 : 1;
-                int v = oa.compareTo(ob);
-                if(v != 0) {
-                    return v;
-                }
-            }
-        }
-        
-        return a.length - b.length;
     }
     
     /**
@@ -5424,6 +5757,7 @@ public class Arrays {
      * }</pre>
      * @since 9
      */
+    // 按照类型T的内部比较器的规则比较两个数组指定范围内的元素的大小
     public static <T extends Comparable<? super T>> int compare(T[] a, int aFromIndex, int aToIndex, T[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
@@ -5445,68 +5779,6 @@ public class Arrays {
         }
         
         return aLength - bLength;
-    }
-    
-    /**
-     * Compares two {@code Object} arrays lexicographically using a specified
-     * comparator.
-     *
-     * <p>If the two arrays share a common prefix then the lexicographic
-     * comparison is the result of comparing with the specified comparator two
-     * elements at an index within the respective arrays that is the prefix
-     * length.
-     * Otherwise, one array is a proper prefix of the other and, lexicographic
-     * comparison is the result of comparing the two array lengths.
-     * (See {@link #mismatch(Object[], Object[])} for the definition of a common
-     * and proper prefix.)
-     *
-     * <p>A {@code null} array reference is considered lexicographically less
-     * than a non-{@code null} array reference.  Two {@code null} array
-     * references are considered equal.
-     *
-     * @param a   the first array to compare
-     * @param b   the second array to compare
-     * @param cmp the comparator to compare array elements
-     * @param <T> the type of array elements
-     *
-     * @return the value {@code 0} if the first and second array are equal and
-     * contain the same elements in the same order;
-     * a value less than {@code 0} if the first array is
-     * lexicographically less than the second array; and
-     * a value greater than {@code 0} if the first array is
-     * lexicographically greater than the second array
-     *
-     * @throws NullPointerException if the comparator is {@code null}
-     * @apiNote <p>This method behaves as if (for non-{@code null} array references):
-     * <pre>{@code
-     *     int i = Arrays.mismatch(a, b, cmp);
-     *     if (i >= 0 && i < Math.min(a.length, b.length))
-     *         return cmp.compare(a[i], b[i]);
-     *     return a.length - b.length;
-     * }</pre>
-     * @since 9
-     */
-    public static <T> int compare(T[] a, T[] b, Comparator<? super T> cmp) {
-        Objects.requireNonNull(cmp);
-        if(a == b)
-            return 0;
-        if(a == null || b == null)
-            return a == null ? -1 : 1;
-        
-        int length = Math.min(a.length, b.length);
-        for(int i = 0; i < length; i++) {
-            T oa = a[i];
-            T ob = b[i];
-            if(oa != ob) {
-                // Null-value comparison is deferred to the comparator
-                int v = cmp.compare(oa, ob);
-                if(v != 0) {
-                    return v;
-                }
-            }
-        }
-        
-        return a.length - b.length;
     }
     
     /**
@@ -5558,6 +5830,7 @@ public class Arrays {
      * }</pre>
      * @since 9
      */
+    // 按照外部比较器cmp的规则比较两个数组指定范围内的元素的大小
     public static <T> int compare(T[] a, int aFromIndex, int aToIndex, T[] b, int bFromIndex, int bToIndex, Comparator<? super T> cmp) {
         Objects.requireNonNull(cmp);
         rangeCheck(a.length, aFromIndex, aToIndex);
@@ -5623,19 +5896,186 @@ public class Arrays {
      * }</pre>
      * @since 9
      */
+    // 以无符号形式比较两个byte数组的大小
     public static int compareUnsigned(byte[] a, byte[] b) {
-        if(a == b)
+        if(a == b) {
             return 0;
-        if(a == null || b == null)
+        }
+    
+        if(a == null || b == null) {
             return a == null ? -1 : 1;
-        
+        }
+    
         int i = ArraysSupport.mismatch(a, b, Math.min(a.length, b.length));
         if(i >= 0) {
             return Byte.compareUnsigned(a[i], b[i]);
         }
+    
+        return a.length - b.length;
+    }
+    
+    /**
+     * Compares two {@code short} arrays lexicographically, numerically treating
+     * elements as unsigned.
+     *
+     * <p>If the two arrays share a common prefix then the lexicographic
+     * comparison is the result of comparing two elements, as if by
+     * {@link Short#compareUnsigned(short, short)}, at an index within the
+     * respective arrays that is the prefix length.
+     * Otherwise, one array is a proper prefix of the other and, lexicographic
+     * comparison is the result of comparing the two array lengths.
+     * (See {@link #mismatch(short[], short[])} for the definition of a common
+     * and proper prefix.)
+     *
+     * <p>A {@code null} array reference is considered lexicographically less
+     * than a non-{@code null} array reference.  Two {@code null} array
+     * references are considered equal.
+     *
+     * @param a the first array to compare
+     * @param b the second array to compare
+     *
+     * @return the value {@code 0} if the first and second array are
+     * equal and contain the same elements in the same order;
+     * a value less than {@code 0} if the first array is
+     * lexicographically less than the second array; and
+     * a value greater than {@code 0} if the first array is
+     * lexicographically greater than the second array
+     *
+     * @apiNote <p>This method behaves as if (for non-{@code null} array references):
+     * <pre>{@code
+     *     int i = Arrays.mismatch(a, b);
+     *     if (i >= 0 && i < Math.min(a.length, b.length))
+     *         return Short.compareUnsigned(a[i], b[i]);
+     *     return a.length - b.length;
+     * }</pre>
+     * @since 9
+     */
+    // 以无符号形式比较两个short数组的大小
+    public static int compareUnsigned(short[] a, short[] b) {
+        if(a == b) {
+            return 0;
+        }
+        
+        if(a == null || b == null) {
+            return a == null ? -1 : 1;
+        }
+        
+        int i = ArraysSupport.mismatch(a, b, Math.min(a.length, b.length));
+        if(i >= 0) {
+            return Short.compareUnsigned(a[i], b[i]);
+        }
         
         return a.length - b.length;
     }
+    
+    /**
+     * Compares two {@code int} arrays lexicographically, numerically treating
+     * elements as unsigned.
+     *
+     * <p>If the two arrays share a common prefix then the lexicographic
+     * comparison is the result of comparing two elements, as if by
+     * {@link Integer#compareUnsigned(int, int)}, at an index within the
+     * respective arrays that is the prefix length.
+     * Otherwise, one array is a proper prefix of the other and, lexicographic
+     * comparison is the result of comparing the two array lengths.
+     * (See {@link #mismatch(int[], int[])} for the definition of a common
+     * and proper prefix.)
+     *
+     * <p>A {@code null} array reference is considered lexicographically less
+     * than a non-{@code null} array reference.  Two {@code null} array
+     * references are considered equal.
+     *
+     * @param a the first array to compare
+     * @param b the second array to compare
+     *
+     * @return the value {@code 0} if the first and second array are
+     * equal and contain the same elements in the same order;
+     * a value less than {@code 0} if the first array is
+     * lexicographically less than the second array; and
+     * a value greater than {@code 0} if the first array is
+     * lexicographically greater than the second array
+     *
+     * @apiNote <p>This method behaves as if (for non-{@code null} array references):
+     * <pre>{@code
+     *     int i = Arrays.mismatch(a, b);
+     *     if (i >= 0 && i < Math.min(a.length, b.length))
+     *         return Integer.compareUnsigned(a[i], b[i]);
+     *     return a.length - b.length;
+     * }</pre>
+     * @since 9
+     */
+    // 以无符号形式比较两个int数组的大小
+    public static int compareUnsigned(int[] a, int[] b) {
+        if(a == b) {
+            return 0;
+        }
+        
+        if(a == null || b == null) {
+            return a == null ? -1 : 1;
+        }
+        
+        int i = ArraysSupport.mismatch(a, b, Math.min(a.length, b.length));
+        if(i >= 0) {
+            return Integer.compareUnsigned(a[i], b[i]);
+        }
+        
+        return a.length - b.length;
+    }
+    
+    /**
+     * Compares two {@code long} arrays lexicographically, numerically treating
+     * elements as unsigned.
+     *
+     * <p>If the two arrays share a common prefix then the lexicographic
+     * comparison is the result of comparing two elements, as if by
+     * {@link Long#compareUnsigned(long, long)}, at an index within the
+     * respective arrays that is the prefix length.
+     * Otherwise, one array is a proper prefix of the other and, lexicographic
+     * comparison is the result of comparing the two array lengths.
+     * (See {@link #mismatch(long[], long[])} for the definition of a common
+     * and proper prefix.)
+     *
+     * <p>A {@code null} array reference is considered lexicographically less
+     * than a non-{@code null} array reference.  Two {@code null} array
+     * references are considered equal.
+     *
+     * @param a the first array to compare
+     * @param b the second array to compare
+     *
+     * @return the value {@code 0} if the first and second array are
+     * equal and contain the same elements in the same order;
+     * a value less than {@code 0} if the first array is
+     * lexicographically less than the second array; and
+     * a value greater than {@code 0} if the first array is
+     * lexicographically greater than the second array
+     *
+     * @apiNote <p>This method behaves as if (for non-{@code null} array references):
+     * <pre>{@code
+     *     int i = Arrays.mismatch(a, b);
+     *     if (i >= 0 && i < Math.min(a.length, b.length))
+     *         return Long.compareUnsigned(a[i], b[i]);
+     *     return a.length - b.length;
+     * }</pre>
+     * @since 9
+     */
+    // 以无符号形式比较两个long数组的大小
+    public static int compareUnsigned(long[] a, long[] b) {
+        if(a == b) {
+            return 0;
+        }
+        
+        if(a == null || b == null) {
+            return a == null ? -1 : 1;
+        }
+        
+        int i = ArraysSupport.mismatch(a, b, Math.min(a.length, b.length));
+        if(i >= 0) {
+            return Long.compareUnsigned(a[i], b[i]);
+        }
+        
+        return a.length - b.length;
+    }
+    
     
     /**
      * Compares two {@code byte} arrays lexicographically over the specified
@@ -5685,6 +6125,7 @@ public class Arrays {
      * }</pre>
      * @since 9
      */
+    // 以无符号形式比较两个byte数组的指定范围的大小
     public static int compareUnsigned(byte[] a, int aFromIndex, int aToIndex, byte[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
@@ -5697,56 +6138,6 @@ public class Arrays {
         }
         
         return aLength - bLength;
-    }
-    
-    /**
-     * Compares two {@code short} arrays lexicographically, numerically treating
-     * elements as unsigned.
-     *
-     * <p>If the two arrays share a common prefix then the lexicographic
-     * comparison is the result of comparing two elements, as if by
-     * {@link Short#compareUnsigned(short, short)}, at an index within the
-     * respective arrays that is the prefix length.
-     * Otherwise, one array is a proper prefix of the other and, lexicographic
-     * comparison is the result of comparing the two array lengths.
-     * (See {@link #mismatch(short[], short[])} for the definition of a common
-     * and proper prefix.)
-     *
-     * <p>A {@code null} array reference is considered lexicographically less
-     * than a non-{@code null} array reference.  Two {@code null} array
-     * references are considered equal.
-     *
-     * @param a the first array to compare
-     * @param b the second array to compare
-     *
-     * @return the value {@code 0} if the first and second array are
-     * equal and contain the same elements in the same order;
-     * a value less than {@code 0} if the first array is
-     * lexicographically less than the second array; and
-     * a value greater than {@code 0} if the first array is
-     * lexicographically greater than the second array
-     *
-     * @apiNote <p>This method behaves as if (for non-{@code null} array references):
-     * <pre>{@code
-     *     int i = Arrays.mismatch(a, b);
-     *     if (i >= 0 && i < Math.min(a.length, b.length))
-     *         return Short.compareUnsigned(a[i], b[i]);
-     *     return a.length - b.length;
-     * }</pre>
-     * @since 9
-     */
-    public static int compareUnsigned(short[] a, short[] b) {
-        if(a == b)
-            return 0;
-        if(a == null || b == null)
-            return a == null ? -1 : 1;
-        
-        int i = ArraysSupport.mismatch(a, b, Math.min(a.length, b.length));
-        if(i >= 0) {
-            return Short.compareUnsigned(a[i], b[i]);
-        }
-        
-        return a.length - b.length;
     }
     
     /**
@@ -5797,6 +6188,7 @@ public class Arrays {
      * }</pre>
      * @since 9
      */
+    // 以无符号形式比较两个short数组的指定范围的大小
     public static int compareUnsigned(short[] a, int aFromIndex, int aToIndex, short[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
@@ -5809,56 +6201,6 @@ public class Arrays {
         }
         
         return aLength - bLength;
-    }
-    
-    /**
-     * Compares two {@code int} arrays lexicographically, numerically treating
-     * elements as unsigned.
-     *
-     * <p>If the two arrays share a common prefix then the lexicographic
-     * comparison is the result of comparing two elements, as if by
-     * {@link Integer#compareUnsigned(int, int)}, at an index within the
-     * respective arrays that is the prefix length.
-     * Otherwise, one array is a proper prefix of the other and, lexicographic
-     * comparison is the result of comparing the two array lengths.
-     * (See {@link #mismatch(int[], int[])} for the definition of a common
-     * and proper prefix.)
-     *
-     * <p>A {@code null} array reference is considered lexicographically less
-     * than a non-{@code null} array reference.  Two {@code null} array
-     * references are considered equal.
-     *
-     * @param a the first array to compare
-     * @param b the second array to compare
-     *
-     * @return the value {@code 0} if the first and second array are
-     * equal and contain the same elements in the same order;
-     * a value less than {@code 0} if the first array is
-     * lexicographically less than the second array; and
-     * a value greater than {@code 0} if the first array is
-     * lexicographically greater than the second array
-     *
-     * @apiNote <p>This method behaves as if (for non-{@code null} array references):
-     * <pre>{@code
-     *     int i = Arrays.mismatch(a, b);
-     *     if (i >= 0 && i < Math.min(a.length, b.length))
-     *         return Integer.compareUnsigned(a[i], b[i]);
-     *     return a.length - b.length;
-     * }</pre>
-     * @since 9
-     */
-    public static int compareUnsigned(int[] a, int[] b) {
-        if(a == b)
-            return 0;
-        if(a == null || b == null)
-            return a == null ? -1 : 1;
-        
-        int i = ArraysSupport.mismatch(a, b, Math.min(a.length, b.length));
-        if(i >= 0) {
-            return Integer.compareUnsigned(a[i], b[i]);
-        }
-        
-        return a.length - b.length;
     }
     
     /**
@@ -5909,6 +6251,7 @@ public class Arrays {
      * }</pre>
      * @since 9
      */
+    // 以无符号形式比较两个int数组的指定范围的大小
     public static int compareUnsigned(int[] a, int aFromIndex, int aToIndex, int[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
@@ -5921,56 +6264,6 @@ public class Arrays {
         }
         
         return aLength - bLength;
-    }
-    
-    /**
-     * Compares two {@code long} arrays lexicographically, numerically treating
-     * elements as unsigned.
-     *
-     * <p>If the two arrays share a common prefix then the lexicographic
-     * comparison is the result of comparing two elements, as if by
-     * {@link Long#compareUnsigned(long, long)}, at an index within the
-     * respective arrays that is the prefix length.
-     * Otherwise, one array is a proper prefix of the other and, lexicographic
-     * comparison is the result of comparing the two array lengths.
-     * (See {@link #mismatch(long[], long[])} for the definition of a common
-     * and proper prefix.)
-     *
-     * <p>A {@code null} array reference is considered lexicographically less
-     * than a non-{@code null} array reference.  Two {@code null} array
-     * references are considered equal.
-     *
-     * @param a the first array to compare
-     * @param b the second array to compare
-     *
-     * @return the value {@code 0} if the first and second array are
-     * equal and contain the same elements in the same order;
-     * a value less than {@code 0} if the first array is
-     * lexicographically less than the second array; and
-     * a value greater than {@code 0} if the first array is
-     * lexicographically greater than the second array
-     *
-     * @apiNote <p>This method behaves as if (for non-{@code null} array references):
-     * <pre>{@code
-     *     int i = Arrays.mismatch(a, b);
-     *     if (i >= 0 && i < Math.min(a.length, b.length))
-     *         return Long.compareUnsigned(a[i], b[i]);
-     *     return a.length - b.length;
-     * }</pre>
-     * @since 9
-     */
-    public static int compareUnsigned(long[] a, long[] b) {
-        if(a == b)
-            return 0;
-        if(a == null || b == null)
-            return a == null ? -1 : 1;
-        
-        int i = ArraysSupport.mismatch(a, b, Math.min(a.length, b.length));
-        if(i >= 0) {
-            return Long.compareUnsigned(a[i], b[i]);
-        }
-        
-        return a.length - b.length;
     }
     
     /**
@@ -6021,6 +6314,7 @@ public class Arrays {
      * }</pre>
      * @since 9
      */
+    // 以无符号形式比较两个long数组的指定范围的大小
     public static int compareUnsigned(long[] a, int aFromIndex, int aToIndex, long[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
@@ -6040,6 +6334,59 @@ public class Arrays {
     
     
     /*▼ 失配比较 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Finds and returns the index of the first mismatch between two
+     * {@code boolean} arrays, otherwise return -1 if no mismatch is found.  The
+     * index will be in the range of 0 (inclusive) up to the length (inclusive)
+     * of the smaller array.
+     *
+     * <p>If the two arrays share a common prefix then the returned index is the
+     * length of the common prefix and it follows that there is a mismatch
+     * between the two elements at that index within the respective arrays.
+     * If one array is a proper prefix of the other then the returned index is
+     * the length of the smaller array and it follows that the index is only
+     * valid for the larger array.
+     * Otherwise, there is no mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a common
+     * prefix of length {@code pl} if the following expression is true:
+     * <pre>{@code
+     *     pl >= 0 &&
+     *     pl < Math.min(a.length, b.length) &&
+     *     Arrays.equals(a, 0, pl, b, 0, pl) &&
+     *     a[pl] != b[pl]
+     * }</pre>
+     * Note that a common prefix length of {@code 0} indicates that the first
+     * elements from each array mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a proper
+     * prefix if the following expression is true:
+     * <pre>{@code
+     *     a.length != b.length &&
+     *     Arrays.equals(a, 0, Math.min(a.length, b.length),
+     *                   b, 0, Math.min(a.length, b.length))
+     * }</pre>
+     *
+     * @param a the first array to be tested for a mismatch
+     * @param b the second array to be tested for a mismatch
+     *
+     * @return the index of the first mismatch between the two arrays,
+     * otherwise {@code -1}.
+     *
+     * @throws NullPointerException if either array is {@code null}
+     * @since 9
+     */
+    // 比较两个数组，返回首个失配处的索引，返回-1表示两数组完全匹配
+    public static int mismatch(boolean[] a, boolean[] b) {
+        int length = Math.min(a.length, b.length); // Check null array refs
+        if(a == b) {
+            return -1;
+        }
+    
+        int i = ArraysSupport.mismatch(a, b, length);
+        return (i<0 && a.length != b.length) ? length : i;
+    }
     
     /**
      * Finds and returns the index of the first mismatch between two {@code char}
@@ -6083,13 +6430,535 @@ public class Arrays {
      * @throws NullPointerException if either array is {@code null}
      * @since 9
      */
+    // 比较两个数组，返回首个失配处的索引，返回-1表示两数组完全匹配
     public static int mismatch(char[] a, char[] b) {
         int length = Math.min(a.length, b.length); // Check null array refs
-        if(a == b)
+        if(a == b) {
             return -1;
+        }
+        
+        int i = ArraysSupport.mismatch(a, b, length);
+        return (i<0 && a.length != b.length) ? length : i;
+    }
+    
+    /**
+     * Finds and returns the index of the first mismatch between two {@code byte}
+     * arrays, otherwise return -1 if no mismatch is found.  The index will be
+     * in the range of 0 (inclusive) up to the length (inclusive) of the smaller
+     * array.
+     *
+     * <p>If the two arrays share a common prefix then the returned index is the
+     * length of the common prefix and it follows that there is a mismatch
+     * between the two elements at that index within the respective arrays.
+     * If one array is a proper prefix of the other then the returned index is
+     * the length of the smaller array and it follows that the index is only
+     * valid for the larger array.
+     * Otherwise, there is no mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a common
+     * prefix of length {@code pl} if the following expression is true:
+     * <pre>{@code
+     *     pl >= 0 &&
+     *     pl < Math.min(a.length, b.length) &&
+     *     Arrays.equals(a, 0, pl, b, 0, pl) &&
+     *     a[pl] != b[pl]
+     * }</pre>
+     * Note that a common prefix length of {@code 0} indicates that the first
+     * elements from each array mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a proper
+     * prefix if the following expression is true:
+     * <pre>{@code
+     *     a.length != b.length &&
+     *     Arrays.equals(a, 0, Math.min(a.length, b.length),
+     *                   b, 0, Math.min(a.length, b.length))
+     * }</pre>
+     *
+     * @param a the first array to be tested for a mismatch
+     * @param b the second array to be tested for a mismatch
+     *
+     * @return the index of the first mismatch between the two arrays,
+     * otherwise {@code -1}.
+     *
+     * @throws NullPointerException if either array is {@code null}
+     * @since 9
+     */
+    // 比较两个数组，返回首个失配处的索引，返回-1表示两数组完全匹配
+    public static int mismatch(byte[] a, byte[] b) {
+        int length = Math.min(a.length, b.length); // Check null array refs
+        if(a == b) {
+            return -1;
+        }
         
         int i = ArraysSupport.mismatch(a, b, length);
         return (i < 0 && a.length != b.length) ? length : i;
+    }
+    
+    /**
+     * Finds and returns the index of the first mismatch between two {@code short}
+     * arrays, otherwise return -1 if no mismatch is found.  The index will be
+     * in the range of 0 (inclusive) up to the length (inclusive) of the smaller
+     * array.
+     *
+     * <p>If the two arrays share a common prefix then the returned index is the
+     * length of the common prefix and it follows that there is a mismatch
+     * between the two elements at that index within the respective arrays.
+     * If one array is a proper prefix of the other then the returned index is
+     * the length of the smaller array and it follows that the index is only
+     * valid for the larger array.
+     * Otherwise, there is no mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a common
+     * prefix of length {@code pl} if the following expression is true:
+     * <pre>{@code
+     *     pl >= 0 &&
+     *     pl < Math.min(a.length, b.length) &&
+     *     Arrays.equals(a, 0, pl, b, 0, pl) &&
+     *     a[pl] != b[pl]
+     * }</pre>
+     * Note that a common prefix length of {@code 0} indicates that the first
+     * elements from each array mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a proper
+     * prefix if the following expression is true:
+     * <pre>{@code
+     *     a.length != b.length &&
+     *     Arrays.equals(a, 0, Math.min(a.length, b.length),
+     *                   b, 0, Math.min(a.length, b.length))
+     * }</pre>
+     *
+     * @param a the first array to be tested for a mismatch
+     * @param b the second array to be tested for a mismatch
+     *
+     * @return the index of the first mismatch between the two arrays,
+     * otherwise {@code -1}.
+     *
+     * @throws NullPointerException if either array is {@code null}
+     * @since 9
+     */
+    // 比较两个数组，返回首个失配处的索引，返回-1表示两数组完全匹配
+    public static int mismatch(short[] a, short[] b) {
+        int length = Math.min(a.length, b.length); // Check null array refs
+        if(a == b) {
+            return -1;
+        }
+    
+        int i = ArraysSupport.mismatch(a, b, length);
+        return (i<0 && a.length != b.length) ? length : i;
+    }
+    
+    /**
+     * Finds and returns the index of the first mismatch between two {@code int}
+     * arrays, otherwise return -1 if no mismatch is found.  The index will be
+     * in the range of 0 (inclusive) up to the length (inclusive) of the smaller
+     * array.
+     *
+     * <p>If the two arrays share a common prefix then the returned index is the
+     * length of the common prefix and it follows that there is a mismatch
+     * between the two elements at that index within the respective arrays.
+     * If one array is a proper prefix of the other then the returned index is
+     * the length of the smaller array and it follows that the index is only
+     * valid for the larger array.
+     * Otherwise, there is no mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a common
+     * prefix of length {@code pl} if the following expression is true:
+     * <pre>{@code
+     *     pl >= 0 &&
+     *     pl < Math.min(a.length, b.length) &&
+     *     Arrays.equals(a, 0, pl, b, 0, pl) &&
+     *     a[pl] != b[pl]
+     * }</pre>
+     * Note that a common prefix length of {@code 0} indicates that the first
+     * elements from each array mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a proper
+     * prefix if the following expression is true:
+     * <pre>{@code
+     *     a.length != b.length &&
+     *     Arrays.equals(a, 0, Math.min(a.length, b.length),
+     *                   b, 0, Math.min(a.length, b.length))
+     * }</pre>
+     *
+     * @param a the first array to be tested for a mismatch
+     * @param b the second array to be tested for a mismatch
+     *
+     * @return the index of the first mismatch between the two arrays,
+     * otherwise {@code -1}.
+     *
+     * @throws NullPointerException if either array is {@code null}
+     * @since 9
+     */
+    // 比较两个数组，返回首个失配处的索引，返回-1表示两数组完全匹配
+    public static int mismatch(int[] a, int[] b) {
+        int length = Math.min(a.length, b.length); // Check null array refs
+        if(a == b) {
+            return -1;
+        }
+        
+        int i = ArraysSupport.mismatch(a, b, length);
+        return (i<0 && a.length != b.length) ? length : i;
+    }
+    
+    /**
+     * Finds and returns the index of the first mismatch between two {@code long}
+     * arrays, otherwise return -1 if no mismatch is found.  The index will be
+     * in the range of 0 (inclusive) up to the length (inclusive) of the smaller
+     * array.
+     *
+     * <p>If the two arrays share a common prefix then the returned index is the
+     * length of the common prefix and it follows that there is a mismatch
+     * between the two elements at that index within the respective arrays.
+     * If one array is a proper prefix of the other then the returned index is
+     * the length of the smaller array and it follows that the index is only
+     * valid for the larger array.
+     * Otherwise, there is no mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a common
+     * prefix of length {@code pl} if the following expression is true:
+     * <pre>{@code
+     *     pl >= 0 &&
+     *     pl < Math.min(a.length, b.length) &&
+     *     Arrays.equals(a, 0, pl, b, 0, pl) &&
+     *     a[pl] != b[pl]
+     * }</pre>
+     * Note that a common prefix length of {@code 0} indicates that the first
+     * elements from each array mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a proper
+     * prefix if the following expression is true:
+     * <pre>{@code
+     *     a.length != b.length &&
+     *     Arrays.equals(a, 0, Math.min(a.length, b.length),
+     *                   b, 0, Math.min(a.length, b.length))
+     * }</pre>
+     *
+     * @param a the first array to be tested for a mismatch
+     * @param b the second array to be tested for a mismatch
+     *
+     * @return the index of the first mismatch between the two arrays,
+     * otherwise {@code -1}.
+     *
+     * @throws NullPointerException if either array is {@code null}
+     * @since 9
+     */
+    // 比较两个数组，返回首个失配处的索引，返回-1表示两数组完全匹配
+    public static int mismatch(long[] a, long[] b) {
+        int length = Math.min(a.length, b.length); // Check null array refs
+        if(a == b) {
+            return -1;
+        }
+        
+        int i = ArraysSupport.mismatch(a, b, length);
+        return (i<0 && a.length != b.length) ? length : i;
+    }
+    
+    /**
+     * Finds and returns the index of the first mismatch between two {@code float}
+     * arrays, otherwise return -1 if no mismatch is found.  The index will be
+     * in the range of 0 (inclusive) up to the length (inclusive) of the smaller
+     * array.
+     *
+     * <p>If the two arrays share a common prefix then the returned index is the
+     * length of the common prefix and it follows that there is a mismatch
+     * between the two elements at that index within the respective arrays.
+     * If one array is a proper prefix of the other then the returned index is
+     * the length of the smaller array and it follows that the index is only
+     * valid for the larger array.
+     * Otherwise, there is no mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a common
+     * prefix of length {@code pl} if the following expression is true:
+     * <pre>{@code
+     *     pl >= 0 &&
+     *     pl < Math.min(a.length, b.length) &&
+     *     Arrays.equals(a, 0, pl, b, 0, pl) &&
+     *     Float.compare(a[pl], b[pl]) != 0
+     * }</pre>
+     * Note that a common prefix length of {@code 0} indicates that the first
+     * elements from each array mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a proper
+     * prefix if the following expression is true:
+     * <pre>{@code
+     *     a.length != b.length &&
+     *     Arrays.equals(a, 0, Math.min(a.length, b.length),
+     *                   b, 0, Math.min(a.length, b.length))
+     * }</pre>
+     *
+     * @param a the first array to be tested for a mismatch
+     * @param b the second array to be tested for a mismatch
+     *
+     * @return the index of the first mismatch between the two arrays,
+     * otherwise {@code -1}.
+     *
+     * @throws NullPointerException if either array is {@code null}
+     * @since 9
+     */
+    // 比较两个数组，返回首个失配处的索引，返回-1表示两数组完全匹配
+    public static int mismatch(float[] a, float[] b) {
+        int length = Math.min(a.length, b.length); // Check null array refs
+        if(a == b) {
+            return -1;
+        }
+        
+        int i = ArraysSupport.mismatch(a, b, length);
+        return (i<0 && a.length != b.length) ? length : i;
+    }
+    
+    /**
+     * Finds and returns the index of the first mismatch between two
+     * {@code double} arrays, otherwise return -1 if no mismatch is found.  The
+     * index will be in the range of 0 (inclusive) up to the length (inclusive)
+     * of the smaller array.
+     *
+     * <p>If the two arrays share a common prefix then the returned index is the
+     * length of the common prefix and it follows that there is a mismatch
+     * between the two elements at that index within the respective arrays.
+     * If one array is a proper prefix of the other then the returned index is
+     * the length of the smaller array and it follows that the index is only
+     * valid for the larger array.
+     * Otherwise, there is no mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a common
+     * prefix of length {@code pl} if the following expression is true:
+     * <pre>{@code
+     *     pl >= 0 &&
+     *     pl < Math.min(a.length, b.length) &&
+     *     Arrays.equals(a, 0, pl, b, 0, pl) &&
+     *     Double.compare(a[pl], b[pl]) != 0
+     * }</pre>
+     * Note that a common prefix length of {@code 0} indicates that the first
+     * elements from each array mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a proper
+     * prefix if the following expression is true:
+     * <pre>{@code
+     *     a.length != b.length &&
+     *     Arrays.equals(a, 0, Math.min(a.length, b.length),
+     *                   b, 0, Math.min(a.length, b.length))
+     * }</pre>
+     *
+     * @param a the first array to be tested for a mismatch
+     * @param b the second array to be tested for a mismatch
+     *
+     * @return the index of the first mismatch between the two arrays,
+     * otherwise {@code -1}.
+     *
+     * @throws NullPointerException if either array is {@code null}
+     * @since 9
+     */
+    // 比较两个数组，返回首个失配处的索引，返回-1表示两数组完全匹配
+    public static int mismatch(double[] a, double[] b) {
+        int length = Math.min(a.length, b.length); // Check null array refs
+        if(a == b) {
+            return -1;
+        }
+        
+        int i = ArraysSupport.mismatch(a, b, length);
+        return (i<0 && a.length != b.length) ? length : i;
+    }
+    
+    /**
+     * Finds and returns the index of the first mismatch between two
+     * {@code Object} arrays, otherwise return -1 if no mismatch is found.  The
+     * index will be in the range of 0 (inclusive) up to the length (inclusive)
+     * of the smaller array.
+     *
+     * <p>If the two arrays share a common prefix then the returned index is the
+     * length of the common prefix and it follows that there is a mismatch
+     * between the two elements at that index within the respective arrays.
+     * If one array is a proper prefix of the other then the returned index is
+     * the length of the smaller array and it follows that the index is only
+     * valid for the larger array.
+     * Otherwise, there is no mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a common
+     * prefix of length {@code pl} if the following expression is true:
+     * <pre>{@code
+     *     pl >= 0 &&
+     *     pl < Math.min(a.length, b.length) &&
+     *     Arrays.equals(a, 0, pl, b, 0, pl) &&
+     *     !Objects.equals(a[pl], b[pl])
+     * }</pre>
+     * Note that a common prefix length of {@code 0} indicates that the first
+     * elements from each array mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a proper
+     * prefix if the following expression is true:
+     * <pre>{@code
+     *     a.length != b.length &&
+     *     Arrays.equals(a, 0, Math.min(a.length, b.length),
+     *                   b, 0, Math.min(a.length, b.length))
+     * }</pre>
+     *
+     * @param a the first array to be tested for a mismatch
+     * @param b the second array to be tested for a mismatch
+     *
+     * @return the index of the first mismatch between the two arrays,
+     * otherwise {@code -1}.
+     *
+     * @throws NullPointerException if either array is {@code null}
+     * @since 9
+     */
+    // 比较两个数组，返回首个失配处的索引，返回-1表示两数组完全匹配(借助两对象的equals方法进行比较)
+    public static int mismatch(Object[] a, Object[] b) {
+        int length = Math.min(a.length, b.length); // Check null array refs
+        if(a == b) {
+            return -1;
+        }
+        
+        for(int i = 0; i<length; i++) {
+            if(!Objects.equals(a[i], b[i])) {
+                return i;
+            }
+        }
+        
+        return a.length != b.length ? length : -1;
+    }
+    
+    /**
+     * Finds and returns the index of the first mismatch between two
+     * {@code Object} arrays, otherwise return -1 if no mismatch is found.
+     * The index will be in the range of 0 (inclusive) up to the length
+     * (inclusive) of the smaller array.
+     *
+     * <p>The specified comparator is used to determine if two array elements
+     * from the each array are not equal.
+     *
+     * <p>If the two arrays share a common prefix then the returned index is the
+     * length of the common prefix and it follows that there is a mismatch
+     * between the two elements at that index within the respective arrays.
+     * If one array is a proper prefix of the other then the returned index is
+     * the length of the smaller array and it follows that the index is only
+     * valid for the larger array.
+     * Otherwise, there is no mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a common
+     * prefix of length {@code pl} if the following expression is true:
+     * <pre>{@code
+     *     pl >= 0 &&
+     *     pl < Math.min(a.length, b.length) &&
+     *     Arrays.equals(a, 0, pl, b, 0, pl, cmp)
+     *     cmp.compare(a[pl], b[pl]) != 0
+     * }</pre>
+     * Note that a common prefix length of {@code 0} indicates that the first
+     * elements from each array mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a proper
+     * prefix if the following expression is true:
+     * <pre>{@code
+     *     a.length != b.length &&
+     *     Arrays.equals(a, 0, Math.min(a.length, b.length),
+     *                   b, 0, Math.min(a.length, b.length),
+     *                   cmp)
+     * }</pre>
+     *
+     * @param a   the first array to be tested for a mismatch
+     * @param b   the second array to be tested for a mismatch
+     * @param cmp the comparator to compare array elements
+     * @param <T> the type of array elements
+     *
+     * @return the index of the first mismatch between the two arrays,
+     * otherwise {@code -1}.
+     *
+     * @throws NullPointerException if either array or the comparator is {@code null}
+     * @since 9
+     */
+    // 比较两个数组，返回首个失配处的索引，返回-1表示两数组完全匹配(借助外部比较器cmp进行比较)
+    public static <T> int mismatch(T[] a, T[] b, Comparator<? super T> cmp) {
+        Objects.requireNonNull(cmp);
+        int length = Math.min(a.length, b.length); // Check null array refs
+        if(a == b) {
+            return -1;
+        }
+        
+        for(int i = 0; i<length; i++) {
+            T oa = a[i];
+            T ob = b[i];
+            if(oa != ob) {
+                // Null-value comparison is deferred to the comparator
+                int v = cmp.compare(oa, ob);
+                if(v != 0) {
+                    return i;
+                }
+            }
+        }
+        
+        return a.length != b.length ? length : -1;
+    }
+    
+    
+    /**
+     * Finds and returns the relative index of the first mismatch between two
+     * {@code boolean} arrays over the specified ranges, otherwise return -1 if
+     * no mismatch is found.  The index will be in the range of 0 (inclusive) up
+     * to the length (inclusive) of the smaller range.
+     *
+     * <p>If the two arrays, over the specified ranges, share a common prefix
+     * then the returned relative index is the length of the common prefix and
+     * it follows that there is a mismatch between the two elements at that
+     * relative index within the respective arrays.
+     * If one array is a proper prefix of the other, over the specified ranges,
+     * then the returned relative index is the length of the smaller range and
+     * it follows that the relative index is only valid for the array with the
+     * larger range.
+     * Otherwise, there is no mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b} with specified
+     * ranges [{@code aFromIndex}, {@code atoIndex}) and
+     * [{@code bFromIndex}, {@code btoIndex}) respectively, share a common
+     * prefix of length {@code pl} if the following expression is true:
+     * <pre>{@code
+     *     pl >= 0 &&
+     *     pl < Math.min(aToIndex - aFromIndex, bToIndex - bFromIndex) &&
+     *     Arrays.equals(a, aFromIndex, aFromIndex + pl, b, bFromIndex, bFromIndex + pl) &&
+     *     a[aFromIndex + pl] != b[bFromIndex + pl]
+     * }</pre>
+     * Note that a common prefix length of {@code 0} indicates that the first
+     * elements from each array mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b} with specified
+     * ranges [{@code aFromIndex}, {@code atoIndex}) and
+     * [{@code bFromIndex}, {@code btoIndex}) respectively, share a proper
+     * if the following expression is true:
+     * <pre>{@code
+     *     (aToIndex - aFromIndex) != (bToIndex - bFromIndex) &&
+     *     Arrays.equals(a, 0, Math.min(aToIndex - aFromIndex, bToIndex - bFromIndex),
+     *                   b, 0, Math.min(aToIndex - aFromIndex, bToIndex - bFromIndex))
+     * }</pre>
+     *
+     * @param a          the first array to be tested for a mismatch
+     * @param aFromIndex the index (inclusive) of the first element in the
+     *                   first array to be tested
+     * @param aToIndex   the index (exclusive) of the last element in the
+     *                   first array to be tested
+     * @param b          the second array to be tested for a mismatch
+     * @param bFromIndex the index (inclusive) of the first element in the
+     *                   second array to be tested
+     * @param bToIndex   the index (exclusive) of the last element in the
+     *                   second array to be tested
+     *
+     * @return the relative index of the first mismatch between the two arrays
+     * over the specified ranges, otherwise {@code -1}.
+     *
+     * @throws IllegalArgumentException       if {@code aFromIndex > aToIndex} or
+     *                                        if {@code bFromIndex > bToIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code aFromIndex < 0 or aToIndex > a.length} or
+     *                                        if {@code bFromIndex < 0 or bToIndex > b.length}
+     * @throws NullPointerException           if either array is {@code null}
+     * @since 9
+     */
+    // 比较两个数组的指定片段，返回首个失配处的索引，返回-1表示两数组完全匹配
+    public static int mismatch(boolean[] a, int aFromIndex, int aToIndex, boolean[] b, int bFromIndex, int bToIndex) {
+        rangeCheck(a.length, aFromIndex, aToIndex);
+        rangeCheck(b.length, bFromIndex, bToIndex);
+        
+        int aLength = aToIndex - aFromIndex;
+        int bLength = bToIndex - bFromIndex;
+        int length = Math.min(aLength, bLength);
+        int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, length);
+        return (i<0 && aLength != bLength) ? length : i;
     }
     
     /**
@@ -6152,6 +7021,7 @@ public class Arrays {
      * @throws NullPointerException           if either array is {@code null}
      * @since 9
      */
+    // 比较两个数组的指定片段，返回首个失配处的索引，返回-1表示两数组完全匹配
     public static int mismatch(char[] a, int aFromIndex, int aToIndex, char[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
@@ -6160,58 +7030,7 @@ public class Arrays {
         int bLength = bToIndex - bFromIndex;
         int length = Math.min(aLength, bLength);
         int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, length);
-        return (i < 0 && aLength != bLength) ? length : i;
-    }
-    
-    /**
-     * Finds and returns the index of the first mismatch between two {@code byte}
-     * arrays, otherwise return -1 if no mismatch is found.  The index will be
-     * in the range of 0 (inclusive) up to the length (inclusive) of the smaller
-     * array.
-     *
-     * <p>If the two arrays share a common prefix then the returned index is the
-     * length of the common prefix and it follows that there is a mismatch
-     * between the two elements at that index within the respective arrays.
-     * If one array is a proper prefix of the other then the returned index is
-     * the length of the smaller array and it follows that the index is only
-     * valid for the larger array.
-     * Otherwise, there is no mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a common
-     * prefix of length {@code pl} if the following expression is true:
-     * <pre>{@code
-     *     pl >= 0 &&
-     *     pl < Math.min(a.length, b.length) &&
-     *     Arrays.equals(a, 0, pl, b, 0, pl) &&
-     *     a[pl] != b[pl]
-     * }</pre>
-     * Note that a common prefix length of {@code 0} indicates that the first
-     * elements from each array mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a proper
-     * prefix if the following expression is true:
-     * <pre>{@code
-     *     a.length != b.length &&
-     *     Arrays.equals(a, 0, Math.min(a.length, b.length),
-     *                   b, 0, Math.min(a.length, b.length))
-     * }</pre>
-     *
-     * @param a the first array to be tested for a mismatch
-     * @param b the second array to be tested for a mismatch
-     *
-     * @return the index of the first mismatch between the two arrays,
-     * otherwise {@code -1}.
-     *
-     * @throws NullPointerException if either array is {@code null}
-     * @since 9
-     */
-    public static int mismatch(byte[] a, byte[] b) {
-        int length = Math.min(a.length, b.length); // Check null array refs
-        if(a == b)
-            return -1;
-        
-        int i = ArraysSupport.mismatch(a, b, length);
-        return (i < 0 && a.length != b.length) ? length : i;
+        return (i<0 && aLength != bLength) ? length : i;
     }
     
     /**
@@ -6274,6 +7093,7 @@ public class Arrays {
      * @throws NullPointerException           if either array is {@code null}
      * @since 9
      */
+    // 比较两个数组的指定片段，返回首个失配处的索引，返回-1表示两数组完全匹配
     public static int mismatch(byte[] a, int aFromIndex, int aToIndex, byte[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
@@ -6282,58 +7102,7 @@ public class Arrays {
         int bLength = bToIndex - bFromIndex;
         int length = Math.min(aLength, bLength);
         int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, length);
-        return (i < 0 && aLength != bLength) ? length : i;
-    }
-    
-    /**
-     * Finds and returns the index of the first mismatch between two {@code short}
-     * arrays, otherwise return -1 if no mismatch is found.  The index will be
-     * in the range of 0 (inclusive) up to the length (inclusive) of the smaller
-     * array.
-     *
-     * <p>If the two arrays share a common prefix then the returned index is the
-     * length of the common prefix and it follows that there is a mismatch
-     * between the two elements at that index within the respective arrays.
-     * If one array is a proper prefix of the other then the returned index is
-     * the length of the smaller array and it follows that the index is only
-     * valid for the larger array.
-     * Otherwise, there is no mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a common
-     * prefix of length {@code pl} if the following expression is true:
-     * <pre>{@code
-     *     pl >= 0 &&
-     *     pl < Math.min(a.length, b.length) &&
-     *     Arrays.equals(a, 0, pl, b, 0, pl) &&
-     *     a[pl] != b[pl]
-     * }</pre>
-     * Note that a common prefix length of {@code 0} indicates that the first
-     * elements from each array mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a proper
-     * prefix if the following expression is true:
-     * <pre>{@code
-     *     a.length != b.length &&
-     *     Arrays.equals(a, 0, Math.min(a.length, b.length),
-     *                   b, 0, Math.min(a.length, b.length))
-     * }</pre>
-     *
-     * @param a the first array to be tested for a mismatch
-     * @param b the second array to be tested for a mismatch
-     *
-     * @return the index of the first mismatch between the two arrays,
-     * otherwise {@code -1}.
-     *
-     * @throws NullPointerException if either array is {@code null}
-     * @since 9
-     */
-    public static int mismatch(short[] a, short[] b) {
-        int length = Math.min(a.length, b.length); // Check null array refs
-        if(a == b)
-            return -1;
-        
-        int i = ArraysSupport.mismatch(a, b, length);
-        return (i < 0 && a.length != b.length) ? length : i;
+        return (i<0 && aLength != bLength) ? length : i;
     }
     
     /**
@@ -6396,6 +7165,7 @@ public class Arrays {
      * @throws NullPointerException           if either array is {@code null}
      * @since 9
      */
+    // 比较两个数组的指定片段，返回首个失配处的索引，返回-1表示两数组完全匹配
     public static int mismatch(short[] a, int aFromIndex, int aToIndex, short[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
@@ -6404,58 +7174,7 @@ public class Arrays {
         int bLength = bToIndex - bFromIndex;
         int length = Math.min(aLength, bLength);
         int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, length);
-        return (i < 0 && aLength != bLength) ? length : i;
-    }
-    
-    /**
-     * Finds and returns the index of the first mismatch between two {@code int}
-     * arrays, otherwise return -1 if no mismatch is found.  The index will be
-     * in the range of 0 (inclusive) up to the length (inclusive) of the smaller
-     * array.
-     *
-     * <p>If the two arrays share a common prefix then the returned index is the
-     * length of the common prefix and it follows that there is a mismatch
-     * between the two elements at that index within the respective arrays.
-     * If one array is a proper prefix of the other then the returned index is
-     * the length of the smaller array and it follows that the index is only
-     * valid for the larger array.
-     * Otherwise, there is no mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a common
-     * prefix of length {@code pl} if the following expression is true:
-     * <pre>{@code
-     *     pl >= 0 &&
-     *     pl < Math.min(a.length, b.length) &&
-     *     Arrays.equals(a, 0, pl, b, 0, pl) &&
-     *     a[pl] != b[pl]
-     * }</pre>
-     * Note that a common prefix length of {@code 0} indicates that the first
-     * elements from each array mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a proper
-     * prefix if the following expression is true:
-     * <pre>{@code
-     *     a.length != b.length &&
-     *     Arrays.equals(a, 0, Math.min(a.length, b.length),
-     *                   b, 0, Math.min(a.length, b.length))
-     * }</pre>
-     *
-     * @param a the first array to be tested for a mismatch
-     * @param b the second array to be tested for a mismatch
-     *
-     * @return the index of the first mismatch between the two arrays,
-     * otherwise {@code -1}.
-     *
-     * @throws NullPointerException if either array is {@code null}
-     * @since 9
-     */
-    public static int mismatch(int[] a, int[] b) {
-        int length = Math.min(a.length, b.length); // Check null array refs
-        if(a == b)
-            return -1;
-        
-        int i = ArraysSupport.mismatch(a, b, length);
-        return (i < 0 && a.length != b.length) ? length : i;
+        return (i<0 && aLength != bLength) ? length : i;
     }
     
     /**
@@ -6518,6 +7237,7 @@ public class Arrays {
      * @throws NullPointerException           if either array is {@code null}
      * @since 9
      */
+    // 比较两个数组的指定片段，返回首个失配处的索引，返回-1表示两数组完全匹配
     public static int mismatch(int[] a, int aFromIndex, int aToIndex, int[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
@@ -6526,58 +7246,7 @@ public class Arrays {
         int bLength = bToIndex - bFromIndex;
         int length = Math.min(aLength, bLength);
         int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, length);
-        return (i < 0 && aLength != bLength) ? length : i;
-    }
-    
-    /**
-     * Finds and returns the index of the first mismatch between two {@code long}
-     * arrays, otherwise return -1 if no mismatch is found.  The index will be
-     * in the range of 0 (inclusive) up to the length (inclusive) of the smaller
-     * array.
-     *
-     * <p>If the two arrays share a common prefix then the returned index is the
-     * length of the common prefix and it follows that there is a mismatch
-     * between the two elements at that index within the respective arrays.
-     * If one array is a proper prefix of the other then the returned index is
-     * the length of the smaller array and it follows that the index is only
-     * valid for the larger array.
-     * Otherwise, there is no mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a common
-     * prefix of length {@code pl} if the following expression is true:
-     * <pre>{@code
-     *     pl >= 0 &&
-     *     pl < Math.min(a.length, b.length) &&
-     *     Arrays.equals(a, 0, pl, b, 0, pl) &&
-     *     a[pl] != b[pl]
-     * }</pre>
-     * Note that a common prefix length of {@code 0} indicates that the first
-     * elements from each array mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a proper
-     * prefix if the following expression is true:
-     * <pre>{@code
-     *     a.length != b.length &&
-     *     Arrays.equals(a, 0, Math.min(a.length, b.length),
-     *                   b, 0, Math.min(a.length, b.length))
-     * }</pre>
-     *
-     * @param a the first array to be tested for a mismatch
-     * @param b the second array to be tested for a mismatch
-     *
-     * @return the index of the first mismatch between the two arrays,
-     * otherwise {@code -1}.
-     *
-     * @throws NullPointerException if either array is {@code null}
-     * @since 9
-     */
-    public static int mismatch(long[] a, long[] b) {
-        int length = Math.min(a.length, b.length); // Check null array refs
-        if(a == b)
-            return -1;
-        
-        int i = ArraysSupport.mismatch(a, b, length);
-        return (i < 0 && a.length != b.length) ? length : i;
+        return (i<0 && aLength != bLength) ? length : i;
     }
     
     /**
@@ -6640,6 +7309,7 @@ public class Arrays {
      * @throws NullPointerException           if either array is {@code null}
      * @since 9
      */
+    // 比较两个数组的指定片段，返回首个失配处的索引，返回-1表示两数组完全匹配
     public static int mismatch(long[] a, int aFromIndex, int aToIndex, long[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
@@ -6648,180 +7318,7 @@ public class Arrays {
         int bLength = bToIndex - bFromIndex;
         int length = Math.min(aLength, bLength);
         int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, length);
-        return (i < 0 && aLength != bLength) ? length : i;
-    }
-    
-    /**
-     * Finds and returns the index of the first mismatch between two
-     * {@code boolean} arrays, otherwise return -1 if no mismatch is found.  The
-     * index will be in the range of 0 (inclusive) up to the length (inclusive)
-     * of the smaller array.
-     *
-     * <p>If the two arrays share a common prefix then the returned index is the
-     * length of the common prefix and it follows that there is a mismatch
-     * between the two elements at that index within the respective arrays.
-     * If one array is a proper prefix of the other then the returned index is
-     * the length of the smaller array and it follows that the index is only
-     * valid for the larger array.
-     * Otherwise, there is no mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a common
-     * prefix of length {@code pl} if the following expression is true:
-     * <pre>{@code
-     *     pl >= 0 &&
-     *     pl < Math.min(a.length, b.length) &&
-     *     Arrays.equals(a, 0, pl, b, 0, pl) &&
-     *     a[pl] != b[pl]
-     * }</pre>
-     * Note that a common prefix length of {@code 0} indicates that the first
-     * elements from each array mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a proper
-     * prefix if the following expression is true:
-     * <pre>{@code
-     *     a.length != b.length &&
-     *     Arrays.equals(a, 0, Math.min(a.length, b.length),
-     *                   b, 0, Math.min(a.length, b.length))
-     * }</pre>
-     *
-     * @param a the first array to be tested for a mismatch
-     * @param b the second array to be tested for a mismatch
-     *
-     * @return the index of the first mismatch between the two arrays,
-     * otherwise {@code -1}.
-     *
-     * @throws NullPointerException if either array is {@code null}
-     * @since 9
-     */
-    public static int mismatch(boolean[] a, boolean[] b) {
-        int length = Math.min(a.length, b.length); // Check null array refs
-        if(a == b)
-            return -1;
-        
-        int i = ArraysSupport.mismatch(a, b, length);
-        return (i < 0 && a.length != b.length) ? length : i;
-    }
-    
-    /**
-     * Finds and returns the relative index of the first mismatch between two
-     * {@code boolean} arrays over the specified ranges, otherwise return -1 if
-     * no mismatch is found.  The index will be in the range of 0 (inclusive) up
-     * to the length (inclusive) of the smaller range.
-     *
-     * <p>If the two arrays, over the specified ranges, share a common prefix
-     * then the returned relative index is the length of the common prefix and
-     * it follows that there is a mismatch between the two elements at that
-     * relative index within the respective arrays.
-     * If one array is a proper prefix of the other, over the specified ranges,
-     * then the returned relative index is the length of the smaller range and
-     * it follows that the relative index is only valid for the array with the
-     * larger range.
-     * Otherwise, there is no mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b} with specified
-     * ranges [{@code aFromIndex}, {@code atoIndex}) and
-     * [{@code bFromIndex}, {@code btoIndex}) respectively, share a common
-     * prefix of length {@code pl} if the following expression is true:
-     * <pre>{@code
-     *     pl >= 0 &&
-     *     pl < Math.min(aToIndex - aFromIndex, bToIndex - bFromIndex) &&
-     *     Arrays.equals(a, aFromIndex, aFromIndex + pl, b, bFromIndex, bFromIndex + pl) &&
-     *     a[aFromIndex + pl] != b[bFromIndex + pl]
-     * }</pre>
-     * Note that a common prefix length of {@code 0} indicates that the first
-     * elements from each array mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b} with specified
-     * ranges [{@code aFromIndex}, {@code atoIndex}) and
-     * [{@code bFromIndex}, {@code btoIndex}) respectively, share a proper
-     * if the following expression is true:
-     * <pre>{@code
-     *     (aToIndex - aFromIndex) != (bToIndex - bFromIndex) &&
-     *     Arrays.equals(a, 0, Math.min(aToIndex - aFromIndex, bToIndex - bFromIndex),
-     *                   b, 0, Math.min(aToIndex - aFromIndex, bToIndex - bFromIndex))
-     * }</pre>
-     *
-     * @param a          the first array to be tested for a mismatch
-     * @param aFromIndex the index (inclusive) of the first element in the
-     *                   first array to be tested
-     * @param aToIndex   the index (exclusive) of the last element in the
-     *                   first array to be tested
-     * @param b          the second array to be tested for a mismatch
-     * @param bFromIndex the index (inclusive) of the first element in the
-     *                   second array to be tested
-     * @param bToIndex   the index (exclusive) of the last element in the
-     *                   second array to be tested
-     *
-     * @return the relative index of the first mismatch between the two arrays
-     * over the specified ranges, otherwise {@code -1}.
-     *
-     * @throws IllegalArgumentException       if {@code aFromIndex > aToIndex} or
-     *                                        if {@code bFromIndex > bToIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code aFromIndex < 0 or aToIndex > a.length} or
-     *                                        if {@code bFromIndex < 0 or bToIndex > b.length}
-     * @throws NullPointerException           if either array is {@code null}
-     * @since 9
-     */
-    public static int mismatch(boolean[] a, int aFromIndex, int aToIndex, boolean[] b, int bFromIndex, int bToIndex) {
-        rangeCheck(a.length, aFromIndex, aToIndex);
-        rangeCheck(b.length, bFromIndex, bToIndex);
-        
-        int aLength = aToIndex - aFromIndex;
-        int bLength = bToIndex - bFromIndex;
-        int length = Math.min(aLength, bLength);
-        int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, length);
-        return (i < 0 && aLength != bLength) ? length : i;
-    }
-    
-    /**
-     * Finds and returns the index of the first mismatch between two {@code float}
-     * arrays, otherwise return -1 if no mismatch is found.  The index will be
-     * in the range of 0 (inclusive) up to the length (inclusive) of the smaller
-     * array.
-     *
-     * <p>If the two arrays share a common prefix then the returned index is the
-     * length of the common prefix and it follows that there is a mismatch
-     * between the two elements at that index within the respective arrays.
-     * If one array is a proper prefix of the other then the returned index is
-     * the length of the smaller array and it follows that the index is only
-     * valid for the larger array.
-     * Otherwise, there is no mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a common
-     * prefix of length {@code pl} if the following expression is true:
-     * <pre>{@code
-     *     pl >= 0 &&
-     *     pl < Math.min(a.length, b.length) &&
-     *     Arrays.equals(a, 0, pl, b, 0, pl) &&
-     *     Float.compare(a[pl], b[pl]) != 0
-     * }</pre>
-     * Note that a common prefix length of {@code 0} indicates that the first
-     * elements from each array mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a proper
-     * prefix if the following expression is true:
-     * <pre>{@code
-     *     a.length != b.length &&
-     *     Arrays.equals(a, 0, Math.min(a.length, b.length),
-     *                   b, 0, Math.min(a.length, b.length))
-     * }</pre>
-     *
-     * @param a the first array to be tested for a mismatch
-     * @param b the second array to be tested for a mismatch
-     *
-     * @return the index of the first mismatch between the two arrays,
-     * otherwise {@code -1}.
-     *
-     * @throws NullPointerException if either array is {@code null}
-     * @since 9
-     */
-    public static int mismatch(float[] a, float[] b) {
-        int length = Math.min(a.length, b.length); // Check null array refs
-        if(a == b)
-            return -1;
-        
-        int i = ArraysSupport.mismatch(a, b, length);
-        return (i < 0 && a.length != b.length) ? length : i;
+        return (i<0 && aLength != bLength) ? length : i;
     }
     
     /**
@@ -6884,6 +7381,7 @@ public class Arrays {
      * @throws NullPointerException           if either array is {@code null}
      * @since 9
      */
+    // 比较两个数组的指定片段，返回首个失配处的索引，返回-1表示两数组完全匹配
     public static int mismatch(float[] a, int aFromIndex, int aToIndex, float[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
@@ -6893,57 +7391,6 @@ public class Arrays {
         int length = Math.min(aLength, bLength);
         int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, length);
         return (i < 0 && aLength != bLength) ? length : i;
-    }
-    
-    /**
-     * Finds and returns the index of the first mismatch between two
-     * {@code double} arrays, otherwise return -1 if no mismatch is found.  The
-     * index will be in the range of 0 (inclusive) up to the length (inclusive)
-     * of the smaller array.
-     *
-     * <p>If the two arrays share a common prefix then the returned index is the
-     * length of the common prefix and it follows that there is a mismatch
-     * between the two elements at that index within the respective arrays.
-     * If one array is a proper prefix of the other then the returned index is
-     * the length of the smaller array and it follows that the index is only
-     * valid for the larger array.
-     * Otherwise, there is no mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a common
-     * prefix of length {@code pl} if the following expression is true:
-     * <pre>{@code
-     *     pl >= 0 &&
-     *     pl < Math.min(a.length, b.length) &&
-     *     Arrays.equals(a, 0, pl, b, 0, pl) &&
-     *     Double.compare(a[pl], b[pl]) != 0
-     * }</pre>
-     * Note that a common prefix length of {@code 0} indicates that the first
-     * elements from each array mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a proper
-     * prefix if the following expression is true:
-     * <pre>{@code
-     *     a.length != b.length &&
-     *     Arrays.equals(a, 0, Math.min(a.length, b.length),
-     *                   b, 0, Math.min(a.length, b.length))
-     * }</pre>
-     *
-     * @param a the first array to be tested for a mismatch
-     * @param b the second array to be tested for a mismatch
-     *
-     * @return the index of the first mismatch between the two arrays,
-     * otherwise {@code -1}.
-     *
-     * @throws NullPointerException if either array is {@code null}
-     * @since 9
-     */
-    public static int mismatch(double[] a, double[] b) {
-        int length = Math.min(a.length, b.length); // Check null array refs
-        if(a == b)
-            return -1;
-        
-        int i = ArraysSupport.mismatch(a, b, length);
-        return (i < 0 && a.length != b.length) ? length : i;
     }
     
     /**
@@ -7006,6 +7453,7 @@ public class Arrays {
      * @throws NullPointerException           if either array is {@code null}
      * @since 9
      */
+    // 比较两个数组的指定片段，返回首个失配处的索引，返回-1表示两数组完全匹配
     public static int mismatch(double[] a, int aFromIndex, int aToIndex, double[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
@@ -7015,61 +7463,6 @@ public class Arrays {
         int length = Math.min(aLength, bLength);
         int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, length);
         return (i < 0 && aLength != bLength) ? length : i;
-    }
-    
-    /**
-     * Finds and returns the index of the first mismatch between two
-     * {@code Object} arrays, otherwise return -1 if no mismatch is found.  The
-     * index will be in the range of 0 (inclusive) up to the length (inclusive)
-     * of the smaller array.
-     *
-     * <p>If the two arrays share a common prefix then the returned index is the
-     * length of the common prefix and it follows that there is a mismatch
-     * between the two elements at that index within the respective arrays.
-     * If one array is a proper prefix of the other then the returned index is
-     * the length of the smaller array and it follows that the index is only
-     * valid for the larger array.
-     * Otherwise, there is no mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a common
-     * prefix of length {@code pl} if the following expression is true:
-     * <pre>{@code
-     *     pl >= 0 &&
-     *     pl < Math.min(a.length, b.length) &&
-     *     Arrays.equals(a, 0, pl, b, 0, pl) &&
-     *     !Objects.equals(a[pl], b[pl])
-     * }</pre>
-     * Note that a common prefix length of {@code 0} indicates that the first
-     * elements from each array mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a proper
-     * prefix if the following expression is true:
-     * <pre>{@code
-     *     a.length != b.length &&
-     *     Arrays.equals(a, 0, Math.min(a.length, b.length),
-     *                   b, 0, Math.min(a.length, b.length))
-     * }</pre>
-     *
-     * @param a the first array to be tested for a mismatch
-     * @param b the second array to be tested for a mismatch
-     *
-     * @return the index of the first mismatch between the two arrays,
-     * otherwise {@code -1}.
-     *
-     * @throws NullPointerException if either array is {@code null}
-     * @since 9
-     */
-    public static int mismatch(Object[] a, Object[] b) {
-        int length = Math.min(a.length, b.length); // Check null array refs
-        if(a == b)
-            return -1;
-        
-        for(int i = 0; i < length; i++) {
-            if(!Objects.equals(a[i], b[i]))
-                return i;
-        }
-        
-        return a.length != b.length ? length : -1;
     }
     
     /**
@@ -7132,6 +7525,7 @@ public class Arrays {
      * @throws NullPointerException           if either array is {@code null}
      * @since 9
      */
+    // 比较两个数组的指定片段，返回首个失配处的索引，返回-1表示两数组完全匹配(借助两对象的equals方法进行比较)
     public static int mismatch(Object[] a, int aFromIndex, int aToIndex, Object[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
@@ -7140,80 +7534,12 @@ public class Arrays {
         int bLength = bToIndex - bFromIndex;
         int length = Math.min(aLength, bLength);
         for(int i = 0; i < length; i++) {
-            if(!Objects.equals(a[aFromIndex++], b[bFromIndex++]))
+            if(!Objects.equals(a[aFromIndex++], b[bFromIndex++])) {
                 return i;
-        }
-        
-        return aLength != bLength ? length : -1;
-    }
-    
-    /**
-     * Finds and returns the index of the first mismatch between two
-     * {@code Object} arrays, otherwise return -1 if no mismatch is found.
-     * The index will be in the range of 0 (inclusive) up to the length
-     * (inclusive) of the smaller array.
-     *
-     * <p>The specified comparator is used to determine if two array elements
-     * from the each array are not equal.
-     *
-     * <p>If the two arrays share a common prefix then the returned index is the
-     * length of the common prefix and it follows that there is a mismatch
-     * between the two elements at that index within the respective arrays.
-     * If one array is a proper prefix of the other then the returned index is
-     * the length of the smaller array and it follows that the index is only
-     * valid for the larger array.
-     * Otherwise, there is no mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a common
-     * prefix of length {@code pl} if the following expression is true:
-     * <pre>{@code
-     *     pl >= 0 &&
-     *     pl < Math.min(a.length, b.length) &&
-     *     Arrays.equals(a, 0, pl, b, 0, pl, cmp)
-     *     cmp.compare(a[pl], b[pl]) != 0
-     * }</pre>
-     * Note that a common prefix length of {@code 0} indicates that the first
-     * elements from each array mismatch.
-     *
-     * <p>Two non-{@code null} arrays, {@code a} and {@code b}, share a proper
-     * prefix if the following expression is true:
-     * <pre>{@code
-     *     a.length != b.length &&
-     *     Arrays.equals(a, 0, Math.min(a.length, b.length),
-     *                   b, 0, Math.min(a.length, b.length),
-     *                   cmp)
-     * }</pre>
-     *
-     * @param a   the first array to be tested for a mismatch
-     * @param b   the second array to be tested for a mismatch
-     * @param cmp the comparator to compare array elements
-     * @param <T> the type of array elements
-     *
-     * @return the index of the first mismatch between the two arrays,
-     * otherwise {@code -1}.
-     *
-     * @throws NullPointerException if either array or the comparator is {@code null}
-     * @since 9
-     */
-    public static <T> int mismatch(T[] a, T[] b, Comparator<? super T> cmp) {
-        Objects.requireNonNull(cmp);
-        int length = Math.min(a.length, b.length); // Check null array refs
-        if(a == b)
-            return -1;
-        
-        for(int i = 0; i < length; i++) {
-            T oa = a[i];
-            T ob = b[i];
-            if(oa != ob) {
-                // Null-value comparison is deferred to the comparator
-                int v = cmp.compare(oa, ob);
-                if(v != 0) {
-                    return i;
-                }
             }
         }
-        
-        return a.length != b.length ? length : -1;
+    
+        return aLength != bLength ? length : -1;
     }
     
     /**
@@ -7279,6 +7605,7 @@ public class Arrays {
      * @throws NullPointerException           if either array or the comparator is {@code null}
      * @since 9
      */
+    // 比较两个数组的指定片段，返回首个失配处的索引，返回-1表示两数组完全匹配(借助外部比较器cmp进行比较)
     public static <T> int mismatch(T[] a, int aFromIndex, int aToIndex, T[] b, int bFromIndex, int bToIndex, Comparator<? super T> cmp) {
         Objects.requireNonNull(cmp);
         rangeCheck(a.length, aFromIndex, aToIndex);
@@ -7328,10 +7655,12 @@ public class Arrays {
      * }</pre>
      * @since 1.8
      */
+    // 借助generator批量为数组array设置值
     public static void setAll(int[] array, IntUnaryOperator generator) {
         Objects.requireNonNull(generator);
-        for(int i = 0; i < array.length; i++)
+        for(int i = 0; i < array.length; i++) {
             array[i] = generator.applyAsInt(i);
+        }
     }
     
     /**
@@ -7354,10 +7683,12 @@ public class Arrays {
      * }</pre>
      * @since 1.8
      */
+    // 借助generator批量为数组array设置值
     public static void setAll(long[] array, IntToLongFunction generator) {
         Objects.requireNonNull(generator);
-        for(int i = 0; i < array.length; i++)
+        for(int i = 0; i < array.length; i++) {
             array[i] = generator.applyAsLong(i);
+        }
     }
     
     /**
@@ -7380,10 +7711,12 @@ public class Arrays {
      * }</pre>
      * @since 1.8
      */
+    // 借助generator批量为数组array设置值
     public static void setAll(double[] array, IntToDoubleFunction generator) {
         Objects.requireNonNull(generator);
-        for(int i = 0; i < array.length; i++)
+        for(int i = 0; i < array.length; i++) {
             array[i] = generator.applyAsDouble(i);
+        }
     }
     
     /**
@@ -7407,10 +7740,12 @@ public class Arrays {
      * }</pre>
      * @since 1.8
      */
+    // 借助generator批量为数组array设置值
     public static <T> void setAll(T[] array, IntFunction<? extends T> generator) {
         Objects.requireNonNull(generator);
-        for(int i = 0; i < array.length; i++)
+        for(int i = 0; i < array.length; i++) {
             array[i] = generator.apply(i);
+        }
     }
     
     /*▲ 批量设置 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -7441,9 +7776,11 @@ public class Arrays {
      * }</pre>
      * @since 1.8
      */
+    // 借助generator批量为数组array并行设置值
     public static void parallelSetAll(int[] array, IntUnaryOperator generator) {
         Objects.requireNonNull(generator);
-        IntStream.range(0, array.length).parallel().forEach(i -> { array[i] = generator.applyAsInt(i); });
+        IntStream.range(0, array.length).parallel().
+            forEach(i -> { array[i] = generator.applyAsInt(i); });
     }
     
     /**
@@ -7468,6 +7805,7 @@ public class Arrays {
      * }</pre>
      * @since 1.8
      */
+    // 借助generator批量为数组array并行设置值
     public static void parallelSetAll(long[] array, IntToLongFunction generator) {
         Objects.requireNonNull(generator);
         IntStream.range(0, array.length).parallel().forEach(i -> { array[i] = generator.applyAsLong(i); });
@@ -7495,6 +7833,7 @@ public class Arrays {
      * }</pre>
      * @since 1.8
      */
+    // 借助generator批量为数组array并行设置值
     public static void parallelSetAll(double[] array, IntToDoubleFunction generator) {
         Objects.requireNonNull(generator);
         IntStream.range(0, array.length).parallel().forEach(i -> { array[i] = generator.applyAsDouble(i); });
@@ -7523,6 +7862,7 @@ public class Arrays {
      * }</pre>
      * @since 1.8
      */
+    // 借助generator批量为数组array并行设置值
     public static <T> void parallelSetAll(T[] array, IntFunction<? extends T> generator) {
         Objects.requireNonNull(generator);
         IntStream.range(0, array.length).parallel().forEach(i -> { array[i] = generator.apply(i); });
@@ -7553,13 +7893,15 @@ public class Arrays {
      * @since 1.5
      */
     public static int hashCode(char a[]) {
-        if(a == null)
+        if(a == null) {
             return 0;
-        
+        }
+    
         int result = 1;
-        for(char element : a)
+        for(char element : a) {
             result = 31 * result + element;
-        
+        }
+    
         return result;
     }
     
@@ -7582,13 +7924,15 @@ public class Arrays {
      * @since 1.5
      */
     public static int hashCode(byte a[]) {
-        if(a == null)
+        if(a == null) {
             return 0;
-        
+        }
+    
         int result = 1;
-        for(byte element : a)
+        for(byte element : a) {
             result = 31 * result + element;
-        
+        }
+    
         return result;
     }
     
@@ -7611,13 +7955,15 @@ public class Arrays {
      * @since 1.5
      */
     public static int hashCode(short a[]) {
-        if(a == null)
+        if(a == null) {
             return 0;
-        
+        }
+    
         int result = 1;
-        for(short element : a)
+        for(short element : a) {
             result = 31 * result + element;
-        
+        }
+    
         return result;
     }
     
@@ -7640,13 +7986,15 @@ public class Arrays {
      * @since 1.5
      */
     public static int hashCode(int a[]) {
-        if(a == null)
+        if(a == null) {
             return 0;
-        
+        }
+    
         int result = 1;
-        for(int element : a)
+        for(int element : a) {
             result = 31 * result + element;
-        
+        }
+    
         return result;
     }
     
@@ -7669,9 +8017,10 @@ public class Arrays {
      * @since 1.5
      */
     public static int hashCode(long a[]) {
-        if(a == null)
+        if(a == null) {
             return 0;
-        
+        }
+    
         int result = 1;
         for(long element : a) {
             int elementHash = (int) (element ^ (element >>> 32));
@@ -7700,13 +8049,15 @@ public class Arrays {
      * @since 1.5
      */
     public static int hashCode(boolean a[]) {
-        if(a == null)
+        if(a == null) {
             return 0;
-        
+        }
+    
         int result = 1;
-        for(boolean element : a)
+        for(boolean element : a) {
             result = 31 * result + (element ? 1231 : 1237);
-        
+        }
+    
         return result;
     }
     
@@ -7729,13 +8080,15 @@ public class Arrays {
      * @since 1.5
      */
     public static int hashCode(float a[]) {
-        if(a == null)
+        if(a == null) {
             return 0;
-        
+        }
+    
         int result = 1;
-        for(float element : a)
+        for(float element : a) {
             result = 31 * result + Float.floatToIntBits(element);
-        
+        }
+    
         return result;
     }
     
@@ -7758,14 +8111,16 @@ public class Arrays {
      * @since 1.5
      */
     public static int hashCode(double a[]) {
-        if(a == null)
+        if(a == null) {
             return 0;
-        
+        }
+    
         int result = 1;
         for(double element : a) {
             long bits = Double.doubleToLongBits(element);
             result = 31 * result + (int) (bits ^ (bits >>> 32));
         }
+        
         return result;
     }
     
@@ -7794,9 +8149,10 @@ public class Arrays {
      */
     // 计算数组a的哈希值，计算公式为：31^n + a[0]*31^(n-1) + a[1]*31^(n-2) + ... + a[n-1]。
     public static int hashCode(Object a[]) {
-        if(a == null)
+        if(a == null) {
             return 0;
-        
+        }
+    
         int result = 1;
         
         for(Object element : a) {
@@ -7844,23 +8200,25 @@ public class Arrays {
      * @since 1.5
      */
     public static int deepHashCode(Object a[]) {
-        if(a == null)
+        if(a == null) {
             return 0;
-        
+        }
+    
         int result = 1;
         
         for(Object element : a) {
             final int elementHash;
             final Class<?> cl;
-            if(element == null)
+            if(element == null) {
                 elementHash = 0;
-            else if((cl = element.getClass().getComponentType()) == null)
+            } else if((cl = element.getClass().getComponentType()) == null) {
                 elementHash = element.hashCode();
-            else if(element instanceof Object[])
+            } else if(element instanceof Object[]) {
                 elementHash = deepHashCode((Object[]) element);
-            else
+            } else {
                 elementHash = primitiveArrayHashCode(element, cl);
-            
+            }
+    
             result = 31 * result + elementHash;
         }
         
@@ -8240,32 +8598,12 @@ public class Arrays {
      * @throws NullPointerException if the specified array or function is null
      * @since 1.8
      */
+    // 从左向右对每个元素执行：right=op.applyAsInt(left, right)
     public static void parallelPrefix(int[] array, IntBinaryOperator op) {
         Objects.requireNonNull(op);
-        if(array.length > 0)
+        if(array.length > 0) {
             new ArrayPrefixHelpers.IntCumulateTask(null, op, array, 0, array.length).invoke();
-    }
-    
-    /**
-     * Performs {@link #parallelPrefix(int[], IntBinaryOperator)}
-     * for the given subrange of the array.
-     *
-     * @param array     the array
-     * @param fromIndex the index of the first element, inclusive
-     * @param toIndex   the index of the last element, exclusive
-     * @param op        a side-effect-free, associative function to perform the
-     *                  cumulation
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > array.length}
-     * @throws NullPointerException           if the specified array or function is null
-     * @since 1.8
-     */
-    public static void parallelPrefix(int[] array, int fromIndex, int toIndex, IntBinaryOperator op) {
-        Objects.requireNonNull(op);
-        rangeCheck(array.length, fromIndex, toIndex);
-        if(fromIndex < toIndex)
-            new ArrayPrefixHelpers.IntCumulateTask(null, op, array, fromIndex, toIndex).invoke();
+        }
     }
     
     /**
@@ -8283,32 +8621,12 @@ public class Arrays {
      * @throws NullPointerException if the specified array or function is null
      * @since 1.8
      */
+    // 从左向右对每个元素执行：right=op.applyAsLong(left, right)
     public static void parallelPrefix(long[] array, LongBinaryOperator op) {
         Objects.requireNonNull(op);
-        if(array.length > 0)
+        if(array.length > 0) {
             new ArrayPrefixHelpers.LongCumulateTask(null, op, array, 0, array.length).invoke();
-    }
-    
-    /**
-     * Performs {@link #parallelPrefix(long[], LongBinaryOperator)}
-     * for the given subrange of the array.
-     *
-     * @param array     the array
-     * @param fromIndex the index of the first element, inclusive
-     * @param toIndex   the index of the last element, exclusive
-     * @param op        a side-effect-free, associative function to perform the
-     *                  cumulation
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > array.length}
-     * @throws NullPointerException           if the specified array or function is null
-     * @since 1.8
-     */
-    public static void parallelPrefix(long[] array, int fromIndex, int toIndex, LongBinaryOperator op) {
-        Objects.requireNonNull(op);
-        rangeCheck(array.length, fromIndex, toIndex);
-        if(fromIndex < toIndex)
-            new ArrayPrefixHelpers.LongCumulateTask(null, op, array, fromIndex, toIndex).invoke();
+        }
     }
     
     /**
@@ -8329,32 +8647,12 @@ public class Arrays {
      * @throws NullPointerException if the specified array or function is null
      * @since 1.8
      */
+    // 从左向右对每个元素执行：right=op.applyAsDouble(left, right)
     public static void parallelPrefix(double[] array, DoubleBinaryOperator op) {
         Objects.requireNonNull(op);
-        if(array.length > 0)
+        if(array.length>0) {
             new ArrayPrefixHelpers.DoubleCumulateTask(null, op, array, 0, array.length).invoke();
-    }
-    
-    /**
-     * Performs {@link #parallelPrefix(double[], DoubleBinaryOperator)}
-     * for the given subrange of the array.
-     *
-     * @param array     the array
-     * @param fromIndex the index of the first element, inclusive
-     * @param toIndex   the index of the last element, exclusive
-     * @param op        a side-effect-free, associative function to perform the
-     *                  cumulation
-     *
-     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
-     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > array.length}
-     * @throws NullPointerException           if the specified array or function is null
-     * @since 1.8
-     */
-    public static void parallelPrefix(double[] array, int fromIndex, int toIndex, DoubleBinaryOperator op) {
-        Objects.requireNonNull(op);
-        rangeCheck(array.length, fromIndex, toIndex);
-        if(fromIndex < toIndex)
-            new ArrayPrefixHelpers.DoubleCumulateTask(null, op, array, fromIndex, toIndex).invoke();
+        }
     }
     
     /**
@@ -8373,10 +8671,85 @@ public class Arrays {
      * @throws NullPointerException if the specified array or function is null
      * @since 1.8
      */
+    // 从左向右对每个元素执行：right=op.apply(left, right)
     public static <T> void parallelPrefix(T[] array, BinaryOperator<T> op) {
         Objects.requireNonNull(op);
-        if(array.length > 0)
+        if(array.length>0) {
             new ArrayPrefixHelpers.CumulateTask<>(null, op, array, 0, array.length).invoke();
+        }
+    }
+    
+    
+    /**
+     * Performs {@link #parallelPrefix(int[], IntBinaryOperator)}
+     * for the given subrange of the array.
+     *
+     * @param array     the array
+     * @param fromIndex the index of the first element, inclusive
+     * @param toIndex   the index of the last element, exclusive
+     * @param op        a side-effect-free, associative function to perform the
+     *                  cumulation
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > array.length}
+     * @throws NullPointerException           if the specified array or function is null
+     * @since 1.8
+     */
+    // 从左向右对指定范围内的元素执行：right=op.applyAsInt(left, right)
+    public static void parallelPrefix(int[] array, int fromIndex, int toIndex, IntBinaryOperator op) {
+        Objects.requireNonNull(op);
+        rangeCheck(array.length, fromIndex, toIndex);
+        if(fromIndex<toIndex) {
+            new ArrayPrefixHelpers.IntCumulateTask(null, op, array, fromIndex, toIndex).invoke();
+        }
+    }
+    
+    /**
+     * Performs {@link #parallelPrefix(long[], LongBinaryOperator)}
+     * for the given subrange of the array.
+     *
+     * @param array     the array
+     * @param fromIndex the index of the first element, inclusive
+     * @param toIndex   the index of the last element, exclusive
+     * @param op        a side-effect-free, associative function to perform the
+     *                  cumulation
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > array.length}
+     * @throws NullPointerException           if the specified array or function is null
+     * @since 1.8
+     */
+    // 从左向右对指定范围内的元素执行：right=op.applyAsLong(left, right)
+    public static void parallelPrefix(long[] array, int fromIndex, int toIndex, LongBinaryOperator op) {
+        Objects.requireNonNull(op);
+        rangeCheck(array.length, fromIndex, toIndex);
+        if(fromIndex<toIndex) {
+            new ArrayPrefixHelpers.LongCumulateTask(null, op, array, fromIndex, toIndex).invoke();
+        }
+    }
+    
+    /**
+     * Performs {@link #parallelPrefix(double[], DoubleBinaryOperator)}
+     * for the given subrange of the array.
+     *
+     * @param array     the array
+     * @param fromIndex the index of the first element, inclusive
+     * @param toIndex   the index of the last element, exclusive
+     * @param op        a side-effect-free, associative function to perform the
+     *                  cumulation
+     *
+     * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or {@code toIndex > array.length}
+     * @throws NullPointerException           if the specified array or function is null
+     * @since 1.8
+     */
+    // 从左向右对指定范围内的元素执行：right=op.applyAsDouble(left, right)
+    public static void parallelPrefix(double[] array, int fromIndex, int toIndex, DoubleBinaryOperator op) {
+        Objects.requireNonNull(op);
+        rangeCheck(array.length, fromIndex, toIndex);
+        if(fromIndex<toIndex) {
+            new ArrayPrefixHelpers.DoubleCumulateTask(null, op, array, fromIndex, toIndex).invoke();
+        }
     }
     
     /**
@@ -8395,17 +8768,16 @@ public class Arrays {
      * @throws NullPointerException           if the specified array or function is null
      * @since 1.8
      */
+    // 从左向右对指定范围内的元素执行：right=op.apply(left, right)
     public static <T> void parallelPrefix(T[] array, int fromIndex, int toIndex, BinaryOperator<T> op) {
         Objects.requireNonNull(op);
         rangeCheck(array.length, fromIndex, toIndex);
-        if(fromIndex < toIndex)
+        if(fromIndex < toIndex) {
             new ArrayPrefixHelpers.CumulateTask<>(null, op, array, fromIndex, toIndex).invoke();
+        }
     }
     
     /*▲ 并行前缀计算 ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
     
     
     
@@ -8558,6 +8930,7 @@ public class Arrays {
     }
     
     /*▲ 排序相关的内部实现 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
     
     
     /*▼ 查找相关的内部实现 ████████████████████████████████████████████████████████████████████████████████┓ */
@@ -8796,10 +9169,27 @@ public class Arrays {
     /*▼ 深度哈希的内部实现 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     private static int primitiveArrayHashCode(Object a, Class<?> cl) {
-        return (cl == byte.class) ? hashCode((byte[]) a) : (cl == int.class) ? hashCode((int[]) a) : (cl == long.class) ? hashCode((long[]) a) : (cl == char.class) ? hashCode((char[]) a) : (cl == short.class) ? hashCode((short[]) a) : (cl == boolean.class) ? hashCode((boolean[]) a) : (cl == double.class) ? hashCode((double[]) a) :
-            // If new primitive types are ever added, this method must be
-            // expanded or we will fail here with ClassCastException.
-            hashCode((float[]) a);
+        /*
+         * If new primitive types are ever added,
+         * this method must be expanded or we will fail here with ClassCastException.
+         */
+        if(cl == byte.class) {
+            return hashCode((byte[]) a);
+        } else if(cl == int.class) {
+            return hashCode((int[]) a);
+        } else if(cl == long.class) {
+            return hashCode((long[]) a);
+        } else if(cl == char.class) {
+            return hashCode((char[]) a);
+        } else if(cl == short.class) {
+            return hashCode((short[]) a);
+        } else if(cl == boolean.class) {
+            return hashCode((boolean[]) a);
+        } else if(cl == double.class) {
+            return hashCode((double[]) a);
+        } else {
+            return hashCode((float[]) a);
+        }
     }
     
     /*▲ 深度哈希的内部实现 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -8813,6 +9203,7 @@ public class Arrays {
             buf.append("null");
             return;
         }
+        
         int iMax = a.length - 1;
         if(iMax == -1) {
             buf.append("[]");
@@ -8821,8 +9212,8 @@ public class Arrays {
         
         dejaVu.add(a);
         buf.append('[');
+        
         for(int i = 0; ; i++) {
-            
             Object element = a[i];
             if(element == null) {
                 buf.append("null");
@@ -8830,41 +9221,47 @@ public class Arrays {
                 Class<?> eClass = element.getClass();
                 
                 if(eClass.isArray()) {
-                    if(eClass == byte[].class)
+                    if(eClass == byte[].class) {
                         buf.append(toString((byte[]) element));
-                    else if(eClass == short[].class)
+                    } else if(eClass == short[].class) {
                         buf.append(toString((short[]) element));
-                    else if(eClass == int[].class)
+                    } else if(eClass == int[].class) {
                         buf.append(toString((int[]) element));
-                    else if(eClass == long[].class)
+                    } else if(eClass == long[].class) {
                         buf.append(toString((long[]) element));
-                    else if(eClass == char[].class)
+                    } else if(eClass == char[].class) {
                         buf.append(toString((char[]) element));
-                    else if(eClass == float[].class)
+                    } else if(eClass == float[].class) {
                         buf.append(toString((float[]) element));
-                    else if(eClass == double[].class)
+                    } else if(eClass == double[].class) {
                         buf.append(toString((double[]) element));
-                    else if(eClass == boolean[].class)
+                    } else if(eClass == boolean[].class) {
                         buf.append(toString((boolean[]) element));
-                    else { // element is an array of object references
-                        if(dejaVu.contains(element))
+                    } else { // element is an array of object references
+                        if(dejaVu.contains(element)) {
                             buf.append("[...]");
-                        else
+                        } else {
                             deepToString((Object[]) element, buf, dejaVu);
+                        }
                     }
                 } else {  // element is non-null and not an array
                     buf.append(element.toString());
                 }
             }
-            if(i == iMax)
+    
+            if(i == iMax) {
                 break;
+            }
+    
             buf.append(", ");
         }
+    
         buf.append(']');
         dejaVu.remove(a);
     }
     
     /*▲ 深度字符串化的内部实现 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
     
     
     /**
@@ -8876,14 +9273,15 @@ public class Arrays {
         if(fromIndex > toIndex) {
             throw new IllegalArgumentException("fromIndex(" + fromIndex + ") > toIndex(" + toIndex + ")");
         }
-        if(fromIndex < 0) {
+        
+        if(fromIndex<0) {
             throw new ArrayIndexOutOfBoundsException(fromIndex);
         }
-        if(toIndex > arrayLength) {
+        
+        if(toIndex>arrayLength) {
             throw new ArrayIndexOutOfBoundsException(toIndex);
         }
     }
-    
     
     
     /**
