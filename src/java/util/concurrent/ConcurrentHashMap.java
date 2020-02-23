@@ -802,7 +802,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V> implements Concur
      *
      * @throws NullPointerException if the specified key or value is null
      */
-    // 将指定的元素（key-value）存入HashMap，并返回旧值，允许覆盖
+    // 将指定的元素（key-value）存入当前map，并返回旧值，允许覆盖
     public V put(K key, V value) {
         return putVal(key, value, false);
     }
@@ -815,7 +815,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V> implements Concur
      *
      * @throws NullPointerException if the specified key or value is null
      */
-    // 将指定的元素（key-value）存入HashMap，并返回旧值，不允许覆盖
+    // 将指定的元素（key-value）存入当前map，并返回旧值，不允许覆盖
     public V putIfAbsent(K key, V value) {
         return putVal(key, value, true);
     }

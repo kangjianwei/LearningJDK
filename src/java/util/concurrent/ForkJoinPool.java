@@ -180,7 +180,7 @@ import java.util.function.Predicate;
  * 工作池/任务池，负责并发任务的调度，以高效完成任务
  *
  * 【独立工作池】：由用户构造的ForkJoinPool
- * 【共享工作池】：ForkJoinPool类内置的一个字段：common
+ * 【共享工作池】：ForkJoinPool类内置的一个对象：common，由所有ForkJoinPool共享
  *
  * 推荐直接使用【共享工作池】
  */
@@ -849,7 +849,7 @@ public class ForkJoinPool extends AbstractExecutorService {
      * Non-null for public use unless a static construction exception,
      * but internal usages null-check on use to paranoically avoid potential initialization circularities as well as to simplify generated code.
      */
-    // 共享工作池
+    // 共享工作池：所有ForkJoinPool对象共享
     static final ForkJoinPool common;
     
     /**
@@ -931,7 +931,7 @@ public class ForkJoinPool extends AbstractExecutorService {
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Creates a {@code ForkJoinPool} with parallelism equal to {@link
@@ -967,8 +967,7 @@ public class ForkJoinPool extends AbstractExecutorService {
      *         java.lang.RuntimePermission}{@code ("modifyThread")}
      */
     public ForkJoinPool(int parallelism) {
-        this(parallelism,
-            defaultForkJoinWorkerThreadFactory, null, false, 0, MAX_CAP, 1, null, DEFAULT_KEEPALIVE, TimeUnit.MILLISECONDS);
+        this(parallelism, defaultForkJoinWorkerThreadFactory, null, false, 0, MAX_CAP, 1, null, DEFAULT_KEEPALIVE, TimeUnit.MILLISECONDS);
     }
     
     /**
@@ -999,8 +998,7 @@ public class ForkJoinPool extends AbstractExecutorService {
      *         java.lang.RuntimePermission}{@code ("modifyThread")}
      */
     public ForkJoinPool(int parallelism, ForkJoinWorkerThreadFactory factory, UncaughtExceptionHandler handler, boolean asyncMode) {
-        this(parallelism,
-            factory, handler, asyncMode, 0, MAX_CAP, 1, null, DEFAULT_KEEPALIVE, TimeUnit.MILLISECONDS);
+        this(parallelism, factory, handler, asyncMode, 0, MAX_CAP, 1, null, DEFAULT_KEEPALIVE, TimeUnit.MILLISECONDS);
     }
     
     /**
@@ -1225,7 +1223,7 @@ public class ForkJoinPool extends AbstractExecutorService {
         return ClassLoader.getSystemClassLoader().loadClass(className).getConstructor().newInstance();
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -3324,22 +3322,22 @@ rescan:
         if(blocker == null) {
             throw new NullPointerException();
         }
-        
-        Thread t = Thread.currentThread();
+    
+        Thread thread = Thread.currentThread();
         ForkJoinWorkerThread wt;
         ForkJoinPool p;
         WorkQueue w;
+    
+        if((thread instanceof ForkJoinWorkerThread)  // 当前线程是【工作线程】
+            && (p = (wt = (ForkJoinWorkerThread) thread).pool) != null   // 当前【工作线程】的线程池存在
+            && (w = wt.workQueue) != null) {                             // 上述线程池中存在工作队列
         
-        if((t instanceof ForkJoinWorkerThread)  // 当前线程是【工作线程】
-            && (p = (wt = (ForkJoinWorkerThread) t).pool) != null   // 当前【工作线程】的线程池存在
-            && (w = wt.workQueue) != null) {                        // 上述线程池中存在工作队列
-            
             int block;
-            
+        
             // 如果当前线程仍然需要阻塞
             while(!blocker.isReleasable()) {
                 block = p.tryCompensate(w);
-                
+            
                 if(block != 0) {
                     try {
                         while(!blocker.isReleasable() && !blocker.block())

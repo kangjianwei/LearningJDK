@@ -314,7 +314,7 @@ public class Executors {
      *
      * @throws NullPointerException if executor null
      */
-    // 不可配置
+    // 不可配置，只是对原【定时任务执行框架】的简单代理
     public static ScheduledExecutorService unconfigurableScheduledExecutorService(ScheduledExecutorService executor) {
         if(executor == null) {
             throw new NullPointerException();
@@ -928,16 +928,19 @@ public class Executors {
         
         PrivilegedThreadFactory() {
             super();
+    
             SecurityManager sm = System.getSecurityManager();
             if(sm != null) {
-                // Calls to getContextClassLoader from this class
-                // never trigger a security check, but we check
-                // whether our callers have this permission anyways.
+                /*
+                 * Calls to getContextClassLoader from this class never trigger a security check,
+                 * but we check whether our callers have this permission anyways.
+                 */
                 sm.checkPermission(SecurityConstants.GET_CLASSLOADER_PERMISSION);
-                
+    
                 // Fail fast
                 sm.checkPermission(new RuntimePermission("setContextClassLoader"));
             }
+    
             this.acc = AccessController.getContext();
             this.ccl = Thread.currentThread().getContextClassLoader();
         }

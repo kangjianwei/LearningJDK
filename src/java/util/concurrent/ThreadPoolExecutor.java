@@ -323,8 +323,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * ThreadPoolExecutor通常被简称为【线程池】，虽然与ForkJoinPool是兄弟关系，但两者的侧重点完全不同
  *
  * ThreadPoolExecutor由两部分组成：线程池(pool)与阻塞队列(queue)
- * 线程池(pool)中存储Worker，一个Worker兼具【任务】与【线程】的含义
- * 阻塞队列(queue)中存储排队的【任务】
+ * 线程池(workers)中存储Worker，一个Worker兼具【任务】与【线程】的含义
+ * 阻塞队列(workQueue)中存储排队的【任务】
  *
  * Worker可分为两类：【R】型Worker和【N】型Worker
  * 【R】型Worker携带了【任务】，它被执行完后，转为【N】型Worker。
@@ -459,7 +459,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * Set containing all worker threads in pool. Accessed only when holding mainLock.
      */
     // 线程池，存储【  核心Worker】与【非核心Worker】
-    private final HashSet<Worker> workers = new HashSet<>();
+    private final HashSet<Worker> workerPool = new HashSet<>();
     
     /**
      * The queue used for holding tasks and handing off to worker
@@ -499,7 +499,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * will likely be enough memory available for the cleanup code to
      * complete without encountering yet another OutOfMemoryError.
      */
-    // 线程工厂
+    // 线程工厂，用来构造执行【任务】的线程
     private volatile ThreadFactory threadFactory;
     
     /**
@@ -532,7 +532,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * Since the worker count is actually stored in COUNT_BITS bits,
      * the effective limit is {@code corePoolSize & COUNT_MASK}.
      */
-    // 线程池【核心阙值】，>=0，一般用来限制【R】的数量
+    // 线程池【核心阈值】，>=0，一般用来限制【R】的数量
     private volatile int corePoolSize;
     
     /**
@@ -541,7 +541,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * Since the worker count is actually stored in COUNT_BITS bits,
      * the effective limit is {@code maximumPoolSize & COUNT_MASK}.
      */
-    // 线程池【最大阙值】，>0，一般用来限制【N】的数量（线程池满，阻塞队列也满时，限制【R】的数量）
+    // 线程池【最大阈值】，>0，一般用来限制【N】的数量（线程池满，阻塞队列也满时，限制【R】的数量）
     private volatile int maximumPoolSize;
     
     /**
@@ -721,8 +721,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      *         or {@code threadFactory} or {@code handler} is null
      */
     /*
-     * corePoolSize   ：线程池【核心阙值】，>=0，一般用来限制【R】的数量
-     * maximumPoolSize：线程池【最大阙值】，>0， 一般用来限制【N】的数量（线程池满，阻塞队列也满时，限制【R】的数量）
+     * corePoolSize   ：线程池【核心阈值】，>=0，一般用来限制【R】的数量
+     * maximumPoolSize：线程池【最大阈值】，>0， 一般用来限制【N】的数量（线程池满，阻塞队列也满时，限制【R】的数量）
      * keepAliveTime  ：【N】的最大空闲时间（启用了超时设置后生效）
      * unit           ：时间单位
      * workQueue      ：阻塞队列
@@ -797,39 +797,39 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
          * 3. If we cannot queue task, then we try to add a new thread.
          * If it fails, we know we are shut down or saturated and so reject the task.
          */
-        
+    
         // 不能执行空任务
         if(command == null) {
             throw new NullPointerException();
         }
-        
+    
         // 获取线程池状态标记
-        int c = ctl.get();
+        int state = ctl.get();
+    
+        // 线程池的Worker数量在【核心阈值】以内
+        if(workerCountOf(state)<corePoolSize) {
         
-        // 线程池的Worker数量在【核心阙值】以内
-        if(workerCountOf(c)<corePoolSize) {
-            
             // 向线程池内添加并启动一个【R】
             if(addWorker(command, true)) {
                 // 执行成功，直接返回
                 return;
             }
-            
-            c = ctl.get();
-        }
         
+            state = ctl.get();
+        }
+    
         /*
          * 至此，有三种情形：
-         * 1.线程池中的Worker数量超过了【核心阙值】（有些线程池将【核心阙值】设为0）
+         * 1.线程池中的Worker数量超过了【核心阈值】（有些线程池将【核心阈值】设为0）
          * 2.【R】添加失败（由于线程争用，线程池状态发生了变化）
          * 3.【R】启动失败（少见）
          *
          * 此时，会尝试将任务添加到阻塞队列
          */
+    
+        // {-1} 如果线程池仍处于【运行】状态（可以接收新线程），且任务可以被成功添加到阻塞队列
+        if(isRunning(state) && workQueue.offer(command)) {
         
-        // {-1} 如果线程池仍处于【运行】状态（可以接收新线程），且任务被成功加入到阻塞队列
-        if(isRunning(c) && workQueue.offer(command)) {
-            
             /*
              * 至此，任务成功进入了阻塞队列
              *
@@ -853,8 +853,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                 }
             } else {
                 /* {-1} 至此，说明线程池仍在【运行】状态 */
-                
-                // 如果线程池为空（通常出现在【核心阙值】为0的场景）
+    
+                // 如果线程池为空（通常出现在【核心阈值】为0的场景）
                 if(workerCountOf(recheck) == 0) {
                     // 向线程池添加一个【N】，以便处理阻塞队列中的任务
                     addWorker(null, false);
@@ -873,9 +873,9 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
              * 即任务准备进入阻塞队列时，而且恰好线程池也已关闭，那么需要执行拒绝策略
              *
              * 情形2：
-             * 这种情形下，可能是阻塞队列满了，此时改用【最大阙值】最为线程池的容量限制，
+             * 这种情形下，可能是阻塞队列满了，此时改用【最大阈值】最为线程池的容量限制，
              * 重新尝试将任务包装为Worker放入了线程池，如果还是失败，则返回false
-             * 比如【核心阙值】与【最大阙值】一样大时，这里往往是失败的
+             * 比如【核心阈值】与【最大阈值】一样大时，这里往往是失败的
              */
             if(!addWorker(command, false)) {
                 // 任务进入线程池失败，执行【拒绝策略】
@@ -912,29 +912,30 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * @return true if successful
      */
     /*
-     * 将给定任务包装到Worker中，然后将Worker添加到线程池，并启动Worker
+     * 将给定任务(如果存在)包装到Worker中，然后将Worker添加到线程池，并启动Worker
      *
-     * core==true表示使用【核心阙值】，core==false表示使用【最大阙值】
+     * firstTask为null时添加【N】型Worker，否则，添加【R】型Worker
+     * core==true表示使用【核心阈值】，core==false表示使用【最大阈值】
      *
      * 返回true代表Worker被成功添加，而且被成功启动
      */
     private boolean addWorker(Runnable firstTask, boolean core) {
 retry:
-        for (int c = ctl.get(); ; ) {
+        for(int state = ctl.get(); ; ) {
             /* Check if queue empty only if necessary */
-            
+        
             // {0123} 如果线程池不再接收新线程
-            if (runStateAtLeast(c, SHUTDOWN)) {
-                
+            if(runStateAtLeast(state, SHUTDOWN)) {
+            
                 // {123} 如果线程池不再处理阻塞任务，直接返回
-                if(runStateAtLeast(c, STOP)){
+                if(runStateAtLeast(state, STOP)) {
                     return false;
                 }
-                
+            
                 /* {0} 至此，线程池处于【关闭】状态，即线程池不再接收新线程，但可以处理阻塞任务 */
-                
+            
                 // 如果任务不为空，直接返回（因为不再接收新线程[任务]了）
-                if(firstTask != null){
+                if(firstTask != null) {
                     return false;
                 }
                 
@@ -943,106 +944,115 @@ retry:
                     return false;
                 }
             }
-            
+        
             /*
              * 至此，线程池有两种状态：
              *
              * 1.线程池处于【运行】状态{-1}，可以接收新线程，并可以处理阻塞任务
-             * 2.线程池处于【关闭】状态{0}，且firstTask==null（【N】），而且阻塞队列不为空（有阻塞任务）
+             * 2.线程池处于【关闭】状态{0}，但firstTask==null(是【N】型Worker)，而且阻塞队列不为空（有阻塞任务）
              */
             
             // 原子地增加线程池中的Worker数量
             for (;;) {
-                // 获取当前情境下需要使用的阙值限制
+                // 获取当前情境下需要使用的阈值限制
                 int count = (core ? corePoolSize : maximumPoolSize) & COUNT_MASK;
-                
+    
                 /*
                  * 至此，由于形参的不同组合，出现了4种情形：
                  *
                  * 1.(command, true)  ==> firstTask!=null，count==corePoolSize
-                 *   添加【R】到线程池（线程池的Worker数量在【核心阙值】以内）
+                 *   添加【R】到线程池，使用【核心阈值】；
+                 *   线程池的Worker数量在【核心阈值】以内，此时可以持续增加【R】型Worker。
                  *
                  * 2.(command, false) ==> firstTask!=null，count==maximumPoolSize
-                 *   添加【R】到线程池（线程池正处于【运行】状态，但线程池满了。阻塞队列也满了）
+                 *   添加【R】到线程池，使用【最大阈值】；
+                 *   线程池正处于【运行】状态，且工作线程数量达到了核心阈值，而且阻塞队列也满了，
+                 *   此时无法任务添加到阻塞队列，于是只能将线程池容量阈值扩大为【最大阈值】，
+                 *   以便继续添加【R】型Worker去执行该任务。
                  *
                  * 3.(null, false)    ==> firstTask==null，count==maximumPoolSize
-                 *   添加【N】到线程池
+                 *   添加【N】到线程池，使用【最大阈值】；
+                 *   3.1 用在最低保障启动中，参见ensurePrestart()
+                 *   3.2 工作线程被异常结束，或者，工作线程数量已经低于最小预留值的保障，此时也需要新增一个【N】型Worker去处理阻塞队列中的任务
+                 *   3.3 线程池为空时(例如核心阈值为0)，此时也需要专门添加一个【N】型Worker去处理阻塞队列中的任务
                  *
                  * 4.(null, true)     ==> firstTask==null，count==corePoolSize
-                 *   一般发生在线程池的【核心阙值】被更新后，在新阙值的限制下，增加【N】
-                 *   也可能发生在预启动之中
+                 *   添加【N】到线程池，使用【核心阈值】；
+                 *   4.1 用在最低保障启动中，参见ensurePrestart()
+                 *   4.2 用在预启动中，参见prestartAllCoreThreads()和prestartCoreThread()
+                 *   4.3 扩大了【核心阈值】，此时也需要补充【N】型Worker，以便与阻塞队列的容量匹配
                  */
-                
-                // 如果线程池中的Worker数量超过了对应情形下的阙值，则返回fasle，表示无法再添加新的任务
-                if (workerCountOf(c) >= count) {
+    
+                // 如果线程池中的工作线程(Worker)数量超过了对应情形下的阈值，则返回fasle，表示无法再添加新的任务
+                if(workerCountOf(state) >= count) {
                     return false;
                 }
-                
-                // 原子地递增线程池中的任务数量
-                if (compareAndIncrementWorkerCount(c)) {
+    
+                // 原子地递【增】线程池中工作线程(Worker)的数量，并更新线程池状态标记
+                if(compareAndIncrementWorkerCount(state)) {
                     // 任务数量更新成功，跳出双重循环
                     break retry;
                 }
-                
-                /* 至此，说明上面的原子操作失败了，发生了线程争用 */
-                
+    
+                /* 至此，说明上面的原子操作失败了，可能是发生了线程争用 */
+    
                 // 如果线程池中的任务数量发生了变化，需要重新获取线程池状态标记
-                c = ctl.get();  // Re-read ctl
-                
+                state = ctl.get();  // Re-read ctl
+    
                 // {0123} 如果线程池不再接收新线程了
-                if (runStateAtLeast(c, SHUTDOWN)) {
-                    // 跳到外层循环继续执行
+                if(runStateAtLeast(state, SHUTDOWN)) {
+                    // 跳到外层循环，尝试处理阻塞队列中的任务
                     continue retry;
                 }
-                
+    
                 /* {-1} 至此，线程池仍处于【运行】状态，重新执行内层循环，以完成刚刚的原子操作 */
-                
+    
                 /* else CAS failed due to workerCount change; retry inner loop */
             } // for
         } // for
-        
-        
-        /* 至此，说明Worker数量更新成功 */
+    
+    
+        /* 至此，说明Worker添加成功 */
         
         boolean workerAdded = false;    // Worker是否添加成功
         boolean workerStarted = false;  // Worker是否成功启动
-        
-        Worker w = null;
+    
+        Worker worker = null;
         
         try {
             // 新建Worker
-            w = new Worker(firstTask);
+            worker = new Worker(firstTask);
             
             // 获取线程域
-            final Thread t = w.thread;
-            
-            if (t != null) {
-                final ReentrantLock mainLock = this.mainLock;
+            final Thread workerThread = worker.workerThread;
+    
+            if(workerThread != null) {
                 mainLock.lock();
+        
                 try {
                     /*
                      * Recheck while holding lock.
                      * Back out on ThreadFactory failure or if shut down before lock acquired.
                      */
-                    int c = ctl.get();
-                    
+                    int state = ctl.get();
+            
                     // {-1} 如果线程池仍处于【运行】状态（接收新线程）
-                    if (isRunning(c)
+                    if(isRunning(state)
                         // {0} 或者，如果线程池处于【关闭】状态（可以处理阻塞任务），且正在添加【N】型Worker
-                        || (runStateLessThan(c, STOP) && firstTask == null)) {
-                        
+                        || (runStateLessThan(state, STOP) && firstTask == null)) {
+                
                         /* precheck that t is startable */
                         // 检查线程是否已经启动
-                        if (t.isAlive()) {
+                        if(workerThread.isAlive()) {
                             // 如果线程已经被启动了，则抛出异常
                             throw new IllegalThreadStateException();
                         }
-                        
+                
                         // 添加新的Worker到线程池
-                        workers.add(w);
+                        workerPool.add(worker);
                         
                         // 更新线程池中Worker数量达到的最大值
-                        int s = workers.size();
+                        int s = workerPool.size();
                         if (s > largestPoolSize) {
                             largestPoolSize = s;
                         }
@@ -1057,7 +1067,7 @@ retry:
                 // 如果成功添加了Worker，那么接下来就要启动Worker了
                 if (workerAdded) {
                     // 启动Worker所在线程（开始执行任务）
-                    t.start();
+                    workerThread.start();
                     
                     // 标记成功启动了Worker（任务开始了执行）
                     workerStarted = true;
@@ -1067,7 +1077,7 @@ retry:
             // 如果Worker启动失败
             if (!workerStarted) {
                 // 移除对应的任务，并尝试让线程池进入【终止】状态
-                addWorkerFailed(w);
+                addWorkerFailed(worker);
             }
         }
         
@@ -1084,15 +1094,14 @@ retry:
      */
     // Worker启动失败后，需要移除该Worker，并尝试让线程池进入【终止】状态
     private void addWorkerFailed(Worker w) {
-        final ReentrantLock mainLock = this.mainLock;
         mainLock.lock();
         try {
             if (w != null) {
                 // 从线程池中移除Worker
-                workers.remove(w);
+                workerPool.remove(w);
             }
-            
-            // 原子地递减线程池中的Worker数量
+    
+            // 原子地递【减】线程池中工作线程(Worker)的数量，并更新线程池状态标记
             decrementWorkerCount();
             
             // 尝试让线程池进入【终止】状态
@@ -1162,31 +1171,61 @@ retry:
      *
      * @param w the worker
      */
-    // 执行【R】型Worker，【R】型Worker执行完后，会转变为【N】型Worker，并从阻塞队列中取出任务执行
-    final void runWorker(Worker w) {
-        Thread wt = Thread.currentThread();
-        
-        Runnable task = w.firstTask;
-        
-        w.firstTask = null;
-        
+    /*
+     * 由【工作线程】调用，执行线程池中的任务
+     *
+     * 如果当前Worker是【R】型，则取出【R】型Worker中的任务执行，之后，【R】型Worker转变为【N】型Worker；
+     * 如果当前Worker(已经)是【N】型Worker，则需要不断从线程池的阻塞队列中取出待执行任务。
+     *
+     * 如果未启用超时设置，则没有待执行任务时，该工作线程会被阻塞；
+     * 如果超时设置已被激活，那么没有待执行任务时，该工作线程会退出。
+     */
+    final void runWorker(Worker worker) {
+        Thread currentThread = Thread.currentThread();
+    
+        // 获取Worker中的待执行任务
+        Runnable runnableTask = worker.firstTask;
+    
+        // 置空Worker中的任务(如果该Worker是【R】型Worker，此处相当于将其从【R】型转变为【N】型)
+        worker.firstTask = null;
+    
         /*
+         * 解锁，此处只是简单地将许可证数量置为0
+         *
          * 每个Worker的锁状态被初始化为-1，
          * 这里要先将锁状态重置为0，以便可以对Worker正常加锁
          */
-        w.unlock(); // allow interrupts
-        
+        worker.unlock(); // allow interrupts
+    
         // 是否异常结束
         boolean completedAbruptly = true;
         
         try {
-            // 如果是【R】型Worker
-            while(task != null
-                // 或者，利用【N】型Worker从阻塞队列中取出任务
-                || (task = getTask()) != null) {
-                
-                w.lock();
-                
+            while(true) {
+                /*
+                 * 此处的runnableTask为null有两种情形：
+                 * 1.首次进来，且当前Worker是【N】型
+                 * 2.再次进来，之前的任务执行完了
+                 */
+                if(runnableTask == null) {
+                    /*
+                     * 【N】型Worker尝试从阻塞队列中获取待执行任务
+                     *
+                     * 注：这里的【N】型Worker可能有两种情形：
+                     * 1.待处理worker本来就是【N】型Worker
+                     * 2.待处理worker原本是【R】型Worker，但取出其搭载的firstTask任务后，它转变成了【N】型Worker
+                     */
+                    runnableTask = getTask();
+            
+                    // 如果没有在阻塞队列中获取到待执行任务(可能是没有更多任务了，也可能是超时了)
+                    if(runnableTask == null) {
+                        break;
+                    }
+                }
+        
+                // 加锁，此处只是简单地将许可证数量从0更新到1
+                worker.lock();
+        
                 /*
                  * If pool is stopping, ensure thread is interrupted;
                  * if not, ensure thread is not interrupted.
@@ -1196,44 +1235,51 @@ retry:
                  * 线程池在{-10}状态时，线程未被中断
                  * 线程池在{123}状态时，线程被中断
                  */
-                
-                // {123} 如果线程池不再接收新线程，也不可以处理阻塞任务
-                if(runStateAtLeast(ctl.get(), STOP)
-                    // 或者，清除中断标记
-                    || (Thread.interrupted() && runStateAtLeast(ctl.get(), STOP))) {
-                    
-                    // 如果当前线程没有中断标记
-                    if(!wt.isInterrupted()){
-                        // 设置一个中断标记
-                        wt.interrupt();
+        
+                // 如果线程池至少已经stop(处于{123}状态)
+                if(runStateAtLeast(ctl.get(), STOP)) {
+                    // 如果工作线程没有中断标记(该测试不影响线程的中断状态)
+                    if(!currentThread.isInterrupted()) {
+                        // 需要为工作线程设置一个中断标记
+                        currentThread.interrupt();
                     }
+            
+                    // 如果线程池处于{-10}状态，则需要清除线程的中断状态
+                } else {
+                    // （静态）测试当前线程是否已经中断，线程的中断状态会被清除
+                    Thread.interrupted();
                 }
-                
+        
                 try {
                     // 任务执行前的回调
-                    beforeExecute(wt, task);
+                    beforeExecute(currentThread, runnableTask);
+            
                     try {
                         // 执行【R】中的任务
-                        task.run();
-                        
+                        runnableTask.run();
+                
                         // 任务执行后的回调
-                        afterExecute(task, null);
+                        afterExecute(runnableTask, null);
                     } catch(Throwable ex) {
                         // 发生异常，任务执行后的回调
-                        afterExecute(task, ex);
+                        afterExecute(runnableTask, ex);
                         throw ex;
                     }
                 } finally {
-                    // 置空任务，此时，【R】型Worker转型为【N】型Worker
-                    task = null;
-                    // 记录当前Worker执行的任务数
-                    w.completedTasks++;
-                    w.unlock();
+                    // 置空变量，以便运载新的任务
+                    runnableTask = null;
+            
+                    // 当前Worker(工作线程)执行的任务数增一
+                    worker.completedTasks++;
+            
+                    // 解锁，此处只是简单地将许可证数量置为0，以便后续可以对其加锁
+                    worker.unlock();
                 }
-            } // while
+            }// while(true)
             
             /* 至此，没有在阻塞队列中取到任务，则【N】型Worker结束运行 */
-            
+    
+            // 标记线程池正常结束(不再有阻塞的线程)
             completedAbruptly = false;
         } finally {
             /*
@@ -1242,7 +1288,7 @@ retry:
              * 还要保证阻塞队列中的阻塞任务后续有别的Worker处理
              * 注：超时被启用时，才会走这里，否则就一直阻塞在getTask()
              */
-            processWorkerExit(w, completedAbruptly);
+            processWorkerExit(worker, completedAbruptly);
         }
     }
     
@@ -1267,6 +1313,7 @@ retry:
      * 【N】型Worker通过此方法，从阻塞队列中取出任务，如果没取到，则返回null
      *
      * 当返回值为null时，往往伴随着线程池中Worker数量的递减
+     *
      * 如果未启用超时设置，那么该方法会一直阻塞，直到从阻塞队列中取到任务
      * 如果启用了超时设置，则必须在指定时间内取到任务，否则返回null
      */
@@ -1274,17 +1321,18 @@ retry:
         boolean timedOut = false; // Did the last poll() time out?
         
         for(; ; ) {
-            int c = ctl.get();
-            
+            int state = ctl.get();
+    
             /* Check if queue empty only if necessary */
-            
-            // {0123} 如果线程池结束了【运行】状态，即表明其不再接收新线程
-            if(runStateAtLeast(c, SHUTDOWN)) {
+    
+            // {0123} 如果线程池结束了【运行】状态，即其不再接收新线程
+            if(runStateAtLeast(state, SHUTDOWN)) {
+        
                 // {123} 如果线程池不可以处理阻塞队列中的阻塞任务了，或者可以处理，但线程池为空
-                if(runStateAtLeast(c, STOP) || workQueue.isEmpty()) {
-                    // 原子地递减线程池中的Worker数量
+                if(runStateAtLeast(state, STOP) || workQueue.isEmpty()) {
+                    // 原子地递【减】线程池中工作线程(Worker)的数量，并更新线程池状态标记
                     decrementWorkerCount();
-                    
+            
                     // 返回null意味着该【N】型Worker稍后将结束
                     return null;
                 }
@@ -1293,39 +1341,40 @@ retry:
             /* 至此，说明线程池有能力处理阻塞任务，且线程池不为空，那么就继续处理任务 */
             
             // 获取线程池中的Worker数量
-            int wc = workerCountOf(c);
-            
+            int workerCount = workerCountOf(state);
+    
             /* Are workers subject to culling? */
-            
+    
             /*
              * 是否启用超时设置
              * 1.主动启用，可以通过设置allowCoreThreadTimeOut==true来实现
-             * 2.自动启用，发生在线程池中的Worker数量超过【核心阙值】时
+             * 2.自动启用，发生在线程池中的Worker数量超过【核心阈值】时
              */
-            boolean timed = allowCoreThreadTimeOut || wc>corePoolSize;
-            
-            // 如果线程池中的Worker数量超过【最大阙值】（线程争用严重时会有此种情形）
-            if(wc>maximumPoolSize
+            boolean timed = allowCoreThreadTimeOut || workerCount>corePoolSize;
+    
+            // 如果线程池中的Worker数量超过【最大阈值】（线程争用严重时会有此种情形）
+            if(workerCount>maximumPoolSize
                 // 或者启用了超时设置，且已经超时
                 || (timed && timedOut)) {
-                
+        
                 // 如果线程池中至少有一个Worker
-                if(wc>1
+                if(workerCount>1
                     // 或者阻塞队列为空
                     || workQueue.isEmpty()) {
-                    
+            
                     /*
                      * 至此，归纳为两种情形：
-                     * 1. 线程池中的Worker数量超过【最大阙值】
+                     * 1. 线程池中的Worker数量超过【最大阈值】
                      * 2. 线程池启用了超时设置，并已经超时
                      */
-                    
-                    
+            
+            
                     /*
-                     * 原子地递减线程池中的Worker数量
-                     * 从这里反映出：获取任务时，不是急着取任务，而是先剔除多余/过时的【N】
+                     * 原子地递【减】线程池中工作线程(Worker)的数量，并更新线程池状态标记
+                     *
+                     * 递减的原因是Worker数量过多了...
                      */
-                    if(compareAndDecrementWorkerCount(c)) {
+                    if(compareAndDecrementWorkerCount(state)) {
                         // 返回null意味着该【N】型Worker稍后将结束
                         return null;
                     }
@@ -1333,26 +1382,26 @@ retry:
                     continue;
                 }
             }
-            
-            /* 至此，剔除了多余/过时的【N】 */
+    
+            /* 至此，剔除了多余的【N】 */
             
             try {
-                Runnable r;
-                
+                Runnable task;
+    
                 // 如果启用了超时设置
                 if(timed) {
                     // 出队，从阻塞队列取出任务，不满足出队条件时阻塞一段时间，如果在指定的时间内没有成功拿到元素，则返回null
-                    r = workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS);
+                    task = workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS);
                 } else {
                     // 出队，从阻塞队列取出任务，线程安全，不满足出队条件时【阻塞】
-                    r = workQueue.take();
+                    task = workQueue.take();
                 }
-                
+    
                 // 如果成功获取到任务，则返回它
-                if(r != null) {
-                    return r;
+                if(task != null) {
+                    return task;
                 }
-                
+    
                 // 至此，说启用了超时设置，且确实已经超时了（【N】过时了）
                 timedOut = true;
             } catch(InterruptedException retry) {
@@ -1376,55 +1425,61 @@ retry:
      * @param completedAbruptly if the worker died due to user exception
      */
     // 线程池中的某个Worker结束，除了需要将该Worker从线程池移除，还要保证阻塞队列中的阻塞任务后续有人处理
-    private void processWorkerExit(Worker w, boolean completedAbruptly) {
+    private void processWorkerExit(Worker worker, boolean completedAbruptly) {
         /* If abrupt, then workerCount wasn't adjusted */
-        
-        // 如果是非正常退出
-        if (completedAbruptly) {
-            // 原子地递减线程池中的Worker数量
+    
+        // 如果工作线程是非正常退出的
+        if(completedAbruptly) {
+            // 原子地递【减】线程池中工作线程(Worker)的数量，并更新线程池状态标记
             decrementWorkerCount();
         }
-        
-        final ReentrantLock mainLock = this.mainLock;
+    
         mainLock.lock();
         try {
             // 记录线程池累计执行的任务数量
-            completedTaskCount += w.completedTasks;
+            completedTaskCount += worker.completedTasks;
             // 从线程池中移除该Worker
-            workers.remove(w);
+            workerPool.remove(worker);
         } finally {
             mainLock.unlock();
         }
-        
+    
         // 尝试让线程池进入【终止】状态
         tryTerminate();
-        
-        int c = ctl.get();
-        
-        // {-10}如果线程池还可以处理阻塞任务
-        if (runStateLessThan(c, STOP)) {
-            // 如果线程非异常退出
-            if (!completedAbruptly) {
-                // 线程池中计划预留的最小Worker数量
-                int min = allowCoreThreadTimeOut ? 0 : corePoolSize;
-                
-                // 确保预留值最小为1（当然，如果阻塞队列也为空时，就不用预留了）
-                if (min == 0 && !workQueue.isEmpty()) {
-                    min = 1;
-                }
-                
-                /*
-                 * 如果线程池中的Worker数量超过最小预留值，则可以放心地返回了，
-                 * 因为不管这个Worker是【R】型还是【N】型，稍后都可以去处理阻塞队列中的任务
-                 */
-                if (workerCountOf(c) >= min) {
-                    return; // replacement not needed
-                }
-            }
-            
-            // 至此，需要专门添加一个【N】型Worker到线程池，以便处理阻塞队列中的任务
-            addWorker(null, false);
+    
+        int state = ctl.get();
+    
+        // {123}如果线程池不能接受新线程，也不能处理阻塞任务，则直接返回
+        if(!runStateLessThan(state, STOP)) {
+            return;
         }
+    
+        /* 至此，说明线程池仍然可以处理阻塞队列中的任务 */
+    
+        // 如果工作线程是正常退出的
+        if(!completedAbruptly) {
+            // 线程池中计划预留的最小Worker数量
+            int min = allowCoreThreadTimeOut ? 0 : corePoolSize;
+        
+            // 确保预留值最小为1（当然，如果阻塞队列也为空时，就不用预留了）
+            if(min == 0 && !workQueue.isEmpty()) {
+                min = 1;
+            }
+        
+            /*
+             * 如果线程池中的Worker数量超过最小预留值，则可以放心地返回了，
+             * 因为不管这个Worker是【R】型还是【N】型，稍后都可以去处理阻塞队列中的任务
+             */
+            if(workerCountOf(state) >= min) {
+                return; // replacement not needed
+            }
+        }
+    
+        /*
+         * 至此，说明工作线程被异常结束，或者，工作线程数量已经低于最小预留值的保障；
+         * 此时需要专门添加一个【N】型Worker到线程池，以便处理阻塞队列中的任务
+         */
+        addWorker(null, false);
     }
     
     /*▲ 创建/执行/清理任务 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -1434,8 +1489,8 @@ retry:
     /*▼ 运行状态 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     // 判断线程池是否处于{-1}【运行】状态
-    private static boolean isRunning(int c) {
-        return c < SHUTDOWN;
+    private static boolean isRunning(int workerPoolState) {
+        return workerPoolState<SHUTDOWN;
     }
     
     // 判断线程池是否至少处于{0123}【关闭】状态
@@ -1456,8 +1511,8 @@ retry:
      */
     // 判断线程池是否至少处于{012}【关闭】状态，但还没有进入【终止】状态
     public boolean isTerminating() {
-        int c = ctl.get();
-        return runStateAtLeast(c, SHUTDOWN) && runStateLessThan(c, TERMINATED);
+        int state = ctl.get();
+        return runStateAtLeast(state, SHUTDOWN) && runStateLessThan(state, TERMINATED);
     }
     
     /** Used by ScheduledThreadPoolExecutor. */
@@ -1515,14 +1570,18 @@ retry:
      *
      * @throws SecurityException {@inheritDoc}
      */
-    // 让线程池至少进入{0}【关闭】状态（为线程池中所有【空闲】Worker设置中断标记）
+    /*
+     * 先让线程池进入{0}【关闭】状态(直到成功)，再尝试进入{3}【终止】状态(不一定成功)；
+     * 关闭过程中会为线程池中所有【空闲】Worker设置中断标记。
+     */
     public void shutdown() {
-        final ReentrantLock mainLock = this.mainLock;
+    
         mainLock.lock();
+    
         try {
             // 检查【关闭】权限
             checkShutdownAccess();
-            
+        
             // 更新线程池的运行状态为【关闭】，即不再接收新线程，但可以处理阻塞任务
             advanceRunState(SHUTDOWN);
             
@@ -1556,15 +1615,19 @@ retry:
      *
      * @throws SecurityException {@inheritDoc}
      */
-    // 让线程池至少进入{1}【停止】状态，返回阻塞队列中未处理的阻塞任务
+    /*
+     * 先让线程池进入{1}【停止】状态(直到成功)，再尝试进入{3}【终止】状态(不一定成功)；
+     * 关闭过程中会为线程池中所有【空闲】Worker设置中断标记；
+     * 返回阻塞队列中未处理的阻塞任务。
+     */
     public List<Runnable> shutdownNow() {
         List<Runnable> tasks;
-        final ReentrantLock mainLock = this.mainLock;
+    
         mainLock.lock();
         try {
             // 检查【关闭】权限
             checkShutdownAccess();
-            
+        
             // 更新线程池的运行状态为【停止】，即不再接收新线程，也不再处理阻塞任务（稍后还要中断正在执行的Worker）
             advanceRunState(STOP);
             
@@ -1586,7 +1649,6 @@ retry:
     // 等待线程池进入【终止】状态（等待过程中会释放锁，醒来后恢复锁）
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         long nanos = unit.toNanos(timeout);
-        final ReentrantLock mainLock = this.mainLock;
         mainLock.lock();
         try {
             // 如果线程池未【终止】，则等待线程池【终止】
@@ -1613,7 +1675,7 @@ retry:
      * from the queue during shutdown. The method is non-private to
      * allow access from ScheduledThreadPoolExecutor.
      */
-    // 尝试让线程池进入【终止】状态
+    // 尝试让线程池进入{3}【终止】状态
     final void tryTerminate() {
         for(; ; ) {
             int c = ctl.get();
@@ -1648,7 +1710,6 @@ retry:
             
             /* 至此，表明线程池为空 */
             
-            final ReentrantLock mainLock = this.mainLock;
             mainLock.lock();
             try {
                 // 设置线程池运行状态为【完结】
@@ -1688,8 +1749,8 @@ retry:
         SecurityManager security = System.getSecurityManager();
         if(security != null) {
             security.checkPermission(shutdownPerm);
-            for(Worker w : workers) {
-                security.checkAccess(w.thread);
+            for(Worker w : workerPool) {
+                security.checkAccess(w.workerThread);
             }
         }
     }
@@ -1698,12 +1759,12 @@ retry:
     
     
     
-    /*▼ 线程池中的Worker数量 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 工作线程(Worker)数量 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Attempts to CAS-increment the workerCount field of ctl.
      */
-    // 原子地递增线程池中的Worker数量，并更新线程池状态标记
+    // 原子地递【增】线程池中工作线程(Worker)的数量，并更新线程池状态标记
     private boolean compareAndIncrementWorkerCount(int expect) {
         return ctl.compareAndSet(expect, expect + 1);
     }
@@ -1711,7 +1772,7 @@ retry:
     /**
      * Attempts to CAS-decrement the workerCount field of ctl.
      */
-    // 原子地递减线程池中的Worker数量，并更新线程池状态标记
+    // 原子地递【减】线程池中工作线程(Worker)的数量，并更新线程池状态标记
     private boolean compareAndDecrementWorkerCount(int expect) {
         return ctl.compareAndSet(expect, expect - 1);
     }
@@ -1721,30 +1782,30 @@ retry:
      * abrupt termination of a thread (see processWorkerExit). Other
      * decrements are performed within getTask.
      */
-    // 原子地递减线程池中的Worker数量，并更新线程池状态标记
+    // 原子地递【减】线程池中工作线程(Worker)的数量，并更新线程池状态标记
     private void decrementWorkerCount() {
         ctl.addAndGet(-1);
     }
     
-    /*▲ 线程池中的Worker数量 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 工作线程(Worker)数量 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 线程池状态记标 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     // 返回运行状态（位于线程池状态标记的前3位）
-    private static int runStateOf(int c) {
-        return c & ~COUNT_MASK;
+    private static int runStateOf(int workerPoolState) {
+        return workerPoolState & ~COUNT_MASK;
     }
     
-    // 返回线程池中的Worker数量（位于线程池状态标记的后29位）
-    private static int workerCountOf(int c) {
-        return c & COUNT_MASK;
+    // 返回线程池中的工作线程(Worker)数量（位于线程池状态标记的后29位）
+    private static int workerCountOf(int workerPoolState) {
+        return workerPoolState & COUNT_MASK;
     }
     
-    // 生成线程池状态标记
-    private static int ctlOf(int rs, int wc) {
-        return rs | wc;
+    // 合成线程池状态标记
+    private static int ctlOf(int runState, int workerCount) {
+        return runState | workerCount;
     }
     
     /*
@@ -1752,12 +1813,12 @@ retry:
      * These depend on the bit layout and on workerCount being never negative.
      */
     
-    private static boolean runStateLessThan(int c, int s) {
-        return c < s;
+    private static boolean runStateLessThan(int workerPoolState, int flag) {
+        return workerPoolState<flag;
     }
     
-    private static boolean runStateAtLeast(int c, int s) {
-        return c >= s;
+    private static boolean runStateAtLeast(int workerPoolState, int flag) {
+        return workerPoolState >= flag;
     }
     
     /*▲ 线程池状态记标 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -1773,7 +1834,7 @@ retry:
     // 中断线程池中所有正在【执行】的Worker
     private void interruptWorkers() {
         // assert mainLock.isHeldByCurrentThread();
-        for(Worker w : workers) {
+        for(Worker w : workerPool) {
             // 为当前正在执行的任务/线程设置中断标记
             w.interruptIfStarted();
         }
@@ -1812,34 +1873,35 @@ retry:
      */
     /*
      * 中断线程池中【空闲】的Worker
-     * 【空闲】Worker是那些正在等待从阻塞队列中获取任务的Worker
+     * 【空闲】Worker是指那些正在等待从阻塞队列中获取任务的Worker
      *
      * onlyOne==true ：要求至少有一个线程被设置了中断标记
      * onlyOne==false：要求所有线程被设置了中断标记
      */
     private void interruptIdleWorkers(boolean onlyOne) {
-        final ReentrantLock mainLock = this.mainLock;
         mainLock.lock();
+    
         try {
             // 遍历线程池，取出Worker
-            for(Worker w : workers) {
+            for(Worker worker : workerPool) {
                 // 获取Worker所在线程
-                Thread t = w.thread;
+                Thread workerThread = worker.workerThread;
+            
+                // 如果当前线程还未中断(该测试不影响线程的中断状态)
+                if(!workerThread.isInterrupted()) {
                 
-                // 测试当前线程是否已经中断，线程的中断状态不受影响
-                if(!t.isInterrupted()) {
-                    
                     // 如果线程还没有中断标记，则尝试锁住线程，并为其设置中断标记
-                    if(w.tryLock()){
+                    if(worker.tryLock()) {
                         /* 至此，成功加锁 */
-                        
+                    
                         try {
                             // 中断线程（只是给线程预设一个标记，不是立即让线程停下来）
-                            t.interrupt();
+                            workerThread.interrupt();
                         } catch(SecurityException ignore) {
                             // ignore
                         } finally {
-                            w.unlock();
+                            // 解锁，此处只是简单地将许可证数量置为0
+                            worker.unlock();
                         }
                     }
                 }
@@ -1976,7 +2038,7 @@ retry:
      *
      * @see #setThreadFactory(ThreadFactory)
      */
-    // 获取线程工厂
+    // 获取线程工厂，以便创建执行【任务】的【工作线程】
     public ThreadFactory getThreadFactory() {
         return threadFactory;
     }
@@ -2004,17 +2066,16 @@ retry:
      *
      * @see #setCorePoolSize
      */
-    // 获取线程池的【核心阙值】
+    // 获取线程池的【核心阈值】
     public int getCorePoolSize() {
         return corePoolSize;
     }
     
     /**
-     * Sets the core number of threads.  This overrides any value set
-     * in the constructor.  If the new value is smaller than the
-     * current value, excess existing threads will be terminated when
-     * they next become idle.  If larger, new threads will, if needed,
-     * be started to execute any queued tasks.
+     * Sets the core number of threads.
+     * This overrides any value set in the constructor.
+     * If the new value is smaller than the current value, excess existing threads will be terminated when they next become idle.
+     * If larger, new threads will, if needed, be started to execute any queued tasks.
      *
      * @param corePoolSize the new core size
      *
@@ -2023,7 +2084,7 @@ retry:
      *                                  #getMaximumPoolSize() maximum pool size}
      * @see #getCorePoolSize
      */
-    // 设置线程池的【核心阙值】
+    // 更新线程池的【核心阈值】
     public void setCorePoolSize(int corePoolSize) {
         if(corePoolSize<0 || corePoolSize>maximumPoolSize) {
             throw new IllegalArgumentException();
@@ -2031,22 +2092,25 @@ retry:
         
         // 需要增加多少容量
         int delta = corePoolSize - this.corePoolSize;
-        
-        // 更新【核心阙值】
+    
+        // 更新【核心阈值】
         this.corePoolSize = corePoolSize;
-        
-        // 如果线程池中的任务数已经超过【核心阙值】
+    
+        // 如果线程池中的任务数已经超过【核心阈值】(新值较小)
         if(workerCountOf(ctl.get())>corePoolSize) {
             // 中断线程池中所有【空闲】的Worker
             interruptIdleWorkers();
+    
+            // 新值较大，则需要新增【N】型Worker
         } else if(delta>0) {
             /*
              * We don't really know how many new threads are "needed".
              * As a heuristic, prestart enough new workers (up to new core size) to handle the current number of tasks in queue,
              * but stop if queue becomes empty while doing so.
              */
-            // 线程池【核心阙值】的增量不会超过阻塞队列的容量
+            // 限制新增【N】型Worker的数量
             int k = Math.min(delta, workQueue.size());
+    
             // 添加【N】型Worker到线程池
             while(k-->0 && addWorker(null, true)) {
                 // 如果阻塞队列中已经没有阻塞的任务了，那么就自然也不再需要增加【N】型Worker了
@@ -2064,7 +2128,7 @@ retry:
      *
      * @see #setMaximumPoolSize
      */
-    // 获取线程池的【最大阙值】
+    // 获取线程池的【最大阈值】
     public int getMaximumPoolSize() {
         return maximumPoolSize;
     }
@@ -2082,16 +2146,16 @@ retry:
      *                                  less than the {@linkplain #getCorePoolSize core pool size}
      * @see #getMaximumPoolSize
      */
-    // 设置线程池的【最大阙值】
+    // 设置线程池的【最大阈值】
     public void setMaximumPoolSize(int maximumPoolSize) {
         if(maximumPoolSize<=0 || maximumPoolSize<corePoolSize) {
             throw new IllegalArgumentException();
         }
-        
-        // 更新【最大阙值】
+    
+        // 更新【最大阈值】
         this.maximumPoolSize = maximumPoolSize;
-        
-        // 如果线程池中的任务数已经超过【最大阙值】
+    
+        // 如果线程池中的任务数已经超过【最大阈值】
         if(workerCountOf(ctl.get())>maximumPoolSize) {
             // 中断线程池中所有【空闲】的Worker
             interruptIdleWorkers();
@@ -2244,11 +2308,10 @@ retry:
      */
     // 获取线程池中当前的Worker数量，如果已处于【完结】或【终止】状态，直接返回0
     public int getPoolSize() {
-        final ReentrantLock mainLock = this.mainLock;
         mainLock.lock();
         try {
             // Remove rare and surprising possibility of isTerminated() && getPoolSize() > 0
-            return runStateAtLeast(ctl.get(), TIDYING) ? 0 : workers.size();
+            return runStateAtLeast(ctl.get(), TIDYING) ? 0 : workerPool.size();
         } finally {
             mainLock.unlock();
         }
@@ -2262,7 +2325,6 @@ retry:
      */
     // 线程池中Worker数量达到的最大值
     public int getLargestPoolSize() {
-        final ReentrantLock mainLock = this.mainLock;
         mainLock.lock();
         try {
             return largestPoolSize;
@@ -2279,12 +2341,11 @@ retry:
      */
     // 获取线程池中当前【执行】的Worker数量
     public int getActiveCount() {
-        final ReentrantLock mainLock = this.mainLock;
         mainLock.lock();
         try {
             int n = 0;
             // 遍历Worker
-            for(Worker w : workers) {
+            for(Worker w : workerPool) {
                 // 如果Worker已上锁（正在执行）
                 if(w.isLocked()) {
                     ++n;    // 累加
@@ -2306,13 +2367,12 @@ retry:
      */
     // 获取线程池执行过的所有Worker数量（包括此刻正在执行的任务数量和在可预计的将来会执行的任务数量）
     public long getTaskCount() {
-        final ReentrantLock mainLock = this.mainLock;
         mainLock.lock();
         try {
             // 线程池累计执行的任务数量
             long n = completedTaskCount;
             // 遍历Worker
-            for(Worker w : workers) {
+            for(Worker w : workerPool) {
                 // 累加当前Worker执行的任务数
                 n += w.completedTasks;
                 // 如果Worker已上锁（正在执行）
@@ -2339,13 +2399,12 @@ retry:
      */
     // 获取线程池执行完毕的所有Worker数量（只包括当前确定执行完的）
     public long getCompletedTaskCount() {
-        final ReentrantLock mainLock = this.mainLock;
         mainLock.lock();
         try {
             // 线程池累计执行的任务数量
             long n = completedTaskCount;
             // 遍历Worker
-            for(Worker w : workers) {
+            for(Worker w : workerPool) {
                 // 累加当前Worker执行的任务数
                 n += w.completedTasks;
             }
@@ -2375,8 +2434,8 @@ retry:
      * @param t the thread that will run task {@code r}
      * @param r the task that will be executed
      */
-    // runWorker(Worker)之中的回调
-    protected void beforeExecute(Thread t, Runnable r) {
+    // 任务执行前的回调，位于runWorker(Worker)中
+    protected void beforeExecute(Thread workerThread, Runnable runnableTask) {
     }
     
     /**
@@ -2428,8 +2487,8 @@ retry:
      * @param t the exception that caused termination, or null if
      *          execution completed normally
      */
-    // runWorker(Worker)之中的回调
-    protected void afterExecute(Runnable r, Throwable t) {
+    // 任务执行后的回调，该方法位于runWorker(Worker)中
+    protected void afterExecute(Runnable runnableTask, Throwable ex) {
     }
     
     /**
@@ -2438,7 +2497,7 @@ retry:
      * overridings, subclasses should generally invoke
      * {@code super.terminated} within this method.
      */
-    // tryTerminate()之中的回调
+    // 线程池从【完结】进入【终止】时的回调，该方法位于tryTerminate()中
     protected void terminated() {
     }
     
@@ -2447,7 +2506,7 @@ retry:
      * invocation of shutdown.  A no-op here, but used by
      * ScheduledThreadPoolExecutor to cancel delayed tasks.
      */
-    // shutdown()中的回调
+    // 线程池进入【关闭】之后的回调，通常可用来处理阻塞队列中的任务，或者进行其他收尾工作
     void onShutdown() {
     }
     
@@ -2458,31 +2517,31 @@ retry:
     /*▼ 预启动 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
-     * Starts a core thread, causing it to idly wait for work. This
-     * overrides the default policy of starting core threads only when
-     * new tasks are executed. This method will return {@code false}
-     * if all core threads have already been started.
+     * Starts a core thread, causing it to idly wait for work.
+     * This overrides the default policy of starting core threads only when new tasks are executed.
+     * This method will return {@code false} if all core threads have already been started.
      *
      * @return {@code true} if a thread was started
      */
-    // 【预启动】，在【核心阙值】的限制下，尝试添加一个【N】
+    // 【预启动】:在【核心阈值】的约束下，向线程池添加一个【N】型Worker并启动它
     public boolean prestartCoreThread() {
         return workerCountOf(ctl.get())<corePoolSize && addWorker(null, true);
     }
     
     /**
-     * Starts all core threads, causing them to idly wait for work. This
-     * overrides the default policy of starting core threads only when
-     * new tasks are executed.
+     * Starts all core threads, causing them to idly wait for work.
+     * This overrides the default policy of starting core threads only when new tasks are executed.
      *
      * @return the number of threads started
      */
-    // 【预启动】，在【核心阙值】的限制下，不断添加【N】，直到容量超标
+    // 【预启动】:在【核心阈值】的约束下，不断向线程池添加【N】型Worker并启动它，直到Worker数量达到阈值
     public int prestartAllCoreThreads() {
         int n = 0;
+    
         while(addWorker(null, true)) {
             ++n;
         }
+    
         return n;
     }
     
@@ -2490,14 +2549,17 @@ retry:
      * Same as prestartCoreThread except arranges that at least one
      * thread is started even if corePoolSize is 0.
      */
-    // 预启动（启动一个【N】型线程以扫描阻塞队列）
+    // 最低保障启动：当向阻塞队列中加入一个待执行任务时，需要启动一个【N】型Worker以扫描该阻塞队列并处理任务
     void ensurePrestart() {
-        int wc = workerCountOf(ctl.get());
-        if(wc<corePoolSize) {
-            // 在【核心阙值】限制下，添加一个【N】
+        int workerCount = workerCountOf(ctl.get());
+    
+        if(workerCount<corePoolSize) {
+            // 在【核心阈值】限制下，添加一个【N】
             addWorker(null, true);
-        } else if(wc == 0) {
-            // 在【最大阙值】限制下，添加一个【N】
+        
+            // 如果线程池【核心阈值】为0
+        } else if(workerCount == 0) {
+            // 在【最大阈值】限制下，添加一个【N】
             addWorker(null, false);
         }
     }
@@ -2517,15 +2579,13 @@ retry:
         long ncompleted;
         int nworkers, nactive;
         
-        final ReentrantLock mainLock = this.mainLock;
-        
         mainLock.lock();
         
         try {
             ncompleted = completedTaskCount;
             nactive = 0;
-            nworkers = workers.size();
-            for(Worker w : workers) {
+            nworkers = workerPool.size();
+            for(Worker w : workerPool) {
                 ncompleted += w.completedTasks;
                 if(w.isLocked()) {
                     ++nactive;
@@ -2604,17 +2664,17 @@ retry:
          * serialVersionUID to suppress a javac warning.
          */
         private static final long serialVersionUID = 6138294804551838833L;
-        
+    
         /** Thread this worker is running in.  Null if factory fails. */
-        // 待执行【任务】所在的【线程】
-        final Thread thread;
+        // 【工作线程】：后续执行firstTask【任务】的【线程】
+        final Thread workerThread;
         
         /** Initial task to run.  Possibly null. */
         // 待执行【任务】
         Runnable firstTask;
         
         /** Per-thread task counter */
-        // 记录当前Worker执行的任务数
+        // 记录当前Worker(工作线程)执行的任务数
         volatile long completedTasks;
         
         // TODO: switch to AbstractQueuedLongSynchronizer and move completedTasks into the lock word.
@@ -2625,10 +2685,13 @@ retry:
          * @param firstTask the first task (null if none)
          */
         Worker(Runnable firstTask) {
-            // 每个任务的锁状态被初始化为-1
+            // 每个任务的锁状态被初始化为-1，这使得工作线程在运行之前禁止中断
             setState(-1); // inhibit interrupts until runWorker
+    
             this.firstTask = firstTask;
-            this.thread = getThreadFactory().newThread(this);
+    
+            // 创建执行【任务】的【工作线程】
+            this.workerThread = getThreadFactory().newThread(this);
         }
         
         
@@ -2646,52 +2709,54 @@ retry:
          * The value 0 represents the unlocked state.
          * The value 1 represents the locked state.
          */
-        
-        // 加锁，锁标记从0到1
+    
+        // 加锁，此处只是简单地将许可证数量从0更新到1(会调用到tryAcquire()方法)
         public void lock() {
-            // 申请独占锁（调用tryAcquire）
+            // 申请独占锁
             acquire(1);
         }
-        
-        // 加锁，锁标记从0到1，返回值表示是否加锁成功
+    
+        // 加锁，此处只是简单地将许可证数量从0更新到1，返回值表示是否加锁成功
         public boolean tryLock() {
             // 申请独占锁
             return tryAcquire(1);
         }
-        
-        // 解锁，锁标记从1到0
+    
+        // 解锁，此处只是简单地将许可证数量置为0，以便后续可以对其加锁(会调用到tryRelease()方法)
         public void unlock() {
-            // 释放独占锁（调用tryRelease）
+            // 释放独占锁
             release(1);
         }
+    
+        // 释放独占锁，此处只是简单地将许可证数量置为0，总是返回true
+        protected boolean tryRelease(int unused) {
+            // 清理当前锁的持有者
+            setExclusiveOwnerThread(null);
         
-        // 申请独占锁，将锁标记从0更新到1
+            // 锁标记更新为0
+            setState(0);
+        
+            return true;
+        }
+    
+        // 申请独占锁，此处只是简单地将许可证数量从0更新到1
         protected boolean tryAcquire(int unused) {
             if(compareAndSetState(0, 1)) {
                 // 设置当前锁的持有者
                 setExclusiveOwnerThread(Thread.currentThread());
                 return true;
             }
-            
+        
             return false;
         }
-        
-        // 释放独占锁，将锁标记从1更新到0，总是返回true
-        protected boolean tryRelease(int unused) {
-            // 清理当前锁的持有者
-            setExclusiveOwnerThread(null);
-            // 锁标记更新为0
-            setState(0);
-            return true;
-        }
-        
-        
-        // 判断当前线程是否为锁的占用者
+    
+    
+        // 判断当前线程是否为锁的持有者
         public boolean isLocked() {
             return isHeldExclusively();
         }
-        
-        // 判断当前线程是否为锁的占用者
+    
+        // 判断当前线程是否为锁的持有者
         protected boolean isHeldExclusively() {
             return getState() != 0;
         }
@@ -2699,18 +2764,24 @@ retry:
         
         // 为当前正在执行的任务/线程设置中断标记
         void interruptIfStarted() {
-            Thread t;
-            // 如果当前任务所在线程被锁（任务处于执行状态）
-            if(getState() >= 0
-                // 且线程/任务存在
-                && (t = thread) != null
-                // 且线程还没有中断标记
-                && !t.isInterrupted()) {
-                try {
-                    // 为线程设置中断标记
-                    t.interrupt();
-                } catch(SecurityException ignore) {
-                }
+            // 【工作线程】还未运行，禁止中断
+            if(getState()<0) {
+                return;
+            }
+    
+            if(workerThread == null) {
+                return;
+            }
+    
+            // 如果线程已经中断(该测试不影响线程的中断状态)
+            if(workerThread.isInterrupted()) {
+                return;
+            }
+    
+            try {
+                // 为线程设置中断标记
+                workerThread.interrupt();
+            } catch(SecurityException ignore) {
             }
         }
     }

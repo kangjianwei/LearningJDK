@@ -240,7 +240,7 @@ import sun.security.util.SecurityConstants;
 public abstract class ClassLoader {
     
     /* The system class loader */
-    // system class loader，可能是内置的AppClassLoader，也可能是自定义的类加载器
+    // system class loader，可能是内置的AppClassLoader(默认)，也可能是自定义的类加载器
     private static volatile ClassLoader scl;
     
     /**
@@ -296,7 +296,6 @@ public abstract class ClassLoader {
     private static final Certificate[] nocerts = new Certificate[0];
     
     
-    
     private static native void registerNatives();
     
     static {
@@ -305,7 +304,7 @@ public abstract class ClassLoader {
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Creates a new class loader using the {@code ClassLoader} returned by
@@ -388,53 +387,11 @@ public abstract class ClassLoader {
         this.nameAndId = nameAndId(this);
     }
     
-    
-    private static Void checkCreateClassLoader() {
-        return checkCreateClassLoader(null);
-    }
-    
-    private static Void checkCreateClassLoader(String name) {
-        if(name != null && name.isEmpty()) {
-            throw new IllegalArgumentException("name must be non-empty or null");
-        }
-        
-        SecurityManager security = System.getSecurityManager();
-        
-        if(security != null) {
-            security.checkCreateClassLoader();
-        }
-        
-        return null;
-    }
-    
-    /**
-     * If the defining loader has a name explicitly set then  '<loader-name>' @<id>
-     * If the defining loader has no name then <qualified-class-name> @<id>
-     * If it's built-in loader then omit `@<id>` as there is only one instance.
-     */
-    // 返回当前ClassLoader的名称和一串随机id
-    private static String nameAndId(ClassLoader ld) {
-        String nid = ld.getName() != null
-            ? "\'" + ld.getName() + "\'"
-            : ld.getClass().getName();
-        
-        if(!(ld instanceof BuiltinClassLoader)) {
-            String id = Integer.toHexString(System.identityHashCode(ld));
-            nid = nid + " @" + id;
-        }
-        
-        return nid;
-    }
-    
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 加载类 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /* 加载资源时使用相对路径，其搜索起点是类路径的根目录 */
-    
-    /* ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ */
     
     /**
      * Loads the class with the specified <a href="#binary-name">binary name</a>.
@@ -450,15 +407,14 @@ public abstract class ClassLoader {
      *
      * @throws ClassNotFoundException If the class was not found
      */
-    // 根据给定的类名加载类
+    // 根据给定类的全名加载类
     public Class<?> loadClass(String className) throws ClassNotFoundException {
         return loadClass(className, false);
     }
     
     /**
-     * Loads the class with the specified <a href="#binary-name">binary name</a>.  The
-     * default implementation of this method searches for classes in the
-     * following order:
+     * Loads the class with the specified <a href="#binary-name">binary name</a>.
+     * The default implementation of this method searches for classes in the following order:
      *
      * <ol>
      *
@@ -485,33 +441,30 @@ public abstract class ClassLoader {
      * {@link #getClassLoadingLock getClassLoadingLock} method
      * during the entire class loading process.
      *
-     * @param className    The <a href="#binary-name">binary name</a> of the class
-     * @param resolve If {@code true} then resolve the class
+     * @param className The <a href="#binary-name">binary name</a> of the class
+     * @param resolve   If {@code true} then resolve the class
      *
      * @return The resulting {@code Class} object
      *
      * @throws ClassNotFoundException If the class could not be found
      */
-    // 根据给定的类名加载类
+    // 根据给定类的全名加载类，resolve指示是否链接类
     protected Class<?> loadClass(String className, boolean resolve) throws ClassNotFoundException {
-        // 加锁
         synchronized(getClassLoadingLock(className)) {
             
-            // 首先检查该类是否已经加载
+            // 查找指定的类，如果该类未被当前类加载器加载，返回null
             Class<?> c = findLoadedClass(className);
             
+            // 如果该类还未加载
             if(c == null) {
                 long t0 = System.nanoTime();
                 
+                // 根据双亲委托机制，先使用父级类加载器加载指定的类
                 try {
-                    // 如果经过检查发现还没加载过该类， 则向父级类加载器查询
                     if(parent != null) {
                         c = parent.loadClass(className, false);
                     } else {
-                        /*
-                         * 如果parent为空，说明父级类加载器是bootstrap class loader
-                         * 于是，这里需要向bootstrap class loader发起查询
-                         */
+                        // 查找指定的类，如果该类未被bootstrap类加载器加载，返回null
                         c = findBootstrapClassOrNull(className);
                     }
                 } catch(ClassNotFoundException e) {
@@ -523,7 +476,7 @@ public abstract class ClassLoader {
                     // If still not found, then invoke findClass in order to find the class.
                     long t1 = System.nanoTime();
                     
-                    // 真正的加载过程一般从这里开始
+                    // 查找(定义)类，如果该类在模块中，则在模块中查找该类，否则在类路径下查找（如果待查找的类存在，则会加载器字节码，并交给虚拟机去定义）
                     c = findClass(name);
                     
                     // this is the defining class loader; record the stats
@@ -540,27 +493,6 @@ public abstract class ClassLoader {
             return c;
         }
     }
-    
-    /**
-     * Finds the class with the specified <a href="#binary-name">binary name</a>.
-     * This method should be overridden by class loader implementations that
-     * follow the delegation model for loading classes, and will be invoked by
-     * the {@link #loadClass loadClass} method after checking the
-     * parent class loader for the requested class.
-     *
-     * @param className The <a href="#binary-name">binary name</a> of the class
-     *
-     * @return The resulting {@code Class} object
-     *
-     * @throws ClassNotFoundException If the class could not be found
-     * @implSpec The default implementation throws {@code ClassNotFoundException}.
-     * @since 1.2
-     */
-    // 根据给定的类名加载类（子类可以覆盖该方法）
-    protected Class<?> findClass(String className) throws ClassNotFoundException {
-        throw new ClassNotFoundException(className);
-    }
-    
     
     /**
      * Loads the class with the specified <a href="#binary-name">binary name</a>
@@ -584,14 +516,14 @@ public abstract class ClassLoader {
      * class in the given module.</li>
      * </ol>
      */
-    // 根据给定的模块名与类名加载类
+    // 根据给定的模块名与类的全名加载类
     final Class<?> loadClass(Module module, String className) {
-        // 加锁
         synchronized(getClassLoadingLock(className)) {
-            
             // 首先检查该类是否已经加载
             Class<?> c = findLoadedClass(className);
+            
             if(c == null) {
+                // 查找(定义)类，如果moduleName不为空，则在指定模块中查找该类，否则在类路径下查找（如果待查找的类存在，则会加载器字节码，并交给虚拟机去定义）
                 c = findClass(module.getName(), className);
             }
             
@@ -601,6 +533,57 @@ public abstract class ClassLoader {
                 return null;
             }
         }
+    }
+    
+    
+    /**
+     * Finds a class with the specified <a href="#binary-name">binary name</a>,
+     * loading it if necessary.
+     *
+     * <p> This method loads the class through the system class loader (see
+     * {@link #getSystemClassLoader()}).  The {@code Class} object returned
+     * might have more than one {@code ClassLoader} associated with it.
+     * Subclasses of {@code ClassLoader} need not usually invoke this method,
+     * because most class loaders need to override just {@link
+     * #findClass(String)}.  </p>
+     *
+     * @param className The <a href="#binary-name">binary name</a> of the class
+     *
+     * @return The {@code Class} object for the specified {@code name}
+     *
+     * @throws ClassNotFoundException If the class could not be found
+     * @see #ClassLoader(ClassLoader)
+     * @see #getParent()
+     */
+    // 使用system类加载器加载指定的类
+    protected final Class<?> findSystemClass(String className) throws ClassNotFoundException {
+        return getSystemClassLoader().loadClass(className);
+    }
+    
+    /*▲ 加载类 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 查找(定义)类 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Finds the class with the specified <a href="#binary-name">binary name</a>.
+     * This method should be overridden by class loader implementations that
+     * follow the delegation model for loading classes, and will be invoked by
+     * the {@link #loadClass loadClass} method after checking the
+     * parent class loader for the requested class.
+     *
+     * @param className The <a href="#binary-name">binary name</a> of the class
+     *
+     * @return The resulting {@code Class} object
+     *
+     * @throws ClassNotFoundException If the class could not be found
+     * @implSpec The default implementation throws {@code ClassNotFoundException}.
+     * @since 1.2
+     */
+    // [子类覆盖]查找(定义)类，如果该类在模块中，则在模块中查找该类，否则在类路径下查找（如果待查找的类存在，则会加载器字节码，并交给虚拟机去定义）
+    protected Class<?> findClass(String className) throws ClassNotFoundException {
+        throw new ClassNotFoundException(className);
     }
     
     /**
@@ -625,7 +608,7 @@ public abstract class ClassLoader {
      * @spec JPMS
      * @since 9
      */
-    // 根据给定的模块名与类名加载类（子类可以覆盖该方法）
+    // [子类覆盖]查找(定义)类，如果moduleName不为空，则在指定模块中查找该类，否则在类路径下查找（如果待查找的类存在，则会加载器字节码，并交给虚拟机去定义）
     protected Class<?> findClass(String moduleName, String className) {
         if(moduleName == null) {
             try {
@@ -637,144 +620,93 @@ public abstract class ClassLoader {
         return null;
     }
     
+    /*▲ 查找(定义)类 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 定义类 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
-     * Finds a class with the specified <a href="#binary-name">binary name</a>,
-     * loading it if necessary.
+     * Converts a {@link java.nio.ByteBuffer ByteBuffer} into an instance
+     * of class {@code Class}, with the given {@code ProtectionDomain}.
+     * If the given {@code ProtectionDomain} is {@code null}, then a default
+     * protection domain will be assigned to the class as
+     * specified in the documentation for {@link #defineClass(String, byte[],
+     * int, int)}.  Before the class can be used it must be resolved.
      *
-     * <p> This method loads the class through the system class loader (see
-     * {@link #getSystemClassLoader()}).  The {@code Class} object returned
-     * might have more than one {@code ClassLoader} associated with it.
-     * Subclasses of {@code ClassLoader} need not usually invoke this method,
-     * because most class loaders need to override just {@link
-     * #findClass(String)}.  </p>
+     * <p>The rules about the first class defined in a package determining the
+     * set of certificates for the package, the restrictions on class names,
+     * and the defined package of the class
+     * are identical to those specified in the documentation for {@link
+     * #defineClass(String, byte[], int, int, ProtectionDomain)}.
      *
-     * @param className The <a href="#binary-name">binary name</a> of the class
+     * <p> An invocation of this method of the form
+     * <i>cl</i>{@code .defineClass(}<i>name</i>{@code ,}
+     * <i>bBuffer</i>{@code ,} <i>pd</i>{@code )} yields exactly the same
+     * result as the statements
      *
-     * @return The {@code Class} object for the specified {@code name}
+     * <p> <code>
+     * ...<br>
+     * byte[] temp = new byte[bBuffer.{@link
+     * java.nio.ByteBuffer#remaining remaining}()];<br>
+     * bBuffer.{@link java.nio.ByteBuffer#get(byte[])
+     * get}(temp);<br>
+     * return {@link #defineClass(String, byte[], int, int, ProtectionDomain)
+     * cl.defineClass}(name, temp, 0,
+     * temp.length, pd);<br>
+     * </code></p>
      *
-     * @throws ClassNotFoundException If the class could not be found
-     * @see #ClassLoader(ClassLoader)
-     * @see #getParent()
+     * @param className        The expected <a href="#binary-name">binary name</a>. of the class, or
+     *                         {@code null} if not known
+     * @param b                The bytes that make up the class data. The bytes from positions
+     *                         {@code b.position()} through {@code b.position() + b.limit() -1
+     *                         } should have the format of a valid class file as defined by
+     *                         <cite>The Java&trade; Virtual Machine Specification</cite>.
+     * @param protectionDomain The {@code ProtectionDomain} of the class, or {@code null}.
+     *
+     * @return The {@code Class} object created from the data,
+     * and {@code ProtectionDomain}.
+     *
+     * @throws ClassFormatError     If the data did not contain a valid class.
+     * @throws NoClassDefFoundError If {@code name} is not {@code null} and not equal to the
+     *                              <a href="#binary-name">binary name</a> of the class specified by {@code b}
+     * @throws SecurityException    If an attempt is made to add this class to a package that
+     *                              contains classes that were signed by a different set of
+     *                              certificates than this class, or if {@code name} begins with
+     *                              "{@code java.}".
+     * @revised 9
+     * @spec JPMS
+     * @see #defineClass(String, byte[], int, int, ProtectionDomain)
+     * @since 1.5
      */
-    // 使用system class loader加载指定的类
-    protected final Class<?> findSystemClass(String className) throws ClassNotFoundException {
-        return getSystemClassLoader().loadClass(className);
-    }
-    
-    
-    /**
-     * Links the specified class.  This (misleadingly named) method may be
-     * used by a class loader to link a class.  If the class {@code c} has
-     * already been linked, then this method simply returns. Otherwise, the
-     * class is linked as described in the "Execution" chapter of
-     * <cite>The Java&trade; Language Specification</cite>.
-     *
-     * @param clazz The class to link
-     *
-     * @throws NullPointerException If {@code c} is {@code null}.
-     * @see #defineClass(String, byte[], int, int)
-     */
-    // 链接类
-    protected final void resolveClass(Class<?> clazz) {
-        if(clazz == null) {
-            throw new NullPointerException();
-        }
-    }
-    
-    
-    /**
-     * Returns the lock object for class loading operations.
-     * For backward compatibility, the default implementation of this method behaves as follows.
-     * If this ClassLoader object is registered as parallel capable,
-     * the method returns a dedicated object associated with the specified class name.
-     * Otherwise, the method returns this ClassLoader object.
-     *
-     * @param className The name of the to-be-loaded class
-     *
-     * @return the lock for class loading operations
-     *
-     * @throws NullPointerException If registered as parallel capable and {@code className} is null
-     * @see #loadClass(String, boolean)
-     * @since 1.7
-     */
-    // 返回类加载操作中使用的锁对象
-    protected Object getClassLoadingLock(String className) {
-        Object lock = this;
-        if(parallelLockMap != null) {
-            Object newLock = new Object();
-            lock = parallelLockMap.putIfAbsent(className, newLock);
-            if(lock == null) {
-                lock = newLock;
+    // 利用存储在缓冲区中的字节码去定义类
+    protected final Class<?> defineClass(String className, ByteBuffer b, ProtectionDomain protectionDomain) throws ClassFormatError {
+        // 获取二进制流长度
+        int len = b.remaining();
+        
+        // 如果不是直接缓冲区，则使用byte[]存储该二进制流
+        if(!b.isDirect()) {
+            if(b.hasArray()) {
+                return defineClass(className, b.array(), b.position() + b.arrayOffset(), len, protectionDomain);
+            } else {
+                // no array, or read-only array
+                byte[] tb = new byte[len];
+                b.get(tb);  // get bytes out of byte buffer.
+                return defineClass(className, tb, 0, len, protectionDomain);
             }
         }
-        return lock;
-    }
-    
-    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
-    
-    
-    /* ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ */
-    
-    /**
-     * Returns the class with the given <a href="#binary-name">binary name</a> if this
-     * loader has been recorded by the Java virtual machine as an initiating
-     * loader of a class with that <a href="#binary-name">binary name</a>.  Otherwise
-     * {@code null} is returned.
-     *
-     * @param className The <a href="#binary-name">binary name</a> of the class
-     *
-     * @return The {@code Class} object, or {@code null} if the class has
-     * not been loaded
-     *
-     * @since 1.1
-     */
-    // 返回已加载的类。如果该类还没加载，返回null
-    protected final Class<?> findLoadedClass(String className) {
-        if(!checkName(className)) {
-            return null;
-        }
         
-        return findLoadedClass0(className);
-    }
-    
-    // 返回已加载的类。如果该类还没加载，返回null
-    private final native Class<?> findLoadedClass0(String className);
-    
-    
-    /**
-     * Returns a class loaded by the bootstrap class loader; or return null if not found.
-     */
-    /*
-     *  通过bootstrap class loader查找类是否已加载
-     *  如果还没加载，则仍使用bootstrap class loader尝试加载
-     *  如果加载失败，则返回null
-     */
-    Class<?> findBootstrapClassOrNull(String className) {
-        if(!checkName(className)) {
-            return null;
-        }
+        protectionDomain = preDefineClass(className, protectionDomain);
         
-        return findBootstrapClass(className);
-    }
-    
-    // 通过bootstrap class loader查找并加载类，如果既找不到又加载失败则返回null
-    private native Class<?> findBootstrapClass(String className);
-    
-    
-    // 校验类名
-    private boolean checkName(String className) {
-        if((className == null) || (className.length() == 0)) {
-            return true;
-        }
+        // 从保护域中获取代码源的位置信息
+        String source = defineClassSourceLocation(protectionDomain);
         
-        return (className.indexOf('/') == -1) && (className.charAt(0) != '[');
+        Class<?> clazz = defineClass2(this, className, b, b.position(), len, protectionDomain, source);
+        
+        postDefineClass(clazz, protectionDomain);
+        
+        return clazz;
     }
-    
-    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
-    
-    
-    /* ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ */
     
     /**
      * Converts an array of bytes into an instance of class {@code Class},
@@ -915,87 +847,6 @@ public abstract class ClassLoader {
     }
     
     /**
-     * Converts a {@link java.nio.ByteBuffer ByteBuffer} into an instance
-     * of class {@code Class}, with the given {@code ProtectionDomain}.
-     * If the given {@code ProtectionDomain} is {@code null}, then a default
-     * protection domain will be assigned to the class as
-     * specified in the documentation for {@link #defineClass(String, byte[],
-     * int, int)}.  Before the class can be used it must be resolved.
-     *
-     * <p>The rules about the first class defined in a package determining the
-     * set of certificates for the package, the restrictions on class names,
-     * and the defined package of the class
-     * are identical to those specified in the documentation for {@link
-     * #defineClass(String, byte[], int, int, ProtectionDomain)}.
-     *
-     * <p> An invocation of this method of the form
-     * <i>cl</i>{@code .defineClass(}<i>name</i>{@code ,}
-     * <i>bBuffer</i>{@code ,} <i>pd</i>{@code )} yields exactly the same
-     * result as the statements
-     *
-     * <p> <code>
-     * ...<br>
-     * byte[] temp = new byte[bBuffer.{@link
-     * java.nio.ByteBuffer#remaining remaining}()];<br>
-     * bBuffer.{@link java.nio.ByteBuffer#get(byte[])
-     * get}(temp);<br>
-     * return {@link #defineClass(String, byte[], int, int, ProtectionDomain)
-     * cl.defineClass}(name, temp, 0,
-     * temp.length, pd);<br>
-     * </code></p>
-     *
-     * @param className             The expected <a href="#binary-name">binary name</a>. of the class, or
-     *                         {@code null} if not known
-     * @param b                The bytes that make up the class data. The bytes from positions
-     *                         {@code b.position()} through {@code b.position() + b.limit() -1
-     *                         } should have the format of a valid class file as defined by
-     *                         <cite>The Java&trade; Virtual Machine Specification</cite>.
-     * @param protectionDomain The {@code ProtectionDomain} of the class, or {@code null}.
-     *
-     * @return The {@code Class} object created from the data,
-     * and {@code ProtectionDomain}.
-     *
-     * @throws ClassFormatError     If the data did not contain a valid class.
-     * @throws NoClassDefFoundError If {@code name} is not {@code null} and not equal to the
-     *                              <a href="#binary-name">binary name</a> of the class specified by {@code b}
-     * @throws SecurityException    If an attempt is made to add this class to a package that
-     *                              contains classes that were signed by a different set of
-     *                              certificates than this class, or if {@code name} begins with
-     *                              "{@code java.}".
-     * @revised 9
-     * @spec JPMS
-     * @see #defineClass(String, byte[], int, int, ProtectionDomain)
-     * @since 1.5
-     */
-    // 利用存储在缓冲区中的字节码去定义类
-    protected final Class<?> defineClass(String className, ByteBuffer b, ProtectionDomain protectionDomain) throws ClassFormatError {
-        // 获取二进制流长度
-        int len = b.remaining();
-        
-        // 如果不是直接缓冲区，则使用byte[]存储该二进制流
-        if(!b.isDirect()) {
-            if(b.hasArray()) {
-                return defineClass(className, b.array(), b.position() + b.arrayOffset(), len, protectionDomain);
-            } else {
-                // no array, or read-only array
-                byte[] tb = new byte[len];
-                b.get(tb);  // get bytes out of byte buffer.
-                return defineClass(className, tb, 0, len, protectionDomain);
-            }
-        }
-        
-        protectionDomain = preDefineClass(className, protectionDomain);
-        // 从保护域中获取代码源的位置信息
-        String source = defineClassSourceLocation(protectionDomain);
-        
-        Class<?> clazz = defineClass2(this, className, b, b.position(), len, protectionDomain, source);
-        
-        postDefineClass(clazz, protectionDomain);
-        
-        return clazz;
-    }
-    
-    /**
      * Converts an array of bytes into an instance of class {@code Class}.
      * Before the {@code Class} can be used it must be resolved.  This method
      * is deprecated in favor of the version that takes a <a
@@ -1023,7 +874,7 @@ public abstract class ClassLoader {
      * @see #resolveClass(Class)
      * @deprecated Replaced by {@link #defineClass(String, byte[], int, int) defineClass(String, byte[], int, int)}
      */
-    // 利用存储在字节数组中的字节码去定义类（无显式名称）
+    // 利用存储在字节数组中的字节码去定义类（无保护域）
     @Deprecated(since = "1.1")
     protected final Class<?> defineClass(byte[] b, int off, int len) throws ClassFormatError {
         return defineClass(null, b, off, len, null);
@@ -1034,218 +885,82 @@ public abstract class ClassLoader {
     
     static native Class<?> defineClass2(ClassLoader loader, String className, ByteBuffer b, int off, int len, ProtectionDomain pd, String source);
     
-    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
+    /*▲ 定义类 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
-    /* ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ */
     
-    /**
-     * Determine protection domain, and check that:
-     *  - not define java.* class,
-     *  - signer of this class matches signers for the rest of the classes in package.
-     */
-    // 预定义类，主要是进行一些安全检查和证书设置
-    private ProtectionDomain preDefineClass(String className, ProtectionDomain pd) {
-        if(!checkName(className)) {
-            throw new NoClassDefFoundError("IllegalName: " + className);
-        }
-        
-        /*
-         * Note:  Checking logic in java.lang.invoke.MemberName.checkForTypeAlias relies on
-         * the fact that spoofing is impossible if a class has a name of the form "java.*"
-         *
-         * 禁止app class loader以及一些自定义的类加载器加载以"java"开头的包名的类
-         */
-        if((className != null) && className.startsWith("java.") && this != getBuiltinPlatformClassLoader()) {
-            throw new SecurityException("Prohibited package name: " + className.substring(0, className.lastIndexOf('.')));
-        }
-        
-        if(pd == null) {
-            pd = defaultDomain;
-        }
-        
-        if(className != null) {
-            // 为className这个类所在的包设置身份证书
-            checkCerts(className, pd.getCodeSource());
-        }
-        
-        return pd;
-    }
-    
-    // 为className这个类所在的包设置身份证书
-    private void checkCerts(String className, CodeSource cs) {
-        int i = className.lastIndexOf('.');
-        String packageName = (i == -1) ? "" : className.substring(0, i);
-        
-        Certificate[] certs = null;
-        if(cs != null) {
-            certs = cs.getCertificates();
-        }
-        
-        Certificate[] pcerts = null;
-        if(parallelLockMap == null) {
-            synchronized(this) {
-                pcerts = package2certs.get(packageName);
-                if(pcerts == null) {
-                    package2certs.put(packageName, (certs == null ? nocerts : certs));
-                }
-            }
-        } else {
-            pcerts = ((ConcurrentHashMap<String, Certificate[]>) package2certs).putIfAbsent(packageName, (certs == null ? nocerts : certs));
-        }
-        
-        if(pcerts != null && !compareCerts(pcerts, certs)) {
-            throw new SecurityException("class \"" + className + "\"'s signer information does not match signer information" + " of other classes in the same package");
-        }
-    }
+    /*▼ 链接类 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
-     * check to make sure the certs for the new class (certs) are the same as
-     * the certs for the first class inserted in the package (pcerts)
-     */
-    // 比较身份信息
-    private boolean compareCerts(Certificate[] pcerts, Certificate[] certs) {
-        // certs can be null, indicating no certs.
-        if((certs == null) || (certs.length == 0)) {
-            return pcerts.length == 0;
-        }
-        
-        // the length must be the same at this point
-        if(certs.length != pcerts.length)
-            return false;
-        
-        // go through and make sure all the certs in one array
-        // are in the other and vice-versa.
-        boolean match;
-        for(Certificate cert : certs) {
-            match = false;
-            for(Certificate pcert : pcerts) {
-                if(cert.equals(pcert)) {
-                    match = true;
-                    break;
-                }
-            }
-            if(!match)
-                return false;
-        }
-        
-        // now do the same for pcerts
-        for(Certificate pcert : pcerts) {
-            match = false;
-            for(Certificate cert : certs) {
-                if(pcert.equals(cert)) {
-                    match = true;
-                    break;
-                }
-            }
-            if(!match)
-                return false;
-        }
-        
-        return true;
-    }
-    
-    // 从保护域中获取代码源的位置信息
-    private String defineClassSourceLocation(ProtectionDomain pd) {
-        CodeSource cs = pd.getCodeSource();
-        
-        String source = null;
-        
-        if(cs != null && cs.getLocation() != null) {
-            source = cs.getLocation().toString();
-        }
-        
-        return source;
-    }
-    
-    // 在类定义完之后的一些收尾操作，主要是定义NamedPackage和设置签名
-    private void postDefineClass(Class<?> c, ProtectionDomain pd) {
-        // 定义NamedPackage，并使包名与之关联
-        getNamedPackage(c.getPackageName(), c.getModule());
-        
-        if(pd.getCodeSource() != null) {
-            Certificate certs[] = pd.getCodeSource().getCertificates();
-            if(certs != null){
-                setSigners(c, certs);
-            }
-        }
-    }
-    
-    /**
-     * Sets the signers of a class. This should be invoked after defining a class.
+     * Links the specified class.
      *
-     * @param c       The {@code Class} object
-     * @param signers The signers for the class
+     * This (misleadingly named) method may be used by a class loader to link a class.
+     * If the class {@code c} has already been linked, then this method simply returns.
+     * Otherwise, the class is linked as described in the "Execution" chapter of <cite>The Java&trade; Language Specification</cite>.
+     *
+     * @param clazz The class to link
+     *
+     * @throws NullPointerException If {@code c} is {@code null}.
+     * @see #defineClass(String, byte[], int, int)
+     */
+    // 链接类
+    protected final void resolveClass(Class<?> clazz) {
+        if(clazz == null) {
+            throw new NullPointerException();
+        }
+    }
+    
+    /*▲ 链接类 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 查找类 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the class with the given <a href="#binary-name">binary name</a> if this
+     * loader has been recorded by the Java virtual machine as an initiating
+     * loader of a class with that <a href="#binary-name">binary name</a>.  Otherwise
+     * {@code null} is returned.
+     *
+     * @param className The <a href="#binary-name">binary name</a> of the class
+     *
+     * @return The {@code Class} object, or {@code null} if the class has
+     * not been loaded
      *
      * @since 1.1
      */
-    // 设置签名信息，在类定义完成后调用
-    protected final void setSigners(Class<?> c, Object[] signers) {
-        c.setSigners(signers);
+    // 查找指定的类，如果该类未被当前类加载器加载，返回null
+    protected final Class<?> findLoadedClass(String className) {
+        if(!checkName(className)) {
+            return null;
+        }
+        
+        return findLoadedClass0(className);
     }
     
     /**
-     * Returns a named package for the given module.
+     * Returns a class loaded by the bootstrap class loader; or return null if not found.
      */
-    // 定义NamedPackage，并使包名与之关联
-    private NamedPackage getNamedPackage(String pn, Module m) {
-        NamedPackage p = packages.get(pn);
-        
-        if(p == null) {
-            p = new NamedPackage(pn, m);
-            
-            NamedPackage value = packages.putIfAbsent(pn, p);
-            
-            // 如果该包已经定义过，获取该包关联的NamedPackage
-            if(value != null) {
-                // Package object already be defined for the named package
-                p = value;
-                
-                /*
-                 * if definePackage is called by this class loader to define a package in a named module,
-                 * this will return Package object of the same name.
-                 * Package object may contain unexpected information but it does not impact the runtime.
-                 * this assertion may be helpful for troubleshooting
-                 */
-                assert value.module() == m;
-            }
+    // 查找指定的类，如果该类未被bootstrap类加载器加载，返回null
+    Class<?> findBootstrapClassOrNull(String className) {
+        if(!checkName(className)) {
+            return null;
         }
         
-        return p;
+        return findBootstrapClass(className);
     }
     
-    // Invoked by the VM after loading class with this loader.
-    private void checkPackageAccess(Class<?> cls, ProtectionDomain pd) {
-        final SecurityManager sm = System.getSecurityManager();
-        if(sm != null) {
-            if(ReflectUtil.isNonPublicProxyClass(cls)) {
-                for(Class<?> intf : cls.getInterfaces()) {
-                    checkPackageAccess(intf, pd);
-                }
-                return;
-            }
-            
-            final String packageName = cls.getPackageName();
-            if(!packageName.isEmpty()) {
-                AccessController.doPrivileged(new PrivilegedAction<>() {
-                    public Void run() {
-                        sm.checkPackageAccess(packageName);
-                        return null;
-                    }
-                }, new AccessControlContext(new ProtectionDomain[]{pd}));
-            }
-        }
-    }
+    // 查找指定的类，如果该类未被当前类加载器加载，返回null
+    private final native Class<?> findLoadedClass0(String className);
     
-    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
+    // 查找指定的类，如果该类未被bootstrap类加载器加载，返回null
+    private native Class<?> findBootstrapClass(String className);
     
-    /*▲ 加载类 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 查找类 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
-    /*▼ 加载资源 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /* ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ */
+    /*▼ 查找资源(局部) ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Finds the resource with the given name. Class loader implementations
@@ -1271,7 +986,7 @@ public abstract class ClassLoader {
      * @spec JPMS
      * @since 1.2
      */
-    // 由指定的资源名称查找首个匹配的资源，具体逻辑由子类覆盖实现
+    // [子类覆盖]在当前类加载器可以访问到的模块路径/类路径下搜索首个匹配的资源
     protected URL findResource(String resName) {
         return null;
     }
@@ -1305,7 +1020,7 @@ public abstract class ClassLoader {
      * @see java.lang.module.ModuleReader#find(String)
      * @since 9
      */
-    // 由指定的资源名称和模块名称查找首个匹配的资源，具体逻辑由子类覆盖实现
+    // [子类覆盖]在指定的模块路径或当前类加载器的类路径下查找匹配的资源
     protected URL findResource(String moduleName, String resName) throws IOException {
         if(moduleName == null) {
             return findResource(resName);
@@ -1314,10 +1029,44 @@ public abstract class ClassLoader {
         }
     }
     
-    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
+    /**
+     * Returns an enumeration of {@link java.net.URL URL} objects
+     * representing all the resources with the given name. Class loader
+     * implementations should override this method.
+     *
+     * <p> For resources in named modules then the method must implement the
+     * rules for encapsulation specified in the {@code Module} {@link
+     * Module#getResourceAsStream getResourceAsStream} method. Additionally,
+     * it must not find non-"{@code .class}" resources in packages of named
+     * modules unless the package is {@link Module#isOpen(String) opened}
+     * unconditionally. </p>
+     *
+     * @param resName The resource name
+     *
+     * @return An enumeration of {@link java.net.URL URL} objects for
+     * the resource. If no resources could  be found, the enumeration
+     * will be empty. Resources for which a {@code URL} cannot be
+     * constructed, are in a package that is not opened unconditionally,
+     * or access to the resource is denied by the security manager,
+     * are not returned in the enumeration.
+     *
+     * @throws IOException If I/O errors occur
+     * @implSpec The default implementation returns an enumeration that
+     * contains no elements.
+     * @revised 9
+     * @spec JPMS
+     * @since 1.2
+     */
+    // [子类覆盖]在当前类加载器下辖的模块路径/类路径的根目录下搜索所有匹配的资源
+    protected Enumeration<URL> findResources(String resName) throws IOException {
+        return Collections.emptyEnumeration();
+    }
+    
+    /*▲ 查找资源(局部) ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
-    /* ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ */
+    
+    /*▼ 查找资源(全局) ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Finds the resource with the given name.  A resource is some data
@@ -1359,7 +1108,7 @@ public abstract class ClassLoader {
      * @spec JPMS
      * @since 1.1
      */
-    // 自顶向下加载资源，截止到调用此方法的类加载器。返回首个匹配到的资源的URL
+    // 自顶向下加载资源，截止到调用此方法的类加载器。返回【首个】匹配到的资源的URL
     public URL getResource(String resName) {
         Objects.requireNonNull(resName);
         
@@ -1370,12 +1119,13 @@ public abstract class ClassLoader {
             // 如果存在父级类加载器，继续向上搜索
             url = parent.getResource(resName);
         } else {
+            // 如果不存在父级类加载器，说明遇到了bootstrap类加载器
             url = BootLoader.findResource(resName);
         }
         
         // 如果父级类加载器没有找到资源，则使用当前类加载器自身去查找资源
         if(url == null) {
-            // 在模块/类路径下搜索首个匹配的资源（遍历所有可能的位置，一发现匹配资源就返回）
+            // 在当前类加载器可以访问到的模块路径/类路径下搜索首个匹配的资源
             url = findResource(resName);
         }
         
@@ -1429,65 +1179,29 @@ public abstract class ClassLoader {
      * @spec JPMS
      * @since 1.2
      */
-    // 自顶向下加载资源，截止到调用此方法的类加载器。返回所有匹配资源的URL
+    // 自顶向下加载资源，截止到调用此方法的类加载器。返回【所有】匹配资源的URL
     public Enumeration<URL> getResources(String resName) throws IOException {
         Objects.requireNonNull(resName);
         
         @SuppressWarnings("unchecked")
         Enumeration<URL>[] tmp = (Enumeration<URL>[]) new Enumeration<?>[2];
         
-        // 如果存在上级类加载器，将资源查找先委托给上级的类加载器
+        // 先尝试由父级类加载器搜索资源
         if(parent != null) {
-            /*
-             * 如果当前类加载器不是bootstrap class loader，
-             * 向其上一级类加载器查询资源
-             */
+            // 如果存在父级类加载器，继续向上搜索
             tmp[0] = parent.getResources(resName);
         } else {
-            // 对于bootstrap class loader使用特定的类加载器查找资源
+            // 如果不存在父级类加载器，说明遇到了bootstrap类加载器
             tmp[0] = BootLoader.findResources(resName);
         }
         
         /* 找完父级，再来找自身 */
         
-        // 由指定的资源名称查找所有匹配的资源，具体逻辑由子类覆盖实现
+        // 在当前类加载器下辖的模块路径/类路径的根目录下搜索所有匹配的资源
         tmp[1] = findResources(resName);
         
         // 返回一个复合枚举类型
         return new CompoundEnumeration<>(tmp);
-    }
-    
-    /**
-     * Returns an enumeration of {@link java.net.URL URL} objects
-     * representing all the resources with the given name. Class loader
-     * implementations should override this method.
-     *
-     * <p> For resources in named modules then the method must implement the
-     * rules for encapsulation specified in the {@code Module} {@link
-     * Module#getResourceAsStream getResourceAsStream} method. Additionally,
-     * it must not find non-"{@code .class}" resources in packages of named
-     * modules unless the package is {@link Module#isOpen(String) opened}
-     * unconditionally. </p>
-     *
-     * @param resName The resource name
-     *
-     * @return An enumeration of {@link java.net.URL URL} objects for
-     * the resource. If no resources could  be found, the enumeration
-     * will be empty. Resources for which a {@code URL} cannot be
-     * constructed, are in a package that is not opened unconditionally,
-     * or access to the resource is denied by the security manager,
-     * are not returned in the enumeration.
-     *
-     * @throws IOException If I/O errors occur
-     * @implSpec The default implementation returns an enumeration that
-     * contains no elements.
-     * @revised 9
-     * @spec JPMS
-     * @since 1.2
-     */
-    // 由指定的资源名称查找所有匹配的资源【具体逻辑由子类覆盖实现】
-    protected Enumeration<URL> findResources(String resName) throws IOException {
-        return Collections.emptyEnumeration();
     }
     
     /**
@@ -1515,23 +1229,20 @@ public abstract class ClassLoader {
      * @spec JPMS
      * @since 1.1
      */
-    // 自顶向下加载资源，截止到调用此方法的类加载器。返回首个匹配到的资源的流
+    // 自顶向下加载资源，截止到调用此方法的类加载器。返回【首个】匹配到的资源的流
     public InputStream getResourceAsStream(String resName) {
         Objects.requireNonNull(resName);
         
+        // 自顶向下加载资源，截止到调用此方法的类加载器。返回【首个】匹配到的资源的URL
         URL url = getResource(resName);
         
         try {
+            // 打开指向该资源的流
             return url != null ? url.openStream() : null;
         } catch(IOException e) {
             return null;
         }
     }
-    
-    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
-    
-    
-    /* ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ */
     
     /**
      * Find a resource of the specified name from the search path used to load
@@ -1557,8 +1268,9 @@ public abstract class ClassLoader {
      * @spec JPMS
      * @since 1.1
      */
-    // 自顶向下加载资源，截止到system class loader。返回首个匹配到的资源的URL
+    // 自顶向下加载资源，截止到system类加载器。返回【首个】匹配到的资源的URL
     public static URL getSystemResource(String resName) {
+        // 获取system类加载器，可能是内置的AppClassLoader，也可能是自定义的类加载器
         ClassLoader systemClassLoader = getSystemClassLoader();
         return systemClassLoader.getResource(resName);
     }
@@ -1593,8 +1305,9 @@ public abstract class ClassLoader {
      * @spec JPMS
      * @since 1.2
      */
-    // 自顶向下加载资源，截止到system class loader。返回所有匹配资源的URL
+    // 自顶向下加载资源，截止到system类加载器。返回【所有】匹配资源的URL
     public static Enumeration<URL> getSystemResources(String resName) throws IOException {
+        // 获取system类加载器，可能是内置的AppClassLoader，也可能是自定义的类加载器
         ClassLoader systemClassLoader = getSystemClassLoader();
         return systemClassLoader.getResources(resName);
     }
@@ -1622,7 +1335,7 @@ public abstract class ClassLoader {
      * @spec JPMS
      * @since 1.1
      */
-    // 自顶向下加载资源，截止到system class loader。返回首个匹配到的资源的输入流
+    // 自顶向下加载资源，截止到system类加载器。返回【首个】匹配到的资源的输入流
     public static InputStream getSystemResourceAsStream(String resName) {
         URL url = getSystemResource(resName);
         
@@ -1632,11 +1345,6 @@ public abstract class ClassLoader {
             return null;
         }
     }
-    
-    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
-    
-    
-    /* ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ */
     
     /**
      * Returns a stream whose elements are the URLs of all the resources with
@@ -1679,26 +1387,26 @@ public abstract class ClassLoader {
      * resource that the {@code getResource(String)} method would return.
      * @since 9
      */
-    // 自顶向下加载资源，截止到调用此方法的类加载器。最后将所有匹配资源的URL封装到流中并返回
+    // 自顶向下加载资源，截止到调用此方法的类加载器。最后将【所有】匹配资源的URL封装到流中并返回
     public Stream<URL> resources(String resName) {
         Objects.requireNonNull(resName);
         
         int characteristics = Spliterator.NONNULL | Spliterator.IMMUTABLE;
         
-        Supplier<Spliterator<URL>> si = () -> {
+        Supplier<Spliterator<URL>> supplier = () -> {
             try {
-                return Spliterators.spliteratorUnknownSize(getResources(resName).asIterator(), characteristics);
+                // 自顶向下加载资源，截止到调用此方法的类加载器。返回【所有】匹配资源的URL
+                Enumeration<URL> enumeration = getResources(resName);
+                return Spliterators.spliteratorUnknownSize(enumeration.asIterator(), characteristics);
             } catch(IOException e) {
                 throw new UncheckedIOException(e);
             }
         };
         
-        return StreamSupport.stream(si, characteristics, false);
+        return StreamSupport.stream(supplier, characteristics, false);
     }
     
-    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
-    
-    /*▲ 加载资源 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 查找资源(全局) ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -1750,6 +1458,7 @@ public abstract class ClassLoader {
     public final Package[] getDefinedPackages() {
         return packages().toArray(Package[]::new);
     }
+    
     
     /**
      * Defines a package by <a href="#binary-name">name</a> in this {@code ClassLoader}.
@@ -1809,8 +1518,7 @@ public abstract class ClassLoader {
      * @since 1.2
      */
     // 定义一个新的Package对象，并与包名一起加入缓存
-    protected Package definePackage(String packageName, String specTitle, String specVersion, String specVendor,
-                                    String implTitle, String implVersion, String implVendor, URL sealBase) {
+    protected Package definePackage(String packageName, String specTitle, String specVersion, String specVendor, String implTitle, String implVersion, String implVendor, URL sealBase) {
         Objects.requireNonNull(packageName);
         
         // definePackage is not final and may be overridden by custom class loader
@@ -1871,6 +1579,7 @@ public abstract class ClassLoader {
                 pkg = BootLoader.getDefinedPackage(packageName);
             }
         }
+        
         return pkg;
     }
     
@@ -1899,10 +1608,12 @@ public abstract class ClassLoader {
     protected Package[] getPackages() {
         Stream<Package> pkgs = packages();
         ClassLoader ld = parent;
+        
         while(ld != null) {
             pkgs = Stream.concat(ld.packages(), pkgs);
             ld = ld.parent;
         }
+        
         return Stream.concat(BootLoader.packages(), pkgs).toArray(Package[]::new);
     }
     
@@ -2046,14 +1757,19 @@ public abstract class ClassLoader {
     // 获取ClassLoader中的的父级类加载器
     @CallerSensitive
     public final ClassLoader getParent() {
-        if (parent == null)
+        if(parent == null) {
             return null;
+        }
+        
         SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            // Check access to the parent class loader
-            // If the caller's class loader is same as this class loader, permission check is performed.
+        if(sm != null) {
+            /*
+             * Check access to the parent class loader
+             * If the caller's class loader is same as this class loader, permission check is performed.
+             */
             checkClassLoaderPermission(parent, Reflection.getCallerClass());
         }
+        
         return parent;
     }
     
@@ -2081,10 +1797,12 @@ public abstract class ClassLoader {
     @CallerSensitive
     public static ClassLoader getPlatformClassLoader() {
         SecurityManager sm = System.getSecurityManager();
+        
         ClassLoader loader = getBuiltinPlatformClassLoader();
         if (sm != null) {
             checkClassLoaderPermission(loader, Reflection.getCallerClass());
         }
+        
         return loader;
     }
     
@@ -2166,7 +1884,7 @@ public abstract class ClassLoader {
      * @revised 9
      * @spec JPMS
      */
-    // 获取SystemClassLoader，可能是内置的AppClassLoader，也可能是自定义的类加载器
+    // 获取system类加载器，可能是内置的AppClassLoader，也可能是自定义的类加载器
     @CallerSensitive
     public static ClassLoader getSystemClassLoader() {
         switch (VM.initLevel()) {
@@ -2198,7 +1916,7 @@ public abstract class ClassLoader {
      * 参见 java.lang.System#initPhase3
      */
     /*
-     * 获取SystemClassLoader
+     * 初始化系统类加载器(SystemClassLoader)，并将其返回
      *
      * 可能是内置的AppClassLoader，也可能是自定义的类加载器
      * 如果需要自定义类加载器，可以在"java.system.class.loader"属性中指定类加载器名称
@@ -2223,8 +1941,10 @@ public abstract class ClassLoader {
         if(className != null) {
             try {
                 /* custom class loader is only supported to be loaded from unnamed module */
+                // 创建系统类加载器的类对象
                 Class<?> aClassLoader = Class.forName(className, false, builtinLoader);
                 Constructor<?> ctor = aClassLoader.getDeclaredConstructor(ClassLoader.class);
+                // 实例化系统类加载器
                 scl = (ClassLoader) ctor.newInstance(builtinLoader);
             } catch(Exception e) {
                 Throwable cause = e;
@@ -2240,6 +1960,7 @@ public abstract class ClassLoader {
                 throw new Error(cause.getMessage(), cause);
             }
         } else {
+            // 默认使用AppClassLoader
             scl = builtinLoader;
         }
         
@@ -2334,10 +2055,15 @@ public abstract class ClassLoader {
      * @see #isRegisteredAsParallelCapable()
      * @since 1.7
      */
-    // 将当前类加载器注册为并行
+    // 将当前类加载器注册为并行，需要在静态初始化块中进行
     @CallerSensitive
     protected static boolean registerAsParallelCapable() {
-        Class<? extends ClassLoader> callerClass = Reflection.getCallerClass().asSubclass(ClassLoader.class);
+        // 获取registerAsParallelCapable()方法的调用者所处的类
+        Class<?> caller = Reflection.getCallerClass();
+        
+        // 如果ClassLoader类型是caller类型的父类/父接口，则返回父类型
+        Class<? extends ClassLoader> callerClass = caller.asSubclass(ClassLoader.class);
+        
         return ParallelLoaders.register(callerClass);
     }
     
@@ -2359,16 +2085,307 @@ public abstract class ClassLoader {
     
     /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
     
+    
+    
+    /* ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ */
+    
+    private static Void checkCreateClassLoader() {
+        return checkCreateClassLoader(null);
+    }
+    
+    private static Void checkCreateClassLoader(String name) {
+        if(name != null && name.isEmpty()) {
+            throw new IllegalArgumentException("name must be non-empty or null");
+        }
+        
+        SecurityManager security = System.getSecurityManager();
+        
+        if(security != null) {
+            security.checkCreateClassLoader();
+        }
+        
+        return null;
+    }
+    
+    /**
+     * If the defining loader has a name explicitly set then  '<loader-name>' @<id>
+     * If the defining loader has no name then <qualified-class-name> @<id>
+     * If it's built-in loader then omit `@<id>` as there is only one instance.
+     */
+    // 返回当前ClassLoader的名称和一串随机id
+    private static String nameAndId(ClassLoader ld) {
+        String nid = ld.getName() != null ? "\'" + ld.getName() + "\'" : ld.getClass().getName();
+        
+        if(!(ld instanceof BuiltinClassLoader)) {
+            String id = Integer.toHexString(System.identityHashCode(ld));
+            nid = nid + " @" + id;
+        }
+        
+        return nid;
+    }
+    
+    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
+    
+    
+    
+    /* ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ */
+    
+    /**
+     * Returns the lock object for class loading operations.
+     * For backward compatibility, the default implementation of this method behaves as follows.
+     * If this ClassLoader object is registered as parallel capable,
+     * the method returns a dedicated object associated with the specified class name.
+     * Otherwise, the method returns this ClassLoader object.
+     *
+     * @param className The name of the to-be-loaded class
+     *
+     * @return the lock for class loading operations
+     *
+     * @throws NullPointerException If registered as parallel capable and {@code className} is null
+     * @see #loadClass(String, boolean)
+     * @since 1.7
+     */
+    // 返回类加载操作中使用的锁对象
+    protected Object getClassLoadingLock(String className) {
+        Object lock = this;
+        
+        if(parallelLockMap != null) {
+            Object newLock = new Object();
+            lock = parallelLockMap.putIfAbsent(className, newLock);
+            if(lock == null) {
+                lock = newLock;
+            }
+        }
+        
+        return lock;
+    }
+    
+    // 校验类名
+    private boolean checkName(String className) {
+        if((className == null) || (className.length() == 0)) {
+            return true;
+        }
+        
+        return (className.indexOf('/') == -1) && (className.charAt(0) != '[');
+    }
+    
+    /**
+     * Determine protection domain, and check that:
+     * - not define java.* class,
+     * - signer of this class matches signers for the rest of the classes in package.
+     */
+    // 预定义类，主要是进行一些安全检查和证书设置
+    private ProtectionDomain preDefineClass(String className, ProtectionDomain pd) {
+        if(!checkName(className)) {
+            throw new NoClassDefFoundError("IllegalName: " + className);
+        }
+        
+        /*
+         * Note:  Checking logic in java.lang.invoke.MemberName.checkForTypeAlias relies on
+         * the fact that spoofing is impossible if a class has a name of the form "java.*"
+         *
+         * 禁止app class loader以及一些自定义的类加载器加载以"java"开头的包名的类
+         */
+        if((className != null) && className.startsWith("java.") && this != getBuiltinPlatformClassLoader()) {
+            throw new SecurityException("Prohibited package name: " + className.substring(0, className.lastIndexOf('.')));
+        }
+        
+        if(pd == null) {
+            pd = defaultDomain;
+        }
+        
+        if(className != null) {
+            // 为className这个类所在的包设置身份证书
+            checkCerts(className, pd.getCodeSource());
+        }
+        
+        return pd;
+    }
+    
+    // 为className这个类所在的包设置身份证书
+    private void checkCerts(String className, CodeSource cs) {
+        int i = className.lastIndexOf('.');
+        String packageName = (i == -1) ? "" : className.substring(0, i);
+        
+        Certificate[] certs = null;
+        if(cs != null) {
+            certs = cs.getCertificates();
+        }
+        
+        Certificate[] pcerts = null;
+        if(parallelLockMap == null) {
+            synchronized(this) {
+                pcerts = package2certs.get(packageName);
+                if(pcerts == null) {
+                    package2certs.put(packageName, (certs == null ? nocerts : certs));
+                }
+            }
+        } else {
+            pcerts = ((ConcurrentHashMap<String, Certificate[]>) package2certs).putIfAbsent(packageName, (certs == null ? nocerts : certs));
+        }
+        
+        if(pcerts != null && !compareCerts(pcerts, certs)) {
+            throw new SecurityException("class \"" + className + "\"'s signer information does not match signer information" + " of other classes in the same package");
+        }
+    }
+    
+    /**
+     * check to make sure the certs for the new class (certs) are the same as
+     * the certs for the first class inserted in the package (pcerts)
+     */
+    // 比较身份信息
+    private boolean compareCerts(Certificate[] pcerts, Certificate[] certs) {
+        // certs can be null, indicating no certs.
+        if((certs == null) || (certs.length == 0)) {
+            return pcerts.length == 0;
+        }
+        
+        // the length must be the same at this point
+        if(certs.length != pcerts.length)
+            return false;
+        
+        // go through and make sure all the certs in one array
+        // are in the other and vice-versa.
+        boolean match;
+        for(Certificate cert : certs) {
+            match = false;
+            for(Certificate pcert : pcerts) {
+                if(cert.equals(pcert)) {
+                    match = true;
+                    break;
+                }
+            }
+            if(!match)
+                return false;
+        }
+        
+        // now do the same for pcerts
+        for(Certificate pcert : pcerts) {
+            match = false;
+            for(Certificate cert : certs) {
+                if(pcert.equals(cert)) {
+                    match = true;
+                    break;
+                }
+            }
+            if(!match)
+                return false;
+        }
+        
+        return true;
+    }
+    
+    // 从保护域中获取代码源的位置信息
+    private String defineClassSourceLocation(ProtectionDomain pd) {
+        CodeSource cs = pd.getCodeSource();
+        
+        String source = null;
+        
+        if(cs != null && cs.getLocation() != null) {
+            source = cs.getLocation().toString();
+        }
+        
+        return source;
+    }
+    
+    // 在类定义完之后的一些收尾操作，主要是定义NamedPackage和设置签名
+    private void postDefineClass(Class<?> c, ProtectionDomain pd) {
+        // 定义NamedPackage，并使包名与之关联
+        getNamedPackage(c.getPackageName(), c.getModule());
+        
+        if(pd.getCodeSource() != null) {
+            Certificate certs[] = pd.getCodeSource().getCertificates();
+            if(certs != null) {
+                setSigners(c, certs);
+            }
+        }
+    }
+    
+    /**
+     * Sets the signers of a class. This should be invoked after defining a class.
+     *
+     * @param c       The {@code Class} object
+     * @param signers The signers for the class
+     *
+     * @since 1.1
+     */
+    // 设置签名信息，在类定义完成后调用
+    protected final void setSigners(Class<?> c, Object[] signers) {
+        c.setSigners(signers);
+    }
+    
+    /**
+     * Returns a named package for the given module.
+     */
+    // 定义NamedPackage，并使包名与之关联
+    private NamedPackage getNamedPackage(String pn, Module m) {
+        NamedPackage p = packages.get(pn);
+        
+        if(p == null) {
+            p = new NamedPackage(pn, m);
+            
+            NamedPackage value = packages.putIfAbsent(pn, p);
+            
+            // 如果该包已经定义过，获取该包关联的NamedPackage
+            if(value != null) {
+                // Package object already be defined for the named package
+                p = value;
+                
+                /*
+                 * if definePackage is called by this class loader to define a package in a named module,
+                 * this will return Package object of the same name.
+                 * Package object may contain unexpected information but it does not impact the runtime.
+                 * this assertion may be helpful for troubleshooting
+                 */
+                assert value.module() == m;
+            }
+        }
+        
+        return p;
+    }
+    
+    // Invoked by the VM after loading class with this loader.
+    private void checkPackageAccess(Class<?> cls, ProtectionDomain pd) {
+        final SecurityManager sm = System.getSecurityManager();
+        if(sm != null) {
+            if(ReflectUtil.isNonPublicProxyClass(cls)) {
+                for(Class<?> intf : cls.getInterfaces()) {
+                    checkPackageAccess(intf, pd);
+                }
+                return;
+            }
+            
+            final String packageName = cls.getPackageName();
+            if(!packageName.isEmpty()) {
+                AccessController.doPrivileged(new PrivilegedAction<>() {
+                    public Void run() {
+                        sm.checkPackageAccess(packageName);
+                        return null;
+                    }
+                }, new AccessControlContext(new ProtectionDomain[]{pd}));
+            }
+        }
+    }
+    
+    /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
+    
+    
+    /** Invoked by the VM to record every loaded class with this loader */
+    // 由虚拟机调用，当前类加载器加载完某个类后，再调用此方法记录被加载的类
+    void addClass(Class<?> c) {
+        classes.addElement(c);
+    }
+    
     /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
-    /*▼ CLV ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 类加载器局部缓存 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /*
-     * 当前ClassLoader的ClassLoaderValue大本营，用来缓存对与ClassLoader敏感的<CLV, value>键值对
-     * 每个ClassLoader内部都有自己的CLV大本营
-     * 不用的CLV可能来自（关联自）不同的ClassLoader
+     * 类加载器局部缓存，原理类似ThreadLocal
+     *
+     * 该map的key是发起存储操作的各种[类加载器局部值]，而value是需要缓存到当前类加载器的值，该值通常与类加载器具有关联关系
      */
     private volatile ConcurrentHashMap<?, ?> classLoaderValueMap;
     
@@ -2376,20 +2393,21 @@ public abstract class ClassLoader {
      * Returns the ConcurrentHashMap used as a storage for ClassLoaderValue(s)
      * associated with this ClassLoader, creating it if it doesn't already exist.
      */
-    // 返回classLoaderValueMap字段。如果该字段为空，则尝试新建一个
+    // 返回类加载器局部缓存；如果不存在，则尝试新建
     ConcurrentHashMap<?, ?> createOrGetClassLoaderValueMap() {
         ConcurrentHashMap<?, ?> map = classLoaderValueMap;
+        if(map != null) {
+            return map;
+        }
         
-        if (map == null) {
-            map = new ConcurrentHashMap<>();
-            
-            // 如果字段classLoaderValueMap为null，将其值设置为map
-            boolean set = trySetObjectField("classLoaderValueMap", map);
-            
-            // 如果已在别处设置过，将map指向该字段即可
-            if (!set) {
-                map = classLoaderValueMap;
-            }
+        map = new ConcurrentHashMap<>();
+        
+        // 原子地将字段classLoaderValueMap赋值为obj
+        boolean set = trySetObjectField("classLoaderValueMap", map);
+        
+        // 如果赋值失败(已被别的线程中赋值，则让map指向它)
+        if(!set) {
+            map = classLoaderValueMap;
         }
         
         return map;
@@ -2400,7 +2418,7 @@ public abstract class ClassLoader {
      * Returns {@code true} if not beaten by another thread.
      * Avoids the use of AtomicReferenceFieldUpdater in this class.
      */
-    // 如果字段fieldName为null，将其值设置为obj
+    // 原子地将字段fieldName赋值为obj
     private boolean trySetObjectField(String fieldName, Object obj) {
         Unsafe unsafe = Unsafe.getUnsafe();
         Class<?> k = ClassLoader.class;
@@ -2409,36 +2427,146 @@ public abstract class ClassLoader {
         return unsafe.compareAndSetObject(this, offset, null, obj);
     }
     
-    /*▲ CLV ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 类加载器局部缓存 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
-    /** Invoked by the VM to record every loaded class with this loader */
-    // 由虚拟机调用，用于记录当前类加载器加载的类
-    void addClass(Class<?> c) {
-        classes.addElement(c);
-    }
-    
-    
-    
-    // -- Native library access --
+    /*▼ 本地库 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     // The paths searched for libraries
-    private static String usr_paths[];
-    private static String sys_paths[];
+    private static String usr_paths[];  // 用户本地库路径
+    private static String sys_paths[];  // 系统本地库路径
     
     /**
      * All native library names we've loaded.
      * This also serves as the lock to obtain nativeLibraries
      * and write to nativeLibraryContext.
      */
-    private static final Set<String> loadedLibraryNames = new HashSet<>();
+    private static final Set<String> loadedLibraryNames = new HashSet<>();  // 所有已加载的本地库名称(规范路径)
     
-    // Native libraries belonging to system classes.
-    private static volatile Map<String, NativeLibrary> systemNativeLibraries;
+    /** Native libraries belonging to system classes */
+    // 静态类，所有对象共享
+    private static volatile Map<String, NativeLibrary> systemNativeLibraries;   // 被bootstrap类加载器加载的本地库列表
     
-    // Native libraries associated with the class loader.
-    private volatile Map<String, NativeLibrary> nativeLibraries;
+    /** Native libraries associated with the class loader */
+    private volatile Map<String, NativeLibrary> nativeLibraries;    // 被当前类加载器加载的本地库列表
+    
+    /** Invoked in the java.lang.Runtime class to implement load and loadLibrary */
+    /*
+     * 加载指定名称的本地库。
+     * isAbsolute用来指示libName是否为绝对路径，如果是绝对路径，可以直接去该路径下加载该资源。
+     * fromClass通常是发起加载操作的类型，此处用来提供类加载器对象(可能为null，因为fromClass类可能由bootstrap类加载器加载)。
+     */
+    static void loadLibrary(Class<?> fromClass, String libName, boolean isAbsolute) {
+        ClassLoader loader = (fromClass == null) ? null : fromClass.getClassLoader();
+        
+        // 从路径属性"java.library.path"和"sun.boot.library.path"中解析出对应的所有路径信息
+        if(sys_paths == null) {
+            usr_paths = initializePath("java.library.path");
+            sys_paths = initializePath("sun.boot.library.path");
+        }
+        
+        // 如果libName是绝对路径
+        if(isAbsolute) {
+            // 加载指定的本地库文件
+            if(loadLibrary0(fromClass, new File(libName))) {
+                return;
+            }
+            
+            throw new UnsatisfiedLinkError("Can't load library: " + libName);
+        }
+        
+        if(loader != null) {
+            // 返回本地库的绝对路径名
+            String libfilename = loader.findLibrary(libName);
+            
+            if(libfilename != null) {
+                File libfile = new File(libfilename);
+                // 确保获取到了本地库的绝对名称
+                if(!libfile.isAbsolute()) {
+                    throw new UnsatisfiedLinkError("ClassLoader.findLibrary failed to return an absolute path: " + libfilename);
+                }
+                
+                // 加载指定的本地库文件
+                if(loadLibrary0(fromClass, libfile)) {
+                    return;
+                }
+                
+                throw new UnsatisfiedLinkError("Can't load " + libfilename);
+            }
+        }
+        
+        // 遍历系统本地库路径
+        for(String sys_path : sys_paths) {
+            // 返回指定名称的本地库在当前平台上的名称，如从"net"映射到"net.dll"
+            String child = System.mapLibraryName(libName);
+            File libfile = new File(sys_path, child);
+            // 加载指定的本地库文件
+            if(loadLibrary0(fromClass, libfile)) {
+                return;
+            }
+            
+            // 获取给定文件的备用路径名
+            libfile = ClassLoaderHelper.mapAlternativeName(libfile);
+            // 加载指定的本地库文件
+            if(libfile != null && loadLibrary0(fromClass, libfile)) {
+                return;
+            }
+        }
+        
+        // 遍历用户本地库路径
+        if(loader != null) {
+            for(String usr_path : usr_paths) {
+                // 返回指定名称的本地库在当前平台上的名称，如从"net"映射到"net.dll"
+                String child = System.mapLibraryName(libName);
+                File libfile = new File(usr_path, child);
+                // 加载指定的本地库文件
+                if(loadLibrary0(fromClass, libfile)) {
+                    return;
+                }
+                
+                // 获取给定文件的备用路径名
+                libfile = ClassLoaderHelper.mapAlternativeName(libfile);
+                if(libfile != null && loadLibrary0(fromClass, libfile)) {
+                    return;
+                }
+            }
+        }
+        
+        // Oops, it failed
+        throw new UnsatisfiedLinkError("no " + libName + " in java.library.path: " + Arrays.toString(usr_paths));
+    }
+    
+    // 加载指定的本地库文件
+    private static boolean loadLibrary0(Class<?> fromClass, final File file) {
+        /* Check to see if we're attempting to access a static library */
+        // 判断待加载的本地库是否为与VM关联的静态库，如果是的话，返回其名称
+        String libName = findBuiltinLib(file.getName());
+        
+        // 是否为静态库
+        boolean isBuiltin = (libName != null);
+        
+        // 如果不是静态库
+        if(!isBuiltin) {
+            // 获取该动态库文件的规范名称
+            libName = AccessController.doPrivileged(new PrivilegedAction<>() {
+                public String run() {
+                    try {
+                        return file.exists() ? file.getCanonicalPath() : null;
+                    } catch(IOException e) {
+                        return null;
+                    }
+                }
+            });
+            
+            if(libName == null) {
+                return false;
+            }
+        }
+        
+        // 加载指定名称的本地库
+        return NativeLibrary.loadLibrary(fromClass, libName, isBuiltin);
+    }
     
     /**
      * Returns the absolute path name of a native library.  The VM invokes this
@@ -2455,72 +2583,62 @@ public abstract class ClassLoader {
      * @see System#mapLibraryName(String)
      * @since 1.2
      */
+    /*
+     * 返回本地库的绝对路径名。
+     * VM调用此方法以查找属于使用此类加载器加载的类的本地库。
+     * 如果此方法返回null，则VM沿着指定为[java.library.path]属性的路径搜索库。
+     */
     protected String findLibrary(String libname) {
         return null;
     }
     
-    // Invoked in the java.lang.Runtime class to implement load and loadLibrary.
-    static void loadLibrary(Class<?> fromClass, String libName, boolean isAbsolute) {
-        ClassLoader loader = (fromClass == null) ? null : fromClass.getClassLoader();
-        if(sys_paths == null) {
-            usr_paths = initializePath("java.library.path");
-            sys_paths = initializePath("sun.boot.library.path");
+    // 判断待加载的本地库是否为与VM关联的静态库，如果是的话，返回其名称
+    private static native String findBuiltinLib(String libName);
+    
+    /**
+     * Invoked in the VM class linking code.
+     */
+    /*
+     * 在本地库列表中查找指定名称的方法，并返回其指针。
+     * entryName是JNI中的方法名。
+     * 该方法由JVM回调。
+     */
+    private static long findNative(ClassLoader loader, String entryName) {
+        // 获取已加载的本地库列表
+        Map<String, NativeLibrary> libs = loader != null ? loader.nativeLibraries() : systemNativeLibraries();
+        if(libs.isEmpty()) {
+            return 0;
         }
-        if(isAbsolute) {
-            if(loadLibrary0(fromClass, new File(libName))) {
-                return;
-            }
-            throw new UnsatisfiedLinkError("Can't load library: " + libName);
-        }
-        if(loader != null) {
-            String libfilename = loader.findLibrary(libName);
-            if(libfilename != null) {
-                File libfile = new File(libfilename);
-                if(!libfile.isAbsolute()) {
-                    throw new UnsatisfiedLinkError("ClassLoader.findLibrary failed to return an absolute path: " + libfilename);
-                }
-                if(loadLibrary0(fromClass, libfile)) {
-                    return;
-                }
-                throw new UnsatisfiedLinkError("Can't load " + libfilename);
-            }
-        }
-        for(String sys_path : sys_paths) {
-            File libfile = new File(sys_path, System.mapLibraryName(libName));
-            if(loadLibrary0(fromClass, libfile)) {
-                return;
-            }
-            libfile = ClassLoaderHelper.mapAlternativeName(libfile);
-            if(libfile != null && loadLibrary0(fromClass, libfile)) {
-                return;
+        
+        /*
+         * the native libraries map may be updated in another thread when a native library is being loaded.
+         * No symbol will be searched from it yet.
+         */
+        // 遍历本地库
+        for(NativeLibrary lib : libs.values()) {
+            // 在本地库中查找指定名称的方法，返回其指针
+            long entry = lib.findEntry(entryName);
+            if(entry != 0) {
+                return entry;
             }
         }
-        if(loader != null) {
-            for(String usr_path : usr_paths) {
-                File libfile = new File(usr_path, System.mapLibraryName(libName));
-                if(loadLibrary0(fromClass, libfile)) {
-                    return;
-                }
-                libfile = ClassLoaderHelper.mapAlternativeName(libfile);
-                if(libfile != null && loadLibrary0(fromClass, libfile)) {
-                    return;
-                }
-            }
-        }
-        // Oops, it failed
-        throw new UnsatisfiedLinkError("no " + libName + " in java.library.path: " + Arrays.toString(usr_paths));
+        
+        return 0;
     }
     
+    // 从路径属性propName中解析出对应的所有路径信息
     private static String[] initializePath(String propName) {
         String ldPath = System.getProperty(propName, "");
         int ldLen = ldPath.length();
-        char ps = File.pathSeparatorChar;
+        char ps = File.pathSeparatorChar;   // 路径之间的分隔符：Windows系统上是';'，类Unix系统上是':'
         int psCount = 0;
         
         if(ClassLoaderHelper.allowsQuotedPathElements && ldPath.indexOf('\"') >= 0) {
-            // First, remove quotes put around quoted parts of paths.
-            // Second, use a quotation mark as a new path separator.
-            // This will preserve any quoted old path separators.
+            /*
+             * First, remove quotes put around quoted parts of paths.
+             * Second, use a quotation mark as a new path separator.
+             * This will preserve any quoted old path separators.
+             */
             char[] buf = new char[ldLen];
             int bufLen = 0;
             for(int i = 0; i<ldLen; ++i) {
@@ -2553,58 +2671,20 @@ public abstract class ClassLoader {
             paths[j] = (pathStart<pathEnd) ? ldPath.substring(pathStart, pathEnd) : ".";
             pathStart = pathEnd + 1;
         }
+        
+        // 无论如何，把当前目录加进来
         paths[psCount] = (pathStart<ldLen) ? ldPath.substring(pathStart, ldLen) : ".";
         return paths;
-    }
-    
-    private static native String findBuiltinLib(String libName);
-    
-    private static boolean loadLibrary0(Class<?> fromClass, final File file) {
-        // Check to see if we're attempting to access a static library
-        String libName = findBuiltinLib(file.getName());
-        boolean isBuiltin = (libName != null);
-        if(!isBuiltin) {
-            libName = AccessController.doPrivileged(new PrivilegedAction<>() {
-                public String run() {
-                    try {
-                        return file.exists() ? file.getCanonicalPath() : null;
-                    } catch(IOException e) {
-                        return null;
-                    }
-                }
-            });
-            if(libName == null) {
-                return false;
-            }
-        }
-        return NativeLibrary.loadLibrary(fromClass, libName, isBuiltin);
-    }
-    
-    /**
-     * Invoked in the VM class linking code.
-     */
-    private static long findNative(ClassLoader loader, String entryName) {
-        Map<String, NativeLibrary> libs = loader != null ? loader.nativeLibraries() : systemNativeLibraries();
-        if(libs.isEmpty())
-            return 0;
-        
-        // the native libraries map may be updated in another thread when a native library is being loaded.
-        // No symbol will be searched from it yet.
-        for(NativeLibrary lib : libs.values()) {
-            long entry = lib.findEntry(entryName);
-            if(entry != 0)
-                return entry;
-        }
-        
-        return 0;
     }
     
     /**
      * Returns the native libraries map associated with bootstrap class loader
      * This method will create the map at the first time when called.
      */
+    // 返回与bootstrap类加载器关联的本地库列表(被bootstrap类加载器加载的本地库列表)
     private static Map<String, NativeLibrary> systemNativeLibraries() {
         Map<String, NativeLibrary> libs = systemNativeLibraries;
+        
         if(libs == null) {
             synchronized(loadedLibraryNames) {
                 libs = systemNativeLibraries;
@@ -2613,6 +2693,7 @@ public abstract class ClassLoader {
                 }
             }
         }
+        
         return libs;
     }
     
@@ -2620,8 +2701,10 @@ public abstract class ClassLoader {
      * Returns the native libraries map associated with this class loader
      * This method will create the map at the first time when called.
      */
+    // 返回与当前类加载器关联的本地库列表(被当前类加载器加载的本地库列表)
     private Map<String, NativeLibrary> nativeLibraries() {
         Map<String, NativeLibrary> libs = nativeLibraries;
+        
         if(libs == null) {
             synchronized(loadedLibraryNames) {
                 libs = nativeLibraries;
@@ -2630,170 +2713,15 @@ public abstract class ClassLoader {
                 }
             }
         }
+        
         return libs;
     }
     
-    /**
-     * The inner class NativeLibrary denotes a loaded native library instance.
-     * Every classloader contains a vector of loaded native libraries in the
-     * private field {@code nativeLibraries}.  The native libraries loaded
-     * into the system are entered into the {@code systemNativeLibraries}
-     * vector.
-     *
-     * <p> Every native library requires a particular version of JNI. This is
-     * denoted by the private {@code jniVersion} field.  This field is set by
-     * the VM when it loads the library, and used by the VM to pass the correct
-     * version of JNI to the native methods.  </p>
-     *
-     * @see ClassLoader
-     * @since 1.2
-     */
-    static class NativeLibrary {
-        // native libraries being loaded
-        static Deque<NativeLibrary> nativeLibraryContext = new ArrayDeque<>(8);
-        // the class from which the library is loaded, also indicates the loader this native library belongs.
-        final Class<?> fromClass;
-        // the canonicalized name of the native library. or static library name
-        final String libName;
-        // Indicates if the native library is linked into the VM
-        final boolean isBuiltin;
-        // opaque handle to native library, used in native code.
-        long handle;
-        // the version of JNI environment the native library requires.
-        int jniVersion;
-        
-        NativeLibrary(Class<?> fromClass, String libName, boolean isBuiltin) {
-            this.libName = libName;
-            this.fromClass = fromClass;
-            this.isBuiltin = isBuiltin;
-        }
-        
-        static boolean loadLibrary(Class<?> fromClass, String libName, boolean isBuiltin) {
-            ClassLoader loader = fromClass == null ? null : fromClass.getClassLoader();
-            
-            synchronized(loadedLibraryNames) {
-                Map<String, NativeLibrary> libs = loader != null ? loader.nativeLibraries() : systemNativeLibraries();
-                if(libs.containsKey(libName)) {
-                    return true;
-                }
-                
-                if(loadedLibraryNames.contains(libName)) {
-                    throw new UnsatisfiedLinkError("Native Library " + libName + " already loaded in another classloader");
-                }
-                
-                /*
-                 * When a library is being loaded, JNI_OnLoad function can cause
-                 * another loadLibrary invocation that should succeed.
-                 *
-                 * We use a static stack to hold the list of libraries we are
-                 * loading because this can happen only when called by the
-                 * same thread because Runtime.load and Runtime.loadLibrary
-                 * are synchronous.
-                 *
-                 * If there is a pending load operation for the library, we
-                 * immediately return success; otherwise, we raise
-                 * UnsatisfiedLinkError.
-                 */
-                for(NativeLibrary lib : nativeLibraryContext) {
-                    if(libName.equals(lib.libName)) {
-                        if(loader == lib.fromClass.getClassLoader()) {
-                            return true;
-                        } else {
-                            throw new UnsatisfiedLinkError("Native Library " + libName + " is being loaded in another classloader");
-                        }
-                    }
-                }
-                NativeLibrary lib = new NativeLibrary(fromClass, libName, isBuiltin);
-                // load the native library
-                nativeLibraryContext.push(lib);
-                try {
-                    if(!lib.load())
-                        return false;
-                } finally {
-                    nativeLibraryContext.pop();
-                }
-                // register the loaded native library
-                loadedLibraryNames.add(libName);
-                libs.put(libName, lib);
-            }
-            return true;
-        }
-        
-        // Invoked in the VM to determine the context class in JNI_OnLoad
-        // and JNI_OnUnload
-        static Class<?> getFromClass() {
-            return nativeLibraryContext.peek().fromClass;
-        }
-        
-        // JNI FindClass expects the caller class if invoked from JNI_OnLoad and JNI_OnUnload is NativeLibrary class
-        static native void unload(String libName, boolean isBuiltin, long handle);
-        
-        native boolean load0(String libName, boolean isBuiltin);
-        
-        native long findEntry(String libName);
-        
-        /**
-         * Loads the native library and registers for cleanup when its
-         * associated class loader is unloaded
-         */
-        boolean load() {
-            if(handle != 0) {
-                throw new InternalError("Native library " + libName + " has been loaded");
-            }
-            
-            if(!load0(libName, isBuiltin))
-                return false;
-            
-            // register the class loader for cleanup when unloaded
-            // built class loaders are never unloaded
-            ClassLoader loader = fromClass.getClassLoader();
-            if(loader != null && loader != getBuiltinPlatformClassLoader() && loader != getBuiltinAppClassLoader()) {
-                CleanerFactory.cleaner().register(loader, new Unloader(libName, handle, isBuiltin));
-            }
-            return true;
-        }
-        
-        /**
-         * The run() method will be invoked when this class loader becomes
-         * phantom reachable to unload the native library.
-         */
-        static class Unloader implements Runnable {
-            // This represents the context when a native library is unloaded and getFromClass() will return null,
-            static final NativeLibrary UNLOADER = new NativeLibrary(null, "dummy", false);
-            final String libName;
-            final long handle;
-            final boolean isBuiltin;
-            
-            Unloader(String libName, long handle, boolean isBuiltin) {
-                if(handle == 0) {
-                    throw new IllegalArgumentException("Invalid handle for native library " + libName);
-                }
-                
-                this.libName = libName;
-                this.handle = handle;
-                this.isBuiltin = isBuiltin;
-            }
-            
-            @Override
-            public void run() {
-                synchronized(loadedLibraryNames) {
-                    /* remove the native library name */
-                    loadedLibraryNames.remove(libName);
-                    nativeLibraryContext.push(UNLOADER);
-                    try {
-                        unload(libName, isBuiltin, handle);
-                    } finally {
-                        nativeLibraryContext.pop();
-                    }
-                    
-                }
-            }
-        }
-    }
+    /*▲ 本地库 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
-    // -- Assertion management --
+    /*▼ 断言 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     final Object assertionLock;
     
@@ -2875,8 +2803,9 @@ public abstract class ClassLoader {
      */
     public void setPackageAssertionStatus(String packageName, boolean enabled) {
         synchronized(assertionLock) {
-            if(packageAssertionStatus == null)
+            if(packageAssertionStatus == null) {
                 initializeJavaAssertionMaps();
+            }
             
             packageAssertionStatus.put(packageName, enabled);
         }
@@ -2903,8 +2832,9 @@ public abstract class ClassLoader {
      */
     public void setClassAssertionStatus(String className, boolean enabled) {
         synchronized(assertionLock) {
-            if(classAssertionStatus == null)
+            if(classAssertionStatus == null) {
                 initializeJavaAssertionMaps();
+            }
             
             classAssertionStatus.put(className, enabled);
         }
@@ -2958,21 +2888,24 @@ public abstract class ClassLoader {
             
             // Check for a class entry
             Boolean result = classAssertionStatus.get(className);
-            if(result != null)
+            if(result != null) {
                 return result.booleanValue();
+            }
             
             // Check for most specific package entry
             int dotIndex = className.lastIndexOf('.');
             if(dotIndex<0) { // default package
                 result = packageAssertionStatus.get(null);
-                if(result != null)
+                if(result != null) {
                     return result.booleanValue();
+                }
             }
             while(dotIndex>0) {
                 className = className.substring(0, dotIndex);
                 result = packageAssertionStatus.get(className);
-                if(result != null)
+                if(result != null) {
                     return result.booleanValue();
+                }
                 dotIndex = className.lastIndexOf('.', dotIndex - 1);
             }
             
@@ -2995,21 +2928,24 @@ public abstract class ClassLoader {
         packageAssertionStatus = new HashMap<>();
         AssertionStatusDirectives directives = retrieveDirectives();
         
-        for(int i = 0; i<directives.classes.length; i++)
+        for(int i = 0; i<directives.classes.length; i++) {
             classAssertionStatus.put(directives.classes[i], directives.classEnabled[i]);
+        }
         
-        for(int i = 0; i<directives.packages.length; i++)
+        for(int i = 0; i<directives.packages.length; i++) {
             packageAssertionStatus.put(directives.packages[i], directives.packageEnabled[i]);
+        }
         
         defaultAssertionStatus = directives.deflt;
     }
     
+    /*▲ 断言 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     /**
      * Encapsulates the set of parallel capable loader types.
      */
-    // 封装一组并行的加载器类型
+    // 封装一组"并行"的类加载器：允许多个线程同时使用该并行类加载器加载类
     private static class ParallelLoaders {
         // 获取一个弱引用Map，其key被弱引用追踪
         private static final Map<Class<? extends ClassLoader>, Boolean> map = new WeakHashMap<>();
@@ -3035,7 +2971,7 @@ public abstract class ClassLoader {
         // 注册该类加载器为并行
         static boolean register(Class<? extends ClassLoader> c) {
             synchronized(loaderTypes) {
-                // 确保该类加载器的父类型也已注册为并行
+                // 确保该类加载器的父类型也已注册为并行，否则不会注册成功
                 if(loaderTypes.contains(c.getSuperclass())) {
                     /*
                      * register the class loader as parallel capable if and only if all of its super classes are.
@@ -3062,4 +2998,191 @@ public abstract class ClassLoader {
             }
         }
     }
+    
+    /**
+     * The inner class NativeLibrary denotes a loaded native library instance.
+     * Every classloader contains a vector of loaded native libraries in the
+     * private field {@code nativeLibraries}.  The native libraries loaded
+     * into the system are entered into the {@code systemNativeLibraries}
+     * vector.
+     *
+     * <p> Every native library requires a particular version of JNI. This is
+     * denoted by the private {@code jniVersion} field.  This field is set by
+     * the VM when it loads the library, and used by the VM to pass the correct
+     * version of JNI to the native methods.  </p>
+     *
+     * @see ClassLoader
+     * @since 1.2
+     */
+    // 已加载的本地库
+    static class NativeLibrary {
+        // native libraries being loaded
+        static Deque<NativeLibrary> nativeLibraryContext = new ArrayDeque<>(8); // 待加载/卸载的本地库列表(加载/卸载完成后从此列表中移除)
+        
+        // the class from which the library is loaded, also indicates the loader this native library belongs.
+        final Class<?> fromClass;   // 加载当前本地库的类，也能识别出加载该本地库的类加载器
+        
+        // the canonicalized name of the native library. or static library name
+        final String libName;       // 被加载的本地库的规范路径
+        
+        // Indicates if the native library is linked into the VM
+        final boolean isBuiltin;    // 指示当前本地库是否为链接到VM的静态库
+        
+        // opaque handle to native library, used in native code.
+        long handle;    // 指向本地库的指针
+        
+        // the version of JNI environment the native library requires.
+        int jniVersion; // JNI版本
+        
+        NativeLibrary(Class<?> fromClass, String libName, boolean isBuiltin) {
+            this.libName = libName;
+            this.fromClass = fromClass;
+            this.isBuiltin = isBuiltin;
+        }
+        
+        // 加载指定名称的本地库
+        static boolean loadLibrary(Class<?> fromClass, String libName, boolean isBuiltin) {
+            // 获取类加载器
+            ClassLoader loader = fromClass == null ? null : fromClass.getClassLoader();
+            
+            synchronized(loadedLibraryNames) {
+                // 获取已加载的本地库列表
+                Map<String, NativeLibrary> libs = loader != null ? loader.nativeLibraries() : systemNativeLibraries();
+                if(libs.containsKey(libName)) {
+                    return true;
+                }
+                
+                // 如果本地库已被别的类加载器加载，则抛出异常
+                if(loadedLibraryNames.contains(libName)) {
+                    throw new UnsatisfiedLinkError("Native Library " + libName + " already loaded in another classloader");
+                }
+                
+                /*
+                 * When a library is being loaded, JNI_OnLoad function can cause
+                 * another loadLibrary invocation that should succeed.
+                 *
+                 * We use a static stack to hold the list of libraries we are
+                 * loading because this can happen only when called by the
+                 * same thread because Runtime.load and Runtime.loadLibrary are synchronous.
+                 *
+                 * If there is a pending load operation for the library,
+                 * we immediately return success; otherwise, we raise UnsatisfiedLinkError.
+                 */
+                // 遍历待加载的本地库
+                for(NativeLibrary lib : nativeLibraryContext) {
+                    // 如果当前本地库已经在待处理列表中
+                    if(libName.equals(lib.libName)) {
+                        // 如果同名待处理的本地库也是由当前类加载器加载的，则直接返回，否则抛异常
+                        if(loader == lib.fromClass.getClassLoader()) {
+                            return true;
+                        } else {
+                            throw new UnsatisfiedLinkError("Native Library " + libName + " is being loaded in another classloader");
+                        }
+                    }
+                }
+                
+                // 构造本地库对象
+                NativeLibrary lib = new NativeLibrary(fromClass, libName, isBuiltin);
+                
+                // load the native library
+                nativeLibraryContext.push(lib); // 添加到待处理列表
+                try {
+                    // 加载本地库，如果加载失败，返回false
+                    if(!lib.load()) {
+                        return false;
+                    }
+                } finally {
+                    nativeLibraryContext.pop(); // 加载完成后，从待处理列表中移除
+                }
+                
+                // register the loaded native library
+                loadedLibraryNames.add(libName);    // 记录成功加载的本地库名称(规范路径)
+                
+                // 缓存已加载的本地库信息
+                libs.put(libName, lib);
+            }
+            
+            return true;
+        }
+        
+        /**
+         * Loads the native library and registers for cleanup when its associated class loader is unloaded
+         */
+        // 加载当前本地库
+        boolean load() {
+            if(handle != 0) {
+                throw new InternalError("Native library " + libName + " has been loaded");
+            }
+            
+            // 加载指定名称的本地库
+            if(!load0(libName, isBuiltin)) {
+                return false;
+            }
+            
+            // register the class loader for cleanup when unloaded built class loaders are never unloaded
+            ClassLoader loader = fromClass.getClassLoader();
+            if(loader != null && loader != getBuiltinPlatformClassLoader() && loader != getBuiltinAppClassLoader()) {
+                CleanerFactory.cleaner().register(loader, new Unloader(libName, handle, isBuiltin));
+            }
+            
+            return true;
+        }
+        
+        /**
+         * Invoked in the VM to determine the context class in JNI_OnLoad and JNI_OnUnload
+         */
+        // 返回加载当前本地库的类，该方法由JVM回调。
+        static Class<?> getFromClass() {
+            return nativeLibraryContext.peek().fromClass;
+        }
+        
+        // 在当前本地库中查找指定名称的方法，返回其指针
+        native long findEntry(String libName);
+        
+        // 加载指定名称的本地库
+        native boolean load0(String libName, boolean isBuiltin);
+        
+        /** JNI FindClass expects the caller class if invoked from JNI_OnLoad and JNI_OnUnload is NativeLibrary class */
+        // 卸载本地库
+        static native void unload(String libName, boolean isBuiltin, long handle);
+        
+        
+        /**
+         * The run() method will be invoked when this class loader becomes
+         * phantom reachable to unload the native library.
+         */
+        static class Unloader implements Runnable {
+            // This represents the context when a native library is unloaded and getFromClass() will return null,
+            static final NativeLibrary UNLOADER = new NativeLibrary(null, "dummy", false);
+            final String libName;
+            final long handle;
+            final boolean isBuiltin;
+            
+            Unloader(String libName, long handle, boolean isBuiltin) {
+                if(handle == 0) {
+                    throw new IllegalArgumentException("Invalid handle for native library " + libName);
+                }
+                
+                this.libName = libName;
+                this.handle = handle;
+                this.isBuiltin = isBuiltin;
+            }
+            
+            @Override
+            public void run() {
+                synchronized(loadedLibraryNames) {
+                    /* remove the native library name */
+                    loadedLibraryNames.remove(libName);
+                    nativeLibraryContext.push(UNLOADER);
+                    try {
+                        unload(libName, isBuiltin, handle);
+                    } finally {
+                        nativeLibraryContext.pop();
+                    }
+                    
+                }
+            }
+        }
+    }
+    
 }

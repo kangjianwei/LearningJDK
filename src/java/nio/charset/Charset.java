@@ -271,7 +271,6 @@ import java.util.TreeMap;
  * @see Character
  * @since 1.4
  */
-
 // 字符集抽象基类，主要封装了查找、创建字符集实例，以及对字符序列进行编码与解码的操作
 public abstract class Charset implements Comparable<Charset> {
     // 标准字符集
@@ -365,7 +364,7 @@ public abstract class Charset implements Comparable<Charset> {
      * @throws UnsupportedCharsetException If no support for the named charset is available
      *                                     in this instance of the Java virtual machine
      */
-    // true：返回查找到的字符集（如果不存在则异常）
+    // 返回查找到的字符集（如果不存在则异常）
     public static Charset forName(String charsetName) {
         // 返回查找到的字符集
         Charset cs = lookup(charsetName);
@@ -961,7 +960,6 @@ public abstract class Charset implements Comparable<Charset> {
     public final String toString() {
         return name();
     }
-    
     
     
     // 访问ExtendedCharsets[扩展字符集提供商]的工具（需要通过权限审核）

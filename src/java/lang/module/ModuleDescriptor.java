@@ -96,19 +96,34 @@ import static jdk.internal.module.Checks.requireServiceTypeName;
 // 模块描述符，对应module-info.class
 public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
     
-    private final String name;
-    private final Version version;
+    private final String name;              // 模块名称
+    private final Version version;          // 模块版本
     private final String rawVersionString;
-    private final Set<Modifier> modifiers;
+    private final Set<Modifier> modifiers;  // 模块描述符
+    
+    /**
+     * 当前模块是否为open模块
+     *
+     * open模块(开放)opens所有包到所有模块
+     */
     private final boolean open;  // true if modifiers contains OPEN
+    
+    /**
+     * 当前模块是否为自动模块
+     *
+     * 自动模块是放在模块路径上的普通jar，
+     * 自动模块依赖所有模块，且导出(exports)/(开放)opens所有包到所有模块
+     */
     private final boolean automatic;  // true if modifiers contains AUTOMATIC
-    private final Set<Requires> requires;
-    private final Set<Exports> exports;
-    private final Set<Opens> opens;
-    private final Set<String> uses;
-    private final Set<Provides> provides;
-    private final Set<String> packages;
-    private final String mainClass;
+    
+    private final Set<Requires> requires;   // 当前模块依赖(requires)的元素
+    private final Set<Exports> exports;    // 当前模块导出(exports)的元素
+    private final Set<Opens> opens;      // 当前模块打开(opens)的元素
+    private final Set<String> uses;       // 当前模块uses的服务接口
+    private final Set<Provides> provides;   // 当前模块provides的服务
+    
+    private final Set<String> packages;   // 当前模块下辖的包
+    private final String mainClass;  // 当前模块的主类
     
     private transient int hash;  // cached hash code
     
@@ -121,17 +136,7 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
          */
         SharedSecrets.setJavaLangModuleAccess(new JavaLangModuleAccess() {
             @Override
-            public ModuleDescriptor newModuleDescriptor(String name,
-                                                        Version version,
-                                                        Set<ModuleDescriptor.Modifier> modifiers,
-                                                        Set<Requires> requires,
-                                                        Set<Exports> exports,
-                                                        Set<Opens> opens,
-                                                        Set<String> uses,
-                                                        Set<Provides> provides,
-                                                        Set<String> packages,
-                                                        String mainClass,
-                                                        int hashCode) {
+            public ModuleDescriptor newModuleDescriptor(String name, Version version, Set<ModuleDescriptor.Modifier> modifiers, Set<Requires> requires, Set<Exports> exports, Set<Opens> opens, Set<String> uses, Set<Provides> provides, Set<String> packages, String mainClass, int hashCode) {
                 return new ModuleDescriptor(name, version, modifiers, requires, exports, opens, uses, provides, packages, mainClass, hashCode, false);
             }
             
@@ -194,20 +199,9 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
-    private ModuleDescriptor(String name,
-                             Version version,
-                             String rawVersionString,
-                             Set<Modifier> modifiers,
-                             Set<Requires> requires,
-                             Set<Exports> exports,
-                             Set<Opens> opens,
-                             Set<String> uses,
-                             Set<Provides> provides,
-                             Set<String> packages,
-                             String mainClass)
-    {
+    private ModuleDescriptor(String name, Version version, String rawVersionString, Set<Modifier> modifiers, Set<Requires> requires, Set<Exports> exports, Set<Opens> opens, Set<String> uses, Set<Provides> provides, Set<String> packages, String mainClass) {
         assert version == null || rawVersionString == null;
         this.name = name;
         this.version = version;
@@ -215,14 +209,12 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
         this.modifiers = emptyOrUnmodifiableSet(modifiers);
         this.open = modifiers.contains(Modifier.OPEN);
         this.automatic = modifiers.contains(Modifier.AUTOMATIC);
-        assert (requires.stream().map(Requires::name).distinct().count()
-            == requires.size());
+        assert (requires.stream().map(Requires::name).distinct().count() == requires.size());
         this.requires = emptyOrUnmodifiableSet(requires);
         this.exports = emptyOrUnmodifiableSet(exports);
         this.opens = emptyOrUnmodifiableSet(opens);
         this.uses = emptyOrUnmodifiableSet(uses);
         this.provides = emptyOrUnmodifiableSet(provides);
-        
         this.packages = emptyOrUnmodifiableSet(packages);
         this.mainClass = mainClass;
     }
@@ -231,18 +223,7 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
      * Creates a module descriptor from its components.
      * The arguments are pre-validated and sets are unmodifiable sets.
      */
-    ModuleDescriptor(String name,
-                     Version version,
-                     Set<Modifier> modifiers,
-                     Set<Requires> requires,
-                     Set<Exports> exports,
-                     Set<Opens> opens,
-                     Set<String> uses,
-                     Set<Provides> provides,
-                     Set<String> packages,
-                     String mainClass,
-                     int hashCode,
-                     boolean unused) {
+    ModuleDescriptor(String name, Version version, Set<Modifier> modifiers, Set<Requires> requires, Set<Exports> exports, Set<Opens> opens, Set<String> uses, Set<Provides> provides, Set<String> packages, String mainClass, int hashCode, boolean unused) {
         this.name = name;
         this.version = version;
         this.rawVersionString = null;
@@ -259,7 +240,7 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
         this.hash = hashCode;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -282,7 +263,7 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
      * <p> Returns {@code true} if this is an automatic module. </p>
      *
      * <p> This method is equivalent to testing if the set of {@link #modifiers()
-     * modifiers} contains the {@link Modifier#OPEN AUTOMATIC} modifier. </p>
+     * modifiers} contains the {@link Modifier#AUTOMATIC AUTOMATIC} modifier. </p>
      *
      * @return {@code true} if this is an automatic module
      */
@@ -346,7 +327,7 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
      *
      * @return A possibly-empty unmodifiable set of {@link Requires} objects
      */
-    // 返回当前模块requires的包
+    // 返回当前模块依赖(requires)的元素
     public Set<Requires> requires() {
         return requires;
     }
@@ -360,7 +341,7 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
      *
      * @return A possibly-empty unmodifiable set of exported packages
      */
-    // 返回当前模块exports的包
+    // 返回当前模块导出(exports)的元素
     public Set<Exports> exports() {
         return exports;
     }
@@ -374,7 +355,7 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
      *
      * @return A possibly-empty unmodifiable set of open packages
      */
-    // 返回当前模块opens的包
+    // 返回当前模块打开(opens)的元素
     public Set<Opens> opens() {
         return opens;
     }
@@ -439,7 +420,7 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
     
     
     
-    /*▼ 从Builder构建ModuleDescriptor ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 模块描述符工厂 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Instantiates a builder to build a module descriptor.
@@ -449,23 +430,24 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
      *
      * @return A new builder
      *
-     * @throws IllegalArgumentException If the module name is {@code null} or is not a legal module
-     *                                  name, or the set of modifiers contains {@link
-     *                                  Modifier#AUTOMATIC AUTOMATIC} with other modifiers
+     * @throws IllegalArgumentException If the module name is {@code null} or is not a legal module name,
+     *                                  or the set of modifiers contains {@link Modifier#AUTOMATIC AUTOMATIC} with other modifiers
      */
+    // 使用指定的模块标记ms来构造一个模块描述符
     public static Builder newModule(String name, Set<Modifier> ms) {
         Set<Modifier> mods = new HashSet<>(ms);
+    
         if(mods.contains(Modifier.AUTOMATIC) && mods.size()>1) {
-            throw new IllegalArgumentException("AUTOMATIC cannot be used with" + " other modifiers");
+            throw new IllegalArgumentException("AUTOMATIC cannot be used with other modifiers");
         }
         
         return new Builder(name, true, mods);
     }
     
     /**
-     * Instantiates a builder to build a module descriptor for a <em>normal</em>
-     * module. This method is equivalent to invoking {@link #newModule(String, Set)
-     * newModule} with an empty set of {@link ModuleDescriptor.Modifier modifiers}.
+     * Instantiates a builder to build a module descriptor for a <em>normal</em> module.
+     * This method is equivalent to invoking {@link #newModule(String, Set) newModule}
+     * with an empty set of {@link ModuleDescriptor.Modifier modifiers}.
      *
      * @param name The module name
      *
@@ -474,14 +456,15 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
      * @throws IllegalArgumentException If the module name is {@code null} or is not a legal module
      *                                  name
      */
+    // 构造一个普通模块描述符
     public static Builder newModule(String name) {
         return new Builder(name, true, Set.of());
     }
     
     /**
      * Instantiates a builder to build a module descriptor for an open module.
-     * This method is equivalent to invoking {@link #newModule(String, Set)
-     * newModule} with the {@link ModuleDescriptor.Modifier#OPEN OPEN} modifier.
+     * This method is equivalent to invoking {@link #newModule(String, Set) newModule}
+     * with the {@link ModuleDescriptor.Modifier#OPEN OPEN} modifier.
      *
      * <p> The builder for an open module cannot be used to declare any open
      * packages. </p>
@@ -493,19 +476,18 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
      * @throws IllegalArgumentException If the module name is {@code null} or is not a legal module
      *                                  name
      */
+    // 构造一个open模块描述符
     public static Builder newOpenModule(String name) {
         return new Builder(name, true, Set.of(Modifier.OPEN));
     }
     
     /**
-     * Instantiates a builder to build a module descriptor for an automatic
-     * module. This method is equivalent to invoking {@link #newModule(String, Set)
-     * newModule} with the {@link ModuleDescriptor.Modifier#AUTOMATIC AUTOMATIC}
-     * modifier.
+     * Instantiates a builder to build a module descriptor for an automatic module.
+     * This method is equivalent to invoking {@link #newModule(String, Set) newModule}
+     * with the {@link ModuleDescriptor.Modifier#AUTOMATIC AUTOMATIC} modifier.
      *
-     * <p> The builder for an automatic module cannot be used to declare module
-     * or service dependences. It also cannot be used to declare any exported
-     * or open packages. </p>
+     * The builder for an automatic module cannot be used to declare module or service dependences.
+     * It also cannot be used to declare any exported or open packages.
      *
      * @param name The module name
      *
@@ -515,11 +497,12 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
      *                                  name
      * @see ModuleFinder#of(Path[])
      */
+    // 构造一个自动模块描述符
     public static Builder newAutomaticModule(String name) {
         return new Builder(name, true, Set.of(Modifier.AUTOMATIC));
     }
     
-    /*▲ 从Builder构建ModuleDescriptor ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 模块描述符工厂 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -644,6 +627,21 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
     /*▲ 从module-info.class构建ModuleDescriptor ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
+    /**
+     * <p> Returns a string containing the module name and, if present, its
+     * version. </p>
+     *
+     * @return A string containing the module name and, if present, its
+     * version
+     */
+    public String toNameAndVersion() {
+        if(version != null) {
+            return name() + "@" + version;
+        } else {
+            return name();
+        }
+    }
+    
     
     /**
      * Compares this module descriptor to another.
@@ -721,21 +719,6 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
             return c;
         
         return 0;
-    }
-    
-    /**
-     * <p> Returns a string containing the module name and, if present, its
-     * version. </p>
-     *
-     * @return A string containing the module name and, if present, its
-     * version
-     */
-    public String toNameAndVersion() {
-        if(version != null) {
-            return name() + "@" + version;
-        } else {
-            return name();
-        }
     }
     
     /**
@@ -896,7 +879,7 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
      * @see ModuleDescriptor#modifiers()
      * @since 9
      */
-    // 模块修饰符
+    // 模块描述符的修饰符
     public enum Modifier {
         /**
          * An open module. An open module does not declare any open packages
@@ -912,16 +895,16 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
          * binary form of a module declaration ({@code module-info.class}).
          */
         AUTOMATIC,  // 自动模块
-        
+    
         /**
          * The module was not explicitly or implicitly declared.
          */
-        SYNTHETIC,  // 非显式或隐式声明的模块
-        
+        SYNTHETIC,  // 非显式或隐式声明的模块，如JDK动态代理中构造的模块
+    
         /**
          * The module was implicitly declared.
          */
-        MANDATED    // 隐式声明的模块
+        MANDATED    // 隐式声明的模块，如asm字节码操作中构造的模块
     }
     
     /**
@@ -934,7 +917,7 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
     // 标记为requires的模块
     public final static class Requires implements Comparable<Requires> {
         private final String name;          // 标记为requires的模块的名称
-        private final Set<Modifier> mods;   // 标记为requires的模块的修饰符
+        private final Set<Modifier> mods;   // 标记为requires的模块的修饰符，例如requires static
         private final Version compiledVersion;
         private final String rawCompiledVersion;
         
@@ -1181,31 +1164,13 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
             this.source = source;
             this.targets = emptyOrUnmodifiableSet(targets);
         }
-        
+    
         private Exports(Set<Modifier> ms, String source, Set<String> targets, boolean unused) {
             this.mods = ms;
             this.source = source;
             this.targets = targets;
         }
-        
-        /**
-         * Returns the set of modifiers.
-         *
-         * @return A possibly-empty unmodifiable set of modifiers
-         */
-        public Set<Modifier> modifiers() {
-            return mods;
-        }
-        
-        /**
-         * Returns {@code true} if this is a qualified export.
-         *
-         * @return {@code true} if this is a qualified export
-         */
-        public boolean isQualified() {
-            return !targets.isEmpty();
-        }
-        
+    
         /**
          * Returns the package name.
          *
@@ -1214,7 +1179,16 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
         public String source() {
             return source;
         }
-        
+    
+        /**
+         * Returns the set of modifiers.
+         *
+         * @return A possibly-empty unmodifiable set of modifiers
+         */
+        public Set<Modifier> modifiers() {
+            return mods;
+        }
+    
         /**
          * For a qualified export, returns the non-empty and immutable set
          * of the module names to which the package is exported. For an
@@ -1226,7 +1200,17 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
         public Set<String> targets() {
             return targets;
         }
-        
+    
+        /**
+         * Returns {@code true} if this is a qualified export.
+         *
+         * @return {@code true} if this is a qualified export
+         */
+        // 判断是否存在exports...to...
+        public boolean isQualified() {
+            return !targets.isEmpty();
+        }
+    
         /**
          * Compares this module export to another.
          *
@@ -1390,26 +1374,7 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
             this.source = source;
             this.targets = targets;
         }
-        
-        /**
-         * Returns the set of modifiers.
-         *
-         * @return A possibly-empty unmodifiable set of modifiers
-         */
-        public Set<Modifier> modifiers() {
-            return mods;
-        }
-        
-        /**
-         * Returns {@code true} if this is a qualified opens.
-         *
-         * @return {@code true} if this is a qualified opens
-         */
-        // 判断是否有指定的目标模块
-        public boolean isQualified() {
-            return !targets.isEmpty();
-        }
-        
+    
         /**
          * Returns the package name.
          *
@@ -1418,7 +1383,16 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
         public String source() {
             return source;
         }
-        
+    
+        /**
+         * Returns the set of modifiers.
+         *
+         * @return A possibly-empty unmodifiable set of modifiers
+         */
+        public Set<Modifier> modifiers() {
+            return mods;
+        }
+    
         /**
          * For a qualified opens, returns the non-empty and immutable set
          * of the module names to which the package is open. For an
@@ -1430,7 +1404,17 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
         public Set<String> targets() {
             return targets;
         }
-        
+    
+        /**
+         * Returns {@code true} if this is a qualified opens.
+         *
+         * @return {@code true} if this is a qualified opens
+         */
+        // 判断是否存在opens...to...
+        public boolean isQualified() {
+            return !targets.isEmpty();
+        }
+    
         /**
          * Compares this module opens to another.
          *
@@ -2038,6 +2022,7 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
     // 模块描述符的构建器
     public static final class Builder {
         final String name;
+    
         final Set<Modifier> modifiers;
         
         final boolean open;
@@ -2045,6 +2030,7 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
         final boolean strict;
         
         final Set<String> packages = new HashSet<>();
+    
         final Map<String, Requires> requires = new HashMap<>();
         final Map<String, Exports> exports = new HashMap<>();
         final Map<String, Opens> opens = new HashMap<>();
@@ -2112,14 +2098,21 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
          *                                  or this builder is for an automatic module
          */
         public Builder requires(Requires req) {
-            if(automatic)
+            if(automatic) {
                 throw new IllegalStateException("Automatic modules cannot declare" + " dependences");
+            }
+    
             String mn = req.name();
-            if(name.equals(mn))
+            if(name.equals(mn)) {
                 throw new IllegalArgumentException("Dependence on self");
-            if(requires.containsKey(mn))
+            }
+    
+            if(requires.containsKey(mn)) {
                 throw new IllegalStateException("Dependence upon " + mn + " already declared");
+            }
+    
             requires.put(mn, req);
+    
             return this;
         }
         
@@ -2142,8 +2135,10 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
          */
         public Builder requires(Set<Requires.Modifier> ms, String mn, Version compiledVersion) {
             Objects.requireNonNull(compiledVersion);
-            if(strict)
+            if(strict) {
                 mn = requireModuleName(mn);
+            }
+    
             return requires(new Requires(ms, mn, compiledVersion, null));
         }
         
@@ -2163,8 +2158,9 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
          *                                  or this builder is for an automatic module
          */
         public Builder requires(Set<Requires.Modifier> ms, String mn) {
-            if(strict)
+            if(strict) {
                 mn = requireModuleName(mn);
+            }
             return requires(new Requires(ms, mn, null, null));
         }
         
@@ -2199,12 +2195,15 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
             if(automatic) {
                 throw new IllegalStateException("Automatic modules cannot declare" + " exported packages");
             }
+    
             String source = e.source();
             if(exports.containsKey(source)) {
                 throw new IllegalStateException("Exported package " + source + " already declared");
             }
+    
             exports.put(source, e);
             packages.add(source);
+    
             return this;
         }
         
@@ -2227,15 +2226,18 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
          */
         public Builder exports(Set<Exports.Modifier> ms, String pn, Set<String> targets) {
             Exports e = new Exports(ms, pn, targets);
-            
+    
             // check targets
             targets = e.targets();
-            if(targets.isEmpty())
+            if(targets.isEmpty()) {
                 throw new IllegalArgumentException("Empty target set");
+            }
+    
             if(strict) {
                 requirePackageName(e.source());
                 targets.forEach(Checks::requireModuleName);
             }
+    
             return exports(e);
         }
         
@@ -2311,12 +2313,16 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
             if(open || automatic) {
                 throw new IllegalStateException("Open or automatic modules cannot" + " declare open packages");
             }
+    
             String source = obj.source();
+    
             if(opens.containsKey(source)) {
                 throw new IllegalStateException("Open package " + source + " already declared");
             }
+    
             opens.put(source, obj);
             packages.add(source);
+    
             return this;
         }
         
@@ -2339,15 +2345,18 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
          */
         public Builder opens(Set<Opens.Modifier> ms, String pn, Set<String> targets) {
             Opens opens = new Opens(ms, pn, targets);
-            
+    
             // check targets
             targets = opens.targets();
-            if(targets.isEmpty())
+            if(targets.isEmpty()) {
                 throw new IllegalArgumentException("Empty target set");
+            }
+    
             if(strict) {
                 requirePackageName(opens.source());
                 targets.forEach(Checks::requireModuleName);
             }
+    
             return opens(opens);
         }
         
@@ -2369,6 +2378,7 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
             if(strict) {
                 requirePackageName(pn);
             }
+    
             Opens e = new Opens(ms, pn, Collections.emptySet());
             return opens(e);
         }
@@ -2421,11 +2431,16 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
          *                                  or this is a builder for an automatic module
          */
         public Builder uses(String service) {
-            if(automatic)
+            if(automatic) {
                 throw new IllegalStateException("Automatic modules can not declare" + " service dependences");
-            if(uses.contains(requireServiceTypeName(service)))
+            }
+    
+            if(uses.contains(requireServiceTypeName(service))) {
                 throw new IllegalStateException("Dependence upon service " + service + " already declared");
+            }
+    
             uses.add(service);
+    
             return this;
         }
         
@@ -2443,10 +2458,14 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
          */
         public Builder provides(Provides p) {
             String service = p.service();
-            if(provides.containsKey(service))
+    
+            if(provides.containsKey(service)) {
                 throw new IllegalStateException("Providers of service " + service + " already declared");
+            }
+    
             provides.put(service, p);
             p.providers().forEach(name -> packages.add(packageName(name)));
+    
             return this;
         }
         
@@ -2467,11 +2486,13 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
          */
         public Builder provides(String service, List<String> providers) {
             Provides p = new Provides(service, providers);
-            
+    
             // check providers after the set has been copied.
             List<String> providerNames = p.providers();
-            if(providerNames.isEmpty())
+            if(providerNames.isEmpty()) {
                 throw new IllegalArgumentException("Empty providers set");
+            }
+    
             if(strict) {
                 requireServiceTypeName(p.service());
                 providerNames.forEach(Checks::requireServiceProviderName);
@@ -2488,6 +2509,7 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
                     }
                 }
             }
+    
             return provides(p);
         }
         
@@ -2545,6 +2567,7 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
                 version = null;
                 rawVersionString = vs;
             }
+    
             return this;
         }
         
@@ -2563,6 +2586,7 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
          */
         public Builder mainClass(String mc) {
             String pn;
+    
             if(strict) {
                 mc = requireQualifiedClassName("main class name", mc);
                 pn = packageName(mc);
@@ -2574,8 +2598,10 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
                     throw new IllegalArgumentException(mc + ": unnamed package");
                 }
             }
+    
             packages.add(pn);
             mainClass = mc;
+    
             return this;
         }
         
@@ -2592,12 +2618,14 @@ public class ModuleDescriptor implements Comparable<ModuleDescriptor> {
                 Version v = Version.parse(rawCompiledVersion);
                 r = new Requires(ms, mn, v, null);
             } catch(IllegalArgumentException e) {
-                if(strict)
+                if(strict) {
                     throw e;
+                }
                 r = new Requires(ms, mn, null, rawCompiledVersion);
             }
+    
             return requires(r);
         }
-        
     }
+    
 }

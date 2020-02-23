@@ -535,7 +535,7 @@ public class JarFile extends ZipFile {
      * </div>
      * @see java.util.jar.JarEntry
      */
-    // 返回指定名称的jar(在multi-release jar下，会结合发行版本信息)
+    // 返回指定名称的jar实体(在multi-release jar下，会结合发行版本信息)
     public JarEntry getJarEntry(String name) {
         return (JarEntry) getEntry(name);
     }
@@ -571,7 +571,7 @@ public class JarFile extends ZipFile {
      * </div>
      * @see java.util.zip.ZipEntry
      */
-    // 返回指定名称的jar(在multi-release jar下，会结合发行版本信息)
+    // 返回指定名称的jar实体(在multi-release jar下，会结合发行版本信息)
     public ZipEntry getEntry(String name) {
         // 返回给定名称的实体
         JarFileEntry je = getEntry0(name);

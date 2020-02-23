@@ -99,25 +99,25 @@ import jdk.internal.module.ModuleTarget;
  * @see java.lang.ModuleLayer
  * @since 9
  */
-// 模块图，包含当前已解析的所有模块的信息
+// 模块依赖图，包含当前已解析的所有模块的信息
 public final class Configuration {
     
-    // @see Configuration#empty()
+    // 空的模块图，通常用在空模块层中
     private static final Configuration EMPTY_CONFIGURATION = new Configuration();
     
-    // parent configurations, in search order
-    private final List<Configuration> parents;  // 父模块图
+    // 父模块图
+    private final List<Configuration> parents;  // parent configurations, in search order
     
     // 当前模块图以及父模块图的集合
     private volatile List<Configuration> allConfigurations;
     
-    // key是已解析的模块，value是该模块的静态依赖
-    private final Map<ResolvedModule, Set<ResolvedModule>> graph;
-    
-    // 当前模块图中所有已解析的模块
+    // 当前模块图中所有已解析(存在)的模块
     private final Set<ResolvedModule> modules;
     
-    // key是已解析的模块名称，value是该模块的实例
+    // key是已解析的模块，value是该模块的的依赖，可以包括可读依赖与服务依赖
+    private final Map<ResolvedModule, Set<ResolvedModule>> graph;
+    
+    // key是已解析模块的名称，value是已解析模块的实例
     private final Map<String, ResolvedModule> nameToModule;
     
     // constraint on target platform
@@ -125,14 +125,46 @@ public final class Configuration {
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 构造一个空的模块依赖图
+    private Configuration() {
+        this.parents = Collections.emptyList();
+        this.graph = Collections.emptyMap();
+        this.modules = Collections.emptySet();
+        this.nameToModule = Collections.emptyMap();
+        this.targetPlatform = null;
+    }
+    
+    // 基于当前模块依赖图来构造新的依赖图，父模块信息由parents给出
+    private Configuration(List<Configuration> parents, Resolver resolver) {
+        // 对当前模块图进行循环依赖、可读性等检查
+        Map<ResolvedModule, Set<ResolvedModule>> graph = resolver.finish(this);
+        
+        @SuppressWarnings(value = {"rawtypes", "unchecked"})
+        Entry<String, ResolvedModule>[] nameEntries = (Entry<String, ResolvedModule>[]) new Entry[graph.size()];
+        ResolvedModule[] moduleArray = new ResolvedModule[graph.size()];
+        int i = 0;
+        for(ResolvedModule resolvedModule : graph.keySet()) {
+            moduleArray[i] = resolvedModule;
+            nameEntries[i] = Map.entry(resolvedModule.name(), resolvedModule);
+            i++;
+        }
+        
+        this.parents = Collections.unmodifiableList(parents);
+        this.graph = graph;
+        this.modules = Set.of(moduleArray);
+        this.nameToModule = Map.ofEntries(nameEntries);
+        
+        this.targetPlatform = resolver.targetPlatform();
+    }
     
     /**
-     * Creates the Configuration for the boot layer from a pre-generated
-     * readability graph.
+     * Creates the Configuration for the boot layer from a pre-generated readability graph.
      *
      * @apiNote This method is coded for startup performance.
      */
+    // 由指定的模块依赖集构造模块依赖图，父模块图为空集
     Configuration(ModuleFinder finder, Map<String, Set<String>> map) {
         int moduleCount = map.size();
         
@@ -145,19 +177,20 @@ public final class Configuration {
         for(String name : map.keySet()) {
             ModuleReference mref = finder.find(name).orElse(null);
             assert mref != null;
-            
+    
             if(targetPlatform == null && mref instanceof ModuleReferenceImpl) {
                 ModuleTarget target = ((ModuleReferenceImpl) mref).moduleTarget();
                 if(target != null) {
                     targetPlatform = target.targetPlatform();
                 }
             }
-            
+    
             ResolvedModule resolvedModule = new ResolvedModule(this, mref);
             moduleArray[i] = resolvedModule;
             nameEntries[i] = Map.entry(name, resolvedModule);
             i++;
         }
+        
         Map<String, ResolvedModule> nameToModule = Map.ofEntries(nameEntries);
         
         // create entries for readability graph
@@ -181,40 +214,44 @@ public final class Configuration {
         this.targetPlatform = targetPlatform;
     }
     
-    private Configuration() {
-        this.parents = Collections.emptyList();
-        this.graph = Collections.emptyMap();
-        this.modules = Collections.emptySet();
-        this.nameToModule = Collections.emptyMap();
-        this.targetPlatform = null;
-    }
-    
-    private Configuration(List<Configuration> parents, Resolver resolver) {
-        Map<ResolvedModule, Set<ResolvedModule>> g = resolver.finish(this);
-        
-        @SuppressWarnings(value = {"rawtypes", "unchecked"})
-        Entry<String, ResolvedModule>[] nameEntries = (Entry<String, ResolvedModule>[]) new Entry[g.size()];
-        ResolvedModule[] moduleArray = new ResolvedModule[g.size()];
-        int i = 0;
-        for(ResolvedModule resolvedModule : g.keySet()) {
-            moduleArray[i] = resolvedModule;
-            nameEntries[i] = Map.entry(resolvedModule.name(), resolvedModule);
-            i++;
-        }
-        
-        this.parents = Collections.unmodifiableList(parents);
-        this.graph = g;
-        this.modules = Set.of(moduleArray);
-        this.nameToModule = Map.ofEntries(nameEntries);
-        
-        this.targetPlatform = resolver.targetPlatform();
-    }
-    
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 定义模块图 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Resolves a collection of root modules, with this configuration as its
+     * parent, to create a new configuration. This method works exactly as
+     * specified by the static {@link
+     * #resolve(ModuleFinder, List, ModuleFinder, Collection) resolve}
+     * method when invoked with this configuration as the parent. In other words,
+     * if this configuration is {@code cf} then this method is equivalent to
+     * invoking:
+     * <pre> {@code
+     *     Configuration.resolve(before, List.of(cf), after, roots);
+     * }</pre>
+     *
+     * @param before The <em>before</em> module finder to find modules
+     * @param after  The <em>after</em> module finder to locate modules when not
+     *               located by the {@code before} module finder or in parent
+     *               configurations
+     * @param roots  The possibly-empty collection of module names of the modules
+     *               to resolve
+     *
+     * @return The configuration that is the result of resolving the given
+     * root modules
+     *
+     * @throws FindException       If resolution fails for any of the observability-related reasons
+     *                             specified by the static {@code resolve} method
+     * @throws ResolutionException If resolution fails any of the consistency checks specified by
+     *                             the static {@code resolve} method
+     * @throws SecurityException   If locating a module is denied by the security manager
+     */
+    // 基于给定的待解析模块roots来构造模块依赖图(不会解析服务依赖)，父模块依赖图为当前模块图
+    public Configuration resolve(ModuleFinder before, ModuleFinder after, Collection<String> roots) {
+        return resolve(before, List.of(this), after, roots);
+    }
     
     /**
      * Resolves a collection of root modules to create a configuration.
@@ -295,19 +332,54 @@ public final class Configuration {
      * tightly coupled modules or modules for specific operating systems or
      * architectures are not combined in the same configuration.
      */
+    // 基于给定的待解析模块roots来构造模块依赖图(不会解析服务依赖)，父模块依赖图由parents给出
     public static Configuration resolve(ModuleFinder before, List<Configuration> parents, ModuleFinder after, Collection<String> roots) {
         Objects.requireNonNull(before);
         Objects.requireNonNull(after);
         Objects.requireNonNull(roots);
         
         List<Configuration> parentList = new ArrayList<>(parents);
-        if(parentList.isEmpty())
+        if(parentList.isEmpty()) {
             throw new IllegalArgumentException("'parents' is empty");
-        
+        }
+    
         Resolver resolver = new Resolver(before, parentList, after, null);
-        resolver.resolve(roots);
-        
+        resolver.resolve(roots);    // 对roots中还未解析的模块描述符进行依赖解析，解析到的模块信息会存储到nameToReference中
+    
         return new Configuration(parentList, resolver);
+    }
+    
+    /**
+     * Resolves a collection of root modules, with service binding, and with
+     * this configuration as its parent, to create a new configuration.
+     * This method works exactly as specified by the static {@link
+     * #resolveAndBind(ModuleFinder, List, ModuleFinder, Collection)
+     * resolveAndBind} method when invoked with this configuration
+     * as the parent. In other words, if this configuration is {@code cf} then
+     * this method is equivalent to invoking:
+     * <pre> {@code
+     *     Configuration.resolveAndBind(before, List.of(cf), after, roots);
+     * }</pre>
+     *
+     * @param before The <em>before</em> module finder to find modules
+     * @param after  The <em>after</em> module finder to locate modules when not
+     *               located by the {@code before} module finder or in parent
+     *               configurations
+     * @param roots  The possibly-empty collection of module names of the modules
+     *               to resolve
+     *
+     * @return The configuration that is the result of resolving, with service
+     * binding, the given root modules
+     *
+     * @throws FindException       If resolution fails for any of the observability-related reasons
+     *                             specified by the static {@code resolve} method
+     * @throws ResolutionException If resolution fails any of the consistency checks specified by
+     *                             the static {@code resolve} method
+     * @throws SecurityException   If locating a module is denied by the security manager
+     */
+    // 基于给定的待解析模块roots来构造模块依赖图(需要解析服务依赖)，父模块依赖图为当前模块图
+    public Configuration resolveAndBind(ModuleFinder before, ModuleFinder after, Collection<String> roots) {
+        return resolveAndBind(before, List.of(this), after, roots);
     }
     
     /**
@@ -354,96 +426,40 @@ public final class Configuration {
      *                                  architectures, or versions
      * @throws SecurityException        If locating a module is denied by the security manager
      */
+    // 基于给定的待解析模块roots来构造模块依赖图(需要解析服务依赖)，父模块图由parents给出
     public static Configuration resolveAndBind(ModuleFinder before, List<Configuration> parents, ModuleFinder after, Collection<String> roots) {
         Objects.requireNonNull(before);
         Objects.requireNonNull(after);
         Objects.requireNonNull(roots);
-        
+    
         List<Configuration> parentList = new ArrayList<>(parents);
-        if(parentList.isEmpty())
+        if(parentList.isEmpty()) {
             throw new IllegalArgumentException("'parents' is empty");
-        
+        }
+    
         Resolver resolver = new Resolver(before, parentList, after, null);
-        resolver.resolve(roots).bind();
-        
+        resolver.resolve(roots) // 对roots中还未解析的模块描述符进行依赖解析，解析到的模块信息会存储到nameToReference中
+            .bind();        // 对已解析的模块，需要继续解析其依赖的服务，进一步完善模块依赖图
+    
         return new Configuration(parentList, resolver);
     }
     
     /**
-     * Resolves a collection of root modules, with this configuration as its
-     * parent, to create a new configuration. This method works exactly as
-     * specified by the static {@link
-     * #resolve(ModuleFinder, List, ModuleFinder, Collection) resolve}
-     * method when invoked with this configuration as the parent. In other words,
-     * if this configuration is {@code cf} then this method is equivalent to
-     * invoking:
-     * <pre> {@code
-     *     Configuration.resolve(before, List.of(cf), after, roots);
-     * }</pre>
-     *
-     * @param before The <em>before</em> module finder to find modules
-     * @param after  The <em>after</em> module finder to locate modules when not
-     *               located by the {@code before} module finder or in parent
-     *               configurations
-     * @param roots  The possibly-empty collection of module names of the modules
-     *               to resolve
-     *
-     * @return The configuration that is the result of resolving the given
-     * root modules
-     *
-     * @throws FindException       If resolution fails for any of the observability-related reasons
-     *                             specified by the static {@code resolve} method
-     * @throws ResolutionException If resolution fails any of the consistency checks specified by
-     *                             the static {@code resolve} method
-     * @throws SecurityException   If locating a module is denied by the security manager
-     */
-    public Configuration resolve(ModuleFinder before, ModuleFinder after, Collection<String> roots) {
-        return resolve(before, List.of(this), after, roots);
-    }
-    
-    /**
-     * Resolves a collection of root modules, with service binding, and with
-     * this configuration as its parent, to create a new configuration.
-     * This method works exactly as specified by the static {@link
-     * #resolveAndBind(ModuleFinder, List, ModuleFinder, Collection)
-     * resolveAndBind} method when invoked with this configuration
-     * as the parent. In other words, if this configuration is {@code cf} then
-     * this method is equivalent to invoking:
-     * <pre> {@code
-     *     Configuration.resolveAndBind(before, List.of(cf), after, roots);
-     * }</pre>
-     *
-     * @param before The <em>before</em> module finder to find modules
-     * @param after  The <em>after</em> module finder to locate modules when not
-     *               located by the {@code before} module finder or in parent
-     *               configurations
-     * @param roots  The possibly-empty collection of module names of the modules
-     *               to resolve
-     *
-     * @return The configuration that is the result of resolving, with service
-     * binding, the given root modules
-     *
-     * @throws FindException       If resolution fails for any of the observability-related reasons
-     *                             specified by the static {@code resolve} method
-     * @throws ResolutionException If resolution fails any of the consistency checks specified by
-     *                             the static {@code resolve} method
-     * @throws SecurityException   If locating a module is denied by the security manager
-     */
-    public Configuration resolveAndBind(ModuleFinder before, ModuleFinder after, Collection<String> roots) {
-        return resolveAndBind(before, List.of(this), after, roots);
-    }
-    
-    /**
-     * Resolves a collection of root modules, with service binding, and with
-     * the empty configuration as its parent.
+     * Resolves a collection of root modules, with service binding, and with the empty configuration as its parent.
      *
      * This method is used to create the configuration for the boot layer.
      */
+    // 基于给定的待解析模块roots来构造模块依赖图(需要解析服务依赖)，父模块依赖图为空集
     static Configuration resolveAndBind(ModuleFinder finder, Collection<String> roots, PrintStream traceOutput) {
-        List<Configuration> parents = List.of(empty());
-        Resolver resolver = new Resolver(finder, parents, ModuleFinder.of(), traceOutput);
-        resolver.resolve(roots).bind();
-        return new Configuration(parents, resolver);
+        List<Configuration> parentList = List.of(empty());
+    
+        ModuleFinder after = ModuleFinder.of();
+    
+        Resolver resolver = new Resolver(finder, parentList, after, traceOutput);
+        resolver.resolve(roots) // 对roots中还未解析的模块描述符进行依赖解析，解析到的模块信息会存储到nameToReference中
+            .bind();        // 对已解析的模块，需要继续解析其依赖的服务，进一步完善模块依赖图
+    
+        return new Configuration(parentList, resolver);
     }
     
     /*▲ 定义模块图 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -468,7 +484,7 @@ public final class Configuration {
      *
      * @return A possibly-empty unmodifiable list of this parent configurations
      */
-    // 获取父模块图
+    // 返回父模块图
     public List<Configuration> parents() {
         return parents;
     }
@@ -479,7 +495,7 @@ public final class Configuration {
      * @return A possibly-empty unmodifiable set of the resolved modules
      * in this configuration
      */
-    // 获取当前模块图中所有已解析的模块
+    // 返回当前模块图中所有已解析(存在)的模块
     public Set<ResolvedModule> modules() {
         return modules;
     }
@@ -501,17 +517,15 @@ public final class Configuration {
     // 在模块图中（包括父模块图）搜索指定名称的模块
     public Optional<ResolvedModule> findModule(String name) {
         Objects.requireNonNull(name);
-        ResolvedModule m = nameToModule.get(name);
-        if(m != null) {
-            return Optional.of(m);
+    
+        ResolvedModule module = nameToModule.get(name);
+        if(module != null) {
+            return Optional.of(module);
         }
-        
+    
         if(!parents.isEmpty()) {
-            return configurations()
-                .skip(1)  // skip this configuration
-                .map(cf -> cf.nameToModule.get(name))
-                .filter(Objects::nonNull)
-                .findFirst();
+            return configurations().skip(1)  // skip this configuration
+                .map(cf -> cf.nameToModule.get(name)).filter(Objects::nonNull).findFirst();
         }
         
         return Optional.empty();
@@ -526,17 +540,14 @@ public final class Configuration {
     Set<ModuleDescriptor> descriptors() {
         if(modules.isEmpty()) {
             return Collections.emptySet();
-        } else {
-            return modules.stream()
-                .map(ResolvedModule::reference)
-                .map(ModuleReference::descriptor)
-                .collect(Collectors.toSet());
         }
+    
+        return modules.stream().map(ResolvedModule::reference).map(ModuleReference::descriptor).collect(Collectors.toSet());
     }
     
-    // 获取指定模块的模块依赖
-    Set<ResolvedModule> reads(ResolvedModule m) {
-        return Collections.unmodifiableSet(graph.get(m));
+    // 获取指定模块依赖(requires)的模块
+    Set<ResolvedModule> reads(ResolvedModule module) {
+        return Collections.unmodifiableSet(graph.get(module));
     }
     
     /**
@@ -549,28 +560,35 @@ public final class Configuration {
      */
     // 返回当前模块图以及父模块图
     Stream<Configuration> configurations() {
+        // 获取当前模块图以及父模块图的集合
         List<Configuration> allConfigurations = this.allConfigurations;
-        if(allConfigurations == null) {
-            allConfigurations = new ArrayList<>();
-            Set<Configuration> visited = new HashSet<>();
-            Deque<Configuration> stack = new ArrayDeque<>();
-            visited.add(this);
-            stack.push(this);
-            while(!stack.isEmpty()) {
-                Configuration layer = stack.pop();
-                allConfigurations.add(layer);
-                
-                // push in reverse order
-                for(int i = layer.parents.size() - 1; i >= 0; i--) {
-                    Configuration parent = layer.parents.get(i);
-                    if(!visited.contains(parent)) {
-                        visited.add(parent);
-                        stack.push(parent);
-                    }
+        if(allConfigurations != null) {
+            return allConfigurations.stream();
+        }
+    
+        allConfigurations = new ArrayList<>();
+        Set<Configuration> visited = new HashSet<>();
+        Deque<Configuration> stack = new ArrayDeque<>();
+        visited.add(this);
+        stack.push(this);
+    
+        while(!stack.isEmpty()) {
+            Configuration layer = stack.pop();
+            allConfigurations.add(layer);
+        
+            // push in reverse order
+            for(int i = layer.parents.size() - 1; i >= 0; i--) {
+                Configuration parent = layer.parents.get(i);
+                if(!visited.contains(parent)) {
+                    visited.add(parent);
+                    stack.push(parent);
                 }
             }
-            this.allConfigurations = Collections.unmodifiableList(allConfigurations);
         }
+    
+        // 缓存
+        this.allConfigurations = Collections.unmodifiableList(allConfigurations);
+    
         return allConfigurations.stream();
     }
     
@@ -584,4 +602,5 @@ public final class Configuration {
     public String toString() {
         return modules().stream().map(ResolvedModule::name).collect(Collectors.joining(", "));
     }
+    
 }

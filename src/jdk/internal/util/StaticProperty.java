@@ -38,7 +38,7 @@ public final class StaticProperty {
     // The class static initialization is triggered to initialize these final
     // fields during init Phase 1 and before a security manager is set.
     private static final String JAVA_HOME = initProperty("java.home");  // JDK根目录
-    private static final String USER_DIR = initProperty("user.dir");    // 项目根目录（源码目录）
+    private static final String USER_DIR = initProperty("user.dir");   // 用户工作目录（如项目根目录）
     private static final String USER_NAME = initProperty("user.name");  // 用户主机名称，如kang
     private static final String USER_HOME = initProperty("user.home");  // 用户主机根目录，如C:\Users\kang
     
@@ -68,7 +68,7 @@ public final class StaticProperty {
      *
      * @return the {@code user.dir} system property
      */
-    // 获取项目根目录（源码目录）
+    // 获取用户工作目录（如项目根目录）
     public static String userDir() {
         return USER_DIR;
     }

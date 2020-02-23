@@ -49,76 +49,64 @@ import java.util.StringJoiner;
 public class Modifier {
     
     /**
-     * The {@code int} value representing the {@code public}
-     * modifier.
+     * The {@code int} value representing the {@code public} modifier.
      */
-    public static final int PUBLIC           = 0x00000001;
+    public static final int PUBLIC = 0x00000001;  // public
     
     /**
-     * The {@code int} value representing the {@code private}
-     * modifier.
+     * The {@code int} value representing the {@code private} modifier.
      */
-    public static final int PRIVATE          = 0x00000002;
+    public static final int PRIVATE = 0x00000002;  // private
     
     /**
-     * The {@code int} value representing the {@code protected}
-     * modifier.
+     * The {@code int} value representing the {@code protected} modifier.
      */
-    public static final int PROTECTED        = 0x00000004;
+    public static final int PROTECTED = 0x00000004;  // protected
     
     /**
-     * The {@code int} value representing the {@code static}
-     * modifier.
+     * The {@code int} value representing the {@code static} modifier.
      */
-    public static final int STATIC           = 0x00000008;
+    public static final int STATIC = 0x00000008;  // static
     
     /**
-     * The {@code int} value representing the {@code final}
-     * modifier.
+     * The {@code int} value representing the {@code final} modifier.
      */
-    public static final int FINAL            = 0x00000010;
+    public static final int FINAL = 0x00000010;  // final
     
     /**
-     * The {@code int} value representing the {@code synchronized}
-     * modifier.
+     * The {@code int} value representing the {@code synchronized} modifier.
      */
-    public static final int SYNCHRONIZED     = 0x00000020;
+    public static final int SYNCHRONIZED = 0x00000020;  // synchronized
     
     /**
-     * The {@code int} value representing the {@code volatile}
-     * modifier.
+     * The {@code int} value representing the {@code volatile} modifier.
      */
-    public static final int VOLATILE         = 0x00000040;
+    public static final int VOLATILE = 0x00000040;  // volatile
     
     /**
-     * The {@code int} value representing the {@code transient}
-     * modifier.
+     * The {@code int} value representing the {@code transient} modifier.
      */
-    public static final int TRANSIENT        = 0x00000080;
+    public static final int TRANSIENT = 0x00000080;  // transient
     
     /**
-     * The {@code int} value representing the {@code native}
-     * modifier.
+     * The {@code int} value representing the {@code native} modifier.
      */
-    public static final int NATIVE           = 0x00000100;
+    public static final int NATIVE = 0x00000100;  // native
     
     /**
-     * The {@code int} value representing the {@code interface}
-     * modifier.
+     * The {@code int} value representing the {@code interface} modifier.
      */
-    public static final int INTERFACE        = 0x00000200;
+    public static final int INTERFACE = 0x00000200;  // interface
     
     /**
-     * The {@code int} value representing the {@code abstract}
-     * modifier.
+     * The {@code int} value representing the {@code abstract} modifier.
      */
-    public static final int ABSTRACT         = 0x00000400;
+    public static final int ABSTRACT = 0x00000400;  // abstract
     
     /**
-     * The {@code int} value representing the {@code strictfp}
-     * modifier.
+     * The {@code int} value representing the {@code strictfp} modifier.
      */
-    public static final int STRICT           = 0x00000800;
+    public static final int STRICT = 0x00000800;  // strictfp
     
     // Bits not (yet) exposed in the public API either because they
     // have different meanings for fields and methods and there is no
@@ -134,9 +122,7 @@ public class Modifier {
     
     /* Bootstrapping protocol between java.lang and java.lang.reflect packages */
     static {
-        ReflectionFactory factory = AccessController.doPrivileged(
-            new ReflectionFactory.GetReflectionFactoryAction()
-        );
+        ReflectionFactory factory = AccessController.doPrivileged(new ReflectionFactory.GetReflectionFactoryAction());
         factory.setLangReflectAccess(new java.lang.reflect.ReflectAccess());
     }
     

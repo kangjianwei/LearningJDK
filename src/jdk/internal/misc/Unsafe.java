@@ -157,12 +157,18 @@ public final class Unsafe {
         registerNatives();
     }
     
-    private static native void registerNatives();
     
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     private Unsafe() {
     }
     
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Provides the caller with the capability of performing unsafe
@@ -193,15 +199,11 @@ public final class Unsafe {
         return theUnsafe;
     }
     
-    
-    
-    /*▼ 构造Unsafe对象 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
     /**
      * Allocates an instance but does not run any constructor.
      * Initializes the class if it has not yet been.
      */
-    // 不调用构造方法就生成对象，但是该对象的字段会被赋为对应类型的"零值"，为该对象赋过的默认值也无效
+    // 不调用构造器就生成对象，但是该对象的字段会被赋为对应类型的"零值"，为该对象赋过的默认值也无效
     @HotSpotIntrinsicCandidate
     public native Object allocateInstance(Class<?> cls) throws InstantiationException;
     
@@ -222,10 +224,12 @@ public final class Unsafe {
      * @param data      bytes of a class file
      * @param cpPatches where non-null entries exist, they replace corresponding CP entries in data
      */
+    // 定义(创建)一个虚拟机匿名类，该类不会被类加载器或系统目录发现
     public Class<?> defineAnonymousClass(Class<?> hostClass, byte[] data, Object[] cpPatches) {
         if(hostClass == null || data == null) {
             throw new NullPointerException();
         }
+    
         if(hostClass.isArray() || hostClass.isPrimitive()) {
             throw new IllegalArgumentException();
         }
@@ -233,30 +237,28 @@ public final class Unsafe {
         return defineAnonymousClass0(hostClass, data, cpPatches);
     }
     
-    private native Class<?> defineAnonymousClass0(Class<?> hostClass, byte[] data, Object[] cpPatches);
-    
     /**
      * Tells the VM to define a class, without security checks.
      * By default, the class loader and protection domain come from the caller's class.
      */
-    public Class<?> defineClass(String name, byte[] b, int off, int len, ClassLoader loader, ProtectionDomain protectionDomain) {
-        if(b == null) {
+    /*
+     * 通知虚拟机，定义(创建)一个类，不进行安全检查，返回定义好的类。
+     *
+     * className：类名
+     * bytecodes[off, off+len)：创建类时需要使用的字节码
+     * loader：类加载器
+     */
+    public Class<?> defineClass(String className, byte[] bytecodes, int off, int len, ClassLoader loader, ProtectionDomain protectionDomain) {
+        if(bytecodes == null) {
             throw new NullPointerException();
         }
-        if(len < 0) {
+        
+        if(len<0) {
             throw new ArrayIndexOutOfBoundsException();
         }
         
-        return defineClass0(name, b, off, len, loader, protectionDomain);
+        return defineClass0(className, bytecodes, off, len, loader, protectionDomain);
     }
-    
-    public native Class<?> defineClass0(String name, byte[] b, int off, int len, ClassLoader loader, ProtectionDomain protectionDomain);
-    
-    /*▲ 构造Unsafe对象 ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
-    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Reports the location of a given field in the storage allocation of its
@@ -370,20 +372,28 @@ public final class Unsafe {
      * class.
      */
     public void ensureClassInitialized(Class<?> c) {
-        if (c == null) {
+        if(c == null) {
             throw new NullPointerException();
         }
-        
+    
         ensureClassInitialized0(c);
     }
     
     
+    private native Class<?> defineAnonymousClass0(Class<?> hostClass, byte[] data, Object[] cpPatches);
+    
+    public native Class<?> defineClass0(String name, byte[] b, int off, int len, ClassLoader loader, ProtectionDomain protectionDomain);
     
     private native long objectFieldOffset0(Field f);
+    
     private native long objectFieldOffset1(Class<?> c, String name);
+    
     private native long staticFieldOffset0(Field f);
+    
     private native Object staticFieldBase0(Field f);
+    
     private native boolean shouldBeInitialized0(Class<?> c);
+    
     private native void ensureClassInitialized0(Class<?> c);
     
     /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -4213,14 +4223,31 @@ public final class Unsafe {
     private static int toUnsignedInt(short n)   { return n & 0xffff; }
     private static long toUnsignedLong(byte n)  { return n & 0xffl; }
     private static long toUnsignedLong(short n) { return n & 0xffffl; }
-    private static long toUnsignedLong(int n)   { return n & 0xffffffffl; }
+    
+    private static long toUnsignedLong(int n) {
+        return n & 0xffffffffl;
+    }
     
     // Maybe byte-reverse an integer
-    private static char convEndian(boolean big, char n)   { return big == BE ? n : Character.reverseBytes(n); }
-    private static short convEndian(boolean big, short n) { return big == BE ? n : Short.reverseBytes(n)    ; }
-    private static int convEndian(boolean big, int n)     { return big == BE ? n : Integer.reverseBytes(n)  ; }
-    private static long convEndian(boolean big, long n)   { return big == BE ? n : Long.reverseBytes(n)     ; }
+    private static char convEndian(boolean big, char n) {
+        return big == BE ? n : Character.reverseBytes(n);
+    }
+    
+    private static short convEndian(boolean big, short n) {
+        return big == BE ? n : Short.reverseBytes(n);
+    }
+    
+    private static int convEndian(boolean big, int n) {
+        return big == BE ? n : Integer.reverseBytes(n);
+    }
+    
+    private static long convEndian(boolean big, long n) {
+        return big == BE ? n : Long.reverseBytes(n);
+    }
     
     /*▲  ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    private static native void registerNatives();
     
 }

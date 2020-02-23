@@ -33,6 +33,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -53,6 +54,7 @@ import sun.security.action.GetBooleanAction;
  */
 // 代理类字节码生成器
 class ProxyGenerator {
+    
     /*
      * In the comments below, "JVMS" refers to The Java Virtual Machine
      * Specification Second Edition and "JLS" refers to the original
@@ -88,21 +90,21 @@ class ProxyGenerator {
     private static final int ACC_PRIVATE                = 0x00000002;
     //  private static final int ACC_PROTECTED              = 0x00000004;
     private static final int ACC_STATIC                 = 0x00000008;
-    private static final int ACC_FINAL                  = 0x00000010;
+    private static final int ACC_FINAL = 0x00000010;
     //  private static final int ACC_SYNCHRONIZED           = 0x00000020;
     //  private static final int ACC_VOLATILE               = 0x00000040;
     //  private static final int ACC_TRANSIENT              = 0x00000080;
     //  private static final int ACC_NATIVE                 = 0x00000100;
     //  private static final int ACC_INTERFACE              = 0x00000200;
     //  private static final int ACC_ABSTRACT               = 0x00000400;
-    private static final int ACC_SUPER                  = 0x00000020;
+    private static final int ACC_SUPER = 0x00000020;
     //  private static final int ACC_STRICT                 = 0x00000800;
     
     /* opcodes */
     //  private static final int opc_nop                    = 0;
     private static final int opc_aconst_null            = 1;
     //  private static final int opc_iconst_m1              = 2;
-    private static final int opc_iconst_0               = 3;
+    private static final int opc_iconst_0 = 3;
     //  private static final int opc_iconst_1               = 4;
     //  private static final int opc_iconst_2               = 5;
     //  private static final int opc_iconst_3               = 6;
@@ -115,8 +117,8 @@ class ProxyGenerator {
     //  private static final int opc_fconst_2               = 13;
     //  private static final int opc_dconst_0               = 14;
     //  private static final int opc_dconst_1               = 15;
-    private static final int opc_bipush                 = 16;
-    private static final int opc_sipush                 = 17;
+    private static final int opc_bipush = 16;
+    private static final int opc_sipush = 17;
     private static final int opc_ldc                    = 18;
     private static final int opc_ldc_w                  = 19;
     //  private static final int opc_ldc2_w                 = 20;
@@ -125,23 +127,23 @@ class ProxyGenerator {
     private static final int opc_fload                  = 23;
     private static final int opc_dload                  = 24;
     private static final int opc_aload                  = 25;
-    private static final int opc_iload_0                = 26;
+    private static final int opc_iload_0 = 26;
     //  private static final int opc_iload_1                = 27;
     //  private static final int opc_iload_2                = 28;
     //  private static final int opc_iload_3                = 29;
-    private static final int opc_lload_0                = 30;
+    private static final int opc_lload_0 = 30;
     //  private static final int opc_lload_1                = 31;
     //  private static final int opc_lload_2                = 32;
     //  private static final int opc_lload_3                = 33;
-    private static final int opc_fload_0                = 34;
+    private static final int opc_fload_0 = 34;
     //  private static final int opc_fload_1                = 35;
     //  private static final int opc_fload_2                = 36;
     //  private static final int opc_fload_3                = 37;
-    private static final int opc_dload_0                = 38;
+    private static final int opc_dload_0 = 38;
     //  private static final int opc_dload_1                = 39;
     //  private static final int opc_dload_2                = 40;
     //  private static final int opc_dload_3                = 41;
-    private static final int opc_aload_0                = 42;
+    private static final int opc_aload_0 = 42;
     //  private static final int opc_aload_1                = 43;
     //  private static final int opc_aload_2                = 44;
     //  private static final int opc_aload_3                = 45;
@@ -157,7 +159,7 @@ class ProxyGenerator {
     //  private static final int opc_lstore                 = 55;
     //  private static final int opc_fstore                 = 56;
     //  private static final int opc_dstore                 = 57;
-    private static final int opc_astore                 = 58;
+    private static final int opc_astore = 58;
     //  private static final int opc_istore_0               = 59;
     //  private static final int opc_istore_1               = 60;
     //  private static final int opc_istore_2               = 61;
@@ -174,7 +176,7 @@ class ProxyGenerator {
     //  private static final int opc_dstore_1               = 72;
     //  private static final int opc_dstore_2               = 73;
     //  private static final int opc_dstore_3               = 74;
-    private static final int opc_astore_0               = 75;
+    private static final int opc_astore_0 = 75;
     //  private static final int opc_astore_1               = 76;
     //  private static final int opc_astore_2               = 77;
     //  private static final int opc_astore_3               = 78;
@@ -182,13 +184,13 @@ class ProxyGenerator {
     //  private static final int opc_lastore                = 80;
     //  private static final int opc_fastore                = 81;
     //  private static final int opc_dastore                = 82;
-    private static final int opc_aastore                = 83;
+    private static final int opc_aastore = 83;
     //  private static final int opc_bastore                = 84;
     //  private static final int opc_castore                = 85;
     //  private static final int opc_sastore                = 86;
-    private static final int opc_pop                    = 87;
+    private static final int opc_pop = 87;
     //  private static final int opc_pop2                   = 88;
-    private static final int opc_dup                    = 89;
+    private static final int opc_dup = 89;
     //  private static final int opc_dup_x1                 = 90;
     //  private static final int opc_dup_x2                 = 91;
     //  private static final int opc_dup2                   = 92;
@@ -271,8 +273,8 @@ class ProxyGenerator {
     //  private static final int opc_ret                    = 169;
     //  private static final int opc_tableswitch            = 170;
     //  private static final int opc_lookupswitch           = 171;
-    private static final int opc_ireturn                = 172;
-    private static final int opc_lreturn                = 173;
+    private static final int opc_ireturn = 172;
+    private static final int opc_lreturn = 173;
     private static final int opc_freturn                = 174;
     private static final int opc_dreturn                = 175;
     private static final int opc_areturn                = 176;
@@ -285,16 +287,16 @@ class ProxyGenerator {
     private static final int opc_invokespecial          = 183;
     private static final int opc_invokestatic           = 184;
     private static final int opc_invokeinterface        = 185;
-    private static final int opc_new                    = 187;
+    private static final int opc_new = 187;
     //  private static final int opc_newarray               = 188;
-    private static final int opc_anewarray              = 189;
+    private static final int opc_anewarray = 189;
     //  private static final int opc_arraylength            = 190;
-    private static final int opc_athrow                 = 191;
-    private static final int opc_checkcast              = 192;
+    private static final int opc_athrow = 191;
+    private static final int opc_checkcast = 192;
     //  private static final int opc_instanceof             = 193;
     //  private static final int opc_monitorenter           = 194;
     //  private static final int opc_monitorexit            = 195;
-    private static final int opc_wide                   = 196;
+    private static final int opc_wide = 196;
     //  private static final int opc_multianewarray         = 197;
     //  private static final int opc_ifnull                 = 198;
     //  private static final int opc_ifnonnull              = 199;
@@ -311,70 +313,7 @@ class ProxyGenerator {
     
     /** debugging flag for saving generated class files */
     // 控制是否将生成的代理类保存到根目录
-    private static final boolean saveGeneratedFiles = AccessController.doPrivileged(
-        new GetBooleanAction("jdk.proxy.ProxyGenerator.saveGeneratedFiles")
-    ).booleanValue();
-    
-    /**
-     * Generate a public proxy class given a name and a list of proxy interfaces.
-     */
-    // 生成代理类字节码
-    static byte[] generateProxyClass(final String name, Class<?>[] interfaces) {
-        return generateProxyClass(name, interfaces, (ACC_PUBLIC | ACC_FINAL | ACC_SUPER));
-    }
-    
-    /**
-     * Generate a proxy class given a name and a list of proxy interfaces.
-     *
-     * @param name        the class name of the proxy class
-     * @param interfaces  proxy interfaces
-     * @param accessFlags access flags of the proxy class
-     */
-    // 生成代理类字节码
-    static byte[] generateProxyClass(final String name, Class<?>[] interfaces, int accessFlags) {
-        ProxyGenerator gen = new ProxyGenerator(name, interfaces, accessFlags);
-        final byte[] classFile = gen.generateClassFile();
-        
-        if(saveGeneratedFiles) {
-            java.security.AccessController.doPrivileged(new java.security.PrivilegedAction<Void>() {
-                public Void run() {
-                    try {
-                        int i = name.lastIndexOf('.');
-                        Path path;
-                        if(i>0) {
-                            Path dir = Path.of(name.substring(0, i).replace('.', File.separatorChar));
-                            Files.createDirectories(dir);
-                            path = dir.resolve(name.substring(i + 1, name.length()) + ".class");
-                        } else {
-                            path = Path.of(name + ".class");
-                        }
-                        Files.write(path, classFile);
-                        return null;
-                    } catch(IOException e) {
-                        throw new InternalError("I/O exception saving generated file: " + e);
-                    }
-                }
-            });
-        }
-        
-        return classFile;
-    }
-    
-    /* preloaded Method objects for methods in java.lang.Object */
-    private static Method hashCodeMethod;   // Object#hashCode
-    private static Method equalsMethod;     // Object#equals
-    private static Method toStringMethod;   // Object#toString
-    
-    // 获取Object类中的hashCode/equals/toString方法
-    static {
-        try {
-            hashCodeMethod = Object.class.getMethod("hashCode");
-            equalsMethod = Object.class.getMethod("equals", new Class<?>[]{Object.class});
-            toStringMethod = Object.class.getMethod("toString");
-        } catch(NoSuchMethodException e) {
-            throw new NoSuchMethodError(e.getMessage());
-        }
-    }
+    private static final boolean saveGeneratedFiles = AccessController.doPrivileged(new GetBooleanAction("jdk.proxy.ProxyGenerator.saveGeneratedFiles"));
     
     /** name of proxy class */
     private String className;   // 代理类类名
@@ -404,6 +343,24 @@ class ProxyGenerator {
     /** count of ProxyMethod objects added to proxyMethods */
     private int proxyMethodCount = 0;   // proxyMethods中代理方法数量
     
+    
+    /** preloaded Method objects for methods in java.lang.Object */
+    private static Method hashCodeMethod;   // Object#hashCode
+    private static Method equalsMethod;     // Object#equals
+    private static Method toStringMethod;   // Object#toString
+    
+    // 获取Object类中的hashCode/equals/toString方法
+    static {
+        try {
+            hashCodeMethod = Object.class.getMethod("hashCode");
+            equalsMethod = Object.class.getMethod("equals", new Class<?>[]{Object.class});
+            toStringMethod = Object.class.getMethod("toString");
+        } catch(NoSuchMethodException e) {
+            throw new NoSuchMethodError(e.getMessage());
+        }
+    }
+    
+    
     /**
      * Construct a ProxyGenerator to generate a proxy class with the
      * specified name and for the given interfaces.
@@ -418,10 +375,68 @@ class ProxyGenerator {
     }
     
     /**
+     * Generate a public proxy class given a name and a list of proxy interfaces.
+     */
+    // 生成代理类字节码
+    static byte[] generateProxyClass(final String name, Class<?>[] interfaces) {
+        return generateProxyClass(name, interfaces, (ACC_PUBLIC | ACC_FINAL | ACC_SUPER));
+    }
+    
+    /**
+     * Generate a proxy class given a name and a list of proxy interfaces.
+     *
+     * @param name        the class name of the proxy class
+     * @param interfaces  proxy interfaces
+     * @param accessFlags access flags of the proxy class
+     */
+    // 生成代理类字节码
+    static byte[] generateProxyClass(final String name, Class<?>[] interfaces, int accessFlags) {
+        ProxyGenerator gen = new ProxyGenerator(name, interfaces, accessFlags);
+    
+        // 生成代理类的字节码
+        final byte[] classFile = gen.generateClassFile();
+    
+        // 如果不需要保存代理文件，则直接返回字节码就可以了
+        if(!saveGeneratedFiles) {
+            return classFile;
+        }
+    
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            public Void run() {
+                try {
+                    int i = name.lastIndexOf('.');
+                    Path path;
+                
+                    // 存在包名
+                    if(i>0) {
+                        // 将包名转换为路径
+                        Path dir = Path.of(name.substring(0, i).replace('.', File.separatorChar));
+                        // 创建目录
+                        Files.createDirectories(dir);
+                        // 解析字节码存放路径
+                        path = dir.resolve(name.substring(i + 1, name.length()) + ".class");
+                    } else {
+                        path = Path.of(name + ".class");
+                    }
+                
+                    // 将字节码文件写入指定的路径
+                    Files.write(path, classFile);
+                
+                    return null;
+                } catch(IOException e) {
+                    throw new InternalError("I/O exception saving generated file: " + e);
+                }
+            }
+        });
+    
+        return classFile;
+    }
+    
+    /**
      * Generate a class file for the proxy class.
      * This method drives the class file generation process.
      */
-    // 生成代理类的核心方法
+    // 生成代理类的字节码
     private byte[] generateClassFile() {
         
         /* ============================================================
@@ -470,12 +485,8 @@ class ProxyGenerator {
             
             for (List<ProxyMethod> sigmethods : proxyMethods.values()) {
                 for (ProxyMethod pm : sigmethods) {
-                    
                     // add static field for method's Method object
-                    fields.add(new FieldInfo(pm.methodFieldName,
-                        "Ljava/lang/reflect/Method;",
-                        ACC_PRIVATE | ACC_STATIC));
-                    
+                    fields.add(new FieldInfo(pm.methodFieldName, "Ljava/lang/reflect/Method;", ACC_PRIVATE | ACC_STATIC));
                     // generate code for proxy method and add it
                     methods.add(pm.generateMethod());
                 }
@@ -541,8 +552,7 @@ class ProxyGenerator {
             dout.writeShort(interfaces.length);
             // u2 interfaces[interfaces_count];
             for (Class<?> intf : interfaces) {
-                dout.writeShort(cp.getClass(
-                    dotToSlash(intf.getName())));
+                dout.writeShort(cp.getClass(dotToSlash(intf.getName())));
             }
             
             // u2 fields_count;
@@ -707,10 +717,7 @@ nextNewReturnType:
          */
         if (uncoveredReturnTypes.size() > 1) {
             ProxyMethod pm = methods.get(0);
-            throw new IllegalArgumentException(
-                "methods with same signature " +
-                    getFriendlyMethodSignature(pm.methodName, pm.parameterTypes) +
-                    " but incompatible return types: " + uncoveredReturnTypes);
+            throw new IllegalArgumentException("methods with same signature " + getFriendlyMethodSignature(pm.methodName, pm.parameterTypes) + " but incompatible return types: " + uncoveredReturnTypes);
         }
     }
     
@@ -790,6 +797,7 @@ nextNewReturnType:
              * Write all the items of the "method_info" structure.
              * See JVMS section 4.6.
              */
+    
             // u2 access_flags;
             out.writeShort(accessFlags);
             // u2 name_index;
@@ -877,11 +885,8 @@ nextNewReturnType:
         public Class<?>[] exceptionTypes;
         public Class<?> fromClass;
         public String methodFieldName;
-        
-        private ProxyMethod(String methodName, Class<?>[] parameterTypes,
-                            Class<?> returnType, Class<?>[] exceptionTypes,
-                            Class<?> fromClass)
-        {
+    
+        private ProxyMethod(String methodName, Class<?>[] parameterTypes, Class<?> returnType, Class<?>[] exceptionTypes, Class<?> fromClass) {
             this.methodName = methodName;
             this.parameterTypes = parameterTypes;
             this.returnType = returnType;
@@ -896,8 +901,7 @@ nextNewReturnType:
          */
         private MethodInfo generateMethod() throws IOException {
             String desc = getMethodDescriptor(parameterTypes, returnType);
-            MethodInfo minfo = new MethodInfo(methodName, desc,
-                ACC_PUBLIC | ACC_FINAL);
+            MethodInfo minfo = new MethodInfo(methodName, desc, ACC_PUBLIC | ACC_FINAL);
             
             int[] parameterSlot = new int[parameterTypes.length];
             int nextSlot = 1;
@@ -911,18 +915,14 @@ nextNewReturnType:
             DataOutputStream out = new DataOutputStream(minfo.code);
             
             code_aload(0, out);
-            
+    
             out.writeByte(opc_getfield);
-            out.writeShort(cp.getFieldRef(
-                superclassName,
-                handlerFieldName, "Ljava/lang/reflect/InvocationHandler;"));
+            out.writeShort(cp.getFieldRef(superclassName, handlerFieldName, "Ljava/lang/reflect/InvocationHandler;"));
             
             code_aload(0, out);
-            
+    
             out.writeByte(opc_getstatic);
-            out.writeShort(cp.getFieldRef(
-                dotToSlash(className),
-                methodFieldName, "Ljava/lang/reflect/Method;"));
+            out.writeShort(cp.getFieldRef(dotToSlash(className), methodFieldName, "Ljava/lang/reflect/Method;"));
             
             if (parameterTypes.length > 0) {
                 
@@ -932,37 +932,24 @@ nextNewReturnType:
                 out.writeShort(cp.getClass("java/lang/Object"));
                 
                 for (int i = 0; i < parameterTypes.length; i++) {
-                    
                     out.writeByte(opc_dup);
-                    
                     code_ipush(i, out);
-                    
                     codeWrapArgument(parameterTypes[i], parameterSlot[i], out);
-                    
                     out.writeByte(opc_aastore);
                 }
             } else {
-                
                 out.writeByte(opc_aconst_null);
             }
-            
+    
             out.writeByte(opc_invokeinterface);
-            out.writeShort(cp.getInterfaceMethodRef(
-                "java/lang/reflect/InvocationHandler",
-                "invoke",
-                "(Ljava/lang/Object;Ljava/lang/reflect/Method;" +
-                    "[Ljava/lang/Object;)Ljava/lang/Object;"));
+            out.writeShort(cp.getInterfaceMethodRef("java/lang/reflect/InvocationHandler", "invoke", "(Ljava/lang/Object;Ljava/lang/reflect/Method;" + "[Ljava/lang/Object;)Ljava/lang/Object;"));
             out.writeByte(4);
             out.writeByte(0);
             
             if (returnType == void.class) {
-                
                 out.writeByte(opc_pop);
-                
                 out.writeByte(opc_return);
-                
             } else {
-                
                 codeUnwrapReturnValue(returnType, out);
             }
             
@@ -972,33 +959,27 @@ nextNewReturnType:
             if (catchList.size() > 0) {
                 
                 for (Class<?> ex : catchList) {
-                    minfo.exceptionTable.add(new ExceptionTableEntry(
-                        tryBegin, tryEnd, pc,
-                        cp.getClass(dotToSlash(ex.getName()))));
+                    minfo.exceptionTable.add(new ExceptionTableEntry(tryBegin, tryEnd, pc, cp.getClass(dotToSlash(ex.getName()))));
                 }
                 
                 out.writeByte(opc_athrow);
                 
                 pc = (short) minfo.code.size();
-                
-                minfo.exceptionTable.add(new ExceptionTableEntry(
-                    tryBegin, tryEnd, pc, cp.getClass("java/lang/Throwable")));
+    
+                minfo.exceptionTable.add(new ExceptionTableEntry(tryBegin, tryEnd, pc, cp.getClass("java/lang/Throwable")));
                 
                 code_astore(localSlot0, out);
-                
+    
                 out.writeByte(opc_new);
-                out.writeShort(cp.getClass(
-                    "java/lang/reflect/UndeclaredThrowableException"));
+                out.writeShort(cp.getClass("java/lang/reflect/UndeclaredThrowableException"));
                 
                 out.writeByte(opc_dup);
                 
                 code_aload(localSlot0, out);
                 
                 out.writeByte(opc_invokespecial);
-                
-                out.writeShort(cp.getMethodRef(
-                    "java/lang/reflect/UndeclaredThrowableException",
-                    "<init>", "(Ljava/lang/Throwable;)V"));
+    
+                out.writeShort(cp.getMethodRef("java/lang/reflect/UndeclaredThrowableException", "<init>", "(Ljava/lang/Throwable;)V"));
                 
                 out.writeByte(opc_athrow);
             }
@@ -1011,13 +992,12 @@ nextNewReturnType:
             minfo.maxLocals = (short) (localSlot0 + 1);
             minfo.declaredExceptions = new short[exceptionTypes.length];
             for (int i = 0; i < exceptionTypes.length; i++) {
-                minfo.declaredExceptions[i] = cp.getClass(
-                    dotToSlash(exceptionTypes[i].getName()));
+                minfo.declaredExceptions[i] = cp.getClass(dotToSlash(exceptionTypes[i].getName()));
             }
             
             return minfo;
         }
-        
+    
         /**
          * Generate code for wrapping an argument of the given type
          * whose value can be found at the specified local variable
@@ -1025,19 +1005,11 @@ nextNewReturnType:
          * invocation handler's "invoke" method.  The code is written
          * to the supplied stream.
          */
-        private void codeWrapArgument(Class<?> type, int slot,
-                                      DataOutputStream out)
-            throws IOException
-        {
-            if (type.isPrimitive()) {
+        private void codeWrapArgument(Class<?> type, int slot, DataOutputStream out) throws IOException {
+            if(type.isPrimitive()) {
                 PrimitiveTypeInfo prim = PrimitiveTypeInfo.get(type);
-                
-                if (type == int.class ||
-                    type == boolean.class ||
-                    type == byte.class ||
-                    type == char.class ||
-                    type == short.class)
-                {
+            
+                if(type == int.class || type == boolean.class || type == byte.class || type == char.class || type == short.class) {
                     code_iload(slot, out);
                 } else if (type == long.class) {
                     code_lload(slot, out);
@@ -1048,37 +1020,29 @@ nextNewReturnType:
                 } else {
                     throw new AssertionError();
                 }
-                
+            
                 out.writeByte(opc_invokestatic);
-                out.writeShort(cp.getMethodRef(
-                    prim.wrapperClassName,
-                    "valueOf", prim.wrapperValueOfDesc));
-                
+                out.writeShort(cp.getMethodRef(prim.wrapperClassName, "valueOf", prim.wrapperValueOfDesc));
             } else {
-                
                 code_aload(slot, out);
             }
         }
-        
+    
         /**
          * Generate code for unwrapping a return value of the given
          * type from the invocation handler's "invoke" method (as type
          * Object) to its correct type.  The code is written to the
          * supplied stream.
          */
-        private void codeUnwrapReturnValue(Class<?> type, DataOutputStream out)
-            throws IOException
-        {
-            if (type.isPrimitive()) {
+        private void codeUnwrapReturnValue(Class<?> type, DataOutputStream out) throws IOException {
+            if(type.isPrimitive()) {
                 PrimitiveTypeInfo prim = PrimitiveTypeInfo.get(type);
-                
+            
                 out.writeByte(opc_checkcast);
                 out.writeShort(cp.getClass(prim.wrapperClassName));
-                
+            
                 out.writeByte(opc_invokevirtual);
-                out.writeShort(cp.getMethodRef(
-                    prim.wrapperClassName,
-                    prim.unwrapMethodName, prim.unwrapMethodDesc));
+                out.writeShort(cp.getMethodRef(prim.wrapperClassName, prim.unwrapMethodName, prim.unwrapMethodDesc));
                 
                 if (type == int.class ||
                     type == boolean.class ||
@@ -1096,34 +1060,29 @@ nextNewReturnType:
                 } else {
                     throw new AssertionError();
                 }
-                
             } else {
-                
                 out.writeByte(opc_checkcast);
                 out.writeShort(cp.getClass(dotToSlash(type.getName())));
-                
                 out.writeByte(opc_areturn);
             }
         }
-        
+    
         /**
          * Generate code for initializing the static field that stores
          * the Method object for this proxy method.  The code is written
          * to the supplied stream.
          */
-        private void codeFieldInitialization(DataOutputStream out)
-            throws IOException
-        {
+        private void codeFieldInitialization(DataOutputStream out) throws IOException {
             codeClassForName(fromClass, out);
-            
+        
             code_ldc(cp.getString(methodName), out);
-            
+        
             code_ipush(parameterTypes.length, out);
-            
+        
             out.writeByte(opc_anewarray);
             out.writeShort(cp.getClass("java/lang/Class"));
-            
-            for (int i = 0; i < parameterTypes.length; i++) {
+        
+            for(int i = 0; i<parameterTypes.length; i++) {
                 
                 out.writeByte(opc_dup);
                 
@@ -1143,18 +1102,12 @@ nextNewReturnType:
                 
                 out.writeByte(opc_aastore);
             }
-            
+        
             out.writeByte(opc_invokevirtual);
-            out.writeShort(cp.getMethodRef(
-                "java/lang/Class",
-                "getMethod",
-                "(Ljava/lang/String;[Ljava/lang/Class;)" +
-                    "Ljava/lang/reflect/Method;"));
-            
+            out.writeShort(cp.getMethodRef("java/lang/Class", "getMethod", "(Ljava/lang/String;[Ljava/lang/Class;)" + "Ljava/lang/reflect/Method;"));
+        
             out.writeByte(opc_putstatic);
-            out.writeShort(cp.getFieldRef(
-                dotToSlash(className),
-                methodFieldName, "Ljava/lang/reflect/Method;"));
+            out.writeShort(cp.getFieldRef(dotToSlash(className), methodFieldName, "Ljava/lang/reflect/Method;"));
         }
     }
     
@@ -1187,8 +1140,7 @@ nextNewReturnType:
      * Generate the static initializer method for the proxy class.
      */
     private MethodInfo generateStaticInitializer() throws IOException {
-        MethodInfo minfo = new MethodInfo(
-            "<clinit>", "()V", ACC_STATIC);
+        MethodInfo minfo = new MethodInfo("<clinit>", "()V", ACC_STATIC);
         
         int localSlot0 = 1;
         short pc, tryBegin = 0, tryEnd;
@@ -1204,10 +1156,8 @@ nextNewReturnType:
         out.writeByte(opc_return);
         
         tryEnd = pc = (short) minfo.code.size();
-        
-        minfo.exceptionTable.add(new ExceptionTableEntry(
-            tryBegin, tryEnd, pc,
-            cp.getClass("java/lang/NoSuchMethodException")));
+    
+        minfo.exceptionTable.add(new ExceptionTableEntry(tryBegin, tryEnd, pc, cp.getClass("java/lang/NoSuchMethodException")));
         
         code_astore(localSlot0, out);
         
@@ -1217,22 +1167,18 @@ nextNewReturnType:
         out.writeByte(opc_dup);
         
         code_aload(localSlot0, out);
-        
+    
         out.writeByte(opc_invokevirtual);
-        out.writeShort(cp.getMethodRef(
-            "java/lang/Throwable", "getMessage", "()Ljava/lang/String;"));
-        
+        out.writeShort(cp.getMethodRef("java/lang/Throwable", "getMessage", "()Ljava/lang/String;"));
+    
         out.writeByte(opc_invokespecial);
-        out.writeShort(cp.getMethodRef(
-            "java/lang/NoSuchMethodError", "<init>", "(Ljava/lang/String;)V"));
+        out.writeShort(cp.getMethodRef("java/lang/NoSuchMethodError", "<init>", "(Ljava/lang/String;)V"));
         
         out.writeByte(opc_athrow);
         
         pc = (short) minfo.code.size();
-        
-        minfo.exceptionTable.add(new ExceptionTableEntry(
-            tryBegin, tryEnd, pc,
-            cp.getClass("java/lang/ClassNotFoundException")));
+    
+        minfo.exceptionTable.add(new ExceptionTableEntry(tryBegin, tryEnd, pc, cp.getClass("java/lang/ClassNotFoundException")));
         
         code_astore(localSlot0, out);
         
@@ -1242,15 +1188,12 @@ nextNewReturnType:
         out.writeByte(opc_dup);
         
         code_aload(localSlot0, out);
-        
+    
         out.writeByte(opc_invokevirtual);
-        out.writeShort(cp.getMethodRef(
-            "java/lang/Throwable", "getMessage", "()Ljava/lang/String;"));
-        
+        out.writeShort(cp.getMethodRef("java/lang/Throwable", "getMessage", "()Ljava/lang/String;"));
+    
         out.writeByte(opc_invokespecial);
-        out.writeShort(cp.getMethodRef(
-            "java/lang/NoClassDefFoundError",
-            "<init>", "(Ljava/lang/String;)V"));
+        out.writeShort(cp.getMethodRef("java/lang/NoClassDefFoundError", "<init>", "(Ljava/lang/String;)V"));
         
         out.writeByte(opc_athrow);
         
@@ -1422,8 +1365,8 @@ nextNewReturnType:
     // 由形参类型拼接形参声明：(var, var, var)
     private static String getParameterDescriptors(Class<?>[] parameterTypes) {
         StringBuilder desc = new StringBuilder("(");
-        for (int i = 0; i < parameterTypes.length; i++) {
-            desc.append(getFieldType(parameterTypes[i]));
+        for(Class<?> parameterType : parameterTypes) {
+            desc.append(getFieldType(parameterType));
         }
         desc.append(')');
         return desc.toString();

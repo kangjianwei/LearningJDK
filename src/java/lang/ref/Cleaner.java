@@ -153,8 +153,9 @@ import java.util.function.Function;
  * 就将其从ReferenceQueue和PhantomCleanableList中移除，并调用其相应的action。
  * 如果ReferenceQueue为空，清理服务陷入阻塞。
  *
- * 不同于Finalizer，这里拿虚引用追踪引用，在遇到GC时，对象就会被自动清理了。
- * 而Finalizer需要手动释放对象。
+ * 相较于Finalizer机制，Cleaner的改进之处在于被追踪对象与清理动作是分开的，因此只需要一次gc就可以释放被追踪对象所占内容。
+ * 当然，如果清理动作内又持有了被追踪对象，则会造成该对象无法被回收，进而引起内存泄露。
+ * 另外，Cleaner内部采用虚引用追踪对象，这意味着只要GC发生，该对象就会被自动回收到报废引用队列，而不像在Finalizer机制，需要手动置空被追踪对象的引用。
  */
 public final class Cleaner {
     

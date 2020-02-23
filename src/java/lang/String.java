@@ -127,6 +127,20 @@ import java.util.stream.StreamSupport;
 public final class String implements Serializable, Comparable<String>, CharSequence {
     
     /**
+     * use serialVersionUID from JDK 1.0.2 for interoperability
+     */
+    private static final long serialVersionUID = -6849794470754667710L;
+    
+    /**
+     * Class String is special cased within the Serialization Stream Protocol.
+     *
+     * A String instance is written into an ObjectOutputStream according to
+     * <a href="{@docRoot}/../specs/serialization/protocol.html#stream-elements">
+     * Object Serialization Specification, Section 6.2, "Stream Elements"</a>
+     */
+    private static final ObjectStreamField[] serialPersistentFields = new ObjectStreamField[0];
+    
+    /**
      * A Comparator that orders {@code String} objects as by {@code compareToIgnoreCase}. This comparator is serializable.
      * <p>
      * Note that this Comparator does <em>not</em> take locale into account, and will result in an unsatisfactory ordering for certain locales.
@@ -182,19 +196,6 @@ public final class String implements Serializable, Comparable<String>, CharSeque
     static final byte UTF16 = 1;
     
     /**
-     * use serialVersionUID from JDK 1.0.2 for interoperability
-     */
-    private static final long serialVersionUID = -6849794470754667710L;
-    /**
-     * Class String is special cased within the Serialization Stream Protocol.
-     *
-     * A String instance is written into an ObjectOutputStream according to
-     * <a href="{@docRoot}/../specs/serialization/protocol.html#stream-elements">
-     * Object Serialization Specification, Section 6.2, "Stream Elements"</a>
-     */
-    private static final ObjectStreamField[] serialPersistentFields = new ObjectStreamField[0];
-    
-    /**
      * The value is used for character storage.
      *
      * @implNote This field is trusted by the VM, and is a subject to constant folding if String instance is constant.
@@ -232,6 +233,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
     // 当前字符串哈希码，初始值默认为0
     private int hash; // Default to 0
     
+    
     static {
         /*
          * 默认情形下，虚拟机会开启“紧凑字符串”选项，即令COMPACT_STRINGS = true。
@@ -243,7 +245,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Initializes a newly created {@code String} object so that it represents an empty character sequence.
@@ -258,7 +260,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
     /**
      * Package private constructor which shares value array for speed.
      */
-    // ▶ 1 构造指定value和coder的String
+    // ▶ 1 构造包含指定字节序列和字符串编码的String
     String(byte[] value, byte coder) {
         this.value = value;
         this.coder = coder;
@@ -285,7 +287,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      *
      * @param buffer A {@code StringBuffer}
      */
-    // ▶ 2-1 构造SB的副本（哈希值都一样）
+    // ▶ 2-1 构造与buffer内容完全一致的字符串（哈希值都一样）
     public String(StringBuffer buffer) {
         this(buffer.toString());
     }
@@ -298,7 +300,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * if the char[] contains only latin1 character.
      * Or a byte[] that stores all characters in their byte sequences defined by the {@code StringUTF16}.
      */
-    // ▶ 3 将char序列打包成String。[Void:sig] 形参用来消除与构造方法<3-2>的歧义
+    // ▶ 3 将指定范围的char序列打包成String。参数sig仅用作占位，以消除与构造器<3-2>的歧义
     String(char[] value, int off, int len, Void sig) {
         // 空串
         if(len == 0) {
@@ -329,7 +331,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      *
      * @param value The initial value of the string
      */
-    // ▶ 3-1 将char序列打包成String。
+    // ▶ 3-1 将指定的char序列打包成String。
     public String(char value[]) {
         this(value, 0, value.length, null);
     }
@@ -345,7 +347,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      *
      * @throws IndexOutOfBoundsException If {@code offset} is negative, {@code count} is negative, or {@code offset} is greater than {@code value.length - count}
      */
-    // ▶ 3-2 将char序列打包成String。加入越界检查
+    // ▶ 3-2 将指定范围的char序列打包成String。加入越界检查
     public String(char value[], int offset, int count) {
         this(value, offset, count, rangeCheck(value, offset, count));
     }
@@ -365,7 +367,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * or {@code offset} is greater than {@code bytes.length - length}
      * @since 1.1
      */
-    // ▶ 4 以JVM默认字符集格式解析byte[]，进而构造String
+    // ▶ 4 按JVM默认字符集格式解码指定范围的字节序列，进而构造String
     public String(byte bytes[], int offset, int length) {
         checkBoundsOffCount(offset, length, bytes.length);
         // 以JVM默认字符集格式解码byte[]，返回结果集
@@ -386,7 +388,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      *
      * @since 1.1
      */
-    // ▶ 4-1 以JVM默认字符集格式解析byte[]，进而构造String
+    // ▶ 4-1 按JVM默认字符集格式解码指定的字节序列，进而构造String
     public String(byte[] bytes) {
         this(bytes, 0, bytes.length);
     }
@@ -408,7 +410,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * or {@code offset} is greater than {@code bytes.length - length}
      * @since 1.1
      */
-    // ▶ 5 以charsetName格式解析byte[]，进而构造String
+    // ▶ 5 按charsetName格式解码指定范围的字节序列，进而构造String
     public String(byte bytes[], int offset, int length, String charsetName) throws UnsupportedEncodingException {
         if(charsetName == null)
             throw new NullPointerException("charsetName");
@@ -433,7 +435,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * @throws UnsupportedEncodingException If the named charset is not supported
      * @since 1.1
      */
-    // ▶ 5-1 以charsetName格式解析byte[]，进而构造String
+    // ▶ 5-1 按charsetName格式解码指定的字节序列，进而构造String
     public String(byte bytes[], String charsetName) throws UnsupportedEncodingException {
         this(bytes, 0, bytes.length, charsetName);
     }
@@ -455,7 +457,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * or {@code offset} is greater than {@code bytes.length - length}
      * @since 1.6
      */
-    // ▶ 6 以charset格式解码byte[]，返回结果集
+    // ▶ 6 按charset格式解码解码指定范围的字节序列，返回解码后的字符序列
     public String(byte bytes[], int offset, int length, Charset charset) {
         if(charset == null)
             throw new NullPointerException("charset");
@@ -479,7 +481,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      *
      * @since 1.6
      */
-    // ▶ 6-1 以charset格式解码byte[]，返回结果集
+    // ▶ 6-1 按charset格式解码指定的字节序列，返回解码后的字符序列
     public String(byte bytes[], Charset charset) {
         this(bytes, 0, bytes.length, charset);
     }
@@ -488,7 +490,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * Package private constructor. Trailing Void argument is there for
      * disambiguating it against other (public) constructors.
      */
-    // ▶ 7 把SB的内部字节转换为String的内部字节
+    // ▶ 7 按照字符序列asb内部的字节序列构造String。参数sig仅用作占位，以消除与构造器<7-1>的歧义
     String(AbstractStringBuilder asb, Void sig) {
         byte[] val = asb.getValue();
         int length = asb.length();
@@ -521,7 +523,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      *
      * @since 1.5
      */
-    // ▶ 7-1 把SB的内部字节转换为String的内部字节
+    // ▶ 7-1 按照字符序列builder内部的字节序列构造String
     public String(StringBuilder builder) {
         this(builder, null);
     }
@@ -540,7 +542,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * or {@code offset} is greater than {@code codePoints.length - count}
      * @since 1.5
      */
-    // ▶ 8 将codePoints中的一组Unicode值批量转换为String内部的字节，再包装为String
+    // ▶ 8 将codePoints中的一组Unicode值转换为UTF16编码值，再以字节形式存入String(大小端由系统环境决定)
     public String(int[] codePoints, int offset, int count) {
         // 范围检查
         checkBoundsOffCount(offset, count, codePoints.length);
@@ -647,7 +649,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
         this(ascii, hibyte, 0, ascii.length);
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -768,32 +770,6 @@ public final class String implements Serializable, Comparable<String>, CharSeque
         }
     }
     
-    /**
-     * Copy character bytes from this string into dst starting at dstBegin.
-     * This method doesn't perform any range checking.
-     *
-     * Invoker guarantees: dst is in UTF16 (inflate itself for asb),
-     * if two coders are different, and dst is big enough (range check)
-     *
-     * @param dstBegin the char index, not offset of byte[]
-     * @param coder    the coder of dst[]
-     */
-    // 拷贝String中的字节到dst数组
-    void getBytes(byte dst[], int dstBegin, byte coder) {
-        if(coder() == coder) {
-            System.arraycopy(value, 0, dst, dstBegin << coder, value.length);
-        } else {
-            /* 如果两个coder不同，则将源字符串当做LATIN-String对待 */
-            // 从LATIN-String内部的字节转为UTF16-String内部的字节
-            StringLatin1.inflate(value, 0, dst, dstBegin, value.length);
-        }
-    }
-    
-    // 返回存储String的byte数组
-    byte[] value() {
-        return value;
-    }
-    
     /*▲ 获取byte/byte[] ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
@@ -881,80 +857,6 @@ public final class String implements Serializable, Comparable<String>, CharSeque
     
     
     /*▼ 字符串化 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Returns the string representation of the {@code Object} argument.
-     *
-     * @param obj an {@code Object}.
-     *
-     * @return if the argument is {@code null}, then a string equal to {@code "null"};
-     * otherwise, the value of {@code obj.toString()} is returned.
-     *
-     * @see Object#toString()
-     */
-    public static String valueOf(Object obj) {
-        return (obj == null) ? "null" : obj.toString();
-    }
-    
-    /**
-     * Returns the string representation of the {@code char} array argument.
-     * The contents of the character array are copied;
-     * subsequent modification of the character array does not affect the returned string.
-     *
-     * @param data the character array.
-     *
-     * @return a {@code String} that contains the characters of the character array.
-     */
-    public static String valueOf(char data[]) {
-        return new String(data);
-    }
-    
-    /**
-     * Returns the string representation of a specific subarray of the {@code char} array argument.
-     * <p>
-     * The {@code offset} argument is the index of the first character of the subarray.
-     * The {@code count} argument specifies the length of the subarray.
-     * The contents of the subarray are copied; subsequent modification of the character array does not affect the returned string.
-     *
-     * @param data   the character array.
-     * @param offset initial offset of the subarray.
-     * @param count  length of the subarray.
-     *
-     * @return a {@code String} that contains the characters of the specified subarray of the character array.
-     *
-     * @throws IndexOutOfBoundsException if {@code offset} is negative,
-     * or {@code count} is negative, or {@code offset+count} is larger than {@code data.length}.
-     */
-    public static String valueOf(char data[], int offset, int count) {
-        return new String(data, offset, count);
-    }
-    
-    /**
-     * Equivalent to {@link #valueOf(char[])}.
-     *
-     * @param data the character array.
-     *
-     * @return a {@code String} that contains the characters of the character array.
-     */
-    public static String copyValueOf(char data[]) {
-        return new String(data);
-    }
-    
-    /**
-     * Equivalent to {@link #valueOf(char[], int, int)}.
-     *
-     * @param data   the character array.
-     * @param offset initial offset of the subarray.
-     * @param count  length of the subarray.
-     *
-     * @return a {@code String} that contains the characters of the specified subarray of the character array.
-     *
-     * @throws IndexOutOfBoundsException if {@code offset} is negative,
-     * or {@code count} is negative, or {@code offset+count} is larger than {@code data.length}.
-     */
-    public static String copyValueOf(char data[], int offset, int count) {
-        return new String(data, offset, count);
-    }
     
     /**
      * Returns the string representation of the {@code boolean} argument.
@@ -1046,155 +948,82 @@ public final class String implements Serializable, Comparable<String>, CharSeque
     }
     
     /**
-     * Returns the string representation of the {@code codePoint} argument.
+     * Returns the string representation of the {@code Object} argument.
      *
-     * @param codePoint a {@code codePoint}.
+     * @param obj an {@code Object}.
      *
-     * @return a string of length {@code 1} or {@code 2} containing as its single character the argument {@code codePoint}.
+     * @return if the argument is {@code null}, then a string equal to {@code "null"};
+     * otherwise, the value of {@code obj.toString()} is returned.
      *
-     * @throws IllegalArgumentException if the specified {@code codePoint} is not a {@linkplain Character#isValidCodePoint valid Unicode code point}.
+     * @see Object#toString()
      */
-    // 转换Unicode符号的codePoint为字节表示，再包装到String返回
-    static String valueOfCodePoint(int codePoint) {
-        // 先将码点值编码为byte数组，再将其解码为String序列
-        
-        if(COMPACT_STRINGS && StringLatin1.canEncode(codePoint)) {
-            // 解码单字节符号
-            return new String(StringLatin1.toBytes((char) codePoint), LATIN1);
-        } else if(Character.isBmpCodePoint(codePoint)) {
-            // 解码双字节符号
-            return new String(StringUTF16.toBytes((char) codePoint), UTF16);
-        } else if(Character.isSupplementaryCodePoint(codePoint)) {
-            // 解码四字节符号
-            return new String(StringUTF16.toBytesSupplementary(codePoint), UTF16);
-        }
-        
-        throw new IllegalArgumentException(format("Not a valid Unicode code point: 0x%X", codePoint));
+    public static String valueOf(Object obj) {
+        return (obj == null) ? "null" : obj.toString();
+    }
+    
+    
+    /**
+     * Returns the string representation of the {@code char} array argument.
+     * The contents of the character array are copied;
+     * subsequent modification of the character array does not affect the returned string.
+     *
+     * @param data the character array.
+     *
+     * @return a {@code String} that contains the characters of the character array.
+     */
+    public static String valueOf(char data[]) {
+        return new String(data);
+    }
+    
+    /**
+     * Returns the string representation of a specific subarray of the {@code char} array argument.
+     * <p>
+     * The {@code offset} argument is the index of the first character of the subarray.
+     * The {@code count} argument specifies the length of the subarray.
+     * The contents of the subarray are copied; subsequent modification of the character array does not affect the returned string.
+     *
+     * @param data   the character array.
+     * @param offset initial offset of the subarray.
+     * @param count  length of the subarray.
+     *
+     * @return a {@code String} that contains the characters of the specified subarray of the character array.
+     *
+     * @throws IndexOutOfBoundsException if {@code offset} is negative,
+     *                                   or {@code count} is negative, or {@code offset+count} is larger than {@code data.length}.
+     */
+    public static String valueOf(char data[], int offset, int count) {
+        return new String(data, offset, count);
+    }
+    
+    
+    /**
+     * Equivalent to {@link #valueOf(char[])}.
+     *
+     * @param data the character array.
+     *
+     * @return a {@code String} that contains the characters of the character array.
+     */
+    public static String copyValueOf(char data[]) {
+        return new String(data);
+    }
+    
+    /**
+     * Equivalent to {@link #valueOf(char[], int, int)}.
+     *
+     * @param data   the character array.
+     * @param offset initial offset of the subarray.
+     * @param count  length of the subarray.
+     *
+     * @return a {@code String} that contains the characters of the specified subarray of the character array.
+     *
+     * @throws IndexOutOfBoundsException if {@code offset} is negative,
+     *                                   or {@code count} is negative, or {@code offset+count} is larger than {@code data.length}.
+     */
+    public static String copyValueOf(char data[], int offset, int count) {
+        return new String(data, offset, count);
     }
     
     /*▲ 字符串化 ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
-    /*▼ 查找Unicode符号下标 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Returns the index within this string of the first occurrence of the specified character.
-     * If a character with value {@code ch} occurs in the character sequence represented by this {@code String} object,
-     * then the index (in Unicode code units) of the first such occurrence is returned.
-     * For values of {@code ch} in the range from 0 to 0xFFFF (inclusive), this is the smallest value <i>k</i> such that:
-     * <blockquote><pre>
-     * this.charAt(<i>k</i>) == ch
-     * </pre></blockquote>
-     * is true. For other values of {@code ch}, it is the smallest value <i>k</i> such that:
-     * <blockquote><pre>
-     * this.codePointAt(<i>k</i>) == ch
-     * </pre></blockquote>
-     * is true. In either case, if no such character occurs in this string, then {@code -1} is returned.
-     *
-     * @param ch a character (Unicode code point).
-     *
-     * @return the index of the first occurrence of the character in the character sequence represented by this object,
-     * or {@code -1} if the character does not occur.
-     */
-    // 返回ch在String的字节值value中第一次出现的下标
-    public int indexOf(int ch) {
-        return indexOf(ch, 0);
-    }
-    
-    /**
-     * Returns the index within this string of the first occurrence of the specified character, starting the search at the specified index.
-     * <p>
-     * If a character with value {@code ch} occurs in the character sequence
-     * represented by this {@code String} object at an index no smaller than {@code fromIndex}, then the index of the first such occurrence is returned.
-     * For values of {@code ch} in the range from 0 to 0xFFFF (inclusive), this is the smallest value <i>k</i> such that:
-     * <blockquote><pre>
-     * (this.charAt(<i>k</i>) == ch) {@code &&} (<i>k</i> &gt;= fromIndex)
-     * </pre></blockquote>
-     * is true. For other values of {@code ch}, it is the smallest value <i>k</i> such that:
-     * <blockquote><pre>
-     * (this.codePointAt(<i>k</i>) == ch) {@code &&} (<i>k</i> &gt;= fromIndex)
-     * </pre></blockquote>
-     * is true. In either case, if no such character occurs in this string at or after position {@code fromIndex}, then {@code -1} is returned.
-     *
-     * <p>
-     * There is no restriction on the value of {@code fromIndex}.
-     * If it is negative, it has the same effect as if it were zero:
-     * this entire string may be searched. If it is greater than the length of this string,
-     * it has the same effect as if it were equal to the length of this string: {@code -1} is returned.
-     *
-     * <p>All indices are specified in {@code char} values
-     * (Unicode code units).
-     *
-     * @param ch        a character (Unicode code point).
-     * @param fromIndex the index to start the search from.
-     *
-     * @return the index of the first occurrence of the character in the character sequence represented by this object that is greater
-     * than or equal to {@code fromIndex}, or {@code -1} if the character does not occur.
-     */
-    // 返回ch在String的字节值value中第一次出现的下标（从某个索引开始搜索）
-    public int indexOf(int ch, int fromIndex) {
-        return isLatin1() ? StringLatin1.indexOf(value, ch, fromIndex) : StringUTF16.indexOf(value, ch, fromIndex);
-    }
-    
-    /**
-     * Returns the index within this string of the last occurrence of the specified character.
-     * For values of {@code ch} in the range from 0 to 0xFFFF (inclusive),
-     * the index (in Unicode code units) returned is the largest value <i>k</i> such that:
-     * <blockquote><pre>
-     * this.charAt(<i>k</i>) == ch
-     * </pre></blockquote>
-     * is true. For other values of {@code ch}, it is the largest value <i>k</i> such that:
-     * <blockquote><pre>
-     * this.codePointAt(<i>k</i>) == ch
-     * </pre></blockquote>
-     * is true.  In either case, if no such character occurs in this string, then {@code -1} is returned.
-     * The {@code String} is searched backwards starting at the last character.
-     *
-     * @param ch a character (Unicode code point).
-     *
-     * @return the index of the last occurrence of the character in the character sequence represented by this object,
-     * or {@code -1} if the character does not occur.
-     */
-    // 返回ch在String的字节值value中最后一次出现的下标
-    public int lastIndexOf(int ch) {
-        return lastIndexOf(ch, length() - 1);
-    }
-    
-    /**
-     * Returns the index within this string of the last occurrence of the specified character,
-     * searching backward starting at the specified index.
-     * For values of {@code ch} in the range from 0 to 0xFFFF (inclusive), the index returned is the largest value <i>k</i> such that:
-     * <blockquote><pre>
-     * (this.charAt(<i>k</i>) == ch) {@code &&} (<i>k</i> &lt;= fromIndex)
-     * </pre></blockquote>
-     * is true. For other values of {@code ch}, it is the largest value <i>k</i> such that:
-     * <blockquote><pre>
-     * (this.codePointAt(<i>k</i>) == ch) {@code &&} (<i>k</i> &lt;= fromIndex)
-     * </pre></blockquote>
-     * is true. In either case, if no such character occurs in this string at or before position {@code fromIndex}, then {@code -1} is returned.
-     *
-     * <p>All indices are specified in {@code char} values
-     * (Unicode code units).
-     *
-     * @param ch        a character (Unicode code point).
-     * @param fromIndex the index to start the search from.
-     *                  There is no restriction on the value of {@code fromIndex}.
-     *                  If it is greater than or equal to the length of this string,
-     *                  it has the same effect as if it were equal to one less than the length of this string:
-     *                  this entire string may be searched. If it is negative, it has the same effect as if it were -1: -1 is returned.
-     *
-     * @return the index of the last occurrence of the character in the character sequence represented by this object
-     * that is less than or equal to {@code fromIndex}, or {@code -1} if the character does not occur before that point.
-     */
-    // 返回ch在String的字节值value中最后一次出现的下标
-    public int lastIndexOf(int ch, int fromIndex) {
-        return isLatin1()
-            ? StringLatin1.lastIndexOf(value, ch, fromIndex)
-            : StringUTF16.lastIndexOf(value, ch, fromIndex);
-    }
-    
-    /*▲ 查找Unicode符号下标 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -1216,9 +1045,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
     // 返回子串str在主串src中第一次出现的下标
     public int indexOf(String str) {
         if(coder() == str.coder()) {
-            return isLatin1()
-                ? StringLatin1.indexOf(value, str.value)
-                : StringUTF16.indexOf(value, str.value);
+            return isLatin1() ? StringLatin1.indexOf(value, str.value) : StringUTF16.indexOf(value, str.value);
         }
         if(coder() == LATIN1) {  // str.coder == UTF16
             return -1;
@@ -1245,46 +1072,6 @@ public final class String implements Serializable, Comparable<String>, CharSeque
     // 返回子串str在当前主串String中第一次出现的下标（从主串fromIndex处向后搜索）
     public int indexOf(String str, int fromIndex) {
         return indexOf(value, coder(), length(), str, fromIndex);
-    }
-    
-    /**
-     * Code shared by String and AbstractStringBuilder to do searches.
-     * The source is the character array being searched, and the target is the string being searched for.
-     *
-     * @param src       the characters being searched.
-     * @param srcCoder  the coder of the source string.
-     * @param srcCount  length of the source string.
-     * @param tgtStr    the characters being searched for.
-     * @param fromIndex the index to begin searching from.
-     */
-    // 返回子串tgstr在主串src中第一次出现的下标（从主串fromIndex处向后搜索）
-    static int indexOf(byte[] src, byte srcCoder, int srcCount, String tgtStr, int fromIndex) {
-        byte[] tgt = tgtStr.value;
-        byte tgtCoder = tgtStr.coder();
-        int tgtCount = tgtStr.length();
-        
-        if(fromIndex >= srcCount) {
-            return (tgtCount == 0 ? srcCount : -1);
-        }
-        if(fromIndex < 0) {
-            fromIndex = 0;
-        }
-        if(tgtCount == 0) {
-            return fromIndex;
-        }
-        if(tgtCount > srcCount) {
-            return -1;
-        }
-        if(srcCoder == tgtCoder) {
-            return srcCoder == LATIN1
-                ? StringLatin1.indexOf(src, srcCount, tgt, tgtCount, fromIndex)
-                : StringUTF16.indexOf(src, srcCount, tgt, tgtCount, fromIndex);
-        }
-        if(srcCoder == LATIN1) {    //  && tgtCoder == UTF16
-            return -1;
-        }
-        // 比对UTF16-String主串src和Latin1子串tgt，返回子串str在主串src中第一次出现的位置，加入了范围检查
-        return StringUTF16.indexOfLatin1(src, srcCount, tgt, tgtCount, fromIndex);
     }
     
     /**
@@ -1327,109 +1114,129 @@ public final class String implements Serializable, Comparable<String>, CharSeque
         return lastIndexOf(value, coder(), length(), str, fromIndex);
     }
     
-    /**
-     * Code shared by String and AbstractStringBuilder to do searches.
-     * The source is the character array being searched, and the target is the string being searched for.
-     *
-     * @param src       the characters being searched.
-     * @param srcCoder  coder handles the mapping between bytes/chars
-     * @param srcCount  count of the source string.
-     * @param fromIndex the index to begin searching from.
-     */
-    // 返回子串tgtStr在主串src中最后一次出现的下标（从主串fromIndex处向前搜索）
-    static int lastIndexOf(byte[] src, byte srcCoder, int srcCount, String tgtStr, int fromIndex) {
-        byte[] tgt = tgtStr.value;
-        byte tgtCoder = tgtStr.coder();
-        int tgtCount = tgtStr.length();
-        
-        // Check arguments; return immediately where possible. For consistency, don't check for null str.
-        int rightIndex = srcCount - tgtCount;
-        if(fromIndex > rightIndex) {
-            fromIndex = rightIndex;
-        }
-        if(fromIndex < 0) {
-            return -1;
-        }
-        /* Empty string always matches. */
-        if(tgtCount == 0) {
-            return fromIndex;
-        }
-        if(srcCoder == tgtCoder) {
-            return srcCoder == LATIN1
-                ? StringLatin1.lastIndexOf(src, srcCount, tgt, tgtCount, fromIndex)
-                : StringUTF16.lastIndexOf(src, srcCount, tgt, tgtCount, fromIndex);
-        }
-        if(srcCoder == LATIN1) {    // && tgtCoder == UTF16
-            return -1;
-        }
-        // 比对UTF16-String主串src和Latin1子串tgt，返回子串str在主串src中最后一次出现的位置
-        return StringUTF16.lastIndexOfLatin1(src, srcCount, tgt, tgtCount, fromIndex);
-    }
-    
     /*▲ 查找子串下标 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
-    /*▼ 格式化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 查找Unicode符号下标 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
-     * Returns a formatted string using the specified format string and arguments.
+     * Returns the index within this string of the first occurrence of the specified character.
+     * If a character with value {@code ch} occurs in the character sequence represented by this {@code String} object,
+     * then the index (in Unicode code units) of the first such occurrence is returned.
+     * For values of {@code ch} in the range from 0 to 0xFFFF (inclusive), this is the smallest value <i>k</i> such that:
+     * <blockquote><pre>
+     * this.charAt(<i>k</i>) == ch
+     * </pre></blockquote>
+     * is true. For other values of {@code ch}, it is the smallest value <i>k</i> such that:
+     * <blockquote><pre>
+     * this.codePointAt(<i>k</i>) == ch
+     * </pre></blockquote>
+     * is true. In either case, if no such character occurs in this string, then {@code -1} is returned.
      *
-     * <p> The locale always used is the one returned by {@link
-     * Locale#getDefault(Locale.Category) Locale.getDefault(Locale.Category)} with {@link Locale.Category#FORMAT FORMAT} category specified.
+     * @param ch a character (Unicode code point).
      *
-     * @param format A <a href="../util/Formatter.html#syntax">format string</a>
-     * @param args   Arguments referenced by the format specifiers in the format string.
-     *               If there are more arguments than format specifiers, the extra arguments are ignored.
-     *               The number of arguments is variable and may be zero.
-     *               The maximum number of arguments is limited by the maximum dimension of a Java array as defined by
-     *               <cite>The Java&trade; Virtual Machine Specification</cite>.
-     *               The behaviour on a {@code null} argument depends on the <a href="../util/Formatter.html#syntax">conversion</a>.
-     *
-     * @return A formatted string
-     *
-     * @throws java.util.IllegalFormatException If a format string contains an illegal syntax,
-     * a format specifier that is incompatible with the given arguments, insufficient arguments given the format string,
-     * or other illegal conditions.
-     * For specification of all possible formatting errors,
-     * see the <a href="../util/Formatter.html#detail">Details</a> section of the formatter class specification.
-     * @see Formatter
-     * @since 1.5
+     * @return the index of the first occurrence of the character in the character sequence represented by this object,
+     * or {@code -1} if the character does not occur.
      */
-    public static String format(String format, Object... args) {
-        return new Formatter().format(format, args).toString();
+    // 从串首向后搜索，返回在当前[字符序列]中首次遇到Unicode符号ch时的下标
+    public int indexOf(int ch) {
+        return indexOf(ch, 0);
     }
     
     /**
-     * Returns a formatted string using the specified locale, format string, and arguments.
+     * Returns the index within this string of the first occurrence of the specified character, starting the search at the specified index.
+     * <p>
+     * If a character with value {@code ch} occurs in the character sequence
+     * represented by this {@code String} object at an index no smaller than {@code fromIndex}, then the index of the first such occurrence is returned.
+     * For values of {@code ch} in the range from 0 to 0xFFFF (inclusive), this is the smallest value <i>k</i> such that:
+     * <blockquote><pre>
+     * (this.charAt(<i>k</i>) == ch) {@code &&} (<i>k</i> &gt;= fromIndex)
+     * </pre></blockquote>
+     * is true. For other values of {@code ch}, it is the smallest value <i>k</i> such that:
+     * <blockquote><pre>
+     * (this.codePointAt(<i>k</i>) == ch) {@code &&} (<i>k</i> &gt;= fromIndex)
+     * </pre></blockquote>
+     * is true. In either case, if no such character occurs in this string at or after position {@code fromIndex}, then {@code -1} is returned.
      *
-     * @param l      The {@linkplain Locale locale} to apply during formatting.
-     *               If {@code l} is {@code null} then no localization is applied.
-     * @param format A <a href="../util/Formatter.html#syntax">format string</a>
-     * @param args   Arguments referenced by the format specifiers in the format string.
-     *               If there are more arguments than format specifiers, the extra arguments are ignored.
-     *               The number of arguments is variable and may be zero.
-     *               The maximum number of arguments is limited by the maximum dimension of a Java array as defined by
-     *               <cite>The Java&trade; Virtual Machine Specification</cite>.
-     *               The behaviour on a {@code null} argument depends on the
-     *               <a href="../util/Formatter.html#syntax">conversion</a>.
+     * <p>
+     * There is no restriction on the value of {@code fromIndex}.
+     * If it is negative, it has the same effect as if it were zero:
+     * this entire string may be searched. If it is greater than the length of this string,
+     * it has the same effect as if it were equal to the length of this string: {@code -1} is returned.
      *
-     * @return A formatted string
+     * <p>All indices are specified in {@code char} values
+     * (Unicode code units).
      *
-     * @throws java.util.IllegalFormatException
-     * If a format string contains an illegal syntax,
-     * a format specifier that is incompatible with the given arguments,
-     * insufficient arguments given the format string, or other illegal conditions.
-     * For specification of all possible formatting errors,
-     * see the <a href="../util/Formatter.html#detail">Details</a> section of the formatter class specification
-     * @see Formatter
-     * @since 1.5
+     * @param ch        a character (Unicode code point).
+     * @param fromIndex the index to start the search from.
+     *
+     * @return the index of the first occurrence of the character in the character sequence represented by this object that is greater
+     * than or equal to {@code fromIndex}, or {@code -1} if the character does not occur.
      */
-    public static String format(Locale l, String format, Object... args) {
-        return new Formatter(l).format(format, args).toString();
+    // 从字符索引fromIndex处向后搜索，返回在当前[字符序列]中首次遇到Unicode符号ch时的下标
+    public int indexOf(int ch, int fromIndex) {
+        return isLatin1() ? StringLatin1.indexOf(value, ch, fromIndex) : StringUTF16.indexOf(value, ch, fromIndex);
     }
     
-    /*▲ 格式化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /**
+     * Returns the index within this string of the last occurrence of the specified character.
+     * For values of {@code ch} in the range from 0 to 0xFFFF (inclusive),
+     * the index (in Unicode code units) returned is the largest value <i>k</i> such that:
+     * <blockquote><pre>
+     * this.charAt(<i>k</i>) == ch
+     * </pre></blockquote>
+     * is true. For other values of {@code ch}, it is the largest value <i>k</i> such that:
+     * <blockquote><pre>
+     * this.codePointAt(<i>k</i>) == ch
+     * </pre></blockquote>
+     * is true.  In either case, if no such character occurs in this string, then {@code -1} is returned.
+     * The {@code String} is searched backwards starting at the last character.
+     *
+     * @param ch a character (Unicode code point).
+     *
+     * @return the index of the last occurrence of the character in the character sequence represented by this object,
+     * or {@code -1} if the character does not occur.
+     */
+    // 从串尾向前搜索，返回在当前[字符序列]中首次遇到Unicode符号ch时的下标
+    public int lastIndexOf(int ch) {
+        return lastIndexOf(ch, length() - 1);
+    }
+    
+    /**
+     * Returns the index within this string of the last occurrence of the specified character,
+     * searching backward starting at the specified index.
+     * For values of {@code ch} in the range from 0 to 0xFFFF (inclusive), the index returned is the largest value <i>k</i> such that:
+     * <blockquote><pre>
+     * (this.charAt(<i>k</i>) == ch) {@code &&} (<i>k</i> &lt;= fromIndex)
+     * </pre></blockquote>
+     * is true. For other values of {@code ch}, it is the largest value <i>k</i> such that:
+     * <blockquote><pre>
+     * (this.codePointAt(<i>k</i>) == ch) {@code &&} (<i>k</i> &lt;= fromIndex)
+     * </pre></blockquote>
+     * is true. In either case, if no such character occurs in this string at or before position {@code fromIndex}, then {@code -1} is returned.
+     *
+     * <p>All indices are specified in {@code char} values
+     * (Unicode code units).
+     *
+     * @param ch        a character (Unicode code point).
+     * @param fromIndex the index to start the search from.
+     *                  There is no restriction on the value of {@code fromIndex}.
+     *                  If it is greater than or equal to the length of this string,
+     *                  it has the same effect as if it were equal to one less than the length of this string:
+     *                  this entire string may be searched. If it is negative, it has the same effect as if it were -1: -1 is returned.
+     *
+     * @return the index of the last occurrence of the character in the character sequence represented by this object
+     * that is less than or equal to {@code fromIndex}, or {@code -1} if the character does not occur before that point.
+     */
+    // 从字符索引fromIndex处向前搜索，返回在当前[字符序列]中首次遇到Unicode符号ch时的下标
+    public int lastIndexOf(int ch, int fromIndex) {
+        return isLatin1()
+            ? StringLatin1.lastIndexOf(value, ch, fromIndex)
+            : StringUTF16.lastIndexOf(value, ch, fromIndex);
+    }
+    
+    /*▲ 查找Unicode符号下标 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -1506,7 +1313,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * s.codePointAt(2) == "\uDC1D"的Unicode值        // ?
      * s.codePointAt(3) == "\u54c8"                   // 哈
      */
-    // 返回String中某处符号（一字节/双字节/四字节）的Unicode编码（从前到后试探）
+    // 返回String中index处符号（一字节/双字节/四字节）的Unicode编码（从前到后试探）
     public int codePointAt(int index) {
         // 可以用压缩的Latin1字符集表示
         if(isLatin1()) {
@@ -1514,6 +1321,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
             // 返回单字节符号码点
             return value[index] & 0xff;
         }
+        
         // 计算码元（char）数量
         int length = value.length >> 1;
         checkIndex(index, length);
@@ -1619,7 +1427,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      */
     // 返回index偏移codePointOffset个Unicode符号后新的索引值
     public int offsetByCodePoints(int index, int codePointOffset) {
-        if(index < 0 || index > length()) {
+        if(index < 0 || index>length()) {
             throw new IndexOutOfBoundsException();
         }
         return Character.offsetByCodePoints(this, index, codePointOffset);
@@ -1630,6 +1438,26 @@ public final class String implements Serializable, Comparable<String>, CharSeque
     
     
     /*▼ 大小写转换 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Converts all of the characters in this {@code String} to lower case using the rules of the default locale.
+     * This is equivalent to calling {@code toLowerCase(Locale.getDefault())}.
+     * <p>
+     * <b>Note:</b> This method is locale sensitive, and may produce unexpected
+     * results if used for strings that are intended to be interpreted locale independently.
+     * Examples are programming language identifiers, protocol keys, and HTML tags.
+     * For instance, {@code "TITLE".toLowerCase()} in a Turkish locale returns {@code "t\u005Cu0131tle"},
+     * where '\u005Cu0131' is the LATIN SMALL LETTER DOTLESS I character.
+     * To obtain correct results for locale insensitive strings, use {@code toLowerCase(Locale.ROOT)}.
+     *
+     * @return the {@code String}, converted to lowercase.
+     *
+     * @see String#toLowerCase(Locale)
+     */
+    // 转为小写，本地语言环境
+    public String toLowerCase() {
+        return toLowerCase(Locale.getDefault());
+    }
     
     /**
      * Converts all of the characters in this {@code String} to lower case using the rules of the given {@code Locale}.
@@ -1685,31 +1513,30 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * @see String#toUpperCase(Locale)
      * @since 1.1
      */
-    // 小写转换，需要指定语言环境
+    // 转为小写，需要指定语言环境
     public String toLowerCase(Locale locale) {
         return isLatin1()
-            ? StringLatin1.toLowerCase(this, value, locale)
-            : StringUTF16.toLowerCase(this, value, locale);
+            ? StringLatin1.toLowerCase(this, value, locale) : StringUTF16.toLowerCase(this, value, locale);
     }
     
     /**
-     * Converts all of the characters in this {@code String} to lower case using the rules of the default locale.
-     * This is equivalent to calling {@code toLowerCase(Locale.getDefault())}.
+     * Converts all of the characters in this {@code String} to upper case using the rules of the default locale.
+     * This method is equivalent to {@code toUpperCase(Locale.getDefault())}.
      * <p>
      * <b>Note:</b> This method is locale sensitive, and may produce unexpected
      * results if used for strings that are intended to be interpreted locale independently.
      * Examples are programming language identifiers, protocol keys, and HTML tags.
-     * For instance, {@code "TITLE".toLowerCase()} in a Turkish locale returns {@code "t\u005Cu0131tle"},
-     * where '\u005Cu0131' is the LATIN SMALL LETTER DOTLESS I character.
-     * To obtain correct results for locale insensitive strings, use {@code toLowerCase(Locale.ROOT)}.
+     * For instance, {@code "title".toUpperCase()} in a Turkish locale returns {@code "T\u005Cu0130TLE"},
+     * where '\u005Cu0130' is the LATIN CAPITAL LETTER I WITH DOT ABOVE character.
+     * To obtain correct results for locale insensitive strings, use {@code toUpperCase(Locale.ROOT)}.
      *
-     * @return the {@code String}, converted to lowercase.
+     * @return the {@code String}, converted to uppercase.
      *
-     * @see String#toLowerCase(Locale)
+     * @see String#toUpperCase(Locale)
      */
-    // 小写转换，本地语言环境
-    public String toLowerCase() {
-        return toLowerCase(Locale.getDefault());
+    // 转为大写，本地语言环境
+    public String toUpperCase() {
+        return toUpperCase(Locale.getDefault());
     }
     
     /**
@@ -1767,31 +1594,11 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * @see String#toLowerCase(Locale)
      * @since 1.1
      */
-    // 大写转换，需要指定语言环境
+    // 转为大写，需要指定语言环境
     public String toUpperCase(Locale locale) {
         return isLatin1()
             ? StringLatin1.toUpperCase(this, value, locale)
             : StringUTF16.toUpperCase(this, value, locale);
-    }
-    
-    /**
-     * Converts all of the characters in this {@code String} to upper case using the rules of the default locale.
-     * This method is equivalent to {@code toUpperCase(Locale.getDefault())}.
-     * <p>
-     * <b>Note:</b> This method is locale sensitive, and may produce unexpected
-     * results if used for strings that are intended to be interpreted locale independently.
-     * Examples are programming language identifiers, protocol keys, and HTML tags.
-     * For instance, {@code "title".toUpperCase()} in a Turkish locale returns {@code "T\u005Cu0130TLE"},
-     * where '\u005Cu0130' is the LATIN CAPITAL LETTER I WITH DOT ABOVE character.
-     * To obtain correct results for locale insensitive strings, use {@code toUpperCase(Locale.ROOT)}.
-     *
-     * @return the {@code String}, converted to uppercase.
-     *
-     * @see String#toUpperCase(Locale)
-     */
-    // 大写转换，大写，本地语言环境
-    public String toUpperCase() {
-        return toUpperCase(Locale.getDefault());
     }
     
     /*▲ 大小写转换 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -1815,7 +1622,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      *
      * @throws IndexOutOfBoundsException if {@code beginIndex} is negative or larger than the length of this {@code String} object.
      */
-    // 截取[beginIndex, len)范围内的子串，按Unicode符号而非char截取
+    // 截取beginIndex起始处的字符序列，以String形式返回
     public String substring(int beginIndex) {
         if(beginIndex < 0) {
             throw new StringIndexOutOfBoundsException(beginIndex);
@@ -1852,7 +1659,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * or {@code endIndex} is larger than the length of this {@code String} object,
      * or {@code beginIndex} is larger than {@code endIndex}.
      */
-    // 截取[beginIndex, endIndex)范围内的子串，按Unicode符号而非char截取
+    // 截取[beginIndex, endIndex)范围内的字符序列，以String形式返回
     public String substring(int beginIndex, int endIndex) {
         int length = length();
         checkBoundsBeginEnd(beginIndex, endIndex, length);
@@ -1889,7 +1696,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * @spec JSR-51
      * @since 1.4
      */
-    // 截取[beginIndex, endIndex)范围内的子串，按Unicode符号而非char截取
+    // 截取[beginIndex, endIndex)范围内的字符序列，以CharSequence形式返回
     public CharSequence subSequence(int beginIndex, int endIndex) {
         return this.substring(beginIndex, endIndex);
     }
@@ -1928,7 +1735,10 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * @see Pattern
      * @since 1.4
      */
-    // 将当前String从正则表达式regex匹配的地方切割，返回切割后的子串集合（忽略结尾空串），参见Pattern#split(CharSequence)
+    /*
+     * 将当前String从与正则regex匹配的地方切割，返回切割后的子串集合（忽略结尾空串），
+     * 参见Pattern#split(CharSequence)。
+     */
     public String[] split(String regex) {
         return split(regex, 0);
     }
@@ -2016,7 +1826,10 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * @see Pattern
      * @since 1.4
      */
-    // 将当前String从正则表达式regex匹配的地方切割，返回切割后的子串集合，参见Pattern#split(CharSequence, int)
+    /*
+     * 将当前String从与正则regex匹配的地方切割，返回切割后的子串集合，参数limit用来限制返回的子串数量，
+     * 参见Pattern#split(CharSequence, int)。
+     */
     public String[] split(String regex, int limit) {
         /*
          * fastpath if the regex is a
@@ -2024,7 +1837,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
          * (2)two-char String and the first char is the backslash and the second is not the ascii digit or ascii letter.
          */
         char ch = 0;
-        
+    
         if((regex.length() == 1 && ".$|()[{^?*+\\".indexOf(ch = regex.charAt(0)) == -1)
             || (regex.length() == 2
             && regex.charAt(0) == '\\'
@@ -2165,7 +1978,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      *
      * @since 1.5
      */
-    // 使用replacement替换target
+    // 使用replacement替换target，并返回替换后的String
     public String replace(CharSequence target, CharSequence replacement) {
         String tgtStr = target.toString();
         String replStr = replacement.toString();
@@ -2334,16 +2147,6 @@ public final class String implements Serializable, Comparable<String>, CharSeque
             ? StringLatin1.stripTrailing(value)
             : StringUTF16.stripTrailing(value);
         return ret == null ? this : ret;
-    }
-    
-    // 返回String起始处首个非空白字符的索引
-    private int indexOfNonWhitespace() {
-        // 可以用压缩的Latin1字符集表示
-        if(isLatin1()) {
-            return StringLatin1.indexOfNonWhitespace(value);
-        } else {
-            return StringUTF16.indexOfNonWhitespace(value);
-        }
     }
     
     /*▲ 修剪 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -2580,7 +2383,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * @see Pattern
      * @since 1.4
      */
-    // 当前字符串与给定的正则表达式是否完全匹配，参见Pattern#matches(String, CharSequence)和Matcher#matches()
+    // 判断当前字符串是否与给定的正则regex匹配，参见Pattern#matches(String, CharSequence)和Matcher#matches()
     public boolean matches(String regex) {
         return Pattern.matches(regex, this);
     }
@@ -2659,6 +2462,70 @@ public final class String implements Serializable, Comparable<String>, CharSeque
     
     
     
+    /*▼ 格式化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a formatted string using the specified format string and arguments.
+     *
+     * <p> The locale always used is the one returned by {@link
+     * Locale#getDefault(Locale.Category) Locale.getDefault(Locale.Category)} with {@link Locale.Category#FORMAT FORMAT} category specified.
+     *
+     * @param format A <a href="../util/Formatter.html#syntax">format string</a>
+     * @param args   Arguments referenced by the format specifiers in the format string.
+     *               If there are more arguments than format specifiers, the extra arguments are ignored.
+     *               The number of arguments is variable and may be zero.
+     *               The maximum number of arguments is limited by the maximum dimension of a Java array as defined by
+     *               <cite>The Java&trade; Virtual Machine Specification</cite>.
+     *               The behaviour on a {@code null} argument depends on the <a href="../util/Formatter.html#syntax">conversion</a>.
+     *
+     * @return A formatted string
+     *
+     * @throws java.util.IllegalFormatException If a format string contains an illegal syntax,
+     *                                          a format specifier that is incompatible with the given arguments, insufficient arguments given the format string,
+     *                                          or other illegal conditions.
+     *                                          For specification of all possible formatting errors,
+     *                                          see the <a href="../util/Formatter.html#detail">Details</a> section of the formatter class specification.
+     * @see Formatter
+     * @since 1.5
+     */
+    // 返回对指定的字符串片段进行格式化之后的结果
+    public static String format(String format, Object... args) {
+        return new Formatter().format(format, args).toString();
+    }
+    
+    /**
+     * Returns a formatted string using the specified locale, format string, and arguments.
+     *
+     * @param l      The {@linkplain Locale locale} to apply during formatting.
+     *               If {@code l} is {@code null} then no localization is applied.
+     * @param format A <a href="../util/Formatter.html#syntax">format string</a>
+     * @param args   Arguments referenced by the format specifiers in the format string.
+     *               If there are more arguments than format specifiers, the extra arguments are ignored.
+     *               The number of arguments is variable and may be zero.
+     *               The maximum number of arguments is limited by the maximum dimension of a Java array as defined by
+     *               <cite>The Java&trade; Virtual Machine Specification</cite>.
+     *               The behaviour on a {@code null} argument depends on the
+     *               <a href="../util/Formatter.html#syntax">conversion</a>.
+     *
+     * @return A formatted string
+     *
+     * @throws java.util.IllegalFormatException If a format string contains an illegal syntax,
+     *                                          a format specifier that is incompatible with the given arguments,
+     *                                          insufficient arguments given the format string, or other illegal conditions.
+     *                                          For specification of all possible formatting errors,
+     *                                          see the <a href="../util/Formatter.html#detail">Details</a> section of the formatter class specification
+     * @see Formatter
+     * @since 1.5
+     */
+    // 返回对指定的字符串片段进行格式化之后的结果(会使用指定区域的格式习惯)
+    public static String format(Locale locale, String format, Object... args) {
+        return new Formatter(locale).format(format, args).toString();
+    }
+    
+    /*▲ 格式化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
     /*▼ 比较 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
@@ -2695,7 +2562,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * a value less than {@code 0} if this string is lexicographically less than the string argument;
      * and a value greater than {@code 0} if this string is lexicographically greater than the string argument.
      */
-    // 比较两个String
+    // 比较两个String，区分大小写
     public int compareTo(String anotherString) {
         byte v1[] = value;
         byte v2[] = anotherString.value;
@@ -2762,7 +2629,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * @return {@code true} if the specified subregion of this string exactly matches the specified subregion of the string argument;
      * {@code false} otherwise.
      */
-    // 比较两个String指定的区域
+    // 比较两个String指定的区域，区分大小写
     public boolean regionMatches(int toffset, String other, int ooffset, int len) {
         byte tv[] = value;
         byte ov[] = other.value;
@@ -3060,7 +2927,6 @@ public final class String implements Serializable, Comparable<String>, CharSeque
     /*▲ 判空 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
-    
     /**
      * Returns the length of this string.
      * The length is equal to the number of <a href="Character.html#unicode">Unicode code units</a> in the string.
@@ -3071,6 +2937,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
     public int length() {
         return value.length >> coder();
     }
+    
     
     
     /**
@@ -3113,42 +2980,40 @@ public final class String implements Serializable, Comparable<String>, CharSeque
         if(count < 0) {
             throw new IllegalArgumentException("count is negative: " + count);
         }
+        
         if(count == 1) {
             return this;
         }
+        
         final int len = value.length;
         if(len == 0 || count == 0) {
             return "";
         }
+    
         if(len == 1) {
             final byte[] single = new byte[count];
             Arrays.fill(single, value[0]);
             return new String(single, coder);
         }
+        
         if(Integer.MAX_VALUE / count < len) {
             throw new OutOfMemoryError("Repeating " + len + " bytes String " + count + " times will produce a String exceeding maximum size.");
         }
+    
         final int limit = len * count;
         final byte[] multiple = new byte[limit];
         System.arraycopy(value, 0, multiple, 0, len);
+        
         int copied = len;
         for(; copied < limit - copied; copied <<= 1) {
             System.arraycopy(multiple, 0, multiple, copied, copied);
         }
+        
         System.arraycopy(multiple, 0, multiple, copied, limit - copied);
+        
         return new String(multiple, coder);
     }
     
-    
-    // 如果字符串可压缩，则返回coder字段的值。否则，始终返回UTF-16。
-    byte coder() {
-        return COMPACT_STRINGS ? coder : UTF16;
-    }
-    
-    // true：表示该字符串可以用压缩的Latin1字符集表示（一个字节对应了一个符号）
-    private boolean isLatin1() {
-        return COMPACT_STRINGS && coder == LATIN1;
-    }
     
     
     /**
@@ -3165,7 +3030,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
     // 计算String的哈希值，计算公式为：s[0]*31^(n-1) + s[1]*31^(n-2) + ... + s[n-1]。空串的哈希值为0。
     public int hashCode() {
         int h = hash;
-        if(h == 0 && value.length > 0) {
+        if(h == 0 && value.length>0) {
             hash = h = isLatin1() ? StringLatin1.hashCode(value) : StringUTF16.hashCode(value);
         }
         return h;
@@ -3182,7 +3047,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
     
     
     
-    //▼ 越界检查 ████████████████████████████████████████████████████████████████████████████████
+    /*▼ 越界检查 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     static void checkIndex(int index, int length) {
         if(index < 0 || index >= length) {
@@ -3215,10 +3080,10 @@ public final class String implements Serializable, Comparable<String>, CharSeque
      * Check {@code begin}, {@code end} against {@code 0} and {@code length} bounds.
      *
      * @throws StringIndexOutOfBoundsException If {@code begin} is negative,
-     * {@code begin} is greater than {@code end}, or {@code end} is greater than {@code length}.
+     *                                         {@code begin} is greater than {@code end}, or {@code end} is greater than {@code length}.
      */
     static void checkBoundsBeginEnd(int begin, int end, int length) {
-        if(begin < 0 || begin > end || end > length) {
+        if(begin<0 || begin>end || end>length) {
             throw new StringIndexOutOfBoundsException("begin " + begin + ", end " + end + ", length " + length);
         }
     }
@@ -3228,7 +3093,156 @@ public final class String implements Serializable, Comparable<String>, CharSeque
         return null;
     }
     
-    //▲ 越界检查 ████████████████████████████████████████████████████████████████████████████████
+    /*▲ 越界检查 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    // 如果字符串可压缩，则返回coder字段的值。否则，始终返回UTF-16。
+    byte coder() {
+        return COMPACT_STRINGS ? coder : UTF16;
+    }
+    
+    // true：表示该字符串可以用压缩的Latin1字符集表示（一个字节对应了一个符号）
+    private boolean isLatin1() {
+        return COMPACT_STRINGS && coder == LATIN1;
+    }
+    
+    /**
+     * Copy character bytes from this string into dst starting at dstBegin.
+     * This method doesn't perform any range checking.
+     *
+     * Invoker guarantees: dst is in UTF16 (inflate itself for asb),
+     * if two coders are different, and dst is big enough (range check)
+     *
+     * @param dstBegin the char index, not offset of byte[]
+     * @param coder    the coder of dst[]
+     */
+    // 拷贝String中的字节到dst数组
+    void getBytes(byte dst[], int dstBegin, byte coder) {
+        if(coder() == coder) {
+            System.arraycopy(value, 0, dst, dstBegin << coder, value.length);
+        } else {
+            /* 如果两个coder不同，则将源字符串当做LATIN-String对待 */
+            // 从LATIN-String内部的字节转为UTF16-String内部的字节
+            StringLatin1.inflate(value, 0, dst, dstBegin, value.length);
+        }
+    }
+    
+    // 返回存储String的byte数组
+    byte[] value() {
+        return value;
+    }
+    
+    /**
+     * Returns the string representation of the {@code codePoint} argument.
+     *
+     * @param codePoint a {@code codePoint}.
+     *
+     * @return a string of length {@code 1} or {@code 2} containing as its single character the argument {@code codePoint}.
+     *
+     * @throws IllegalArgumentException if the specified {@code codePoint} is not a {@linkplain Character#isValidCodePoint valid Unicode code point}.
+     */
+    // 转换Unicode符号的codePoint为字节表示，再包装到String返回
+    static String valueOfCodePoint(int codePoint) {
+        // 先将码点值编码为byte数组，再将其解码为String序列
+        
+        if(COMPACT_STRINGS && StringLatin1.canEncode(codePoint)) {
+            // 解码单字节符号
+            return new String(StringLatin1.toBytes((char) codePoint), LATIN1);
+        } else if(Character.isBmpCodePoint(codePoint)) {
+            // 解码双字节符号
+            return new String(StringUTF16.toBytes((char) codePoint), UTF16);
+        } else if(Character.isSupplementaryCodePoint(codePoint)) {
+            // 解码四字节符号
+            return new String(StringUTF16.toBytesSupplementary(codePoint), UTF16);
+        }
+        
+        throw new IllegalArgumentException(format("Not a valid Unicode code point: 0x%X", codePoint));
+    }
+    
+    /**
+     * Code shared by String and AbstractStringBuilder to do searches.
+     * The source is the character array being searched, and the target is the string being searched for.
+     *
+     * @param src       the characters being searched.
+     * @param srcCoder  the coder of the source string.
+     * @param srcCount  length of the source string.
+     * @param tgtStr    the characters being searched for.
+     * @param fromIndex the index to begin searching from.
+     */
+    // 返回子串tgstr在主串src中第一次出现的下标（从主串fromIndex处向后搜索）
+    static int indexOf(byte[] src, byte srcCoder, int srcCount, String tgtStr, int fromIndex) {
+        byte[] tgt = tgtStr.value;
+        byte tgtCoder = tgtStr.coder();
+        int tgtCount = tgtStr.length();
+        
+        if(fromIndex >= srcCount) {
+            return (tgtCount == 0 ? srcCount : -1);
+        }
+        if(fromIndex<0) {
+            fromIndex = 0;
+        }
+        if(tgtCount == 0) {
+            return fromIndex;
+        }
+        if(tgtCount>srcCount) {
+            return -1;
+        }
+        if(srcCoder == tgtCoder) {
+            return srcCoder == LATIN1 ? StringLatin1.indexOf(src, srcCount, tgt, tgtCount, fromIndex) : StringUTF16.indexOf(src, srcCount, tgt, tgtCount, fromIndex);
+        }
+        if(srcCoder == LATIN1) {    //  && tgtCoder == UTF16
+            return -1;
+        }
+        // 比对UTF16-String主串src和Latin1子串tgt，返回子串str在主串src中第一次出现的位置，加入了范围检查
+        return StringUTF16.indexOfLatin1(src, srcCount, tgt, tgtCount, fromIndex);
+    }
+    
+    /**
+     * Code shared by String and AbstractStringBuilder to do searches.
+     * The source is the character array being searched, and the target is the string being searched for.
+     *
+     * @param src       the characters being searched.
+     * @param srcCoder  coder handles the mapping between bytes/chars
+     * @param srcCount  count of the source string.
+     * @param fromIndex the index to begin searching from.
+     */
+    // 返回子串tgtStr在主串src中最后一次出现的下标（从主串fromIndex处向前搜索）
+    static int lastIndexOf(byte[] src, byte srcCoder, int srcCount, String tgtStr, int fromIndex) {
+        byte[] tgt = tgtStr.value;
+        byte tgtCoder = tgtStr.coder();
+        int tgtCount = tgtStr.length();
+        
+        // Check arguments; return immediately where possible. For consistency, don't check for null str.
+        int rightIndex = srcCount - tgtCount;
+        if(fromIndex>rightIndex) {
+            fromIndex = rightIndex;
+        }
+        if(fromIndex<0) {
+            return -1;
+        }
+        /* Empty string always matches. */
+        if(tgtCount == 0) {
+            return fromIndex;
+        }
+        if(srcCoder == tgtCoder) {
+            return srcCoder == LATIN1 ? StringLatin1.lastIndexOf(src, srcCount, tgt, tgtCount, fromIndex) : StringUTF16.lastIndexOf(src, srcCount, tgt, tgtCount, fromIndex);
+        }
+        if(srcCoder == LATIN1) {    // && tgtCoder == UTF16
+            return -1;
+        }
+        // 比对UTF16-String主串src和Latin1子串tgt，返回子串str在主串src中最后一次出现的位置
+        return StringUTF16.lastIndexOfLatin1(src, srcCount, tgt, tgtCount, fromIndex);
+    }
+    
+    // 返回String起始处首个非空白字符的索引
+    private int indexOfNonWhitespace() {
+        // 可以用压缩的Latin1字符集表示
+        if(isLatin1()) {
+            return StringLatin1.indexOfNonWhitespace(value);
+        } else {
+            return StringUTF16.indexOfNonWhitespace(value);
+        }
+    }
     
     
     // 字符串比较器
@@ -3241,8 +3255,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
             byte v1[] = s1.value;
             byte v2[] = s2.value;
             if(s1.coder() == s2.coder()) {
-                return s1.isLatin1()
-                    ? StringLatin1.compareToCI(v1, v2)
+                return s1.isLatin1() ? StringLatin1.compareToCI(v1, v2)
                     : StringUTF16.compareToCI(v1, v2);
             }
             return s1.isLatin1() ? StringLatin1.compareToCI_UTF16(v1, v2) : StringUTF16.compareToCI_Latin1(v1, v2);
@@ -3255,4 +3268,5 @@ public final class String implements Serializable, Comparable<String>, CharSeque
             return CASE_INSENSITIVE_ORDER;
         }
     }
+    
 }

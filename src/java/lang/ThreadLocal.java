@@ -75,7 +75,7 @@ import java.util.function.Supplier;
  * @since 1.2
  */
 /*
- * 为线程缓存数据，将数据本地化（脱离共享）
+ * 线程局部缓存：为线程缓存数据，将数据本地化（脱离共享）
  *
  * 原理：
  * 1. 每个线程由一个ThreadLocalMap属性，本质就是一个map

@@ -64,7 +64,7 @@ import java.util.concurrent.locks.LockSupport;
  * @param <V> The result type returned by this FutureTask's {@code get} methods
  */
 /*
- * FutureTask表示一类带有返回值的，可被取消的异步任务
+ * FutureTask表示一类将来会被完成的异步任务，这类任务带有返回值，且中途可被取消。
  *
  * 该类提供了Runnable与Future的基本实现，包括启动和取消任务，查询任务是否结束，以及获取任务执行结果。
  * 只有在任务结束后才能获取结果，如果任务尚未结束，get()方法将被阻塞。
@@ -147,7 +147,7 @@ public class FutureTask<V> implements RunnableFuture<V> {
     }
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Creates a {@code FutureTask} that will, upon running, execute the
@@ -183,7 +183,7 @@ public class FutureTask<V> implements RunnableFuture<V> {
         this.state = NEW;       // ensure visibility of callable
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -197,13 +197,14 @@ public class FutureTask<V> implements RunnableFuture<V> {
         }
         
         try {
-            Callable<V> c = callable;
-            if(c != null && state==NEW) {
+            Callable<V> task = callable;
+    
+            if(task != null && state == NEW) {
                 V result;
                 boolean ran;
                 try {
                     // 执行任务，并获取计算结果
-                    result = c.call();
+                    result = task.call();
                     ran = true;
                 } catch(Throwable ex) {
                     result = null;
@@ -222,7 +223,7 @@ public class FutureTask<V> implements RunnableFuture<V> {
             runner = null;
             
             /* state must be re-read after nulling runner to prevent leaked interrupts */
-            // 如果线程需要被中断
+            // 如果任务所在线程需要被中断
             if(state >= INTERRUPTING) {
                 // 确保中断完成
                 handlePossibleCancellationInterrupt(state);
@@ -249,12 +250,15 @@ public class FutureTask<V> implements RunnableFuture<V> {
         
         boolean ran = false;
         int s = state;
+    
         try {
-            Callable<V> c = callable;
-            if(c != null && s == NEW) {
+            // 待执行任务（可由Runnable型任务包装而来）
+            Callable<V> task = callable;
+        
+            if(task != null && s == NEW) {
                 try {
                     // 执行任务，但不获取计算结果
-                    c.call(); // don't set result
+                    task.call(); // don't set result
                     ran = true;
                 } catch(Throwable ex) {
                     // 异常结束，设置异常信息，唤醒所有等待线程
@@ -263,12 +267,12 @@ public class FutureTask<V> implements RunnableFuture<V> {
             }
         } finally {
             // runner must be non-null until state is settled to prevent concurrent calls to run()
-            runner = null;
+            runner = null;  // 置空正在执行此任务的线程
             
             // state must be re-read after nulling runner to prevent leaked interrupts
-            s = state;
-            
-            // 如果线程需要被中断
+            s = state;  // 获取任务状态的最新信息
+        
+            // 如果任务正在被中断
             if(s >= INTERRUPTING) {
                 // 确保中断完成
                 handlePossibleCancellationInterrupt(s);
@@ -285,7 +289,7 @@ public class FutureTask<V> implements RunnableFuture<V> {
     
     /*▼ 中止 ████████████████████████████████████████████████████████████████████████████████┓ */
     
-    // 中止异步任务，包括取消或中断，参数表示是否可在任务执行期间中断线程
+    // 中止异步任务，包括取消或中断，mayInterruptIfRunning指示是否可在任务执行期间中断线程
     public boolean cancel(boolean mayInterruptIfRunning) {
         // 决定使用中断标记还是取消标记
         int s = mayInterruptIfRunning ? INTERRUPTING : CANCELLED;
@@ -296,13 +300,13 @@ public class FutureTask<V> implements RunnableFuture<V> {
         }
         
         try {
-            // in case call to interrupt throws exception
+            /* in case call to interrupt throws exception */
+            // 如果需要中断线程
             if(mayInterruptIfRunning) {
                 try {
-                    Thread t = runner;
-                    if(t != null) {
+                    if(runner != null) {
                         // 中断线程（只是给线程预设一个标记，不是立即让线程停下来）
-                        t.interrupt();
+                        runner.interrupt();
                     }
                 } finally {
                     // NEW -> INTERRUPTING -> INTERRUPTED
@@ -437,6 +441,7 @@ public class FutureTask<V> implements RunnableFuture<V> {
         if(s == INTERRUPTING) {
             // 任务正在中断，则等待中断完成
             while(state == INTERRUPTING) {
+                // 当前线程让出CPU时间片，大家重新抢占执行权
                 Thread.yield(); // wait out pending interrupt
             }
         }

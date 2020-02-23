@@ -25,6 +25,9 @@
 
 package java.lang.reflect;
 
+import java.lang.annotation.Annotation;
+import java.lang.invoke.MethodHandle;
+import java.security.AccessController;
 import jdk.internal.misc.VM;
 import jdk.internal.module.IllegalAccessLogger;
 import jdk.internal.reflect.CallerSensitive;
@@ -32,10 +35,6 @@ import jdk.internal.reflect.Reflection;
 import jdk.internal.reflect.ReflectionFactory;
 import sun.security.action.GetPropertyAction;
 import sun.security.util.SecurityConstants;
-
-import java.lang.annotation.Annotation;
-import java.lang.invoke.MethodHandle;
-import java.security.AccessController;
 
 /**
  * The {@code AccessibleObject} class is the base class for {@code Field},
@@ -81,36 +80,42 @@ public class AccessibleObject implements AnnotatedElement {
      */
     static final ReflectionFactory reflectionFactory = AccessController.doPrivileged(new ReflectionFactory.GetReflectionFactoryAction());
     
-    // For non-public members or members in package-private classes,
-    // it is necessary to perform somewhat expensive security checks.
-    // If the security check succeeds for a given class, it will
-    // always succeed (it is not affected by the granting or revoking
-    // of permissions); we speed up the check in the common case by
-    // remembering the last Class for which the check succeeded.
-    //
-    // The simple security check for Constructor is to see if
-    // the caller has already been seen, verified, and cached.
-    // (See also Class.newInstance(), which uses a similar method.)
-    //
-    // A more complicated security check cache is needed for Method and Field
-    // The cache can be either null (empty cache), a 2-array of {caller,targetClass},
-    // or a caller (with targetClass implicitly equal to memberClass).
-    // In the 2-array case, the targetClass is always different from the memberClass.
+    /**
+     * For non-public members or members in package-private classes,
+     * it is necessary to perform somewhat expensive security checks.
+     * If the security check succeeds for a given class,
+     * it will always succeed (it is not affected by the granting or revoking of permissions);
+     * we speed up the check in the common case by remembering the last Class for which the check succeeded.
+     * The simple security check for Constructor is to see if the caller has already been seen, verified, and cached.
+     * (See also Class.newInstance(), which uses a similar method.)
+     * A more complicated security check cache is needed for Method and Field
+     * The cache can be either null (empty cache), a 2-array of {caller,targetClass},
+     * or a caller (with targetClass implicitly equal to memberClass).
+     * In the 2-array case, the targetClass is always different from the memberClass.
+     */
     volatile Object securityCheckCache;
     
-    // Indicates whether language-level access checks are overridden by this object.
-    // Initializes to "false". This field is used by Field, Method, and Constructor.
-    //
-    // NOTE: for security purposes, this field must not be visible outside this package.
-    boolean override;
-    // true to print a stack trace when access fails
+    /**
+     * Indicates whether language-level access checks are overridden by this object.
+     * Initializes to "false". This field is used by Field, Method, and Constructor.
+     * NOTE: for security purposes, this field must not be visible outside this package.
+     */
+    /*
+     * 是否覆盖语言级别的访问安全检查，初始值为false。
+     *
+     * 如果覆盖了安全检查，那么反射访问畅行无阻；否则，反射访问元素时需要进行安全性检查。
+     * 对于private元素，访问前需要手动开启访问权限，即将此值为设置为true。
+     */ boolean override;
+    
+    /** true to print a stack trace when access fails */
     private static volatile boolean printStackWhenAccessFails;
-    // true if printStack* values are initialized
+    
+    /** true if printStack* values are initialized */
     private static volatile boolean printStackPropertiesSet;
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Constructor: only used by the Java Virtual Machine.
@@ -118,7 +123,7 @@ public class AccessibleObject implements AnnotatedElement {
     protected AccessibleObject() {
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -176,7 +181,7 @@ public class AccessibleObject implements AnnotatedElement {
      * @see #trySetAccessible
      * @see java.lang.invoke.MethodHandles#privateLookupIn
      */
-    // 禁用/启用安全检查。访问private的Method/Field/Constructor时必须禁用安全检查，即setAccessible(true)
+    // 开启/关闭对当前成员的反射访问权限。访问private的Method/Field/Constructor时必须禁用安全检查，以开启访问权限，即setAccessible(true)
     @CallerSensitive
     public void setAccessible(boolean flag) {
         AccessibleObject.checkPermission();
@@ -213,19 +218,27 @@ public class AccessibleObject implements AnnotatedElement {
      * @see SecurityManager#checkPermission
      * @see ReflectPermission
      */
-    // 批量禁用/启用安全检查
+    // 批量开启/关闭对指定成员的反射访问权限
     @CallerSensitive
     public static void setAccessible(AccessibleObject[] array, boolean flag) {
         checkPermission();
+    
+        // 如果需要开启访问权限
         if(flag) {
+            // 获取setAccessible()的调用者所处的类
             Class<?> caller = Reflection.getCallerClass();
+        
             array = array.clone();
-            for(AccessibleObject ao : array) {
-                ao.checkCanSetAccessible(caller);
+        
+            // 遍历所有待访问元素
+            for(AccessibleObject accessibleObject : array) {
+                // 判断caller是否可以访问accessibleObject元素(由子类实现其逻辑)
+                accessibleObject.checkCanSetAccessible(caller);
             }
         }
-        for(AccessibleObject ao : array) {
-            ao.setAccessible0(flag);
+    
+        for(AccessibleObject accessibleObject : array) {
+            accessibleObject.setAccessible0(flag);
         }
     }
     
@@ -276,19 +289,21 @@ public class AccessibleObject implements AnnotatedElement {
      * @see java.lang.invoke.MethodHandles#privateLookupIn
      * @since 9
      */
-    // 尝试禁用安全检查
+    // 尝试开启对指定成员的反射访问权限(禁用安全检查)
     @CallerSensitive
     public final boolean trySetAccessible() {
         AccessibleObject.checkPermission();
-        
-        if(override == true)
+    
+        // 如果已经覆盖(禁用)了安全检查，直接返回true
+        if(override) {
             return true;
-        
+        }
+    
         // if it's not a Constructor, Method, Field then no access check
         if(!Member.class.isInstance(this)) {
             return setAccessible0(true);
         }
-        
+    
         // does not allow to suppress access check for Class's constructor
         Class<?> declaringClass = ((Member) this).getDeclaringClass();
         if(declaringClass == Class.class && this instanceof Constructor) {
@@ -335,39 +350,56 @@ public class AccessibleObject implements AnnotatedElement {
      * @see #setAccessible(boolean)
      * @since 9
      */
-    // 当前元素是否可以直接访问（private元素不能直接访问）
+    /*
+     * 判断obj是否可以显式访问当前元素；
+     * 如果当前元素是静态方法或静态字段，或为构造器，则要求obj为null
+     * （private元素不能直接访问）
+     */
     @CallerSensitive
     public final boolean canAccess(Object obj) {
-        if(!Member.class.isInstance(this)) {
+        if(!(this instanceof Member)) {
             return override;
         }
-        
+    
+        // 获取当前元素所在的类
         Class<?> declaringClass = ((Member) this).getDeclaringClass();
+    
+        // 获取当前元素上的修饰符
         int modifiers = ((Member) this).getModifiers();
+    
+        // 如果当前元素是非静态方法或非静态字段，需要确保obj为null
         if(!Modifier.isStatic(modifiers) && (this instanceof Method || this instanceof Field)) {
             if(obj == null) {
                 throw new IllegalArgumentException("null object for " + this);
             }
-            // if this object is an instance member, the given object
-            // must be a subclass of the declaring class of this reflected object
+        
+            /*
+             * if this object is an instance member, the given object must be a subclass of the declaring class of this reflected object
+             */
+            // 如果obj不是当前元素所在类的实例，抛异常
             if(!declaringClass.isAssignableFrom(obj.getClass())) {
                 throw new IllegalArgumentException("object is not an instance of " + declaringClass.getName());
             }
         } else if(obj != null) {
             throw new IllegalArgumentException("non-null object for " + this);
         }
-        
-        // access check is suppressed
-        if(override)
+    
+        // 如果已经覆盖(禁用)了安全检查，直接返回true
+        if(override) {
             return true;
-        
+        }
+    
+        // 获取canAccess()方法调用者所处的类
         Class<?> caller = Reflection.getCallerClass();
         Class<?> targetClass;
+    
         if(this instanceof Constructor) {
             targetClass = declaringClass;
         } else {
             targetClass = Modifier.isStatic(modifiers) ? null : obj.getClass();
         }
+    
+        // 判断是否可以在caller中通过targetClass类型的对象来显式访问memberClass中具有modifiers修饰符的成员(如果访问的是静态成员，则targetClass为null)
         return verifyAccess(caller, declaringClass, targetClass, modifiers);
     }
     
@@ -378,6 +410,7 @@ public class AccessibleObject implements AnnotatedElement {
      *
      * @revised 9
      * @spec JPMS
+     *
      * @deprecated This method is deprecated because its name hints that it checks
      * if the reflected object is accessible when it actually indicates
      * if the checks for Java language access control are suppressed.
@@ -385,7 +418,7 @@ public class AccessibleObject implements AnnotatedElement {
      * accessible to the caller. To test if this reflected object is accessible,
      * it should use {@link #canAccess(Object)}.
      */
-    // 是否禁用了安全检查
+    // 判断当前元素是否允许被反问；该方法已过时，应当用canAccess(Object)替代
     @Deprecated(since = "9")
     public boolean isAccessible() {
         return override;
@@ -451,9 +484,8 @@ public class AccessibleObject implements AnnotatedElement {
     // 2-2 返回该元素上指定类型的注解
     @Override
     public <T extends Annotation> T getDeclaredAnnotation(Class<T> annotationClass) {
-        // Only annotations on classes are inherited, for all other
-        // objects getDeclaredAnnotation is the same as
-        // getAnnotation.
+        // Only annotations on classes are inherited,
+        // for all other objects getDeclaredAnnotation is the same as getAnnotation.
         return getAnnotation(annotationClass);
     }
     
@@ -464,49 +496,39 @@ public class AccessibleObject implements AnnotatedElement {
     // 2-3 返回该元素上指定类型的注解[支持获取@Repeatable类型的注解]
     @Override
     public <T extends Annotation> T[] getDeclaredAnnotationsByType(Class<T> annotationClass) {
-        // Only annotations on classes are inherited, for all other
-        // objects getDeclaredAnnotationsByType is the same as
-        // getAnnotationsByType.
+        // Only annotations on classes are inherited,
+        // for all other objects getDeclaredAnnotationsByType is the same as getAnnotationsByType.
         return getAnnotationsByType(annotationClass);
     }
     
     /*▲ 注解 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
-    
-    
-    
-    
-    static void checkPermission() {
-        SecurityManager sm = System.getSecurityManager();
-        if(sm != null) {
-            // SecurityConstants.ACCESS_PERMISSION is used to check
-            // whether a client has sufficient privilege to defeat Java
-            // language access control checks.
-            sm.checkPermission(SecurityConstants.ACCESS_PERMISSION);
-        }
-    }
-    
-    final void checkCanSetAccessible(Class<?> caller, Class<?> declaringClass) {
-        checkCanSetAccessible(caller, declaringClass, true);
-    }
-    
+    // 判断是否可以在caller中通过targetClass类型的对象来显式访问memberClass中具有modifiers修饰符的成员(如果访问的是静态成员，则targetClass为null)
     final void checkAccess(Class<?> caller, Class<?> memberClass, Class<?> targetClass, int modifiers) throws IllegalAccessException {
-        if(!verifyAccess(caller, memberClass, targetClass, modifiers)) {
-            IllegalAccessException e = Reflection.newIllegalAccessException(caller, memberClass, targetClass, modifiers);
-            if(printStackTraceWhenAccessFails()) {
-                e.printStackTrace(System.err);
-            }
-            throw e;
+        // 判断是否可以在caller中通过targetClass类型的对象来显式访问memberClass中具有modifiers修饰符的成员(如果访问的是静态成员，则targetClass为null)
+        if(verifyAccess(caller, memberClass, targetClass, modifiers)) {
+            return;
         }
+    
+        // 构造一个非法访问异常
+        IllegalAccessException exception = Reflection.newIllegalAccessException(caller, memberClass, targetClass, modifiers);
+        if(printStackTraceWhenAccessFails()) {
+            exception.printStackTrace(System.err);
+        }
+    
+        throw exception;
     }
     
+    // 判断是否可以在caller中通过targetClass类型的对象来显式访问memberClass中具有modifiers修饰符的成员(如果访问的是静态成员，则targetClass为null)
     final boolean verifyAccess(Class<?> caller, Class<?> memberClass, Class<?> targetClass, int modifiers) {
         if(caller == memberClass) {  // quick check
             return true;             // ACCESS IS OK
         }
+        
         Object cache = securityCheckCache;  // read volatile
-        if(targetClass != null // instance member or constructor
+        
+        if(targetClass != null                  // instance member or constructor
             && Modifier.isProtected(modifiers) && targetClass != memberClass) {
             // Must match a 2-list of { caller, targetClass }.
             if(cache instanceof Class[]) {
@@ -514,33 +536,200 @@ public class AccessibleObject implements AnnotatedElement {
                 if(cache2[1] == targetClass && cache2[0] == caller) {
                     return true;     // ACCESS IS OK
                 }
-                // (Test cache[1] first since range check for [1]
-                // subsumes range check for [0].)
+                
+                // (Test cache[1] first since range check for [1] subsumes range check for [0].)
             }
         } else if(cache == caller) {
             // Non-protected case (or targetClass == memberClass or static member).
             return true;             // ACCESS IS OK
         }
         
-        // If no return, fall through to the slow path.
+        /* If no return, fall through to the slow path */
+        // 判断是否可以在caller中通过targetClass类型的对象来显式访问memberClass中具有modifiers修饰符的成员(如果访问的是静态成员，则targetClass为null)
         return slowVerifyAccess(caller, memberClass, targetClass, modifiers);
+    }
+    
+    // 判断是否可以在caller中通过targetClass类型的对象来显式访问memberClass中具有modifiers修饰符的成员(如果访问的是静态成员，则targetClass为null)。
+    private boolean slowVerifyAccess(Class<?> caller, Class<?> memberClass, Class<?> targetClass, int modifiers) {
+        // 判断是否可以在caller中通过targetClass类型的对象来显式访问memberClass中具有modifiers修饰符的成员(如果访问的是静态成员，则targetClass为null)。
+        if(!Reflection.verifyMemberAccess(caller, memberClass, targetClass, modifiers)) {
+            // access denied
+            return false;
+        }
+        
+        // access okay
+        logIfExportedForIllegalAccess(caller, memberClass);
+        
+        // Success: Update the cache.
+        Object cache = (targetClass != null && Modifier.isProtected(modifiers) && targetClass != memberClass) ? new Class<?>[]{caller, targetClass} : caller;
+        
+        /*
+         * Note:
+         * The two cache elements are not volatile, but they are effectively final.
+         * The Java memory model guarantees that the initializing stores for the cache elements will occur before the volatile write.
+         */
+        securityCheckCache = cache;         // write volatile
+        
+        return true;
+    }
+    
+    
+    static void checkPermission() {
+        SecurityManager sm = System.getSecurityManager();
+        if(sm != null) {
+            // SecurityConstants.ACCESS_PERMISSION is used to check whether a client has sufficient privilege to defeat Java language access control checks.
+            sm.checkPermission(SecurityConstants.ACCESS_PERMISSION);
+        }
+    }
+    
+    /**
+     * If the given AccessibleObject is a {@code Constructor}, {@code Method} or {@code Field}
+     * then checks that its declaring class is in a package that can be accessed by the given caller of setAccessible.
+     */
+    // 判断caller是否可以访问当前元素(由子类实现其逻辑)
+    void checkCanSetAccessible(Class<?> caller) {
+        // do nothing, needs to be overridden by Constructor, Method, Field
     }
     
     /**
      * Sets the accessible flag and returns the new value
      */
+    // 开启/关闭对当前成员的反射访问权限
     boolean setAccessible0(boolean flag) {
         this.override = flag;
         return flag;
     }
     
+    // 判断caller是否可以访问位于declaringClass类中的当前元素(涉及到exports和opens的判断)
+    final void checkCanSetAccessible(Class<?> caller, Class<?> declaringClass) {
+        checkCanSetAccessible(caller, declaringClass, true);
+    }
+    
+    // 判断caller是否可以访问位于declaringClass类中的当前元素(涉及到exports和opens的判断)
+    private boolean checkCanSetAccessible(Class<?> caller, Class<?> declaringClass, boolean throwExceptionIfDenied) {
+        if(caller == MethodHandle.class) {
+            throw new IllegalCallerException();   // should not happen
+        }
+        
+        Module callerModule = caller.getModule();
+        Module declaringModule = declaringClass.getModule();
+        
+        // caller与declaringClass位于相同模块
+        if(callerModule == declaringModule) {
+            return true;
+        }
+        
+        // caller位于"java.base"模块
+        if(callerModule == Object.class.getModule()) {
+            return true;
+        }
+        
+        // declaringClass是未命名模块
+        if(!declaringModule.isNamed()) {
+            return true;
+        }
+        
+        // declaringClass所在的包
+        String pn = declaringClass.getPackageName();
+        
+        // declaringClass的修饰符
+        int modifiers;
+        if(this instanceof Executable) {
+            modifiers = ((Executable) this).getModifiers();
+        } else {
+            modifiers = ((Field) this).getModifiers();
+        }
+        
+        /* class is public and package is exported to caller */
+        boolean isClassPublic = Modifier.isPublic(declaringClass.getModifiers());
+        
+        // 如果declaringClass是public类，且declaringModule模块将pn包导出(exports)给了callerModule模块
+        if(isClassPublic && declaringModule.isExported(pn, callerModule)) {
+            // 如果当前待访问元素是public，则允许caller访问
+            if(Modifier.isPublic(modifiers)) {
+                logIfExportedForIllegalAccess(caller, declaringClass);
+                return true;
+            }
+            
+            // 如果当前待访问元素是protected-static，且caller类与declaringClass类相同，或是declaringClass类的子类，也允许caller访问
+            if(Modifier.isProtected(modifiers) && Modifier.isStatic(modifiers) && isSubclassOf(caller, declaringClass)) {
+                logIfExportedForIllegalAccess(caller, declaringClass);
+                return true;
+            }
+        }
+        
+        // 如果declaringModule模块将pn包(开放)opens给了callerModule模块，允许访问
+        if(declaringModule.isOpen(pn, callerModule)) {
+            logIfOpenedForIllegalAccess(caller, declaringClass);
+            return true;
+        }
+        
+        // 生成异常信息
+        if(throwExceptionIfDenied) {
+            // not accessible
+            String msg = "Unable to make ";
+            if(this instanceof Field) {
+                msg += "field ";
+            }
+            
+            msg += this + " accessible: " + declaringModule + " does not \"";
+            
+            if(isClassPublic && Modifier.isPublic(modifiers)) {
+                msg += "exports";
+            } else {
+                msg += "opens";
+            }
+            
+            msg += " " + pn + "\" to " + callerModule;
+            
+            InaccessibleObjectException e = new InaccessibleObjectException(msg);
+            if(printStackTraceWhenAccessFails()) {
+                e.printStackTrace(System.err);
+            }
+            
+            throw e;
+        }
+        
+        return false;
+    }
+    
     /**
-     * If the given AccessibleObject is a {@code Constructor}, {@code Method}
-     * or {@code Field} then checks that its declaring class is in a package
-     * that can be accessed by the given caller of setAccessible.
+     * Returns true if a stack trace should be printed when access fails.
      */
-    void checkCanSetAccessible(Class<?> caller) {
-        // do nothing, needs to be overridden by Constructor, Method, Field
+    private static boolean printStackTraceWhenAccessFails() {
+        if(!printStackPropertiesSet && VM.initLevel() >= 1) {
+            String s = GetPropertyAction.privilegedGetProperty("sun.reflect.debugModuleAccessChecks");
+            if(s != null) {
+                printStackWhenAccessFails = !s.equalsIgnoreCase("false");
+            }
+            printStackPropertiesSet = true;
+        }
+        return printStackWhenAccessFails;
+    }
+    
+    private void logIfOpenedForIllegalAccess(Class<?> caller, Class<?> declaringClass) {
+        Module callerModule = caller.getModule();
+        Module targetModule = declaringClass.getModule();
+        // callerModule is null during early startup
+        if(callerModule != null && !callerModule.isNamed() && targetModule.isNamed()) {
+            IllegalAccessLogger logger = IllegalAccessLogger.illegalAccessLogger();
+            if(logger != null) {
+                logger.logIfOpenedForIllegalAccess(caller, declaringClass, this::toShortString);
+            }
+        }
+    }
+    
+    private void logIfExportedForIllegalAccess(Class<?> caller, Class<?> declaringClass) {
+        Module callerModule = caller.getModule();
+        Module targetModule = declaringClass.getModule();
+    
+        // callerModule is null during early startup
+        if(callerModule != null && !callerModule.isNamed() && targetModule.isNamed()) {
+            IllegalAccessLogger logger = IllegalAccessLogger.illegalAccessLogger();
+            if(logger != null) {
+                logger.logIfExportedForIllegalAccess(caller, declaringClass, this::toShortString);
+            }
+        }
     }
     
     /**
@@ -559,137 +748,17 @@ public class AccessibleObject implements AnnotatedElement {
         throw new InternalError();
     }
     
-    /**
-     * Returns true if a stack trace should be printed when access fails.
-     */
-    private static boolean printStackTraceWhenAccessFails() {
-        if(!printStackPropertiesSet && VM.initLevel() >= 1) {
-            String s = GetPropertyAction.privilegedGetProperty("sun.reflect.debugModuleAccessChecks");
-            if(s != null) {
-                printStackWhenAccessFails = !s.equalsIgnoreCase("false");
-            }
-            printStackPropertiesSet = true;
-        }
-        return printStackWhenAccessFails;
-    }
-    
-    private boolean checkCanSetAccessible(Class<?> caller, Class<?> declaringClass, boolean throwExceptionIfDenied) {
-        if(caller == MethodHandle.class) {
-            throw new IllegalCallerException();   // should not happen
-        }
-        
-        Module callerModule = caller.getModule();
-        Module declaringModule = declaringClass.getModule();
-        
-        if(callerModule == declaringModule)
-            return true;
-        if(callerModule == Object.class.getModule())
-            return true;
-        if(!declaringModule.isNamed())
-            return true;
-        
-        String pn = declaringClass.getPackageName();
-        int modifiers;
-        if(this instanceof Executable) {
-            modifiers = ((Executable) this).getModifiers();
-        } else {
-            modifiers = ((Field) this).getModifiers();
-        }
-        
-        // class is public and package is exported to caller
-        boolean isClassPublic = Modifier.isPublic(declaringClass.getModifiers());
-        if(isClassPublic && declaringModule.isExported(pn, callerModule)) {
-            // member is public
-            if(Modifier.isPublic(modifiers)) {
-                logIfExportedForIllegalAccess(caller, declaringClass);
-                return true;
-            }
-            
-            // member is protected-static
-            if(Modifier.isProtected(modifiers) && Modifier.isStatic(modifiers) && isSubclassOf(caller, declaringClass)) {
-                logIfExportedForIllegalAccess(caller, declaringClass);
-                return true;
-            }
-        }
-        
-        // package is open to caller
-        if(declaringModule.isOpen(pn, callerModule)) {
-            logIfOpenedForIllegalAccess(caller, declaringClass);
-            return true;
-        }
-        
-        if(throwExceptionIfDenied) {
-            // not accessible
-            String msg = "Unable to make ";
-            if(this instanceof Field)
-                msg += "field ";
-            msg += this + " accessible: " + declaringModule + " does not \"";
-            if(isClassPublic && Modifier.isPublic(modifiers))
-                msg += "exports";
-            else
-                msg += "opens";
-            msg += " " + pn + "\" to " + callerModule;
-            InaccessibleObjectException e = new InaccessibleObjectException(msg);
-            if(printStackTraceWhenAccessFails()) {
-                e.printStackTrace(System.err);
-            }
-            throw e;
-        }
-        return false;
-    }
-    
+    // 判断queryClass类是否与ofClass类相同，或为ofClass类的子类
     private boolean isSubclassOf(Class<?> queryClass, Class<?> ofClass) {
         while(queryClass != null) {
             if(queryClass == ofClass) {
                 return true;
             }
+            
             queryClass = queryClass.getSuperclass();
         }
+        
         return false;
     }
     
-    private void logIfOpenedForIllegalAccess(Class<?> caller, Class<?> declaringClass) {
-        Module callerModule = caller.getModule();
-        Module targetModule = declaringClass.getModule();
-        // callerModule is null during early startup
-        if(callerModule != null && !callerModule.isNamed() && targetModule.isNamed()) {
-            IllegalAccessLogger logger = IllegalAccessLogger.illegalAccessLogger();
-            if(logger != null) {
-                logger.logIfOpenedForIllegalAccess(caller, declaringClass, this::toShortString);
-            }
-        }
-    }
-    
-    private void logIfExportedForIllegalAccess(Class<?> caller, Class<?> declaringClass) {
-        Module callerModule = caller.getModule();
-        Module targetModule = declaringClass.getModule();
-        // callerModule is null during early startup
-        if(callerModule != null && !callerModule.isNamed() && targetModule.isNamed()) {
-            IllegalAccessLogger logger = IllegalAccessLogger.illegalAccessLogger();
-            if(logger != null) {
-                logger.logIfExportedForIllegalAccess(caller, declaringClass, this::toShortString);
-            }
-        }
-    }
-    
-    // Keep all this slow stuff out of line:
-    private boolean slowVerifyAccess(Class<?> caller, Class<?> memberClass, Class<?> targetClass, int modifiers) {
-        if(!Reflection.verifyMemberAccess(caller, memberClass, targetClass, modifiers)) {
-            // access denied
-            return false;
-        }
-        
-        // access okay
-        logIfExportedForIllegalAccess(caller, memberClass);
-        
-        // Success: Update the cache.
-        Object cache = (targetClass != null && Modifier.isProtected(modifiers) && targetClass != memberClass) ? new Class<?>[]{caller, targetClass} : caller;
-        
-        // Note:  The two cache elements are not volatile,
-        // but they are effectively final.  The Java memory model
-        // guarantees that the initializing stores for the cache
-        // elements will occur before the volatile write.
-        securityCheckCache = cache;         // write volatile
-        return true;
-    }
 }

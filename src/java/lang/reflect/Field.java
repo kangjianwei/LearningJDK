@@ -25,6 +25,9 @@
 
 package java.lang.reflect;
 
+import java.lang.annotation.Annotation;
+import java.util.Map;
+import java.util.Objects;
 import jdk.internal.misc.SharedSecrets;
 import jdk.internal.reflect.CallerSensitive;
 import jdk.internal.reflect.FieldAccessor;
@@ -38,10 +41,6 @@ import sun.reflect.generics.factory.CoreReflectionFactory;
 import sun.reflect.generics.factory.GenericsFactory;
 import sun.reflect.generics.repository.FieldRepository;
 import sun.reflect.generics.scope.ClassScope;
-
-import java.lang.annotation.Annotation;
-import java.util.Map;
-import java.util.Objects;
 
 /**
  * A {@code Field} provides information about, and dynamic access to, a
@@ -64,23 +63,31 @@ import java.util.Objects;
  */
 // 反射元素-字段
 public final class Field extends AccessibleObject implements Member {
-    private transient volatile Map<Class<? extends Annotation>, Annotation> declaredAnnotations;
     
-    private Class<?> clazz;
-    private int slot;
+    // Cached field accessor created without override
+    private FieldAccessor fieldAccessor;            // 字段访问器缓存，未禁用访问安全检查
+    
+    // Cached field accessor created with override
+    private FieldAccessor overrideFieldAccessor;    // 字段访问器缓存，禁用了访问安全检查
+    
+    private int slot;       // 当前字段在宿主类字段中的序号
+    
+    private Class<?> clazz; // 当前字段所在的类
+    
     // This is guaranteed to be interned by the VM in the 1.4 reflection implementation
-    private String name;
-    private Class<?> type;
-    private int modifiers;
+    private String name;    // 字段名称
+    private Class<?> type;  // 字段类型
+    private int modifiers;  // 字段描述符
+    
     // Generics and annotations support
     private transient String signature;
+    
     // generic info repository; lazily initialized
     private transient FieldRepository genericInfo;
-    private byte[] annotations;
-    // Cached field accessor created without override
-    private FieldAccessor fieldAccessor;
-    // Cached field accessor created with override
-    private FieldAccessor overrideFieldAccessor;
+    
+    private byte[] annotations; // 作用在字段上的注解(以字节形式表示，用在反射中)
+    
+    private transient volatile Map<Class<? extends Annotation>, Annotation> declaredAnnotations;
     
     /**
      * Generics infrastructure
@@ -88,6 +95,7 @@ public final class Field extends AccessibleObject implements Member {
      * This branching structure is currently only two levels deep (i.e., one root Field and potentially many Field objects pointing to it.)
      * If this branching structure would ever contain cycles, deadlocks can occur in annotation code.
      */
+    // 如果当前Field是复制来的，此处保存它的复制源
     private Field root;
     
     
@@ -113,24 +121,107 @@ public final class Field extends AccessibleObject implements Member {
     
     
     
-    /*▼ 使用字段 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 设置可访问性 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * @throws InaccessibleObjectException {@inheritDoc}
      * @throws SecurityException           {@inheritDoc}
      */
-    // 禁用/启用安全检查。访问private的Method/Field/Constructor时必须禁用安全检查，即setAccessible(true)
+    // 开启/关闭对当前元素的反射访问权限。访问private的Field时必须禁用安全检查，以开启访问权限，即setAccessible(true)
     @Override
     @CallerSensitive
     public void setAccessible(boolean flag) {
         AccessibleObject.checkPermission();
-        if(flag)
-            checkCanSetAccessible(Reflection.getCallerClass());
+    
+        // 如果需要开启访问权限
+        if(flag) {
+            // 获取setAccessible()的调用者所处的类
+            Class<?> caller = Reflection.getCallerClass();
+        
+            // 判断caller是否可以访问当前元素(涉及到exports和opens的判断)
+            checkCanSetAccessible(caller);
+        }
+    
         setAccessible0(flag);
     }
     
+    /*▲ 设置可访问性 ████████████████████████████████████████████████████████████████████████████████┛ */
     
-    /* 【获取】/【设置】字段值 */
+    
+    
+    /*▼ 使用字段 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Gets the value of a static or instance {@code boolean} field.
+     *
+     * @param obj the object to extract the {@code boolean} value
+     *            from
+     *
+     * @return the value of the {@code boolean} field
+     *
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is inaccessible.
+     * @throws IllegalArgumentException    if the specified object is not
+     *                                     an instance of the class or interface declaring the
+     *                                     underlying field (or a subclass or implementor
+     *                                     thereof), or if the field value cannot be
+     *                                     converted to the type {@code boolean} by a
+     *                                     widening conversion.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#get
+     */
+    // 返回obj中当前字段的值，要求当前字段为boolean类型
+    @CallerSensitive
+    @ForceInline
+    public boolean getBoolean(Object obj) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
+            Class<?> caller = Reflection.getCallerClass();
+            checkAccess(caller, obj);
+        }
+        
+        return getFieldAccessor(obj).getBoolean(obj);
+    }
+    
+    /**
+     * Gets the value of a static or instance field of type
+     * {@code char} or of another primitive type convertible to
+     * type {@code char} via a widening conversion.
+     *
+     * @param obj the object to extract the {@code char} value
+     *            from
+     *
+     * @return the value of the field converted to type {@code char}
+     *
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is inaccessible.
+     * @throws IllegalArgumentException    if the specified object is not
+     *                                     an instance of the class or interface declaring the
+     *                                     underlying field (or a subclass or implementor
+     *                                     thereof), or if the field value cannot be
+     *                                     converted to the type {@code char} by a
+     *                                     widening conversion.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#get
+     */
+    // 返回obj中当前字段的值，要求当前字段为char类型
+    @CallerSensitive
+    @ForceInline
+    public char getChar(Object obj) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
+            Class<?> caller = Reflection.getCallerClass();
+            checkAccess(caller, obj);
+        }
+        
+        return getFieldAccessor(obj).getChar(obj);
+    }
     
     /**
      * Gets the value of a static or instance {@code byte} field.
@@ -155,6 +246,7 @@ public final class Field extends AccessibleObject implements Member {
      *                                     by this method fails.
      * @see Field#get
      */
+    // 返回obj中当前字段的值，要求当前字段为byte类型
     @CallerSensitive
     @ForceInline
     public byte getByte(Object obj) throws IllegalArgumentException, IllegalAccessException {
@@ -162,6 +254,7 @@ public final class Field extends AccessibleObject implements Member {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
+    
         return getFieldAccessor(obj).getByte(obj);
     }
     
@@ -190,6 +283,7 @@ public final class Field extends AccessibleObject implements Member {
      *                                     by this method fails.
      * @see Field#get
      */
+    // 返回obj中当前字段的值，要求当前字段为short类型
     @CallerSensitive
     @ForceInline
     public short getShort(Object obj) throws IllegalArgumentException, IllegalAccessException {
@@ -197,6 +291,7 @@ public final class Field extends AccessibleObject implements Member {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
+    
         return getFieldAccessor(obj).getShort(obj);
     }
     
@@ -225,6 +320,7 @@ public final class Field extends AccessibleObject implements Member {
      *                                     by this method fails.
      * @see Field#get
      */
+    // 返回obj中当前字段的值，要求当前字段为int类型
     @CallerSensitive
     @ForceInline
     public int getInt(Object obj) throws IllegalArgumentException, IllegalAccessException {
@@ -232,6 +328,7 @@ public final class Field extends AccessibleObject implements Member {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
+    
         return getFieldAccessor(obj).getInt(obj);
     }
     
@@ -260,6 +357,7 @@ public final class Field extends AccessibleObject implements Member {
      *                                     by this method fails.
      * @see Field#get
      */
+    // 返回obj中当前字段的值，要求当前字段为long类型
     @CallerSensitive
     @ForceInline
     public long getLong(Object obj) throws IllegalArgumentException, IllegalAccessException {
@@ -267,6 +365,7 @@ public final class Field extends AccessibleObject implements Member {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
+    
         return getFieldAccessor(obj).getLong(obj);
     }
     
@@ -295,6 +394,7 @@ public final class Field extends AccessibleObject implements Member {
      *                                     by this method fails.
      * @see Field#get
      */
+    // 返回obj中当前字段的值，要求当前字段为float类型
     @CallerSensitive
     @ForceInline
     public float getFloat(Object obj) throws IllegalArgumentException, IllegalAccessException {
@@ -302,6 +402,7 @@ public final class Field extends AccessibleObject implements Member {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
+    
         return getFieldAccessor(obj).getFloat(obj);
     }
     
@@ -330,6 +431,7 @@ public final class Field extends AccessibleObject implements Member {
      *                                     by this method fails.
      * @see Field#get
      */
+    // 返回obj中当前字段的值，要求当前字段为double类型
     @CallerSensitive
     @ForceInline
     public double getDouble(Object obj) throws IllegalArgumentException, IllegalAccessException {
@@ -337,75 +439,8 @@ public final class Field extends AccessibleObject implements Member {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
+    
         return getFieldAccessor(obj).getDouble(obj);
-    }
-    
-    /**
-     * Gets the value of a static or instance field of type
-     * {@code char} or of another primitive type convertible to
-     * type {@code char} via a widening conversion.
-     *
-     * @param obj the object to extract the {@code char} value
-     *            from
-     *
-     * @return the value of the field converted to type {@code char}
-     *
-     * @throws IllegalAccessException      if this {@code Field} object
-     *                                     is enforcing Java language access control and the underlying
-     *                                     field is inaccessible.
-     * @throws IllegalArgumentException    if the specified object is not
-     *                                     an instance of the class or interface declaring the
-     *                                     underlying field (or a subclass or implementor
-     *                                     thereof), or if the field value cannot be
-     *                                     converted to the type {@code char} by a
-     *                                     widening conversion.
-     * @throws NullPointerException        if the specified object is null
-     *                                     and the field is an instance field.
-     * @throws ExceptionInInitializerError if the initialization provoked
-     *                                     by this method fails.
-     * @see Field#get
-     */
-    @CallerSensitive
-    @ForceInline
-    public char getChar(Object obj) throws IllegalArgumentException, IllegalAccessException {
-        if(!override) {
-            Class<?> caller = Reflection.getCallerClass();
-            checkAccess(caller, obj);
-        }
-        return getFieldAccessor(obj).getChar(obj);
-    }
-    
-    /**
-     * Gets the value of a static or instance {@code boolean} field.
-     *
-     * @param obj the object to extract the {@code boolean} value
-     *            from
-     *
-     * @return the value of the {@code boolean} field
-     *
-     * @throws IllegalAccessException      if this {@code Field} object
-     *                                     is enforcing Java language access control and the underlying
-     *                                     field is inaccessible.
-     * @throws IllegalArgumentException    if the specified object is not
-     *                                     an instance of the class or interface declaring the
-     *                                     underlying field (or a subclass or implementor
-     *                                     thereof), or if the field value cannot be
-     *                                     converted to the type {@code boolean} by a
-     *                                     widening conversion.
-     * @throws NullPointerException        if the specified object is null
-     *                                     and the field is an instance field.
-     * @throws ExceptionInInitializerError if the initialization provoked
-     *                                     by this method fails.
-     * @see Field#get
-     */
-    @CallerSensitive
-    @ForceInline
-    public boolean getBoolean(Object obj) throws IllegalArgumentException, IllegalAccessException {
-        if(!override) {
-            Class<?> caller = Reflection.getCallerClass();
-            checkAccess(caller, obj);
-        }
-        return getFieldAccessor(obj).getBoolean(obj);
     }
     
     /**
@@ -456,6 +491,7 @@ public final class Field extends AccessibleObject implements Member {
      * @throws ExceptionInInitializerError if the initialization provoked
      *                                     by this method fails.
      */
+    // 返回obj中当前字段的值，要求当前字段为对象类型
     @CallerSensitive
     @ForceInline
     public Object get(Object obj) throws IllegalArgumentException, IllegalAccessException {
@@ -463,53 +499,20 @@ public final class Field extends AccessibleObject implements Member {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
+    
         return getFieldAccessor(obj).get(obj);
     }
     
-    /**
-     * Sets the value of a field as a {@code byte} on the specified object.
-     * This method is equivalent to
-     * {@code set(obj, bObj)},
-     * where {@code bObj} is a {@code Byte} object and
-     * {@code bObj.byteValue() == b}.
-     *
-     * @param obj the object whose field should be modified
-     * @param b   the new value for the field of {@code obj}
-     *            being modified
-     *
-     * @throws IllegalAccessException      if this {@code Field} object
-     *                                     is enforcing Java language access control and the underlying
-     *                                     field is either inaccessible or final.
-     * @throws IllegalArgumentException    if the specified object is not an
-     *                                     instance of the class or interface declaring the underlying
-     *                                     field (or a subclass or implementor thereof),
-     *                                     or if an unwrapping conversion fails.
-     * @throws NullPointerException        if the specified object is null
-     *                                     and the field is an instance field.
-     * @throws ExceptionInInitializerError if the initialization provoked
-     *                                     by this method fails.
-     * @see Field#set
-     */
-    @CallerSensitive
-    @ForceInline
-    public void setByte(Object obj, byte b) throws IllegalArgumentException, IllegalAccessException {
-        if(!override) {
-            Class<?> caller = Reflection.getCallerClass();
-            checkAccess(caller, obj);
-        }
-        getFieldAccessor(obj).setByte(obj, b);
-    }
     
     /**
-     * Sets the value of a field as a {@code short} on the specified object.
+     * Sets the value of a field as a {@code boolean} on the specified object.
      * This method is equivalent to
-     * {@code set(obj, sObj)},
-     * where {@code sObj} is a {@code Short} object and
-     * {@code sObj.shortValue() == s}.
+     * {@code set(obj, zObj)},
+     * where {@code zObj} is a {@code Boolean} object and
+     * {@code zObj.booleanValue() == value}.
      *
-     * @param obj the object whose field should be modified
-     * @param s   the new value for the field of {@code obj}
-     *            being modified
+     * @param obj   the object whose field should be modified
+     * @param value the new value for the field of {@code obj} being modified
      *
      * @throws IllegalAccessException      if this {@code Field} object
      *                                     is enforcing Java language access control and the underlying
@@ -524,150 +527,16 @@ public final class Field extends AccessibleObject implements Member {
      *                                     by this method fails.
      * @see Field#set
      */
+    // 将obj对象中的当前字段设置为指定的值，要求当前字段为boolean类型
     @CallerSensitive
     @ForceInline
-    public void setShort(Object obj, short s) throws IllegalArgumentException, IllegalAccessException {
+    public void setBoolean(Object obj, boolean value) throws IllegalArgumentException, IllegalAccessException {
         if(!override) {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
-        getFieldAccessor(obj).setShort(obj, s);
-    }
-    
-    /**
-     * Sets the value of a field as an {@code int} on the specified object.
-     * This method is equivalent to
-     * {@code set(obj, iObj)},
-     * where {@code iObj} is an {@code Integer} object and
-     * {@code iObj.intValue() == i}.
-     *
-     * @param obj the object whose field should be modified
-     * @param i   the new value for the field of {@code obj}
-     *            being modified
-     *
-     * @throws IllegalAccessException      if this {@code Field} object
-     *                                     is enforcing Java language access control and the underlying
-     *                                     field is either inaccessible or final.
-     * @throws IllegalArgumentException    if the specified object is not an
-     *                                     instance of the class or interface declaring the underlying
-     *                                     field (or a subclass or implementor thereof),
-     *                                     or if an unwrapping conversion fails.
-     * @throws NullPointerException        if the specified object is null
-     *                                     and the field is an instance field.
-     * @throws ExceptionInInitializerError if the initialization provoked
-     *                                     by this method fails.
-     * @see Field#set
-     */
-    @CallerSensitive
-    @ForceInline
-    public void setInt(Object obj, int i) throws IllegalArgumentException, IllegalAccessException {
-        if(!override) {
-            Class<?> caller = Reflection.getCallerClass();
-            checkAccess(caller, obj);
-        }
-        getFieldAccessor(obj).setInt(obj, i);
-    }
-    
-    /**
-     * Sets the value of a field as a {@code long} on the specified object.
-     * This method is equivalent to
-     * {@code set(obj, lObj)},
-     * where {@code lObj} is a {@code Long} object and
-     * {@code lObj.longValue() == l}.
-     *
-     * @param obj the object whose field should be modified
-     * @param l   the new value for the field of {@code obj}
-     *            being modified
-     *
-     * @throws IllegalAccessException      if this {@code Field} object
-     *                                     is enforcing Java language access control and the underlying
-     *                                     field is either inaccessible or final.
-     * @throws IllegalArgumentException    if the specified object is not an
-     *                                     instance of the class or interface declaring the underlying
-     *                                     field (or a subclass or implementor thereof),
-     *                                     or if an unwrapping conversion fails.
-     * @throws NullPointerException        if the specified object is null
-     *                                     and the field is an instance field.
-     * @throws ExceptionInInitializerError if the initialization provoked
-     *                                     by this method fails.
-     * @see Field#set
-     */
-    @CallerSensitive
-    @ForceInline
-    public void setLong(Object obj, long l) throws IllegalArgumentException, IllegalAccessException {
-        if(!override) {
-            Class<?> caller = Reflection.getCallerClass();
-            checkAccess(caller, obj);
-        }
-        getFieldAccessor(obj).setLong(obj, l);
-    }
-    
-    /**
-     * Sets the value of a field as a {@code float} on the specified object.
-     * This method is equivalent to
-     * {@code set(obj, fObj)},
-     * where {@code fObj} is a {@code Float} object and
-     * {@code fObj.floatValue() == f}.
-     *
-     * @param obj the object whose field should be modified
-     * @param f   the new value for the field of {@code obj}
-     *            being modified
-     *
-     * @throws IllegalAccessException      if this {@code Field} object
-     *                                     is enforcing Java language access control and the underlying
-     *                                     field is either inaccessible or final.
-     * @throws IllegalArgumentException    if the specified object is not an
-     *                                     instance of the class or interface declaring the underlying
-     *                                     field (or a subclass or implementor thereof),
-     *                                     or if an unwrapping conversion fails.
-     * @throws NullPointerException        if the specified object is null
-     *                                     and the field is an instance field.
-     * @throws ExceptionInInitializerError if the initialization provoked
-     *                                     by this method fails.
-     * @see Field#set
-     */
-    @CallerSensitive
-    @ForceInline
-    public void setFloat(Object obj, float f) throws IllegalArgumentException, IllegalAccessException {
-        if(!override) {
-            Class<?> caller = Reflection.getCallerClass();
-            checkAccess(caller, obj);
-        }
-        getFieldAccessor(obj).setFloat(obj, f);
-    }
-    
-    /**
-     * Sets the value of a field as a {@code double} on the specified object.
-     * This method is equivalent to
-     * {@code set(obj, dObj)},
-     * where {@code dObj} is a {@code Double} object and
-     * {@code dObj.doubleValue() == d}.
-     *
-     * @param obj the object whose field should be modified
-     * @param d   the new value for the field of {@code obj}
-     *            being modified
-     *
-     * @throws IllegalAccessException      if this {@code Field} object
-     *                                     is enforcing Java language access control and the underlying
-     *                                     field is either inaccessible or final.
-     * @throws IllegalArgumentException    if the specified object is not an
-     *                                     instance of the class or interface declaring the underlying
-     *                                     field (or a subclass or implementor thereof),
-     *                                     or if an unwrapping conversion fails.
-     * @throws NullPointerException        if the specified object is null
-     *                                     and the field is an instance field.
-     * @throws ExceptionInInitializerError if the initialization provoked
-     *                                     by this method fails.
-     * @see Field#set
-     */
-    @CallerSensitive
-    @ForceInline
-    public void setDouble(Object obj, double d) throws IllegalArgumentException, IllegalAccessException {
-        if(!override) {
-            Class<?> caller = Reflection.getCallerClass();
-            checkAccess(caller, obj);
-        }
-        getFieldAccessor(obj).setDouble(obj, d);
+        
+        getFieldAccessor(obj).setBoolean(obj, value);
     }
     
     /**
@@ -675,11 +544,10 @@ public final class Field extends AccessibleObject implements Member {
      * This method is equivalent to
      * {@code set(obj, cObj)},
      * where {@code cObj} is a {@code Character} object and
-     * {@code cObj.charValue() == c}.
+     * {@code cObj.charValue() == value}.
      *
-     * @param obj the object whose field should be modified
-     * @param c   the new value for the field of {@code obj}
-     *            being modified
+     * @param obj   the object whose field should be modified
+     * @param value the new value for the field of {@code obj} being modified
      *
      * @throws IllegalAccessException      if this {@code Field} object
      *                                     is enforcing Java language access control and the underlying
@@ -694,26 +562,27 @@ public final class Field extends AccessibleObject implements Member {
      *                                     by this method fails.
      * @see Field#set
      */
+    // 将obj对象中的当前字段设置为指定的值，要求当前字段为char类型
     @CallerSensitive
     @ForceInline
-    public void setChar(Object obj, char c) throws IllegalArgumentException, IllegalAccessException {
+    public void setChar(Object obj, char value) throws IllegalArgumentException, IllegalAccessException {
         if(!override) {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
-        getFieldAccessor(obj).setChar(obj, c);
+        
+        getFieldAccessor(obj).setChar(obj, value);
     }
     
     /**
-     * Sets the value of a field as a {@code boolean} on the specified object.
+     * Sets the value of a field as a {@code byte} on the specified object.
      * This method is equivalent to
-     * {@code set(obj, zObj)},
-     * where {@code zObj} is a {@code Boolean} object and
-     * {@code zObj.booleanValue() == z}.
+     * {@code set(obj, bObj)},
+     * where {@code bObj} is a {@code Byte} object and
+     * {@code bObj.byteValue() == value}.
      *
-     * @param obj the object whose field should be modified
-     * @param z   the new value for the field of {@code obj}
-     *            being modified
+     * @param obj   the object whose field should be modified
+     * @param value the new value for the field of {@code obj} being modified
      *
      * @throws IllegalAccessException      if this {@code Field} object
      *                                     is enforcing Java language access control and the underlying
@@ -728,14 +597,191 @@ public final class Field extends AccessibleObject implements Member {
      *                                     by this method fails.
      * @see Field#set
      */
+    // 将obj对象中的当前字段设置为指定的值，要求当前字段为byte类型
     @CallerSensitive
     @ForceInline
-    public void setBoolean(Object obj, boolean z) throws IllegalArgumentException, IllegalAccessException {
+    public void setByte(Object obj, byte value) throws IllegalArgumentException, IllegalAccessException {
         if(!override) {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
-        getFieldAccessor(obj).setBoolean(obj, z);
+        
+        getFieldAccessor(obj).setByte(obj, value);
+    }
+    
+    /**
+     * Sets the value of a field as a {@code short} on the specified object.
+     * This method is equivalent to
+     * {@code set(obj, sObj)},
+     * where {@code sObj} is a {@code Short} object and
+     * {@code sObj.shortValue() == value}.
+     *
+     * @param obj   the object whose field should be modified
+     * @param value the new value for the field of {@code obj} being modified
+     *
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is either inaccessible or final.
+     * @throws IllegalArgumentException    if the specified object is not an
+     *                                     instance of the class or interface declaring the underlying
+     *                                     field (or a subclass or implementor thereof),
+     *                                     or if an unwrapping conversion fails.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#set
+     */
+    // 将obj对象中的当前字段设置为指定的值，要求当前字段为short类型
+    @CallerSensitive
+    @ForceInline
+    public void setShort(Object obj, short value) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
+            Class<?> caller = Reflection.getCallerClass();
+            checkAccess(caller, obj);
+        }
+        
+        getFieldAccessor(obj).setShort(obj, value);
+    }
+    
+    /**
+     * Sets the value of a field as an {@code int} on the specified object.
+     * This method is equivalent to
+     * {@code set(obj, iObj)},
+     * where {@code iObj} is an {@code Integer} object and
+     * {@code iObj.intValue() == value}.
+     *
+     * @param obj   the object whose field should be modified
+     * @param value the new value for the field of {@code obj} being modified
+     *
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is either inaccessible or final.
+     * @throws IllegalArgumentException    if the specified object is not an
+     *                                     instance of the class or interface declaring the underlying
+     *                                     field (or a subclass or implementor thereof),
+     *                                     or if an unwrapping conversion fails.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#set
+     */
+    // 将obj对象中的当前字段设置为指定的值，要求当前字段为int类型
+    @CallerSensitive
+    @ForceInline
+    public void setInt(Object obj, int value) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
+            Class<?> caller = Reflection.getCallerClass();
+            checkAccess(caller, obj);
+        }
+        
+        getFieldAccessor(obj).setInt(obj, value);
+    }
+    
+    /**
+     * Sets the value of a field as a {@code long} on the specified object.
+     * This method is equivalent to
+     * {@code set(obj, lObj)},
+     * where {@code lObj} is a {@code Long} object and
+     * {@code lObj.longValue() == value}.
+     *
+     * @param obj   the object whose field should be modified
+     * @param value the new value for the field of {@code obj} being modified
+     *
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is either inaccessible or final.
+     * @throws IllegalArgumentException    if the specified object is not an
+     *                                     instance of the class or interface declaring the underlying
+     *                                     field (or a subclass or implementor thereof),
+     *                                     or if an unwrapping conversion fails.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#set
+     */
+    // 将obj对象中的当前字段设置为指定的值，要求当前字段为long类型
+    @CallerSensitive
+    @ForceInline
+    public void setLong(Object obj, long value) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
+            Class<?> caller = Reflection.getCallerClass();
+            checkAccess(caller, obj);
+        }
+        
+        getFieldAccessor(obj).setLong(obj, value);
+    }
+    
+    /**
+     * Sets the value of a field as a {@code float} on the specified object.
+     * This method is equivalent to
+     * {@code set(obj, fObj)},
+     * where {@code fObj} is a {@code Float} object and
+     * {@code fObj.floatValue() == value}.
+     *
+     * @param obj   the object whose field should be modified
+     * @param value the new value for the field of {@code obj} being modified
+     *
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is either inaccessible or final.
+     * @throws IllegalArgumentException    if the specified object is not an
+     *                                     instance of the class or interface declaring the underlying
+     *                                     field (or a subclass or implementor thereof),
+     *                                     or if an unwrapping conversion fails.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#set
+     */
+    // 将obj对象中的当前字段设置为指定的值，要求当前字段为float类型
+    @CallerSensitive
+    @ForceInline
+    public void setFloat(Object obj, float value) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
+            Class<?> caller = Reflection.getCallerClass();
+            checkAccess(caller, obj);
+        }
+        
+        getFieldAccessor(obj).setFloat(obj, value);
+    }
+    
+    /**
+     * Sets the value of a field as a {@code double} on the specified object.
+     * This method is equivalent to
+     * {@code set(obj, dObj)},
+     * where {@code dObj} is a {@code Double} object and
+     * {@code dObj.doubleValue() == value}.
+     *
+     * @param obj   the object whose field should be modified
+     * @param value the new value for the field of {@code obj} being modified
+     *
+     * @throws IllegalAccessException      if this {@code Field} object
+     *                                     is enforcing Java language access control and the underlying
+     *                                     field is either inaccessible or final.
+     * @throws IllegalArgumentException    if the specified object is not an
+     *                                     instance of the class or interface declaring the underlying
+     *                                     field (or a subclass or implementor thereof),
+     *                                     or if an unwrapping conversion fails.
+     * @throws NullPointerException        if the specified object is null
+     *                                     and the field is an instance field.
+     * @throws ExceptionInInitializerError if the initialization provoked
+     *                                     by this method fails.
+     * @see Field#set
+     */
+    // 将obj对象中的当前字段设置为指定的值，要求当前字段为double类型
+    @CallerSensitive
+    @ForceInline
+    public void setDouble(Object obj, double value) throws IllegalArgumentException, IllegalAccessException {
+        if(!override) {
+            Class<?> caller = Reflection.getCallerClass();
+            checkAccess(caller, obj);
+        }
+        
+        getFieldAccessor(obj).setDouble(obj, value);
     }
     
     /**
@@ -804,6 +850,7 @@ public final class Field extends AccessibleObject implements Member {
      * @throws ExceptionInInitializerError if the initialization provoked
      *                                     by this method fails.
      */
+    // 将obj对象中的当前字段设置为指定的值，要求当前字段为对象类型
     @CallerSensitive
     @ForceInline
     public void set(Object obj, Object value) throws IllegalArgumentException, IllegalAccessException {
@@ -811,6 +858,7 @@ public final class Field extends AccessibleObject implements Member {
             Class<?> caller = Reflection.getCallerClass();
             checkAccess(caller, obj);
         }
+    
         getFieldAccessor(obj).set(obj, value);
     }
     
@@ -878,10 +926,11 @@ public final class Field extends AccessibleObject implements Member {
      */
     // 获取字段类型[支持泛型语义]
     public Type getGenericType() {
-        if(getGenericSignature() != null)
+        if(getGenericSignature() != null) {
             return getGenericInfo().getGenericType();
-        else
+        } else {
             return getType();
+        }
     }
     
     /*▲ 字段类型 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -1118,11 +1167,14 @@ public final class Field extends AccessibleObject implements Member {
         // which implicitly requires that new java.lang.reflect
         // objects be fabricated for each reflective call on Class
         // objects.)
-        if(this.root != null)
+        if(this.root != null) {
             throw new IllegalArgumentException("Can not copy a non-root Field");
+        }
         
         Field res = new Field(clazz, name, type, modifiers, slot, signature, annotations);
+    
         res.root = this;
+    
         // Might as well eagerly propagate this if already present
         res.fieldAccessor = fieldAccessor;
         res.overrideFieldAccessor = overrideFieldAccessor;
@@ -1130,6 +1182,7 @@ public final class Field extends AccessibleObject implements Member {
         return res;
     }
     
+    // 判断caller是否可以访问当前元素(涉及到exports和opens的判断)
     @Override
     void checkCanSetAccessible(Class<?> caller) {
         checkCanSetAccessible(caller, clazz);
@@ -1149,33 +1202,35 @@ public final class Field extends AccessibleObject implements Member {
         return signature;
     }
     
-    // Accessor for factory
+    /** Accessor for factory */
     private GenericsFactory getFactory() {
         Class<?> c = getDeclaringClass();
         // create scope and factory
         return CoreReflectionFactory.make(c, ClassScope.make(c));
     }
     
-    // Accessor for generic info repository
+    /** Accessor for generic info repository */
     private FieldRepository getGenericInfo() {
         // lazily initialize repository if necessary
         if(genericInfo == null) {
             // create and cache generic info repository
             genericInfo = FieldRepository.make(getGenericSignature(), getFactory());
         }
+        
         return genericInfo; //return cached repository
     }
     
-    // check access to field
+    /** check access to field */
+    // 检查当前字段的可访问性
     private void checkAccess(Class<?> caller, Object obj) throws IllegalAccessException {
         checkAccess(caller, clazz, Modifier.isStatic(modifiers) ? null : obj.getClass(), modifiers);
     }
     
-    // security check is done before calling this method
+    /** security check is done before calling this method */
+    // 返回当前字段的访问器
     private FieldAccessor getFieldAccessor(Object obj) throws IllegalAccessException {
-        boolean ov = override;
-        FieldAccessor a = (ov) ? overrideFieldAccessor : fieldAccessor;
-        return (a != null) ? a : acquireFieldAccessor(ov);
+        FieldAccessor accessor = (override) ? overrideFieldAccessor : fieldAccessor;
+        return (accessor != null) ? accessor : acquireFieldAccessor(override);
     }
     
     /**
@@ -1183,37 +1238,51 @@ public final class Field extends AccessibleObject implements Member {
      * It is correct (though not efficient) to generate more than one FieldAccessor for a given Field.
      * However, avoiding synchronization will probably make the implementation more scalable.
      */
+    // 返回当前字段的访问器
     private FieldAccessor acquireFieldAccessor(boolean overrideFinalCheck) {
-        // First check to see if one has been created yet, and take it
-        // if so
-        FieldAccessor tmp = null;
-        if(root != null)
-            tmp = root.getFieldAccessor(overrideFinalCheck);
-        if(tmp != null) {
-            if(overrideFinalCheck)
-                overrideFieldAccessor = tmp;
-            else
-                fieldAccessor = tmp;
-        } else {
-            // Otherwise fabricate one and propagate it up to the root
-            tmp = reflectionFactory.newFieldAccessor(this, overrideFinalCheck);
-            setFieldAccessor(tmp, overrideFinalCheck);
+        // First check to see if one has been created yet, and take it if so
+        FieldAccessor accessor = null;
+    
+        // 尝试从复制源中获取字段访问器
+        if(root != null) {
+            // 从缓存中获取当前字段的访问器
+            accessor = root.getFieldAccessor(overrideFinalCheck);
         }
+    
+        // 对字段访问器进行缓存
+        if(accessor != null) {
+            if(overrideFinalCheck) {
+                overrideFieldAccessor = accessor;    // 设置字段访问器缓存，禁用了访问安全检查
+            } else {
+                fieldAccessor = accessor;            // 设置字段访问器缓存，未禁用访问安全检查
+            }
+        } else {
+            /* Otherwise fabricate one and propagate it up to the root*/
+            // 构造并返回字段field的访问器，overrideFinalCheck指示字段field的访问安全检查是否被禁用
+            accessor = reflectionFactory.newFieldAccessor(this, overrideFinalCheck);
         
-        return tmp;
+            // 设置(缓存)当前字段的访问器
+            setFieldAccessor(accessor, overrideFinalCheck);
+        }
+    
+        return accessor;
     }
     
-    // Returns FieldAccessor for this Field object, not looking up the chain to the root
+    /** Returns FieldAccessor for this Field object, not looking up the chain to the root */
+    // 从缓存中获取当前字段的访问器
     private FieldAccessor getFieldAccessor(boolean overrideFinalCheck) {
         return (overrideFinalCheck) ? overrideFieldAccessor : fieldAccessor;
     }
     
-    // Sets the FieldAccessor for this Field object and (recursively) its root
+    /** Sets the FieldAccessor for this Field object and (recursively) its root */
+    // 设置(缓存)当前字段的访问器
     private void setFieldAccessor(FieldAccessor accessor, boolean overrideFinalCheck) {
-        if(overrideFinalCheck)
+        if(overrideFinalCheck) {
             overrideFieldAccessor = accessor;
-        else
+        } else {
             fieldAccessor = accessor;
+        }
+        
         // Propagate up
         if(root != null) {
             root.setFieldAccessor(accessor, overrideFinalCheck);
@@ -1235,8 +1304,10 @@ public final class Field extends AccessibleObject implements Member {
                 }
             }
         }
+    
         return declAnnos;
     }
     
     private native byte[] getTypeAnnotationBytes0();
+    
 }

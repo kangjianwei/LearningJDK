@@ -132,16 +132,18 @@ public final class Unsafe {
     public static final int ARRAY_OBJECT_INDEX_SCALE = jdk.internal.misc.Unsafe.ARRAY_OBJECT_INDEX_SCALE;
     
     
-    
     static {
         Reflection.registerMethodsToFilter(Unsafe.class, "getUnsafe");
     }
     
     
     
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     private Unsafe() {
     }
     
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     /**
@@ -175,12 +177,14 @@ public final class Unsafe {
     // 返回单例对象，只能从引导类加载器（bootstrap class loader）加载，被自定义类直接调用会抛出异常
     @CallerSensitive
     public static Unsafe getUnsafe() {
-        // 得到调用该方法的Class对象
+        // 获取getUnsafe()调用者所处的类
         Class<?> caller = Reflection.getCallerClass();
+    
         // 校验ClassLoader，从自己编写的类中调用此方法会抛出异常
         if (!VM.isSystemDomainLoader(caller.getClassLoader())) {
             throw new SecurityException("Unsafe");
         }
+    
         return theUnsafe;
     }
     
@@ -214,6 +218,7 @@ public final class Unsafe {
      * @param data      bytes of a class file
      * @param cpPatches where non-null entries exist, they replace corresponding CP entries in data
      */
+    // 定义(创建)一个虚拟机匿名类，该类不会被类加载器或系统目录发现
     @ForceInline
     public Class<?> defineAnonymousClass(Class<?> hostClass, byte[] data, Object[] cpPatches) {
         return theInternalUnsafe.defineAnonymousClass(hostClass, data, cpPatches);

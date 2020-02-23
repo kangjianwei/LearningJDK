@@ -25,6 +25,9 @@
 
 package java.lang.reflect;
 
+import java.lang.annotation.Annotation;
+import java.lang.annotation.AnnotationFormatError;
+import java.util.StringJoiner;
 import jdk.internal.misc.SharedSecrets;
 import jdk.internal.reflect.CallerSensitive;
 import jdk.internal.reflect.ConstructorAccessor;
@@ -36,10 +39,6 @@ import sun.reflect.generics.factory.CoreReflectionFactory;
 import sun.reflect.generics.factory.GenericsFactory;
 import sun.reflect.generics.repository.ConstructorRepository;
 import sun.reflect.generics.scope.ConstructorScope;
-
-import java.lang.annotation.Annotation;
-import java.lang.annotation.AnnotationFormatError;
-import java.util.StringJoiner;
 
 /**
  * {@code Constructor} provides information about, and access to, a single
@@ -63,27 +62,32 @@ import java.util.StringJoiner;
  */
 // 反射元素-构造器
 public final class Constructor<T> extends Executable {
-    private Class<T> clazz;
-    private int slot;
-    private Class<?>[] parameterTypes;
-    private Class<?>[] exceptionTypes;
-    private int modifiers;
+    
+    private volatile ConstructorAccessor constructorAccessor;   // 构造器访问器，用于对构造器的反射调用
+    
+    private int slot;   // 当前构造器在宿主类构造器中的序号
+    
+    private Class<T> clazz; // 当前构造器所在的类
+    
+    private Class<?>[] parameterTypes;  // 构造器的形参列表
+    private Class<?>[] exceptionTypes;  // 构造器抛出的异常列表
+    private int modifiers;              // 构造器的修饰符
+    
     // Generics and annotations support
     private transient String signature;
+    
     // generic info repository; lazily initialized
     private transient ConstructorRepository genericInfo;
-    private byte[] annotations;
-    private byte[] parameterAnnotations;
     
-    private volatile ConstructorAccessor constructorAccessor;
+    private byte[] annotations;             // 作用在构造器上的注解(以字节形式表示，用在反射中)
+    private byte[] parameterAnnotations;    // 作用在构造器形参上的注解(以字节形式表示，用在反射中)
     
     /**
      * For sharing of ConstructorAccessors.
-     * This branching structure is currently only two levels deep
-     * (i.e., one root Constructor and potentially many Constructor objects pointing to it.)
-     *
+     * This branching structure is currently only two levels deep (i.e., one root Constructor and potentially many Constructor objects pointing to it.)
      * If this branching structure would ever contain cycles, deadlocks can occur in annotation code.
      */
+    // 如果当前Constructor是复制来的，此处保存它的复制源
     private Constructor<T> root;
     
     
@@ -111,7 +115,7 @@ public final class Constructor<T> extends Executable {
     
     
     
-    /*▼ 使用构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 设置可访问性 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * {@inheritDoc}
@@ -127,16 +131,29 @@ public final class Constructor<T> extends Executable {
      *                                     or this is a constructor for {@code java.lang.Class}
      * @spec JPMS
      */
-    // 禁用/启用安全检查。访问private的Method/Field/Constructor时必须禁用安全检查，即setAccessible(true)
+    // 开启/关闭对当前元素的反射访问权限。访问private的Constructor时必须禁用安全检查，以开启访问权限，即setAccessible(true)
     @Override
     @CallerSensitive
     public void setAccessible(boolean flag) {
         AccessibleObject.checkPermission();
+    
+        // 如果需要开启访问权限
         if(flag) {
-            checkCanSetAccessible(Reflection.getCallerClass());
+            // 获取setAccessible()的调用者所处的类
+            Class<?> caller = Reflection.getCallerClass();
+        
+            // 判断caller是否可以访问当前元素(涉及到exports和opens的判断)
+            checkCanSetAccessible(caller);
         }
+    
         setAccessible0(flag);
     }
+    
+    /*▲ 设置可访问性 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 使用构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Uses the constructor represented by this {@code Constructor} object to
@@ -190,18 +207,29 @@ public final class Constructor<T> extends Executable {
     @CallerSensitive
     @ForceInline
     public T newInstance(Object... initargs) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+        // 如果没有禁用安全检查，那么需要检查显式访问权限
         if(!override) {
+            // 获取newInstance()调用者所处的类
             Class<?> caller = Reflection.getCallerClass();
+        
+            // 判断是否可以在caller中反射调用当前元素指示的构造器
             checkAccess(caller, clazz, clazz, modifiers);
         }
-        if((clazz.getModifiers() & Modifier.ENUM) != 0)
+    
+        // 不允许反射创建枚举对象
+        if((clazz.getModifiers() & Modifier.ENUM) != 0) {
             throw new IllegalArgumentException("Cannot reflectively create enum objects");
+        }
+    
         ConstructorAccessor ca = constructorAccessor;   // read volatile
         if(ca == null) {
+            // 获取当前构造器的访问器
             ca = acquireConstructorAccessor();
         }
+    
         @SuppressWarnings("unchecked")
         T inst = (T) ca.newInstance(initargs);
+    
         return inst;
     }
     
@@ -632,12 +660,14 @@ public final class Constructor<T> extends Executable {
         specificToStringHeader(sb);
     }
     
+    // 判断caller是否可以访问当前元素(涉及到exports和opens的判断)
     @Override
     void checkCanSetAccessible(Class<?> caller) {
         checkCanSetAccessible(caller, clazz);
+        
         if(clazz == Class.class) {
             // can we change this to InaccessibleObjectException?
-            throw new SecurityException("Cannot make a java.lang.Class" + " constructor accessible");
+            throw new SecurityException("Cannot make a java.lang.Class constructor accessible");
         }
     }
     
@@ -646,26 +676,37 @@ public final class Constructor<T> extends Executable {
         return (getSignature() != null);
     }
     
-    @Override
-    byte[] getAnnotationBytes() {
-        return annotations;
-    }
-    
-    // Sets the ConstructorAccessor for this Constructor object and (recursively) its root
-    void setConstructorAccessor(ConstructorAccessor accessor) {
-        constructorAccessor = accessor;
-        // Propagate up
-        if(root != null) {
-            root.setConstructorAccessor(accessor);
-        }
-    }
-    
+    // 返回当前构造器在其宿主类构造器中的序号
     int getSlot() {
         return slot;
     }
     
     String getSignature() {
         return signature;
+    }
+    
+    @Override
+    byte[] getAnnotationBytes() {
+        return annotations;
+    }
+    
+    byte[] getRawAnnotations() {
+        return annotations;
+    }
+    
+    byte[] getRawParameterAnnotations() {
+        return parameterAnnotations;
+    }
+    
+    /** Sets the ConstructorAccessor for this Constructor object and (recursively) its root */
+    // 为当前构造器设置访问器
+    void setConstructorAccessor(ConstructorAccessor accessor) {
+        constructorAccessor = accessor;
+        
+        // Propagate up
+        if(root != null) {
+            root.setConstructorAccessor(accessor);
+        }
     }
     
     @Override
@@ -680,14 +721,6 @@ public final class Constructor<T> extends Executable {
                 throw new AnnotationFormatError("Parameter annotations don't match number of parameters");
             }
         }
-    }
-    
-    byte[] getRawAnnotations() {
-        return annotations;
-    }
-    
-    byte[] getRawParameterAnnotations() {
-        return parameterAnnotations;
     }
     
     @Override
@@ -732,26 +765,28 @@ public final class Constructor<T> extends Executable {
     }
     
     /**
-     * NOTE that there is no synchronization used here. It is correct
-     * (though not efficient) to generate more than one
-     * ConstructorAccessor for a given Constructor. However, avoiding
-     * synchronization will probably make the implementation more
-     * scalable.
+     * NOTE that there is no synchronization used here.
+     * It is correct (though not efficient) to generate more than one ConstructorAccessor for a given Constructor.
+     * However, avoiding synchronization will probably make the implementation more scalable.
      */
+    // 返回当前构造器的访问器
     private ConstructorAccessor acquireConstructorAccessor() {
-        // First check to see if one has been created yet, and take it
-        // if so.
+        // First check to see if one has been created yet, and take it if so.
         ConstructorAccessor tmp = null;
-        if(root != null)
+    
+        if(root != null) {
             tmp = root.getConstructorAccessor();
+        }
+    
         if(tmp != null) {
             constructorAccessor = tmp;
         } else {
-            // Otherwise fabricate one and propagate it up to the root
+            /* Otherwise fabricate one and propagate it up to the root */
             tmp = reflectionFactory.newConstructorAccessor(this);
+        
             setConstructorAccessor(tmp);
         }
-        
+    
         return tmp;
     }
 }

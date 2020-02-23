@@ -57,23 +57,27 @@ public class ClassLoaders {
         String append = VM.getSavedProperty("jdk.boot.class.path.append");
         
         BOOT_LOADER = new BootClassLoader((append != null && append.length()>0) ? new URLClassPath(append, true) : null);
-        
+    
         PLATFORM_LOADER = new PlatformClassLoader(BOOT_LOADER);
-        
+    
         /*
          * A class path is required when no initial module is specified.
          * In this case the class path defaults to "", meaning the current working directory.
          * When an initial module is specified, on the contrary,
          * we drop this historic interpretation of the empty string and instead treat it as unspecified.
          */
-        // 查找类路径（不存在模块时）
+        // 查找类路径
         String cp = System.getProperty("java.class.path");
+    
+        // 如果未找到类路径
         if(cp == null || cp.length() == 0) {
             // 查找模块路径（存在模块时）
             String initialModuleName = System.getProperty("jdk.module.main");
             cp = (initialModuleName == null) ? "" : null;
         }
+    
         URLClassPath ucp = new URLClassPath(cp, false);
+    
         APP_LOADER = new AppClassLoader(PLATFORM_LOADER, ucp);
     }
     

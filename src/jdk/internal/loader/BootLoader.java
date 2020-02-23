@@ -55,7 +55,7 @@ public class BootLoader {
     private BootLoader() { }
     
     // The unnamed module for the boot loader
-    private static final Module UNNAMED_MODULE;
+    private static final Module UNNAMED_MODULE; // BootLoader对应的未命名模块
     
     // ServiceCatalog for the boot class loader
     private static final ServicesCatalog SERVICES_CATALOG = ServicesCatalog.create();
@@ -75,7 +75,7 @@ public class BootLoader {
     /**
      * Returns the unnamed module for the boot loader.
      */
-    // 获取boot class loader的unnamed module
+    // 获取bootstrap类加载器的未命名模块
     public static Module getUnnamedModule() {
         return UNNAMED_MODULE;
     }
@@ -83,7 +83,7 @@ public class BootLoader {
     /**
      * Returns the ServiceCatalog for modules defined to the boot class loader.
      */
-    // 获取boot class loader的ServicesCatalog
+    // 获取bootstrap类加载器可以加载到的服务目录
     public static ServicesCatalog getServicesCatalog() {
         return SERVICES_CATALOG;
     }
@@ -91,7 +91,7 @@ public class BootLoader {
     /**
      * Returns the ClassLoaderValue map for the boot class loader.
      */
-    // 获取boot class loader的ConcurrentHashMap
+    // 返回bootstrap类加载器的类加载器局部缓存
     public static ConcurrentHashMap<?, ?> getClassLoaderValueMap() {
         return CLASS_LOADER_VALUE_MAP;
     }
@@ -100,7 +100,7 @@ public class BootLoader {
      * Returns {@code true} if there is a class path associated with the
      * BootLoader.
      */
-    // 当前类加载器是否关联了类路径
+    // 判断bootstrap类加载器是否关联了类路径
     public static boolean hasClassPath() {
         return ClassLoaders.bootLoader().hasClassPath();
     }
@@ -109,7 +109,7 @@ public class BootLoader {
      * Registers a module with this class loader so that its classes
      * (and resources) become visible via this class loader.
      */
-    // 将加载的模块信息注册到当前的类加载器中
+    // 将加载的模块信息注册到bootstrap类加载器中
     public static void loadModule(ModuleReference mref) {
         ClassLoaders.bootLoader().loadModule(mref);
     }
@@ -117,7 +117,7 @@ public class BootLoader {
     /**
      * Loads the Class object with the given name defined to the boot loader.
      */
-    // 通过bootstrap class loader查找类是否已加载，如果找不到则返回null
+    // 通过bootstrap类加载器查找类是否已加载，如果找不到则返回null
     public static Class<?> loadClassOrNull(String name) {
         BuiltinClassLoader bootLoader = ClassLoaders.bootLoader();
         
@@ -125,12 +125,13 @@ public class BootLoader {
     }
     
     /**
-     * Loads the Class object with the given name in the given module
-     * defined to the boot loader. Returns {@code null} if not found.
+     * Loads the Class object with the given name in the given module defined to the boot loader.
+     * Returns {@code null} if not found.
      */
-    // 通过bootstrap class loader查找类是否已加载，如果找不到则返回null
+    // 通过bootstrap类加载器查找类是否已加载，如果找不到则返回null
     public static Class<?> loadClass(Module module, String name) {
         Class<?> c = loadClassOrNull(name);
+    
         if(c != null && c.getModule() == module) {
             return c;
         } else {
@@ -141,16 +142,20 @@ public class BootLoader {
     /**
      * Returns a URL to a resource in a module defined to the boot loader.
      */
-    // 查找首个匹配的资源，并返回其URL。或者在指定模块中查找，或者在BootClassLoader的类路径上查找
-    public static URL findResource(String mn, String name) throws IOException {
-        return ClassLoaders.bootLoader().findResource(mn, name);
+    /*
+     * 在指定的模块路径或bootstrap类加载器的类路径下查找匹配的资源
+     *
+     * 如果moduleName为null，则在当前类加载器关联的类路径(根目录)下查找首个匹配的资源
+     * 如果moduleName不为null，则在模块路径(根目录)下查找首个匹配的资源
+     */
+    public static URL findResource(String moduleName, String name) throws IOException {
+        return ClassLoaders.bootLoader().findResource(moduleName, name);
     }
     
     /**
-     * Returns an input stream to a resource in a module defined to the
-     * boot loader.
+     * Returns an input stream to a resource in a module defined to the boot loader.
      */
-    // 查找首个匹配的资源，并返回其输入流。或者在指定模块中查找，或者在BootClassLoader的类路径上查找
+    // 在指定的模块路径(根目录)或bootstrap类加载器关联的类路径(根目录)下查找匹配的资源；如果成功找到资源，则返回其入流
     public static InputStream findResourceAsStream(String mn, String name) throws IOException {
         return ClassLoaders.bootLoader().findResourceAsStream(mn, name);
     }
@@ -159,7 +164,7 @@ public class BootLoader {
      * Returns the URL to the given resource in any of the modules
      * defined to the boot loader and the boot class path.
      */
-    // 在资源所在模块和BootClassLoader定义的类路径下搜索首个匹配的资源（遍历所有可能的位置，一发现匹配资源就返回）
+    // 在bootstrap类加载器可以访问到的模块路径/类路径下搜索首个匹配的资源（遍历所有可能的位置，一发现匹配资源就返回）
     public static URL findResource(String name) {
         return ClassLoaders.bootLoader().findResource(name);
     }
@@ -168,15 +173,15 @@ public class BootLoader {
      * Returns an Iterator to iterate over the resources of the given name
      * in any of the modules defined to the boot loader.
      */
-    // 在资源所在模块和BootClassLoader定义的类路径下搜索所有匹配的资源（遍历所有可能的位置，找出所有匹配资源才返回）
+    // 在bootstrap类加载器下辖的模块路径/类路径的根目录下搜索所有匹配的资源
     public static Enumeration<URL> findResources(String name) throws IOException {
         return ClassLoaders.bootLoader().findResources(name);
     }
     
     /**
-     * Define a package for the given class to the boot loader, if not already
-     * defined.
+     * Define a package for the given class to the boot loader, if not already defined.
      */
+    // 获取指定类所在包的Package对象
     public static Package definePackage(Class<?> c) {
         return getDefinedPackage(c.getPackageName());
     }
@@ -200,10 +205,9 @@ public class BootLoader {
     /**
      * Returns a stream of the packages defined to the boot loader.
      */
-    // 将boot loader定义的包名封装到流中返回
+    // 将bootstrap类加载器定义的包名封装到流中返回
     public static Stream<Package> packages() {
-        return Arrays.stream(getSystemPackageNames())
-            .map(name -> getDefinedPackage(name.replace('/', '.')));
+        return Arrays.stream(getSystemPackageNames()).map(name -> getDefinedPackage(name.replace('/', '.')));
     }
     
     /**
@@ -221,6 +225,7 @@ public class BootLoader {
     private static native String getSystemPackageLocation(String name);
     
     private static native void setBootLoaderUnnamedModule0(Module module);
+    
     
     /**
      * Helper class to define {@code Package} objects for packages in modules
@@ -285,8 +290,7 @@ public class BootLoader {
             // is loaded into a running VM
             if (mn != null) {
                 String name = mn;
-                return Modules.findLoadedModule(mn)
-                    .orElseThrow(() -> new InternalError(name + " not loaded"));
+                return Modules.findLoadedModule(mn).orElseThrow(() -> new InternalError(name + " not loaded"));
             } else {
                 return null;
             }
