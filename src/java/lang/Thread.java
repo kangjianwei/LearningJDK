@@ -1014,10 +1014,7 @@ public class Thread implements Runnable {
      *                              <i>interrupted status</i> of the current thread is
      *                              cleared when this exception is thrown.
      */
-    /*
-     * 使线程进入WAITING状态
-     * 让join()方法所在线程进入等待，直到调用join()的线程死亡之后，再去执行join()方法所在线程
-     */
+    // 使join()的调用者所在的线程进入WAITING状态；直到当前线程死亡之后，再去执行上述调用者线程
     public final void join() throws InterruptedException {
         join(0);
     }
@@ -1039,19 +1036,25 @@ public class Thread implements Runnable {
      *                                  <i>interrupted status</i> of the current thread is
      *                                  cleared when this exception is thrown.
      */
-    // 使线程进入WAITING或TIMED_WAITING状态
+    /*
+     * 使join()的调用者所在的线程进入WAITING或TIMED_WAITING状态；直到当前线程死亡，或者等待超时之后，再去执行上述调用者线程
+     * 注：millis是超时限制，其单位是毫秒，且为非负数
+     */
     public final synchronized void join(long millis) throws InterruptedException {
         long base = System.currentTimeMillis();
         long now = 0;
-        
+    
         if(millis<0) {
             throw new IllegalArgumentException("timeout value is negative");
         }
-        
+    
+        // 一直等待
         if(millis == 0) {
             while(isAlive()) {
                 wait(0);
             }
+        
+            // 限时等待
         } else {
             while(isAlive()) {
                 long delay = millis - now;
@@ -1086,13 +1089,16 @@ public class Thread implements Runnable {
      *                                  <i>interrupted status</i> of the current thread is
      *                                  cleared when this exception is thrown.
      */
-    // 使线程进入WAITING或TIMED_WAITING状态
+    /*
+     * 使join()的调用者所在的线程进入WAITING或TIMED_WAITING状态；直到当前线程死亡，或者等待超时之后，再去执行上述调用者线程
+     * 注：millis的单位是毫秒，且为非负数；nanos的单位是纳秒，其取值范围在1毫秒之内，与millis共同组成超时限制
+     */
     public final synchronized void join(long millis, int nanos) throws InterruptedException {
-        
+    
         if(millis<0) {
             throw new IllegalArgumentException("timeout value is negative");
         }
-        
+    
         // 纳秒的取值在1毫秒之内
         if(nanos<0 || nanos>999999) {
             throw new IllegalArgumentException("nanosecond timeout value out of range");
@@ -2235,4 +2241,5 @@ public class Thread implements Runnable {
         /** queue for WeakReferences to audited subclasses */
         static final ReferenceQueue<Class<?>> subclassAuditsQueue = new ReferenceQueue<>();
     }
+    
 }
