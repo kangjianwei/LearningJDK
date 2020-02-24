@@ -1098,6 +1098,7 @@ public final class Long extends Number implements Comparable<Long> {
      * @return a string representation of the value of this object in
      * base&nbsp;10.
      */
+    // 按10进制返回当前long的值
     public String toString() {
         return toString(value);
     }
@@ -1113,6 +1114,7 @@ public final class Long extends Number implements Comparable<Long> {
      *
      * @return a string representation of the argument in base&nbsp;10.
      */
+    // 按10进制返回i的值
     public static String toString(long i) {
         int size = stringSize(i);
         if(COMPACT_STRINGS) {
@@ -1172,18 +1174,21 @@ public final class Long extends Number implements Comparable<Long> {
      * @see java.lang.Character#MAX_RADIX
      * @see java.lang.Character#MIN_RADIX
      */
-    // 返回整型值i的radix形式
+    // 按radix进制返回i的值
     public static String toString(long i, int radix) {
-        if(radix<Character.MIN_RADIX || radix>Character.MAX_RADIX)
+        if(radix<Character.MIN_RADIX || radix>Character.MAX_RADIX) {
             radix = 10;
-        if(radix == 10)
+        }
+    
+        if(radix == 10) {
             return toString(i);
-        
+        }
+    
         if(COMPACT_STRINGS) {
             byte[] buf = new byte[65];
             int charPos = 64;
             boolean negative = (i<0);
-            
+        
             if(!negative) {
                 i = -i;
             }
@@ -1199,6 +1204,7 @@ public final class Long extends Number implements Comparable<Long> {
             }
             return StringLatin1.newString(buf, charPos, (65 - charPos));
         }
+    
         return toStringUTF16(i, radix);
     }
     
@@ -1233,7 +1239,7 @@ public final class Long extends Number implements Comparable<Long> {
      * @see #toUnsignedString(long, int)
      * @since 1.0.2
      */
-    // 返回整型值i的二进制形式
+    // 按2进制返回i的无符号值
     public static String toBinaryString(long i) {
         return toUnsignedString0(i, 1);
     }
@@ -1275,9 +1281,30 @@ public final class Long extends Number implements Comparable<Long> {
      * @see #toUnsignedString(long, int)
      * @since 1.0.2
      */
-    // 返回整型值i的八进制形式
+    // 按8进制返回i的无符号值
     public static String toOctalString(long i) {
         return toUnsignedString0(i, 3);
+    }
+    
+    /**
+     * Returns a string representation of the argument as an unsigned
+     * decimal value.
+     *
+     * The argument is converted to unsigned decimal representation
+     * and returned as a string exactly as if the argument and radix
+     * 10 were given as arguments to the {@link #toUnsignedString(long,
+     * int)} method.
+     *
+     * @param i an integer to be converted to an unsigned string.
+     *
+     * @return an unsigned string representation of the argument.
+     *
+     * @see #toUnsignedString(long, int)
+     * @since 1.8
+     */
+    // 按10进制返回i的无符号值
+    public static String toUnsignedString(long i) {
+        return toUnsignedString(i, 10);
     }
     
     /**
@@ -1325,30 +1352,9 @@ public final class Long extends Number implements Comparable<Long> {
      * @see #toUnsignedString(long, int)
      * @since 1.0.2
      */
-    // 返回整型值i的十六进制形式
+    // 按16进制返回i的无符号值
     public static String toHexString(long i) {
         return toUnsignedString0(i, 4);
-    }
-    
-    /**
-     * Returns a string representation of the argument as an unsigned
-     * decimal value.
-     *
-     * The argument is converted to unsigned decimal representation
-     * and returned as a string exactly as if the argument and radix
-     * 10 were given as arguments to the {@link #toUnsignedString(long,
-     * int)} method.
-     *
-     * @param i an integer to be converted to an unsigned string.
-     *
-     * @return an unsigned string representation of the argument.
-     *
-     * @see #toUnsignedString(long, int)
-     * @since 1.8
-     */
-    // 返回当前long的无符号形式的值的
-    public static String toUnsignedString(long i) {
-        return toUnsignedString(i, 10);
     }
     
     /**
@@ -1379,43 +1385,43 @@ public final class Long extends Number implements Comparable<Long> {
      * @see #toString(long, int)
      * @since 1.8
      */
-    // 返回当前long的无符号形式的值的radix进制形式
+    // 按radix进制返回i的无符号值
     public static String toUnsignedString(long i, int radix) {
-        if(i >= 0)
+        if(i >= 0) {
             return toString(i, radix);
-        else {
-            switch(radix) {
-                case 2:
-                    return toBinaryString(i);
-                
-                case 4:
-                    return toUnsignedString0(i, 2);
-                
-                case 8:
-                    return toOctalString(i);
-                
-                case 10:
-                    /*
-                     * We can get the effect of an unsigned division by 10
-                     * on a long value by first shifting right, yielding a
-                     * positive value, and then dividing by 5.  This
-                     * allows the last digit and preceding digits to be
-                     * isolated more quickly than by an initial conversion
-                     * to BigInteger.
-                     */
-                    long quot = (i >>> 1) / 5;
-                    long rem = i - quot * 10;
-                    return toString(quot) + rem;
-                
-                case 16:
-                    return toHexString(i);
-                
-                case 32:
-                    return toUnsignedString0(i, 5);
-                
-                default:
-                    return toUnsignedBigInteger(i).toString(radix);
-            }
+        }
+    
+        switch(radix) {
+            case 2:
+                return toBinaryString(i);
+        
+            case 4:
+                return toUnsignedString0(i, 2);
+        
+            case 8:
+                return toOctalString(i);
+        
+            case 10:
+                /*
+                 * We can get the effect of an unsigned division by 10
+                 * on a long value by first shifting right, yielding a
+                 * positive value, and then dividing by 5.  This
+                 * allows the last digit and preceding digits to be
+                 * isolated more quickly than by an initial conversion
+                 * to BigInteger.
+                 */
+                long quot = (i >>> 1) / 5;
+                long rem = i - quot * 10;
+                return toString(quot) + rem;
+        
+            case 16:
+                return toHexString(i);
+        
+            case 32:
+                return toUnsignedString0(i, 5);
+        
+            default:
+                return toUnsignedBigInteger(i).toString(radix);
         }
     }
     
@@ -1427,11 +1433,12 @@ public final class Long extends Number implements Comparable<Long> {
      * @param val   the value to format
      * @param shift the log2 of the base to format in (4 for hex, 3 for octal, 1 for binary)
      */
-    // 返回整型值val的2^shift进制形式
+    // 按2^shift进制返回val的无符号值
     static String toUnsignedString0(long val, int shift) {
         // assert shift > 0 && shift <=5 : "Illegal shift value";
         int mag = Long.SIZE - Long.numberOfLeadingZeros(val);
         int chars = Math.max(((mag + (shift - 1)) / shift), 1);
+    
         if(COMPACT_STRINGS) {
             byte[] buf = new byte[chars];
             formatUnsignedLong0(val, shift, buf, 0, chars);
@@ -1443,7 +1450,7 @@ public final class Long extends Number implements Comparable<Long> {
         }
     }
     
-    // 返回整型值i的radix形式，UTF16版本
+    // 按radix进制返回i的无符号值，UTF16版本
     private static String toStringUTF16(long i, int radix) {
         byte[] buf = new byte[65 * 2];
         int charPos = 64;

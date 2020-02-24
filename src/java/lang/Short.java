@@ -456,6 +456,7 @@ public final class Short extends Number implements Comparable<Short> {
      * @return a string representation of the value of this object in
      * base&nbsp;10.
      */
+    // 按10进制返回当前short的值
     public String toString() {
         return Integer.toString((int) value);
     }
@@ -470,8 +471,9 @@ public final class Short extends Number implements Comparable<Short> {
      *
      * @see java.lang.Integer#toString(int)
      */
-    public static String toString(short s) {
-        return Integer.toString((int) s, 10);
+    // 按10进制返回x的值
+    public static String toString(short x) {
+        return Integer.toString((int) x, 10);
     }
     
     /*▲ 字符串化 ████████████████████████████████████████████████████████████████████████████████┛ */

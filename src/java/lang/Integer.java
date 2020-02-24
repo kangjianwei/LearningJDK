@@ -1013,6 +1013,7 @@ public final class Integer extends Number implements Comparable<Integer> {
      * @return a string representation of the value of this object in
      * base&nbsp;10.
      */
+    // 按10进制返回当前int的值
     public String toString() {
         return toString(value);
     }
@@ -1028,6 +1029,7 @@ public final class Integer extends Number implements Comparable<Integer> {
      *
      * @return a string representation of the argument in base&nbsp;10.
      */
+    // 按10进制返回i的值
     @HotSpotIntrinsicCandidate
     public static String toString(int i) {
         // 统计整数i中包含的符号数量（包括负号），即计算整数i转为字符串后的长度
@@ -1090,7 +1092,7 @@ public final class Integer extends Number implements Comparable<Integer> {
      * @see java.lang.Character#MAX_RADIX
      * @see java.lang.Character#MIN_RADIX
      */
-    // 返回整型值i的radix形式
+    // 按radix进制返回i的值
     public static String toString(int i, int radix) {
         if(radix<Character.MIN_RADIX || radix>Character.MAX_RADIX)
             radix = 10;
@@ -1155,7 +1157,7 @@ public final class Integer extends Number implements Comparable<Integer> {
      * @see #toUnsignedString(int, int)
      * @since 1.0.2
      */
-    // 返回整型值i的二进制形式
+    // 按2进制返回i的无符号值
     public static String toBinaryString(int i) {
         return toUnsignedString0(i, 1);
     }
@@ -1196,9 +1198,30 @@ public final class Integer extends Number implements Comparable<Integer> {
      * @see #toUnsignedString(int, int)
      * @since 1.0.2
      */
-    // 返回整型值i的八进制形式
+    // 按8进制返回i的无符号值
     public static String toOctalString(int i) {
         return toUnsignedString0(i, 3);
+    }
+    
+    /**
+     * Returns a string representation of the argument as an unsigned
+     * decimal value.
+     *
+     * The argument is converted to unsigned decimal representation
+     * and returned as a string exactly as if the argument and radix
+     * 10 were given as arguments to the {@link #toUnsignedString(int,
+     * int)} method.
+     *
+     * @param i an integer to be converted to an unsigned string.
+     *
+     * @return an unsigned string representation of the argument.
+     *
+     * @see #toUnsignedString(int, int)
+     * @since 1.8
+     */
+    // 按10进制返回i的无符号值
+    public static String toUnsignedString(int i) {
+        return Long.toString(toUnsignedLong(i));
     }
     
     /**
@@ -1245,30 +1268,9 @@ public final class Integer extends Number implements Comparable<Integer> {
      * @see #toUnsignedString(int, int)
      * @since 1.0.2
      */
-    // 返回整型值i的十六进制形式
+    // 按16进制返回i的无符号值
     public static String toHexString(int i) {
         return toUnsignedString0(i, 4);
-    }
-    
-    /**
-     * Returns a string representation of the argument as an unsigned
-     * decimal value.
-     *
-     * The argument is converted to unsigned decimal representation
-     * and returned as a string exactly as if the argument and radix
-     * 10 were given as arguments to the {@link #toUnsignedString(int,
-     * int)} method.
-     *
-     * @param i an integer to be converted to an unsigned string.
-     *
-     * @return an unsigned string representation of the argument.
-     *
-     * @see #toUnsignedString(int, int)
-     * @since 1.8
-     */
-    // 返回当前int的无符号形式的值的
-    public static String toUnsignedString(int i) {
-        return Long.toString(toUnsignedLong(i));
     }
     
     /**
@@ -1299,7 +1301,7 @@ public final class Integer extends Number implements Comparable<Integer> {
      * @see #toString(int, int)
      * @since 1.8
      */
-    // 返回当前int的无符号形式的值的radix进制形式
+    // 按radix进制返回i的无符号值
     public static String toUnsignedString(int i, int radix) {
         return Long.toUnsignedString(toUnsignedLong(i), radix);
     }
@@ -1309,7 +1311,7 @@ public final class Integer extends Number implements Comparable<Integer> {
     /**
      * Convert the integer to an unsigned number.
      */
-    // 返回整型值val的2^shift进制形式
+    // 按2^shift进制返回val的无符号值
     private static String toUnsignedString0(int val, int shift) {
         // assert shift > 0 && shift <=5 : "Illegal shift value";
         int mag = Integer.SIZE - Integer.numberOfLeadingZeros(val);
@@ -1325,7 +1327,7 @@ public final class Integer extends Number implements Comparable<Integer> {
         }
     }
     
-    // 返回整型值i的radix形式，UTF16版本
+    // 按radix进制返回i的无符号值，UTF16版本
     private static String toStringUTF16(int i, int radix) {
         byte[] buf = new byte[33 * 2];
         boolean negative = (i<0);
