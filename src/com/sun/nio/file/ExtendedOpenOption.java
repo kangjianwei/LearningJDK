@@ -29,26 +29,32 @@ import java.nio.file.OpenOption;
 import sun.nio.fs.ExtendedOptions;
 
 /**
- * Defines <em>extended</em> open options supported on some platforms
- * by Sun's provider implementation.
+ * Defines <em>extended</em> open options supported on some platforms by Sun's provider implementation.
  *
  * @since 1.7
  */
-
+// 文件创建/打开操作的扩展可选参数
 public enum ExtendedOpenOption implements OpenOption {
+    
     /**
      * Prevent operations on the file that request read access.
      */
+    // 阻止共享读操作
     NOSHARE_READ(ExtendedOptions.NOSHARE_READ),
+    
     /**
      * Prevent operations on the file that request write access.
+     *
      */
+    // 阻止共享写操作
     NOSHARE_WRITE(ExtendedOptions.NOSHARE_WRITE),
+    
     /**
      * Prevent operations on the file that request delete access.
      */
+    // 阻止共享删除操作
     NOSHARE_DELETE(ExtendedOptions.NOSHARE_DELETE),
-
+    
     /**
      * Requires that direct I/O be used for read or write access.
      * Attempting to open a file with this option set will result in
@@ -69,8 +75,9 @@ public enum ExtendedOpenOption implements OpenOption {
      *
      * @since 10
      */
+    // 使用直接IO
     DIRECT(ExtendedOptions.DIRECT);
-
+    
     ExtendedOpenOption(ExtendedOptions.InternalOption<Void> option) {
         option.register(this);
     }
