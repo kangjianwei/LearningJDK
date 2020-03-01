@@ -30,18 +30,22 @@ package java.nio.file;
  *
  * @since 1.7
  */
-
+// 文件复制/移动操作的标准可选参数
 public enum StandardCopyOption implements CopyOption {
+    
     /**
      * Replace an existing file if it exists.
      */
-    REPLACE_EXISTING,
+    REPLACE_EXISTING,   // 允许覆盖已存在的文件(不能覆盖目录)
+    
     /**
      * Copy attributes to the new file.
      */
-    COPY_ATTRIBUTES,
+    COPY_ATTRIBUTES,    // 复制(安全)属性信息
+    
     /**
      * Move the file as an atomic file system operation.
      */
-    ATOMIC_MOVE;
+    ATOMIC_MOVE;        // 原子地移动(禁止在不同的磁盘间复制)
+    
 }
