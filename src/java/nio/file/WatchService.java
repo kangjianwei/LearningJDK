@@ -98,20 +98,57 @@ import java.util.concurrent.TimeUnit;
  * it is not required that changes to files carried out on remote systems be
  * detected.
  *
- * @since 1.7
- *
  * @see FileSystem#newWatchService
+ * @since 1.7
  */
-
-public interface WatchService
-    extends Closeable
-{
-
+/*
+ * 目录监视服务
+ *
+ * 注：下文中提到的"主线程"是指构造监视服务的线程，该线程不一定是传统意义上main方法所在的线程，其本身可能也是一个子线程。
+ */
+public interface WatchService extends Closeable {
+    
+    /**
+     * Retrieves and removes next watch key, waiting if none are yet present.
+     *
+     * @return the next watch key
+     *
+     * @throws ClosedWatchServiceException if this watch service is closed, or it is closed while waiting
+     *                                     for the next key
+     * @throws InterruptedException        if interrupted while waiting
+     */
+    // 由主线程调用：取出下一个监视键，如果不存在，则阻塞
+    WatchKey take() throws InterruptedException;
+    
+    /**
+     * Retrieves and removes the next watch key, or {@code null} if none are present.
+     *
+     * @return the next watch key, or {@code null}
+     *
+     * @throws ClosedWatchServiceException if this watch service is closed
+     */
+    // 由主线程调用：取出下一个监视键，如果不存在，则返回null
+    WatchKey poll();
+    
+    /**
+     * Retrieves and removes the next watch key, waiting if necessary up to the specified wait time if none are yet present.
+     *
+     * @param timeout how to wait before giving up, in units of unit
+     * @param unit    a {@code TimeUnit} determining how to interpret the timeout parameter
+     *
+     * @return the next watch key, or {@code null}
+     *
+     * @throws ClosedWatchServiceException if this watch service is closed, or it is closed while waiting for the next key
+     * @throws InterruptedException        if interrupted while waiting
+     */
+    // 由主线程调用：取出下一个监视键，如果不存在，则阻塞，如果阻塞超时后仍然没有监视键，则返回null
+    WatchKey poll(long timeout, TimeUnit unit) throws InterruptedException;
+    
     /**
      * Closes this watch service.
      *
      * <p> If a thread is currently blocked in the {@link #take take} or {@link
-     * #poll(long,TimeUnit) poll} methods waiting for a key to be queued then
+     * #poll(long, TimeUnit) poll} methods waiting for a key to be queued then
      * it immediately receives a {@link ClosedWatchServiceException}. Any
      * valid keys associated with this watch service are {@link WatchKey#isValid
      * invalidated}.
@@ -121,54 +158,13 @@ public interface WatchService
      * If this watch service is already closed then invoking this method
      * has no effect.
      *
-     * @throws  IOException
-     *          if an I/O error occurs
+     * @throws IOException if an I/O error occurs
+     */
+    /*
+     * 由主线程调用：向子线程(工作线程)请求"关闭"服务，并阻塞主线程；直到"关闭"完成后，唤醒主线程。
+     * 具体的关闭行为包括移除所有未处理监视键，且加入一个特殊的监视键CLOSE_KEY。
      */
     @Override
     void close() throws IOException;
-
-    /**
-     * Retrieves and removes the next watch key, or {@code null} if none are
-     * present.
-     *
-     * @return  the next watch key, or {@code null}
-     *
-     * @throws  ClosedWatchServiceException
-     *          if this watch service is closed
-     */
-    WatchKey poll();
-
-    /**
-     * Retrieves and removes the next watch key, waiting if necessary up to the
-     * specified wait time if none are yet present.
-     *
-     * @param   timeout
-     *          how to wait before giving up, in units of unit
-     * @param   unit
-     *          a {@code TimeUnit} determining how to interpret the timeout
-     *          parameter
-     *
-     * @return  the next watch key, or {@code null}
-     *
-     * @throws  ClosedWatchServiceException
-     *          if this watch service is closed, or it is closed while waiting
-     *          for the next key
-     * @throws  InterruptedException
-     *          if interrupted while waiting
-     */
-    WatchKey poll(long timeout, TimeUnit unit)
-        throws InterruptedException;
-
-    /**
-     * Retrieves and removes next watch key, waiting if none are yet present.
-     *
-     * @return  the next watch key
-     *
-     * @throws  ClosedWatchServiceException
-     *          if this watch service is closed, or it is closed while waiting
-     *          for the next key
-     * @throws  InterruptedException
-     *          if interrupted while waiting
-     */
-    WatchKey take() throws InterruptedException;
+    
 }
