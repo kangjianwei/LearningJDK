@@ -80,29 +80,31 @@ import java.util.List;
  *
  * @since 1.7
  */
-
+/*
+ * 监视键接口
+ *
+ * 监视键是主线程与子线程(工作线程)的沟通桥梁，其生成方式是：
+ * 主线程向子线程(工作线程)发出"注册"请求，子线程(工作线程)处理完该请求后，返回继续的监视键。
+ *
+ * 监视键记录了被监视目录，以及包含了从子线程(工作线程)反馈的目标事件。
+ *
+ * 子线程(工作线程)发现(命中)监视事件时，会视情形将其封装为WatchEvent；
+ * 随后，将WatchEvent存入监视键的待处理事件集合，并且再次将监视键加入到监视服务中为其准备的队列容器中；
+ * 最后，主线程会从上述队列容器中取出监视键，并进一步从监视键中获取监视到的事件。
+ */
 public interface WatchKey {
-
-    /**
-     * Tells whether or not this watch key is valid.
-     *
-     * <p> A watch key is valid upon creation and remains until it is cancelled,
-     * or its watch service is closed.
-     *
-     * @return  {@code true} if, and only if, this watch key is valid
-     */
-    boolean isValid();
-
+    
     /**
      * Retrieves and removes all pending events for this watch key, returning
      * a {@code List} of the events that were retrieved.
      *
      * <p> Note that this method does not wait if there are no events pending.
      *
-     * @return  the list of the events retrieved; may be empty
+     * @return the list of the events retrieved; may be empty
      */
+    // 从监视键内取出当前可视的待处理事件，这些事件都是之前注册为感兴趣的事件；处理完这些事件后，通常应当调用reset()重置/复用监视键
     List<WatchEvent<?>> pollEvents();
-
+    
     /**
      * Resets this watch key.
      *
@@ -113,12 +115,13 @@ public interface WatchKey {
      * events then the watch key is put into the ready state and will remain in
      * that state until an event is detected or the watch key is cancelled.
      *
-     * @return  {@code true} if the watch key is valid and has been reset, and
-     *          {@code false} if the watch key could not be reset because it is
-     *          no longer {@link #isValid valid}
+     * @return {@code true} if the watch key is valid and has been reset, and
+     * {@code false} if the watch key could not be reset because it is
+     * no longer {@link #isValid valid}
      */
+    // 当处理完一批事件后，需要重置(重用)监视键，以便子线程(工作线程)向其中填充监视到的事件，并且让主线程获取到这些事件
     boolean reset();
-
+    
     /**
      * Cancels the registration with the watch service. Upon return the watch key
      * will be invalid. If the watch key is enqueued, waiting to be retrieved
@@ -130,8 +133,24 @@ public interface WatchKey {
      * <p> If this watch key has already been cancelled then invoking this
      * method has no effect.  Once cancelled, a watch key remains forever invalid.
      */
+    /*
+     * 由主线程调用：向子线程(工作线程)请求"取消"服务，并阻塞主线程；直到"取消"完成后，唤醒主线程。
+     *
+     * 注：有时候子线程(工作线程)处理事件受挫时，也会执行该方法，以取消服务，参见PollingWatchService#poll()
+     */
     void cancel();
-
+    
+    /**
+     * Tells whether or not this watch key is valid.
+     *
+     * <p> A watch key is valid upon creation and remains until it is cancelled,
+     * or its watch service is closed.
+     *
+     * @return {@code true} if, and only if, this watch key is valid
+     */
+    // 判断当前监视键是否有效；如果监视键被取消，或监视服务被关闭，则该监视键无效
+    boolean isValid();
+    
     /**
      * Returns the object for which this watch key was created. This method will
      * continue to return the object even after the key is cancelled.
@@ -146,5 +165,7 @@ public interface WatchKey {
      *
      * @return the object for which this watch key was created
      */
+    // 返回当前监视键关联的可监视对象，比如被监视的目录(树)
     Watchable watchable();
+    
 }
