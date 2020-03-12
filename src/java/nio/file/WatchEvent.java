@@ -39,80 +39,93 @@ package java.nio.file;
  * <p> Watch events are immutable and safe for use by multiple concurrent
  * threads.
  *
- * @param   <T>     The type of the context object associated with the event
+ * @param <T> The type of the context object associated with the event
  *
  * @since 1.7
  */
-
+// 被监视的事件，通常由系统底层触发，然后转交给子线程(工作线程)，或者直接由子线程(工作线程)生成
 public interface WatchEvent<T> {
-
+    
+    /**
+     * Returns the event kind.
+     *
+     * @return the event kind
+     */
+    // 返回被监视事件的类型；参见StandardWatchEventKinds
+    Kind<T> kind();
+    
+    /**
+     * Returns the context for the event.
+     *
+     * In the case of {@link StandardWatchEventKinds#ENTRY_CREATE ENTRY_CREATE}, {@link StandardWatchEventKinds#ENTRY_DELETE ENTRY_DELETE}, and {@link StandardWatchEventKinds#ENTRY_MODIFY ENTRY_MODIFY} events
+     * the context is a {@code Path} that is the {@link Path#relativize relative} path between the directory registered with the watch service,
+     * and the entry that is created, deleted, or modified.
+     *
+     * @return the event context; may be {@code null}
+     */
+    /*
+     * 返回被监视事件的上下文，可能为空
+     *
+     * 对于ENTRY_CREATE/ENTRY_DELETE/ENTRY_MODIFY事件，
+     * 其创建/移除/修改事件的上下文是一个相对路径，该路径是相对于被监视目录的
+     */
+    T context();
+    
+    /**
+     * Returns the event count. If the event count is greater than {@code 1} then this is a repeated event.
+     *
+     * @return the event count
+     */
+    /*
+     * 返回事件计数
+     *
+     * 对于针对同一文件的ENTRY_MODIFY(更改)事件，即使没有连续发生，也会将其合并。
+     * 对于其他事件，连续发生时才会被合并。
+     */
+    int count();
+    
     /**
      * An event kind, for the purposes of identification.
      *
-     * @since 1.7
      * @see StandardWatchEventKinds
+     * @since 1.7
      */
-    public static interface Kind<T> {
+    // 被监视事件的类型，通常包括ENTRY_CREATE/ENTRY_DELETE/ENTRY_MODIFY事件
+    interface Kind<T> {
+        
         /**
          * Returns the name of the event kind.
          *
          * @return the name of the event kind
          */
+        // 被监视事件名称
         String name();
-
+        
         /**
          * Returns the type of the {@link WatchEvent#context context} value.
          *
-         *
          * @return the type of the context value
          */
+        // 被监视事件的上下文类型
         Class<T> type();
     }
-
+    
     /**
-     * An event modifier that qualifies how a {@link Watchable} is registered
-     * with a {@link WatchService}.
+     * An event modifier that qualifies how a {@link Watchable} is registered with a {@link WatchService}.
      *
      * <p> This release does not define any <em>standard</em> modifiers.
      *
-     * @since 1.7
      * @see Watchable#register
+     * @since 1.7
      */
-    public static interface Modifier {
+    // 监视服务的修饰符
+    interface Modifier {
         /**
          * Returns the name of the modifier.
          *
          * @return the name of the modifier
          */
+        // 监视事件修饰符的名称
         String name();
     }
-
-    /**
-     * Returns the event kind.
-     *
-     * @return  the event kind
-     */
-    Kind<T> kind();
-
-    /**
-     * Returns the event count. If the event count is greater than {@code 1}
-     * then this is a repeated event.
-     *
-     * @return  the event count
-     */
-    int count();
-
-    /**
-     * Returns the context for the event.
-     *
-     * <p> In the case of {@link StandardWatchEventKinds#ENTRY_CREATE ENTRY_CREATE},
-     * {@link StandardWatchEventKinds#ENTRY_DELETE ENTRY_DELETE}, and {@link
-     * StandardWatchEventKinds#ENTRY_MODIFY ENTRY_MODIFY} events the context is
-     * a {@code Path} that is the {@link Path#relativize relative} path between
-     * the directory registered with the watch service, and the entry that is
-     * created, deleted, or modified.
-     *
-     * @return  the event context; may be {@code null}
-     */
-    T context();
 }
