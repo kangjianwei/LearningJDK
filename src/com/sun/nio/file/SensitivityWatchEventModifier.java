@@ -29,37 +29,44 @@ import java.nio.file.WatchEvent.Modifier;
 import sun.nio.fs.ExtendedOptions;
 
 /**
- * Defines the <em>sensitivity levels</em> when registering objects with a
- * watch service implementation that polls the file system.
+ * Defines the <em>sensitivity levels</em> when registering objects with a watch service implementation that polls the file system.
  *
  * @since 1.7
  */
-
+/*
+ * 目录监视的灵敏度可选参数
+ *
+ * 目前仅用在PollingWatchService实现中，灵敏度越高，搜集目录变动信息的行为越频繁。
+ */
 public enum SensitivityWatchEventModifier implements Modifier {
+    
     /**
      * High sensitivity.
      */
     HIGH(ExtendedOptions.SENSITIVITY_HIGH, 2),
+    
     /**
      * Medium sensitivity.
      */
     MEDIUM(ExtendedOptions.SENSITIVITY_MEDIUM, 10),
+    
     /**
      * Low sensitivity.
      */
     LOW(ExtendedOptions.SENSITIVITY_LOW, 30);
-
+    
+    // 服务运行的时间间隔
+    private final int sensitivity;
+    
+    SensitivityWatchEventModifier(ExtendedOptions.InternalOption<Integer> option, int sensitivity) {
+        this.sensitivity = sensitivity;
+        option.register(this, sensitivity);
+    }
+    
     /**
      * Returns the sensitivity in seconds.
      */
     public int sensitivityValueInSeconds() {
         return sensitivity;
-    }
-
-    private final int sensitivity;
-    private SensitivityWatchEventModifier(ExtendedOptions.InternalOption<Integer> option,
-                                          int sensitivity) {
-        this.sensitivity = sensitivity;
-        option.register(this, sensitivity);
     }
 }
