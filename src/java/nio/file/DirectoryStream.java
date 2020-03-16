@@ -25,9 +25,9 @@
 
 package java.nio.file;
 
-import java.util.Iterator;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Iterator;
 
 /**
  * An object to iterate over the entries in a directory. A directory stream
@@ -109,51 +109,48 @@ import java.io.IOException;
  *       return result;
  *   }
  * </pre>
- * @param   <T>     The type of element returned by the iterator
  *
- * @since 1.7
+ * @param <T> The type of element returned by the iterator
  *
  * @see Files#newDirectoryStream(Path)
+ * @since 1.7
  */
-
-public interface DirectoryStream<T>
-    extends Closeable, Iterable<T> {
-    /**
-     * An interface that is implemented by objects that decide if a directory
-     * entry should be accepted or filtered. A {@code Filter} is passed as the
-     * parameter to the {@link Files#newDirectoryStream(Path,DirectoryStream.Filter)}
-     * method when opening a directory to iterate over the entries in the
-     * directory.
-     *
-     * @param   <T>     the type of the directory entry
-     *
-     * @since 1.7
-     */
-    @FunctionalInterface
-    public static interface Filter<T> {
-        /**
-         * Decides if the given directory entry should be accepted or filtered.
-         *
-         * @param   entry
-         *          the directory entry to be tested
-         *
-         * @return  {@code true} if the directory entry should be accepted
-         *
-         * @throws  IOException
-         *          If an I/O error occurs
-         */
-        boolean accept(T entry) throws IOException;
-    }
-
+// 目录流，具体的实现依赖于平台
+public interface DirectoryStream<T> extends Closeable, Iterable<T> {
+    
     /**
      * Returns the iterator associated with this {@code DirectoryStream}.
      *
-     * @return  the iterator associated with this {@code DirectoryStream}
+     * @return the iterator associated with this {@code DirectoryStream}
      *
-     * @throws  IllegalStateException
-     *          if this directory stream is closed or the iterator has already
-     *          been returned
+     * @throws IllegalStateException if this directory stream is closed or the iterator has already been returned
      */
+    // 返回目录流迭代器，用来遍历目录内的直接子项
     @Override
     Iterator<T> iterator();
+    
+    /**
+     * An interface that is implemented by objects that decide if a directory entry should be accepted or filtered.
+     * A {@code Filter} is passed as the parameter to the {@link Files#newDirectoryStream(Path, DirectoryStream.Filter)} method
+     * when opening a directory to iterate over the entries in the directory.
+     *
+     * @param <T> the type of the directory entry
+     *
+     * @since 1.7
+     */
+    // 目录流过滤器
+    @FunctionalInterface
+    interface Filter<T> {
+        /**
+         * Decides if the given directory entry should be accepted or filtered.
+         *
+         * @param entry the directory entry to be tested
+         *
+         * @return {@code true} if the directory entry should be accepted
+         *
+         * @throws IOException If an I/O error occurs
+         */
+        // 对指定的文件/目录实体进行过滤，匹配过滤条件的目录会被访问
+        boolean accept(T entry) throws IOException;
+    }
 }
