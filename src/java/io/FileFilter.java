@@ -25,7 +25,6 @@
 
 package java.io;
 
-
 /**
  * A filter for abstract pathnames.
  *
@@ -35,16 +34,17 @@ package java.io;
  *
  * @since 1.2
  */
+// 文件过滤器
 @FunctionalInterface
 public interface FileFilter {
-
+    
     /**
-     * Tests whether or not the specified abstract pathname should be
-     * included in a pathname list.
+     * Tests whether or not the specified abstract pathname should be included in a pathname list.
      *
-     * @param  pathname  The abstract pathname to be tested
-     * @return  <code>true</code> if and only if <code>pathname</code>
-     *          should be included
+     * @param pathname The abstract pathname to be tested
+     *
+     * @return <code>true</code> if and only if <code>pathname</code> should be included
      */
+    // 是否接受pathname【文件/目录】
     boolean accept(File pathname);
 }
