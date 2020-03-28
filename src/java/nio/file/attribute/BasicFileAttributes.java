@@ -38,39 +38,12 @@ package java.nio.file.attribute;
  *    BasicFileAttributes attrs = Files.readAttributes(file, BasicFileAttributes.class);
  * </pre>
  *
- * @since 1.7
- *
  * @see BasicFileAttributeView
+ * @since 1.7
  */
-
+// "basic"文件属性
 public interface BasicFileAttributes {
-
-    /**
-     * Returns the time of last modification.
-     *
-     * <p> If the file system implementation does not support a time stamp
-     * to indicate the time of last modification then this method returns an
-     * implementation specific default value, typically a {@code FileTime}
-     * representing the epoch (1970-01-01T00:00:00Z).
-     *
-     * @return  a {@code FileTime} representing the time the file was last
-     *          modified
-     */
-    FileTime lastModifiedTime();
-
-    /**
-     * Returns the time of last access.
-     *
-     * <p> If the file system implementation does not support a time stamp
-     * to indicate the time of last access then this method returns
-     * an implementation specific default value, typically the {@link
-     * #lastModifiedTime() last-modified-time} or a {@code FileTime}
-     * representing the epoch (1970-01-01T00:00:00Z).
-     *
-     * @return  a {@code FileTime} representing the time of last access
-     */
-    FileTime lastAccessTime();
-
+    
     /**
      * Returns the creation time. The creation time is the time that the file
      * was created.
@@ -81,40 +54,81 @@ public interface BasicFileAttributes {
      * #lastModifiedTime() last-modified-time} or a {@code FileTime}
      * representing the epoch (1970-01-01T00:00:00Z).
      *
-     * @return   a {@code FileTime} representing the time the file was created
+     * @return a {@code FileTime} representing the time the file was created
      */
+    // 返回创建时间
     FileTime creationTime();
-
+    
     /**
-     * Tells whether the file is a regular file with opaque content.
+     * Returns the time of last access.
      *
-     * @return {@code true} if the file is a regular file with opaque content
+     * <p> If the file system implementation does not support a time stamp
+     * to indicate the time of last access then this method returns
+     * an implementation specific default value, typically the {@link
+     * #lastModifiedTime() last-modified-time} or a {@code FileTime}
+     * representing the epoch (1970-01-01T00:00:00Z).
+     *
+     * @return a {@code FileTime} representing the time of last access
      */
-    boolean isRegularFile();
-
+    // 返回最后访问时间
+    FileTime lastAccessTime();
+    
     /**
-     * Tells whether the file is a directory.
+     * Returns the time of last modification.
      *
-     * @return {@code true} if the file is a directory
+     * <p> If the file system implementation does not support a time stamp
+     * to indicate the time of last modification then this method returns an
+     * implementation specific default value, typically a {@code FileTime}
+     * representing the epoch (1970-01-01T00:00:00Z).
+     *
+     * @return a {@code FileTime} representing the time the file was last
+     * modified
      */
-    boolean isDirectory();
-
+    // 返回最后修改时间
+    FileTime lastModifiedTime();
+    
     /**
      * Tells whether the file is a symbolic link.
      *
      * @return {@code true} if the file is a symbolic link
      */
+    // 判断当前属性的宿主资源是否为符号链接
     boolean isSymbolicLink();
-
+    
     /**
-     * Tells whether the file is something other than a regular file, directory,
-     * or symbolic link.
+     * Tells whether the file is a directory.
      *
-     * @return {@code true} if the file something other than a regular file,
-     *         directory or symbolic link
+     * @return {@code true} if the file is a directory
+     */
+    // 判断当前属性的宿主资源是否为非符号链接的目录
+    boolean isDirectory();
+    
+    /**
+     * Tells whether the file is a regular file with opaque content.
+     *
+     * @return {@code true} if the file is a regular file with opaque content
+     */
+    /*
+     * 判断当前属性的宿主资源是否为"不透明的"常规文件
+     *
+     * 在类unix系统中，该类文件是永久存储在文件系统中的字节序列；
+     * 在windows上，比如普通文件、文件硬链接，均属于"不透明的"常规文件；
+     * 对于符号链接，如果需要将其链接到目标文件，那么文件的符号链接也属于"不透明的"常规文件。
+     */
+    boolean isRegularFile();
+    
+    /**
+     * Tells whether the file is something other than a regular file, directory, or symbolic link.
+     *
+     * @return {@code true} if the file something other than a regular file, directory or symbolic link
+     */
+    /*
+     * 判断当前属性的宿主资源是否为符号链接/常规文件/目录之外的其他文件
+     *
+     * 在windows上，如果不需要链接到符号链接的目标文件，那么目录硬链接(mklink /J link target)会被认为属于Other。
      */
     boolean isOther();
-
+    
     /**
      * Returns the size of the file (in bytes). The size may differ from the
      * actual size on the file system due to compression, support for sparse
@@ -122,10 +136,11 @@ public interface BasicFileAttributes {
      * #isRegularFile regular} files is implementation specific and
      * therefore unspecified.
      *
-     * @return  the file size, in bytes
+     * @return the file size, in bytes
      */
+    // 返回文件大小(字节数)
     long size();
-
+    
     /**
      * Returns an object that uniquely identifies the given file, or {@code
      * null} if a file key is not available. On some platforms or file systems
@@ -151,5 +166,7 @@ public interface BasicFileAttributes {
      *
      * @see java.nio.file.Files#walkFileTree
      */
+    // 返回唯一标识给定文件的对象。如果文件标识不可用(例如windows上)，则返回null
     Object fileKey();
+    
 }
