@@ -30,17 +30,21 @@ import java.nio.file.attribute.BasicFileAttributes;
 /**
  * Implemented by objects that may hold or cache the attributes of a file.
  */
-
+// "basic"文件属性持有者(缓存)
 public interface BasicFileAttributesHolder {
+    
     /**
      * Returns cached attributes (may be null). If file is a symbolic link then
      * the attributes are the link attributes and not the final target of the
      * file.
      */
+    // 返回缓存的"basic"文件属性
     BasicFileAttributes get();
-
+    
     /**
      * Invalidates cached attributes
      */
+    // 取消对目标对象的追踪
     void invalidate();
+    
 }
