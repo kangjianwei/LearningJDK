@@ -67,103 +67,56 @@ import java.io.IOException;
  *
  * @since 1.7
  */
-
-public interface UserDefinedFileAttributeView
-    extends FileAttributeView
-{
+/*
+ * "user"文件属性视图接口，这里的属性是接受用户定义的
+ *
+ * 注：不同的操作系统平台会有不同的实现机制
+ * 在windows上，通过"备用数据流"来存取这些自定义属性；
+ * 在linux上，通过扩展属性来设置/获取这些自定义属性；
+ * 在mac上，目前未做实现。
+ */
+public interface UserDefinedFileAttributeView extends FileAttributeView {
+    
     /**
-     * Returns the name of this attribute view. Attribute views of this type
-     * have the name {@code "user"}.
+     * Returns the name of this attribute view.
+     * Attribute views of this type have the name {@code "user"}.
      */
+    // 返回当前属性视图的名称，通常返回"user"
     @Override
     String name();
-
+    
     /**
      * Returns a list containing the names of the user-defined attributes.
      *
-     * @return  An unmodifiable list containing the names of the file's
-     *          user-defined
+     * @return An unmodifiable list containing the names of the file's user-defined
      *
-     * @throws  IOException
-     *          If an I/O error occurs
-     * @throws  SecurityException
-     *          In the case of the default provider, a security manager is
-     *          installed, and it denies {@link
-     *          RuntimePermission}{@code ("accessUserDefinedAttributes")}
-     *          or its {@link SecurityManager#checkRead(String) checkRead} method
-     *          denies read access to the file.
+     * @throws IOException       If an I/O error occurs
+     * @throws SecurityException In the case of the default provider, a security manager is
+     *                           installed, and it denies {@link RuntimePermission}{@code ("accessUserDefinedAttributes")}
+     *                           or its {@link SecurityManager#checkRead(String) checkRead} method
+     *                           denies read access to the file.
      */
+    // 返回当前"user"文件属性视图下的所有属性
     List<String> list() throws IOException;
-
+    
     /**
      * Returns the size of the value of a user-defined attribute.
      *
-     * @param   name
-     *          The attribute name
+     * @param name The attribute name
      *
-     * @return  The size of the attribute value, in bytes.
+     * @return The size of the attribute value, in bytes.
      *
-     * @throws  ArithmeticException
-     *          If the size of the attribute is larger than {@link Integer#MAX_VALUE}
-     * @throws  IOException
-     *          If an I/O error occurs
-     * @throws  SecurityException
-     *          In the case of the default provider, a security manager is
-     *          installed, and it denies {@link
-     *          RuntimePermission}{@code ("accessUserDefinedAttributes")}
-     *          or its {@link SecurityManager#checkRead(String) checkRead} method
-     *          denies read access to the file.
+     * @throws ArithmeticException If the size of the attribute is larger than {@link Integer#MAX_VALUE}
+     * @throws IOException         If an I/O error occurs
+     * @throws SecurityException   In the case of the default provider, a security manager is
+     *                             installed, and it denies {@link
+     *                             RuntimePermission}{@code ("accessUserDefinedAttributes")}
+     *                             or its {@link SecurityManager#checkRead(String) checkRead} method
+     *                             denies read access to the file.
      */
+    // 返回当前"user"文件属性视图下名为name的属性的值的尺寸
     int size(String name) throws IOException;
-
-    /**
-     * Read the value of a user-defined attribute into a buffer.
-     *
-     * <p> This method reads the value of the attribute into the given buffer
-     * as a sequence of bytes, failing if the number of bytes remaining in
-     * the buffer is insufficient to read the complete attribute value. The
-     * number of bytes transferred into the buffer is {@code n}, where {@code n}
-     * is the size of the attribute value. The first byte in the sequence is at
-     * index {@code p} and the last byte is at index {@code p + n - 1}, where
-     * {@code p} is the buffer's position. Upon return the buffer's position
-     * will be equal to {@code p + n}; its limit will not have changed.
-     *
-     * <p> <b>Usage Example:</b>
-     * Suppose we want to read a file's MIME type that is stored as a user-defined
-     * attribute with the name "{@code user.mimetype}".
-     * <pre>
-     *    UserDefinedFileAttributeView view =
-     *        Files.getFileAttributeView(path, UserDefinedFileAttributeView.class);
-     *    String name = "user.mimetype";
-     *    ByteBuffer buf = ByteBuffer.allocate(view.size(name));
-     *    view.read(name, buf);
-     *    buf.flip();
-     *    String value = Charset.defaultCharset().decode(buf).toString();
-     * </pre>
-     *
-     * @param   name
-     *          The attribute name
-     * @param   dst
-     *          The destination buffer
-     *
-     * @return  The number of bytes read, possibly zero
-     *
-     * @throws  IllegalArgumentException
-     *          If the destination buffer is read-only
-     * @throws  IOException
-     *          If an I/O error occurs or there is insufficient space in the
-     *          destination buffer for the attribute value
-     * @throws  SecurityException
-     *          In the case of the default provider, a security manager is
-     *          installed, and it denies {@link
-     *          RuntimePermission}{@code ("accessUserDefinedAttributes")}
-     *          or its {@link SecurityManager#checkRead(String) checkRead} method
-     *          denies read access to the file.
-     *
-     * @see #size
-     */
-    int read(String name, ByteBuffer dst) throws IOException;
-
+    
     /**
      * Writes the value of a user-defined attribute from a buffer.
      *
@@ -194,38 +147,94 @@ public interface UserDefinedFileAttributeView
      *    view.write("user.mimetype", Charset.defaultCharset().encode("text/html"));
      * </pre>
      *
-     * @param   name
-     *          The attribute name
-     * @param   src
-     *          The buffer containing the attribute value
+     * @param name The attribute name
+     * @param src  The buffer containing the attribute value
      *
-     * @return  The number of bytes written, possibly zero
+     * @return The number of bytes written, possibly zero
      *
-     * @throws  IOException
-     *          If an I/O error occurs
-     * @throws  SecurityException
-     *          In the case of the default provider, a security manager is
-     *          installed, and it denies {@link
-     *          RuntimePermission}{@code ("accessUserDefinedAttributes")}
-     *          or its {@link SecurityManager#checkWrite(String) checkWrite}
-     *          method denies write access to the file.
+     * @throws IOException       If an I/O error occurs
+     * @throws SecurityException In the case of the default provider, a security manager is
+     *                           installed, and it denies {@link
+     *                           RuntimePermission}{@code ("accessUserDefinedAttributes")}
+     *                           or its {@link SecurityManager#checkWrite(String) checkWrite}
+     *                           method denies write access to the file.
+     */
+    /*
+     * 向当前"user"文件属性视图中写入一条名称为name属性，写入的属性值为src。
+     *
+     * 示例：
+     * UserDefinedFileAttributeView view = FIles.getFileAttributeView(path, UserDefinedFileAttributeView.class);
+     * String name = "user.mimetype";
+     * view.write(name, Charset.defaultCharset().encode("text/html"));
      */
     int write(String name, ByteBuffer src) throws IOException;
-
+    
+    /**
+     * Read the value of a user-defined attribute into a buffer.
+     *
+     * <p> This method reads the value of the attribute into the given buffer
+     * as a sequence of bytes, failing if the number of bytes remaining in
+     * the buffer is insufficient to read the complete attribute value. The
+     * number of bytes transferred into the buffer is {@code n}, where {@code n}
+     * is the size of the attribute value. The first byte in the sequence is at
+     * index {@code p} and the last byte is at index {@code p + n - 1}, where
+     * {@code p} is the buffer's position. Upon return the buffer's position
+     * will be equal to {@code p + n}; its limit will not have changed.
+     *
+     * <p> <b>Usage Example:</b>
+     * Suppose we want to read a file's MIME type that is stored as a user-defined
+     * attribute with the name "{@code user.mimetype}".
+     * <pre>
+     *    UserDefinedFileAttributeView view =
+     *        Files.getFileAttributeView(path, UserDefinedFileAttributeView.class);
+     *    String name = "user.mimetype";
+     *    ByteBuffer buf = ByteBuffer.allocate(view.size(name));
+     *    view.read(name, buf);
+     *    buf.flip();
+     *    String value = Charset.defaultCharset().decode(buf).toString();
+     * </pre>
+     *
+     * @param name The attribute name
+     * @param dst  The destination buffer
+     *
+     * @return The number of bytes read, possibly zero
+     *
+     * @throws IllegalArgumentException If the destination buffer is read-only
+     * @throws IOException              If an I/O error occurs or there is insufficient space in the
+     *                                  destination buffer for the attribute value
+     * @throws SecurityException        In the case of the default provider, a security manager is
+     *                                  installed, and it denies {@link
+     *                                  RuntimePermission}{@code ("accessUserDefinedAttributes")}
+     *                                  or its {@link SecurityManager#checkRead(String) checkRead} method
+     *                                  denies read access to the file.
+     * @see #size
+     */
+    /*
+     * 从当前"user"文件属性视图中读取一条名称为name属性，读取的属性值存入dst中
+     *
+     * 示例：
+     * UserDefinedFileAttributeView view = Files.getFileAttributeView(path, UserDefinedFileAttributeView.class);
+     * String name = "user.mimetype";
+     * ByteBuffer dst = ByteBuffer.allocate(view.size(name));
+     * view.read(name, dst);
+     * dst.flip();
+     * String value = Charset.defaultCharset().decode(dst).toString();  // 将读到的属性值转换为字符串
+     */
+    int read(String name, ByteBuffer dst) throws IOException;
+    
     /**
      * Deletes a user-defined attribute.
      *
-     * @param   name
-     *          The attribute name
+     * @param name The attribute name
      *
-     * @throws  IOException
-     *          If an I/O error occurs or the attribute does not exist
-     * @throws  SecurityException
-     *          In the case of the default provider, a security manager is
-     *          installed, and it denies {@link
-     *          RuntimePermission}{@code ("accessUserDefinedAttributes")}
-     *          or its {@link SecurityManager#checkWrite(String) checkWrite}
-     *          method denies write access to the file.
+     * @throws IOException       If an I/O error occurs or the attribute does not exist
+     * @throws SecurityException In the case of the default provider, a security manager is
+     *                           installed, and it denies {@link
+     *                           RuntimePermission}{@code ("accessUserDefinedAttributes")}
+     *                           or its {@link SecurityManager#checkWrite(String) checkWrite}
+     *                           method denies write access to the file.
      */
+    // 从当前"user"文件属性视图中删除一条名称为name属性
     void delete(String name) throws IOException;
+    
 }
