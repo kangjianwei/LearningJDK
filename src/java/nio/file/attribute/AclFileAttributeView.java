@@ -141,17 +141,21 @@ import java.io.IOException;
  *
  * @since 1.7
  */
-
-public interface AclFileAttributeView
-    extends FileOwnerAttributeView
-{
+/*
+ * "acl"文件属性视图接口，包含了关联文件的访问权限信息，可以代理"owner"文件属性视图(FileOwnerAttributeView)的功能
+ *
+ * 注：windows平台上会提供对当前接口的实现类，而linux/mac平台上会对其兄弟接口PosixFileAttributeView提供实现类
+ */
+public interface AclFileAttributeView extends FileOwnerAttributeView {
+    
     /**
-     * Returns the name of the attribute view. Attribute views of this type
-     * have the name {@code "acl"}.
+     * Returns the name of the attribute view.
+     * Attribute views of this type have the name {@code "acl"}.
      */
+    // 返回当前属性视图的名称，通常返回"acl"
     @Override
     String name();
-
+    
     /**
      * Reads the access control list.
      *
@@ -163,19 +167,17 @@ public interface AclFileAttributeView
      * existing ACL. The {@link #setAcl setAcl} method is used to update
      * the file's ACL attribute.
      *
-     * @return  an ordered list of {@link AclEntry entries} representing the
-     *          ACL
+     * @return an ordered list of {@link AclEntry entries} representing the ACL
      *
-     * @throws  IOException
-     *          if an I/O error occurs
-     * @throws  SecurityException
-     *          In the case of the default provider, a security manager is
-     *          installed, and it denies {@link RuntimePermission}{@code ("accessUserInformation")}
-     *          or its {@link SecurityManager#checkRead(String) checkRead} method
-     *          denies read access to the file.
+     * @throws IOException       if an I/O error occurs
+     * @throws SecurityException In the case of the default provider, a security manager is
+     *                           installed, and it denies {@link RuntimePermission}{@code ("accessUserInformation")}
+     *                           or its {@link SecurityManager#checkRead(String) checkRead} method
+     *                           denies read access to the file.
      */
+    // 返回关联文件的访问控制列表(ACL)
     List<AclEntry> getAcl() throws IOException;
-
+    
     /**
      * Updates (replace) the access control list.
      *
@@ -199,16 +201,15 @@ public interface AclFileAttributeView
      * access-permissions} for example), the updating the access control list
      * may also cause these security related attributes to be updated.
      *
-     * @param   acl
-     *          the new access control list
+     * @param acl the new access control list
      *
-     * @throws  IOException
-     *          if an I/O error occurs or the ACL is invalid
-     * @throws  SecurityException
-     *          In the case of the default provider, a security manager is
-     *          installed, it denies {@link RuntimePermission}{@code ("accessUserInformation")}
-     *          or its {@link SecurityManager#checkWrite(String) checkWrite}
-     *          method denies write access to the file.
+     * @throws IOException       if an I/O error occurs or the ACL is invalid
+     * @throws SecurityException In the case of the default provider, a security manager is
+     *                           installed, it denies {@link RuntimePermission}{@code ("accessUserInformation")}
+     *                           or its {@link SecurityManager#checkWrite(String) checkWrite}
+     *                           method denies write access to the file.
      */
+    // 为关联文件设置访问控制列表(ACL)
     void setAcl(List<AclEntry> acl) throws IOException;
+    
 }
