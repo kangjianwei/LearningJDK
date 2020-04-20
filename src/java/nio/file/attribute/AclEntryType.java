@@ -30,27 +30,27 @@ package java.nio.file.attribute;
  *
  * @since 1.7
  */
-
+// 访问控制权限
 public enum AclEntryType {
+    
     /**
      * Explicitly grants access to a file or directory.
      */
-    ALLOW,
-
+    ALLOW,  // 授予对指定文件的访问权限
+    
     /**
      * Explicitly denies access to a file or directory.
      */
-    DENY,
-
+    DENY,   // 拒绝对指定文件的访问权限
+    
     /**
-     * Log, in a system dependent way, the access specified in the
-     * permissions component of the ACL entry.
+     * Log, in a system dependent way, the access specified in the permissions component of the ACL entry.
      */
-    AUDIT,
-
+    AUDIT,  // 该访问需要被审核
+    
     /**
-     * Generate an alarm, in a system dependent way, the access specified in the
-     * permissions component of the ACL entry.
+     * Generate an alarm, in a system dependent way, the access specified in the permissions component of the ACL entry.
      */
-    ALARM
+    ALARM   // 生成警报信息
+    
 }
