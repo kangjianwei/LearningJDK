@@ -34,9 +34,13 @@ package java.nio.file.attribute;
  * groups, and whether groups can be nested, are implementation specified and
  * therefore not specified.
  *
- * @since 1.7
- *
  * @see UserPrincipalLookupService#lookupPrincipalByGroupName
+ * @since 1.7
  */
-
-public interface GroupPrincipal extends UserPrincipal { }
+/*
+ * 用来标识对象的"用户组"信息，以指示其关联文件在文件系统中的访问权限
+ *
+ * 这里只是简单地继承了UserPrincipal，表示它们共用一套API，由不同的参数来决定获取哪个属性值
+ */
+public interface GroupPrincipal extends UserPrincipal {
+}
