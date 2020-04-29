@@ -30,8 +30,12 @@ import java.nio.file.spi.FileSystemProvider;
 /**
  * Creates default provider on Windows
  */
+// 系统默认的文件系统提供器，其实现通常是平台相关的
 public class DefaultFileSystemProvider {
-    private DefaultFileSystemProvider() { }
+    private DefaultFileSystemProvider() {
+    }
+    
+    // 返回一个默认的文件系统提供器，通常是"file"文件系统，该类型的文件系统是平台相关的
     public static FileSystemProvider create() {
         return new WindowsFileSystemProvider();
     }
