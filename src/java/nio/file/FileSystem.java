@@ -25,11 +25,13 @@
 
 package java.nio.file;
 
-import java.nio.file.attribute.*;
-import java.nio.file.spi.FileSystemProvider;
-import java.util.Set;
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.attribute.BasicFileAttributeView;
+import java.nio.file.attribute.FileAttributeView;
+import java.nio.file.attribute.UserPrincipalLookupService;
+import java.nio.file.spi.FileSystemProvider;
+import java.util.Set;
 
 /**
  * Provides an interface to a file system and is the factory for objects to
@@ -94,23 +96,23 @@ import java.io.IOException;
  *
  * @since 1.7
  */
-
-public abstract class FileSystem
-    implements Closeable
-{
+// 文件系统，系统默认支持"file"/"jar"/"jrt"这三类文件系统(注意与java.io.FileSystem区分)
+public abstract class FileSystem implements Closeable {
+    
     /**
      * Initializes a new instance of this class.
      */
     protected FileSystem() {
     }
-
+    
     /**
      * Returns the provider that created this file system.
      *
-     * @return  The provider that created this file system.
+     * @return The provider that created this file system.
      */
+    // 返回创建了当前文件系统的文件系统提供器
     public abstract FileSystemProvider provider();
-
+    
     /**
      * Closes this file system.
      *
@@ -125,32 +127,31 @@ public abstract class FileSystem
      * with this file system. The {@link FileSystems#getDefault default} file
      * system cannot be closed.
      *
-     * @throws  IOException
-     *          If an I/O error occurs
-     * @throws  UnsupportedOperationException
-     *          Thrown in the case of the default file system
+     * @throws IOException                   If an I/O error occurs
+     * @throws UnsupportedOperationException Thrown in the case of the default file system
      */
+    // 关闭当前文件系统
     @Override
     public abstract void close() throws IOException;
-
+    
     /**
      * Tells whether or not this file system is open.
      *
      * <p> File systems created by the default provider are always open.
      *
-     * @return  {@code true} if, and only if, this file system is open
+     * @return {@code true} if, and only if, this file system is open
      */
+    // 判断当前文件系统是否已经开启
     public abstract boolean isOpen();
-
+    
     /**
-     * Tells whether or not this file system allows only read-only access to
-     * its file stores.
+     * Tells whether or not this file system allows only read-only access to its file stores.
      *
-     * @return  {@code true} if, and only if, this file system provides
-     *          read-only access
+     * @return {@code true} if, and only if, this file system provides read-only access
      */
+    // 判断当前文件系统是否只读
     public abstract boolean isReadOnly();
-
+    
     /**
      * Returns the name separator, represented as a string.
      *
@@ -163,10 +164,11 @@ public abstract class FileSystem
      * <p> In the case of the default provider, this method returns the same
      * separator as {@link java.io.File#separator}.
      *
-     * @return  The name separator
+     * @return The name separator
      */
+    // 返回当前文件系统使用的file分隔符
     public abstract String getSeparator();
-
+    
     /**
      * Returns an object to iterate over the paths of the root directories.
      *
@@ -187,10 +189,11 @@ public abstract class FileSystem
      * to each root directory. It is system dependent if the permission checks
      * are done when the iterator is obtained or during iteration.
      *
-     * @return  An object to iterate over the root directories
+     * @return An object to iterate over the root directories
      */
+    // 返回当前文件系统中的根路径列表
     public abstract Iterable<Path> getRootDirectories();
-
+    
     /**
      * Returns an object to iterate over the underlying file stores.
      *
@@ -221,10 +224,11 @@ public abstract class FileSystem
      *     }
      * </pre>
      *
-     * @return  An object to iterate over the backing file stores
+     * @return An object to iterate over the backing file stores
      */
+    // 返回当前文件系统中的文件存储列表
     public abstract Iterable<FileStore> getFileStores();
-
+    
     /**
      * Returns the set of the {@link FileAttributeView#name names} of the file
      * attribute views supported by this {@code FileSystem}.
@@ -237,11 +241,26 @@ public abstract class FileSystem
      * underlying {@link FileStore} supports the file attributes identified by a
      * file attribute view.
      *
-     * @return  An unmodifiable set of the names of the supported file attribute
-     *          views
+     * @return An unmodifiable set of the names of the supported file attribute
+     * views
+     */
+    /*
+     * 返回当前文件系统支持的文件属性视图
+     *
+     * 不同平台的支持情况：
+     *         windows linux mac
+     * "user"     √      √
+     * "basic"    √      √    √
+     * "dos"      √      √
+     * "owner"    √      √    √
+     * "acl"      √
+     * "posix"           √    √
+     * "unix"            √    √
+     * "jrt"      √      √    √
+     * "zip"      √      √    √
      */
     public abstract Set<String> supportedFileAttributeViews();
-
+    
     /**
      * Converts a path string, or a sequence of strings that when joined form
      * a path string, to a {@code Path}. If {@code more} does not specify any
@@ -282,18 +301,16 @@ public abstract class FileSystem
      * index} value indicating the first position in the {@code path} parameter
      * that caused the path string to be rejected.
      *
-     * @param   first
-     *          the path string or initial part of the path string
-     * @param   more
-     *          additional strings to be joined to form the path string
+     * @param first the path string or initial part of the path string
+     * @param more  additional strings to be joined to form the path string
      *
-     * @return  the resulting {@code Path}
+     * @return the resulting {@code Path}
      *
-     * @throws  InvalidPathException
-     *          If the path string cannot be converted
+     * @throws InvalidPathException If the path string cannot be converted
      */
+    // 构造与当前文件系统匹配的路径对象，返回的路径已经本地化
     public abstract Path getPath(String first, String... more);
-
+    
     /**
      * Returns a {@code PathMatcher} that performs match operations on the
      * {@code String} representation of {@link Path} objects by interpreting a
@@ -420,22 +437,34 @@ public abstract class FileSystem
      * whether the matching is case sensitive, are implementation-dependent
      * and therefore not specified.
      *
-     * @param   syntaxAndPattern
-     *          The syntax and pattern
+     * @param syntaxAndPattern The syntax and pattern
      *
-     * @return  A path matcher that may be used to match paths against the pattern
+     * @return A path matcher that may be used to match paths against the pattern
      *
-     * @throws  IllegalArgumentException
-     *          If the parameter does not take the form: {@code syntax:pattern}
-     * @throws  java.util.regex.PatternSyntaxException
-     *          If the pattern is invalid
-     * @throws  UnsupportedOperationException
-     *          If the pattern syntax is not known to the implementation
-     *
-     * @see Files#newDirectoryStream(Path,String)
+     * @throws IllegalArgumentException               If the parameter does not take the form: {@code syntax:pattern}
+     * @throws java.util.regex.PatternSyntaxException If the pattern is invalid
+     * @throws UnsupportedOperationException          If the pattern syntax is not known to the implementation
+     * @see Files#newDirectoryStream(Path, String)
      */
+    // 返回一个由指定正则构造的路径匹配器；其中，syntaxAndInput可以是"glob"正则或"regex"正则（参见Globs类）
     public abstract PathMatcher getPathMatcher(String syntaxAndPattern);
-
+    
+    /**
+     * Constructs a new {@link WatchService} <i>(optional operation)</i>.
+     *
+     * <p> This method constructs a new watch service that may be used to watch
+     * registered objects for changes and events.
+     *
+     * @return a new watch service
+     *
+     * @throws UnsupportedOperationException If this {@code FileSystem} does not support watching file system
+     *                                       objects for changes and events. This exception is not thrown
+     *                                       by {@code FileSystems} created by the default provider.
+     * @throws IOException                   If an I/O error occurs
+     */
+    // 返回一个目录监视服务，目前仅在"file"文件系统上提供支持
+    public abstract WatchService newWatchService() throws IOException;
+    
     /**
      * Returns the {@code UserPrincipalLookupService} for this file system
      * <i>(optional operation)</i>. The resulting lookup service may be used to
@@ -448,27 +477,11 @@ public abstract class FileSystem
      *     Files.setOwner(path, lookupService.lookupPrincipalByName("joe"));
      * </pre>
      *
-     * @throws  UnsupportedOperationException
-     *          If this {@code FileSystem} does not does have a lookup service
+     * @return The {@code UserPrincipalLookupService} for this file system
      *
-     * @return  The {@code UserPrincipalLookupService} for this file system
+     * @throws UnsupportedOperationException If this {@code FileSystem} does not does have a lookup service
      */
+    // 返回一个账户服务，可用来搜索本机的用户和组信息
     public abstract UserPrincipalLookupService getUserPrincipalLookupService();
-
-    /**
-     * Constructs a new {@link WatchService} <i>(optional operation)</i>.
-     *
-     * <p> This method constructs a new watch service that may be used to watch
-     * registered objects for changes and events.
-     *
-     * @return  a new watch service
-     *
-     * @throws  UnsupportedOperationException
-     *          If this {@code FileSystem} does not support watching file system
-     *          objects for changes and events. This exception is not thrown
-     *          by {@code FileSystems} created by the default provider.
-     * @throws  IOException
-     *          If an I/O error occurs
-     */
-    public abstract WatchService newWatchService() throws IOException;
+    
 }
