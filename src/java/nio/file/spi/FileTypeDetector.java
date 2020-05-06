@@ -43,31 +43,24 @@ import java.io.IOException;
  * file may be examined to guess its file type.
  *
  * @see java.nio.file.Files#probeContentType(Path)
- *
  * @since 1.7
  */
-
+// 文件类型检测器
 public abstract class FileTypeDetector {
-
-    private static Void checkPermission() {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null)
-            sm.checkPermission(new RuntimePermission("fileTypeDetector"));
-        return null;
-    }
-    private FileTypeDetector(Void ignore) { }
-
+    
     /**
      * Initializes a new instance of this class.
      *
-     * @throws  SecurityException
-     *          If a security manager has been installed and it denies
-     *          {@link RuntimePermission}{@code ("fileTypeDetector")}
+     * @throws SecurityException If a security manager has been installed and it denies
+     *                           {@link RuntimePermission}{@code ("fileTypeDetector")}
      */
     protected FileTypeDetector() {
         this(checkPermission());
     }
-
+    
+    private FileTypeDetector(Void ignore) {
+    }
+    
     /**
      * Probes the given file to guess its content type.
      *
@@ -83,24 +76,29 @@ public abstract class FileTypeDetector {
      * Message Bodies</i></a>. The string must be parsable according to the
      * grammar in the RFC 2045.
      *
-     * @param   path
-     *          the path to the file to probe
+     * @param path the path to the file to probe
      *
-     * @return  The content type or {@code null} if the file type is not
-     *          recognized
+     * @return The content type or {@code null} if the file type is not
+     * recognized
      *
-     * @throws  IOException
-     *          An I/O error occurs
-     * @throws  SecurityException
-     *          If the implementation requires to access the file, and a
-     *          security manager is installed, and it denies an unspecified
-     *          permission required by a file system provider implementation.
-     *          If the file reference is associated with the default file system
-     *          provider then the {@link SecurityManager#checkRead(String)} method
-     *          is invoked to check read access to the file.
-     *
+     * @throws IOException       An I/O error occurs
+     * @throws SecurityException If the implementation requires to access the file, and a
+     *                           security manager is installed, and it denies an unspecified
+     *                           permission required by a file system provider implementation.
+     *                           If the file reference is associated with the default file system
+     *                           provider then the {@link SecurityManager#checkRead(String)} method
+     *                           is invoked to check read access to the file.
      * @see java.nio.file.Files#probeContentType
      */
-    public abstract String probeContentType(Path path)
-        throws IOException;
+    // 返回指定文件的类型(Content-Type)
+    public abstract String probeContentType(Path path) throws IOException;
+    
+    private static Void checkPermission() {
+        SecurityManager sm = System.getSecurityManager();
+        if(sm != null) {
+            sm.checkPermission(new RuntimePermission("fileTypeDetector"));
+        }
+        
+        return null;
+    }
 }
