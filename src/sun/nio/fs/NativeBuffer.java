@@ -32,58 +32,69 @@ import jdk.internal.ref.CleanerFactory;
 /**
  * A light-weight buffer in native memory.
  */
-
+// 轻量级的缓存，使用了本地内存
 class NativeBuffer {
     private static final Unsafe unsafe = Unsafe.getUnsafe();
-
-    private final long address;
-    private final int size;
-    private final Cleanable cleanable;
-
-    // optional "owner" to avoid copying
-    // (only safe for use by thread-local caches)
-    private Object owner;
-
-    private static class Deallocator implements Runnable {
-        private final long address;
-        Deallocator(long address) {
-            this.address = address;
-        }
-        public void run() {
-            unsafe.freeMemory(address);
-        }
-    }
-
+    
+    private final Cleanable cleanable;  // 清理器，用来释放本地内存
+    
+    private final long address; // 本地内存地址
+    private final int size;     // 本地内存容量
+    
+    // optional "owner" to avoid copying (only safe for use by thread-local caches)
+    private Object owner;       // 记录当前缓冲区的所有者
+    
     NativeBuffer(int size) {
+        // 申请size字节的本地内存，并返回分配的内存地址
         this.address = unsafe.allocateMemory(size);
         this.size = size;
-        this.cleanable = CleanerFactory.cleaner()
-                                       .register(this, new Deallocator(address));
+        // 将当前内存的地址注册到清理器，以待后续清理该内存
+        this.cleanable = CleanerFactory.cleaner().register(this, new Deallocator(address));
     }
-
-    void release() {
-        NativeBuffers.releaseNativeBuffer(this);
-    }
-
+    
+    // 返回当前缓存使用的本地内存地址
     long address() {
         return address;
     }
-
+    
+    // 返回当前缓存使用的本地内存容量
     int size() {
         return size;
     }
-
+    
+    // 释放当前缓存使用的本地内存
     void free() {
         cleanable.clean();
     }
-
+    
+    // 将当前缓存放入缓存池。如果没必要缓存，则释放它
+    void release() {
+        NativeBuffers.releaseNativeBuffer(this);
+    }
+    
     // not synchronized; only safe for use by thread-local caches
+    // 设置当前缓冲区的所有者
     void setOwner(Object owner) {
         this.owner = owner;
     }
-
+    
     // not synchronized; only safe for use by thread-local caches
+    // 返回当前缓冲区的所有者
     Object owner() {
         return owner;
+    }
+    
+    
+    private static class Deallocator implements Runnable {
+        private final long address;
+        
+        Deallocator(long address) {
+            this.address = address;
+        }
+        
+        public void run() {
+            // 用于释放allocateMemory和reallocateMemory申请的内存
+            unsafe.freeMemory(address);
+        }
     }
 }
