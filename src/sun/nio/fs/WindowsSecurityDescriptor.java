@@ -35,13 +35,12 @@ import static sun.nio.fs.WindowsNativeDispatcher.*;
 import static sun.nio.fs.WindowsConstants.*;
 
 /**
- * A SecurityDescriptor for use when setting a file's ACL or creating a file
- * with an initial ACL.
+ * A SecurityDescriptor for use when setting a file's ACL or creating a file with an initial ACL.
  */
-
+// windows安全描述符
 class WindowsSecurityDescriptor {
     private static final Unsafe unsafe = Unsafe.getUnsafe();
-
+    
     /**
      * typedef struct _ACL {
      *     BYTE  AclRevision;
@@ -79,24 +78,24 @@ class WindowsSecurityDescriptor {
      *     PACL Dacl;
      * } SECURITY_DESCRIPTOR;
      */
-    private static final short SIZEOF_ACL                   = 8;
-    private static final short SIZEOF_ACCESS_ALLOWED_ACE    = 12;
-    private static final short SIZEOF_ACCESS_DENIED_ACE     = 12;
-    private static final short SIZEOF_SECURITY_DESCRIPTOR   = 20;
-
-    private static final short OFFSETOF_TYPE                = 0;
-    private static final short OFFSETOF_FLAGS               = 1;
-    private static final short OFFSETOF_ACCESS_MASK         = 4;
-    private static final short OFFSETOF_SID                 = 8;
-
+    private static final short SIZEOF_ACL = 8;
+    private static final short SIZEOF_ACCESS_ALLOWED_ACE = 12;
+    private static final short SIZEOF_ACCESS_DENIED_ACE = 12;
+    private static final short SIZEOF_SECURITY_DESCRIPTOR = 20;
+    
+    // AclEntry中各字段在底层对象中的偏移量
+    private static final short OFFSETOF_TYPE = 0;
+    private static final short OFFSETOF_FLAGS = 1;
+    private static final short OFFSETOF_ACCESS_MASK = 4;
+    private static final short OFFSETOF_SID = 8;
+    
     // null security descriptor
-    private static final WindowsSecurityDescriptor NULL_DESCRIPTOR =
-        new WindowsSecurityDescriptor();
-
+    private static final WindowsSecurityDescriptor NULL_DESCRIPTOR = new WindowsSecurityDescriptor();
+    
     // native resources
-    private final List<Long> sidList;
-    private final NativeBuffer aclBuffer, sdBuffer;
-
+    private final List<Long> sidList;   // 记录SID在系统底层的存储位置
+    private final NativeBuffer aclBuffer, sdBuffer; // 本地内存
+    
     /**
      * Creates the "null" SecurityDescriptor
      */
@@ -105,288 +104,349 @@ class WindowsSecurityDescriptor {
         this.aclBuffer = null;
         this.sdBuffer = null;
     }
-
+    
     /**
      * Creates a SecurityDescriptor from the given ACL
      */
+    // 创建包括指定ACL在内的安全描述符
     private WindowsSecurityDescriptor(List<AclEntry> acl) throws IOException {
         boolean initialized = false;
-
+    
         // SECURITY: need to copy list in case size changes during processing
         acl = new ArrayList<AclEntry>(acl);
-
+    
         // list of SIDs
         sidList = new ArrayList<Long>(acl.size());
+    
         try {
             // initial size of ACL
             int size = SIZEOF_ACL;
-
-            // get the SID for each entry
-            for (AclEntry entry: acl) {
+        
+            /* get the SID for each entry */
+            // 遍历ACE
+            for(AclEntry entry : acl) {
+                // 获取该ACE对应的实体(文件)"所有者"
                 UserPrincipal user = entry.principal();
-                if (!(user instanceof WindowsUserPrincipals.User))
+                if(!(user instanceof WindowsUserPrincipals.User)) {
                     throw new ProviderMismatchException();
-                String sidString = ((WindowsUserPrincipals.User)user).sidString();
+                }
+            
+                // 获取文件"所有者"的SID
+                String sidString = ((WindowsUserPrincipals.User) user).sidString();
                 try {
+                    // 获取该SID在系统底层的存储位置
                     long pSid = ConvertStringSidToSid(sidString);
                     sidList.add(pSid);
-
+                
                     // increase size to allow for entry
-                    size += GetLengthSid(pSid) +
-                        Math.max(SIZEOF_ACCESS_ALLOWED_ACE, SIZEOF_ACCESS_DENIED_ACE);
-
-                } catch (WindowsException x) {
-                    throw new IOException("Failed to get SID for " + user.getName()
-                        + ": " + x.errorString());
+                    size += GetLengthSid(pSid) + Math.max(SIZEOF_ACCESS_ALLOWED_ACE, SIZEOF_ACCESS_DENIED_ACE);
+                
+                } catch(WindowsException x) {
+                    throw new IOException("Failed to get SID for " + user.getName() + ": " + x.errorString());
                 }
             }
-
+        
             // allocate memory for the ACL
             aclBuffer = NativeBuffers.getNativeBuffer(size);
             sdBuffer = NativeBuffers.getNativeBuffer(SIZEOF_SECURITY_DESCRIPTOR);
-
+        
             InitializeAcl(aclBuffer.address(), size);
-
+        
             // Add entry ACE to the ACL
             int i = 0;
-            while (i < acl.size()) {
+            while(i<acl.size()) {
                 AclEntry entry = acl.get(i);
                 long pSid = sidList.get(i);
                 try {
+                    // 向本地内存中编码(写入)AclEntry信息
                     encode(entry, pSid, aclBuffer.address());
-                } catch (WindowsException x) {
-                    throw new IOException("Failed to encode ACE: " +
-                        x.errorString());
+                } catch(WindowsException x) {
+                    throw new IOException("Failed to encode ACE: " + x.errorString());
                 }
                 i++;
             }
-
+        
             // initialize security descriptor and set DACL
             InitializeSecurityDescriptor(sdBuffer.address());
             SetSecurityDescriptorDacl(sdBuffer.address(), aclBuffer.address());
             initialized = true;
-        } catch (WindowsException x) {
+        } catch(WindowsException x) {
             throw new IOException(x.getMessage());
         } finally {
             // release resources if not completely initialized
-            if (!initialized)
+            if(!initialized) {
                 release();
-        }
-    }
-
-    /**
-     * Releases memory associated with SecurityDescriptor
-     */
-    void release() {
-        if (sdBuffer != null)
-            sdBuffer.release();
-        if (aclBuffer != null)
-            aclBuffer.release();
-        if (sidList != null) {
-            // release memory for SIDs
-            for (Long sid: sidList) {
-                LocalFree(sid);
             }
         }
     }
-
-    /**
-     * Returns address of SecurityDescriptor
-     */
-    long address() {
-        return (sdBuffer == null) ? 0L : sdBuffer.address();
-    }
-
-    // decode Windows ACE to NFSv4 AclEntry
-    private static AclEntry decode(long aceAddress)
-        throws IOException
-    {
-        // map type
-        byte aceType = unsafe.getByte(aceAddress + OFFSETOF_TYPE);
-        if (aceType != ACCESS_ALLOWED_ACE_TYPE && aceType != ACCESS_DENIED_ACE_TYPE)
-            return null;
-        AclEntryType type;
-        if (aceType == ACCESS_ALLOWED_ACE_TYPE) {
-            type = AclEntryType.ALLOW;
-        } else {
-            type = AclEntryType.DENY;
-        }
-
-        // map flags
-        byte aceFlags = unsafe.getByte(aceAddress + OFFSETOF_FLAGS);
-        Set<AclEntryFlag> flags = EnumSet.noneOf(AclEntryFlag.class);
-        if ((aceFlags & OBJECT_INHERIT_ACE) != 0)
-            flags.add(AclEntryFlag.FILE_INHERIT);
-        if ((aceFlags & CONTAINER_INHERIT_ACE) != 0)
-            flags.add(AclEntryFlag.DIRECTORY_INHERIT);
-        if ((aceFlags & NO_PROPAGATE_INHERIT_ACE) != 0)
-            flags.add(AclEntryFlag.NO_PROPAGATE_INHERIT);
-        if ((aceFlags & INHERIT_ONLY_ACE) != 0)
-            flags.add(AclEntryFlag.INHERIT_ONLY);
-
-        // map access mask
-        int mask = unsafe.getInt(aceAddress + OFFSETOF_ACCESS_MASK);
-        Set<AclEntryPermission> perms = EnumSet.noneOf(AclEntryPermission.class);
-        if ((mask & FILE_READ_DATA) > 0)
-            perms.add(AclEntryPermission.READ_DATA);
-        if ((mask & FILE_WRITE_DATA) > 0)
-            perms.add(AclEntryPermission.WRITE_DATA);
-        if ((mask & FILE_APPEND_DATA ) > 0)
-            perms.add(AclEntryPermission.APPEND_DATA);
-        if ((mask & FILE_READ_EA) > 0)
-            perms.add(AclEntryPermission.READ_NAMED_ATTRS);
-        if ((mask & FILE_WRITE_EA) > 0)
-            perms.add(AclEntryPermission.WRITE_NAMED_ATTRS);
-        if ((mask & FILE_EXECUTE) > 0)
-            perms.add(AclEntryPermission.EXECUTE);
-        if ((mask & FILE_DELETE_CHILD ) > 0)
-            perms.add(AclEntryPermission.DELETE_CHILD);
-        if ((mask & FILE_READ_ATTRIBUTES) > 0)
-            perms.add(AclEntryPermission.READ_ATTRIBUTES);
-        if ((mask & FILE_WRITE_ATTRIBUTES) > 0)
-            perms.add(AclEntryPermission.WRITE_ATTRIBUTES);
-        if ((mask & DELETE) > 0)
-            perms.add(AclEntryPermission.DELETE);
-        if ((mask & READ_CONTROL) > 0)
-            perms.add(AclEntryPermission.READ_ACL);
-        if ((mask & WRITE_DAC) > 0)
-            perms.add(AclEntryPermission.WRITE_ACL);
-        if ((mask & WRITE_OWNER) > 0)
-            perms.add(AclEntryPermission.WRITE_OWNER);
-        if ((mask & SYNCHRONIZE) > 0)
-            perms.add(AclEntryPermission.SYNCHRONIZE);
-
-        // lookup SID to create UserPrincipal
-        long sidAddress = aceAddress + OFFSETOF_SID;
-        UserPrincipal user = WindowsUserPrincipals.fromSid(sidAddress);
-
-        return AclEntry.newBuilder()
-            .setType(type)
-            .setPrincipal(user)
-            .setFlags(flags).setPermissions(perms).build();
-    }
-
-    // encode NFSv4 AclEntry as Windows ACE to given ACL
-    private static void encode(AclEntry ace, long sidAddress, long aclAddress)
-        throws WindowsException
-    {
-        // ignore non-allow/deny entries for now
-        if (ace.type() != AclEntryType.ALLOW && ace.type() != AclEntryType.DENY)
-            return;
-        boolean allow = (ace.type() == AclEntryType.ALLOW);
-
-        // map access mask
-        Set<AclEntryPermission> aceMask = ace.permissions();
-        int mask = 0;
-        if (aceMask.contains(AclEntryPermission.READ_DATA))
-            mask |= FILE_READ_DATA;
-        if (aceMask.contains(AclEntryPermission.WRITE_DATA))
-            mask |= FILE_WRITE_DATA;
-        if (aceMask.contains(AclEntryPermission.APPEND_DATA))
-            mask |= FILE_APPEND_DATA;
-        if (aceMask.contains(AclEntryPermission.READ_NAMED_ATTRS))
-            mask |= FILE_READ_EA;
-        if (aceMask.contains(AclEntryPermission.WRITE_NAMED_ATTRS))
-            mask |= FILE_WRITE_EA;
-        if (aceMask.contains(AclEntryPermission.EXECUTE))
-            mask |= FILE_EXECUTE;
-        if (aceMask.contains(AclEntryPermission.DELETE_CHILD))
-            mask |= FILE_DELETE_CHILD;
-        if (aceMask.contains(AclEntryPermission.READ_ATTRIBUTES))
-            mask |= FILE_READ_ATTRIBUTES;
-        if (aceMask.contains(AclEntryPermission.WRITE_ATTRIBUTES))
-            mask |= FILE_WRITE_ATTRIBUTES;
-        if (aceMask.contains(AclEntryPermission.DELETE))
-            mask |= DELETE;
-        if (aceMask.contains(AclEntryPermission.READ_ACL))
-            mask |= READ_CONTROL;
-        if (aceMask.contains(AclEntryPermission.WRITE_ACL))
-            mask |= WRITE_DAC;
-        if (aceMask.contains(AclEntryPermission.WRITE_OWNER))
-            mask |= WRITE_OWNER;
-        if (aceMask.contains(AclEntryPermission.SYNCHRONIZE))
-            mask |= SYNCHRONIZE;
-
-        // map flags
-        Set<AclEntryFlag> aceFlags = ace.flags();
-        byte flags = 0;
-        if (aceFlags.contains(AclEntryFlag.FILE_INHERIT))
-            flags |= OBJECT_INHERIT_ACE;
-        if (aceFlags.contains(AclEntryFlag.DIRECTORY_INHERIT))
-            flags |= CONTAINER_INHERIT_ACE;
-        if (aceFlags.contains(AclEntryFlag.NO_PROPAGATE_INHERIT))
-            flags |= NO_PROPAGATE_INHERIT_ACE;
-        if (aceFlags.contains(AclEntryFlag.INHERIT_ONLY))
-            flags |= INHERIT_ONLY_ACE;
-
-        if (allow) {
-            AddAccessAllowedAceEx(aclAddress, flags, mask, sidAddress);
-        } else {
-            AddAccessDeniedAceEx(aclAddress, flags, mask, sidAddress);
-        }
-    }
-
+    
     /**
      * Creates a security descriptor with a DACL representing the given ACL.
      */
-    static WindowsSecurityDescriptor create(List<AclEntry> acl)
-        throws IOException
-    {
+    // 返回创建的windows安全描述符，其中的ACL信息由参数acl给出
+    static WindowsSecurityDescriptor create(List<AclEntry> acl) throws IOException {
         return new WindowsSecurityDescriptor(acl);
     }
-
+    
     /**
      * Processes the array of attributes looking for the attribute "acl:acl".
-     * Returns security descriptor representing the ACL or the "null" security
-     * descriptor if the attribute is not in the array.
+     * Returns security descriptor representing the ACL or the "null" security descriptor if the attribute is not in the array.
+     */
+    /*
+     * 通过指定的文件属性构造windows安全描述符，该方法仅在windows平台使用。
+     *
+     * 如果attrs不为null，则会从中找到最后一个name为"acl:acl"的属性，
+     * 并进一步获取其属性值(要求该属性值是一个ACL，即是一个List<AclEntry>类型的对象)。
      */
     @SuppressWarnings("unchecked")
-    static WindowsSecurityDescriptor fromAttribute(FileAttribute<?>... attrs)
-        throws IOException
-    {
+    static WindowsSecurityDescriptor fromAttribute(FileAttribute<?>... attrs) throws IOException {
         WindowsSecurityDescriptor sd = NULL_DESCRIPTOR;
-        for (FileAttribute<?> attr: attrs) {
+        
+        for(FileAttribute<?> attr : attrs) {
             // if more than one ACL specified then last one wins
-            if (sd != NULL_DESCRIPTOR)
+            if(sd != NULL_DESCRIPTOR) {
                 sd.release();
-            if (attr == null)
+            }
+            
+            if(attr == null) {
                 throw new NullPointerException();
-            if (attr.name().equals("acl:acl")) {
-                List<AclEntry> acl = (List<AclEntry>)attr.value();
+            }
+            
+            if(attr.name().equals("acl:acl")) {
+                List<AclEntry> acl = (List<AclEntry>) attr.value();
                 sd = new WindowsSecurityDescriptor(acl);
             } else {
-                throw new UnsupportedOperationException("'" + attr.name() +
-                   "' not supported as initial attribute");
+                throw new UnsupportedOperationException("'" + attr.name() + "' not supported as initial attribute");
             }
         }
+        
         return sd;
     }
-
+    
     /**
      * Extracts DACL from security descriptor.
      */
+    // 从指定的安全描述符中获取DACL实体信息
     static List<AclEntry> getAcl(long pSecurityDescriptor) throws IOException {
         // get address of DACL
         long aclAddress = GetSecurityDescriptorDacl(pSecurityDescriptor);
-
+        
         // get ACE count
         int aceCount = 0;
-        if (aclAddress == 0L) {
+        if(aclAddress == 0L) {
             // no ACEs
             aceCount = 0;
         } else {
             AclInformation aclInfo = GetAclInformation(aclAddress);
             aceCount = aclInfo.aceCount();
         }
+        
         ArrayList<AclEntry> result = new ArrayList<>(aceCount);
-
+        
         // decode each of the ACEs to AclEntry objects
-        for (int i=0; i<aceCount; i++) {
+        for(int i = 0; i<aceCount; i++) {
             long aceAddress = GetAce(aclAddress, i);
+            // 从本地内存中解码(读取)AclEntry信息
             AclEntry entry = decode(aceAddress);
-            if (entry != null)
+            if(entry != null) {
                 result.add(entry);
+            }
         }
+        
         return result;
     }
+    
+    /**
+     * Releases memory associated with SecurityDescriptor
+     */
+    // 释放本地内存
+    void release() {
+        if(sdBuffer != null) {
+            sdBuffer.release();
+        }
+        
+        if(aclBuffer != null) {
+            aclBuffer.release();
+        }
+        
+        if(sidList != null) {
+            // release memory for SIDs
+            for(Long sid : sidList) {
+                LocalFree(sid);
+            }
+        }
+    }
+    
+    /**
+     * Returns address of SecurityDescriptor
+     */
+    // 返回存储安全描述符的本地内存地址
+    long address() {
+        return (sdBuffer == null) ? 0L : sdBuffer.address();
+    }
+    
+    /* decode Windows ACE to NFSv4 AclEntry */
+    // 从本地内存中解码(读取)AclEntry信息
+    private static AclEntry decode(long aceAddress) throws IOException {
+        // map type
+        byte aceType = unsafe.getByte(aceAddress + OFFSETOF_TYPE);
+        
+        if(aceType != ACCESS_ALLOWED_ACE_TYPE && aceType != ACCESS_DENIED_ACE_TYPE) {
+            return null;
+        }
+        
+        AclEntryType type;
+        if(aceType == ACCESS_ALLOWED_ACE_TYPE) {
+            type = AclEntryType.ALLOW;
+        } else {
+            type = AclEntryType.DENY;
+        }
+        
+        // map flags
+        byte aceFlags = unsafe.getByte(aceAddress + OFFSETOF_FLAGS);
+        Set<AclEntryFlag> flags = EnumSet.noneOf(AclEntryFlag.class);
+        if((aceFlags & OBJECT_INHERIT_ACE) != 0) {
+            flags.add(AclEntryFlag.FILE_INHERIT);
+        }
+        if((aceFlags & CONTAINER_INHERIT_ACE) != 0) {
+            flags.add(AclEntryFlag.DIRECTORY_INHERIT);
+        }
+        if((aceFlags & NO_PROPAGATE_INHERIT_ACE) != 0) {
+            flags.add(AclEntryFlag.NO_PROPAGATE_INHERIT);
+        }
+        if((aceFlags & INHERIT_ONLY_ACE) != 0) {
+            flags.add(AclEntryFlag.INHERIT_ONLY);
+        }
+        
+        // map access mask
+        int mask = unsafe.getInt(aceAddress + OFFSETOF_ACCESS_MASK);
+        Set<AclEntryPermission> perms = EnumSet.noneOf(AclEntryPermission.class);
+        if((mask & FILE_READ_DATA)>0) {
+            perms.add(AclEntryPermission.READ_DATA);
+        }
+        if((mask & FILE_WRITE_DATA)>0) {
+            perms.add(AclEntryPermission.WRITE_DATA);
+        }
+        if((mask & FILE_APPEND_DATA)>0) {
+            perms.add(AclEntryPermission.APPEND_DATA);
+        }
+        if((mask & FILE_READ_EA)>0) {
+            perms.add(AclEntryPermission.READ_NAMED_ATTRS);
+        }
+        if((mask & FILE_WRITE_EA)>0) {
+            perms.add(AclEntryPermission.WRITE_NAMED_ATTRS);
+        }
+        if((mask & FILE_EXECUTE)>0) {
+            perms.add(AclEntryPermission.EXECUTE);
+        }
+        if((mask & FILE_DELETE_CHILD)>0) {
+            perms.add(AclEntryPermission.DELETE_CHILD);
+        }
+        if((mask & FILE_READ_ATTRIBUTES)>0) {
+            perms.add(AclEntryPermission.READ_ATTRIBUTES);
+        }
+        if((mask & FILE_WRITE_ATTRIBUTES)>0) {
+            perms.add(AclEntryPermission.WRITE_ATTRIBUTES);
+        }
+        if((mask & DELETE)>0) {
+            perms.add(AclEntryPermission.DELETE);
+        }
+        if((mask & READ_CONTROL)>0) {
+            perms.add(AclEntryPermission.READ_ACL);
+        }
+        if((mask & WRITE_DAC)>0) {
+            perms.add(AclEntryPermission.WRITE_ACL);
+        }
+        if((mask & WRITE_OWNER)>0) {
+            perms.add(AclEntryPermission.WRITE_OWNER);
+        }
+        if((mask & SYNCHRONIZE)>0) {
+            perms.add(AclEntryPermission.SYNCHRONIZE);
+        }
+        
+        // lookup SID to create UserPrincipal
+        long sidAddress = aceAddress + OFFSETOF_SID;
+        UserPrincipal user = WindowsUserPrincipals.fromSid(sidAddress);
+        
+        return AclEntry.newBuilder().setType(type).setPrincipal(user).setFlags(flags).setPermissions(perms).build();
+    }
+    
+    /* encode NFSv4 AclEntry as Windows ACE to given ACL */
+    // 向本地内存中编码(写入)AclEntry信息
+    private static void encode(AclEntry ace, long sidAddress, long aclAddress) throws WindowsException {
+        // ignore non-allow/deny entries for now
+        if(ace.type() != AclEntryType.ALLOW && ace.type() != AclEntryType.DENY) {
+            return;
+        }
+        boolean allow = (ace.type() == AclEntryType.ALLOW);
+        
+        // map access mask
+        Set<AclEntryPermission> aceMask = ace.permissions();
+        int mask = 0;
+        if(aceMask.contains(AclEntryPermission.READ_DATA)) {
+            mask |= FILE_READ_DATA;
+        }
+        if(aceMask.contains(AclEntryPermission.WRITE_DATA)) {
+            mask |= FILE_WRITE_DATA;
+        }
+        if(aceMask.contains(AclEntryPermission.APPEND_DATA)) {
+            mask |= FILE_APPEND_DATA;
+        }
+        if(aceMask.contains(AclEntryPermission.READ_NAMED_ATTRS)) {
+            mask |= FILE_READ_EA;
+        }
+        if(aceMask.contains(AclEntryPermission.WRITE_NAMED_ATTRS)) {
+            mask |= FILE_WRITE_EA;
+        }
+        if(aceMask.contains(AclEntryPermission.EXECUTE)) {
+            mask |= FILE_EXECUTE;
+        }
+        if(aceMask.contains(AclEntryPermission.DELETE_CHILD)) {
+            mask |= FILE_DELETE_CHILD;
+        }
+        if(aceMask.contains(AclEntryPermission.READ_ATTRIBUTES)) {
+            mask |= FILE_READ_ATTRIBUTES;
+        }
+        if(aceMask.contains(AclEntryPermission.WRITE_ATTRIBUTES)) {
+            mask |= FILE_WRITE_ATTRIBUTES;
+        }
+        if(aceMask.contains(AclEntryPermission.DELETE)) {
+            mask |= DELETE;
+        }
+        if(aceMask.contains(AclEntryPermission.READ_ACL)) {
+            mask |= READ_CONTROL;
+        }
+        if(aceMask.contains(AclEntryPermission.WRITE_ACL)) {
+            mask |= WRITE_DAC;
+        }
+        if(aceMask.contains(AclEntryPermission.WRITE_OWNER)) {
+            mask |= WRITE_OWNER;
+        }
+        if(aceMask.contains(AclEntryPermission.SYNCHRONIZE)) {
+            mask |= SYNCHRONIZE;
+        }
+        
+        // map flags
+        Set<AclEntryFlag> aceFlags = ace.flags();
+        byte flags = 0;
+        if(aceFlags.contains(AclEntryFlag.FILE_INHERIT)) {
+            flags |= OBJECT_INHERIT_ACE;
+        }
+        if(aceFlags.contains(AclEntryFlag.DIRECTORY_INHERIT)) {
+            flags |= CONTAINER_INHERIT_ACE;
+        }
+        if(aceFlags.contains(AclEntryFlag.NO_PROPAGATE_INHERIT)) {
+            flags |= NO_PROPAGATE_INHERIT_ACE;
+        }
+        if(aceFlags.contains(AclEntryFlag.INHERIT_ONLY)) {
+            flags |= INHERIT_ONLY_ACE;
+        }
+        
+        if(allow) {
+            AddAccessAllowedAceEx(aclAddress, flags, mask, sidAddress);
+        } else {
+            AddAccessDeniedAceEx(aclAddress, flags, mask, sidAddress);
+        }
+    }
+    
 }
