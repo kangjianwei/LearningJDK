@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.Iterator;
+import java.util.List;
 import java.util.NoSuchElementException;
 
 /**
@@ -95,10 +96,11 @@ import java.util.NoSuchElementException;
  *
  * @since 1.7
  */
-
-public interface Path
-    extends Comparable<Path>, Iterable<Path>, Watchable
-{
+// 文件路径的抽象，不同的操作系统平台会有不同的实现
+public interface Path extends Comparable<Path>, Iterable<Path>, Watchable {
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns a {@code Path} by converting a path string, or a sequence of
      * strings that when joined form a path string. If {@code more} does not
@@ -129,24 +131,24 @@ public interface Path
      *     Path path = dir.resolve("file");
      * }</pre>
      *
-     * @param   first
-     *          the path string or initial part of the path string
-     * @param   more
-     *          additional strings to be joined to form the path string
+     * @param first the path string or initial part of the path string
+     * @param more  additional strings to be joined to form the path string
      *
-     * @return  the resulting {@code Path}
+     * @return the resulting {@code Path}
      *
-     * @throws  InvalidPathException
-     *          if the path string cannot be converted to a {@code Path}
-     *
+     * @throws InvalidPathException if the path string cannot be converted to a {@code Path}
      * @see FileSystem#getPath
-     *
      * @since 11
      */
-    public static Path of(String first, String... more) {
-        return FileSystems.getDefault().getPath(first, more);
+    // 将给定的字符串拼接成一个标识文件/目录的路径
+    static Path of(String first, String... more) {
+        // 获取默认的文件系统："file"文件系统
+        FileSystem fileSystem = FileSystems.getDefault();
+        
+        // 构造与fileSystem匹配的路径对象，返回的路径已经本地化
+        return fileSystem.getPath(first, more);
     }
-
+    
     /**
      * Returns a {@code Path} by converting a URI.
      *
@@ -175,79 +177,469 @@ public interface Path
      * Java virtual machine. Whether other providers make any guarantees is
      * provider specific and therefore unspecified.
      *
-     * @param   uri
-     *          the URI to convert
+     * @param uri the URI to convert
      *
-     * @return  the resulting {@code Path}
+     * @return the resulting {@code Path}
      *
-     * @throws  IllegalArgumentException
-     *          if preconditions on the {@code uri} parameter do not hold. The
-     *          format of the URI is provider specific.
-     * @throws  FileSystemNotFoundException
-     *          The file system, identified by the URI, does not exist and
-     *          cannot be created automatically, or the provider identified by
-     *          the URI's scheme component is not installed
-     * @throws  SecurityException
-     *          if a security manager is installed and it denies an unspecified
-     *          permission to access the file system
-     *
+     * @throws IllegalArgumentException    if preconditions on the {@code uri} parameter do not hold. The
+     *                                     format of the URI is provider specific.
+     * @throws FileSystemNotFoundException The file system, identified by the URI, does not exist and
+     *                                     cannot be created automatically, or the provider identified by
+     *                                     the URI's scheme component is not installed
+     * @throws SecurityException           if a security manager is installed and it denies an unspecified
+     *                                     permission to access the file system
      * @since 11
      */
-    public static Path of(URI uri) {
-        String scheme =  uri.getScheme();
-        if (scheme == null)
+    // 从给定的URI中解析出一个有效路径；这里默认支持的URI协议是"file"/"jar"/"jrt"，如果超出该协议，需要通过自定义来扩充
+    static Path of(URI uri) {
+        // 获取uri的scheme(协议)信息
+        String targetScheme = uri.getScheme();
+        if(targetScheme == null) {
             throw new IllegalArgumentException("Missing scheme");
-
-        // check for default provider to avoid loading of installed providers
-        if (scheme.equalsIgnoreCase("file"))
-            return FileSystems.getDefault().provider().getPath(uri);
-
-        // try to find provider
-        for (FileSystemProvider provider: FileSystemProvider.installedProviders()) {
-            if (provider.getScheme().equalsIgnoreCase(scheme)) {
+        }
+        
+        /* check for default provider to avoid loading of installed providers */
+        // 如果给定的uri是file协议
+        if(targetScheme.equalsIgnoreCase("file")) {
+            // 获取默认的文件系统提供器："file"文件系统提供器
+            FileSystemProvider provider = FileSystems.getDefault().provider();
+            // 从指定的uri中解析出一个有效路径
+            return provider.getPath(uri);
+        }
+        
+        // 返回当前所有可用的文件系统提供器，系统已实现的包括"file"/"jar"/"jrt"文件系统提供器
+        List<FileSystemProvider> providers = FileSystemProvider.installedProviders();
+        
+        // 查找可以解析uri的文件系统提供器
+        for(FileSystemProvider provider : providers) {
+            // 获取文件系统提供器provider支持的协议
+            String scheme = provider.getScheme();
+            
+            // 如果找到匹配的文件系统提供器
+            if(scheme.equalsIgnoreCase(targetScheme)) {
+                // 从指定的uri中解析出一个有效路径
                 return provider.getPath(uri);
             }
         }
-
-        throw new FileSystemNotFoundException("Provider \"" + scheme + "\" not installed");
+        
+        throw new FileSystemNotFoundException("Provider \"" + targetScheme + "\" not installed");
     }
-
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 规范化/相对化/绝对化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns the file system that created this object.
+     * Returns a path that is this path with redundant name elements eliminated.
      *
-     * @return  the file system that created this object
+     * <p> The precise definition of this method is implementation dependent but
+     * in general it derives from this path, a path that does not contain
+     * <em>redundant</em> name elements. In many file systems, the "{@code .}"
+     * and "{@code ..}" are special names used to indicate the current directory
+     * and parent directory. In such file systems all occurrences of "{@code .}"
+     * are considered redundant. If a "{@code ..}" is preceded by a
+     * non-"{@code ..}" name then both names are considered redundant (the
+     * process to identify such names is repeated until it is no longer
+     * applicable).
+     *
+     * <p> This method does not access the file system; the path may not locate
+     * a file that exists. Eliminating "{@code ..}" and a preceding name from a
+     * path may result in the path that locates a different file than the original
+     * path. This can arise when the preceding name is a symbolic link.
+     *
+     * @return the resulting path or this path if it does not contain
+     * redundant name elements; an empty path is returned if this path
+     * does not have a root component and all name elements are redundant
+     *
+     * @see #getParent
+     * @see #toRealPath
      */
-    FileSystem getFileSystem();
-
+    // 规范化：返回当前路径的规范化形式(包括对路径内分隔符的转换，以及对"."和".."的解析)
+    Path normalize();
+    
+    /**
+     * Constructs a relative path between this path and a given path.
+     *
+     * <p> Relativization is the inverse of {@link #resolve(Path) resolution}.
+     * This method attempts to construct a {@link #isAbsolute relative} path
+     * that when {@link #resolve(Path) resolved} against this path, yields a
+     * path that locates the same file as the given path. For example, on UNIX,
+     * if this path is {@code "/a/b"} and the given path is {@code "/a/b/c/d"}
+     * then the resulting relative path would be {@code "c/d"}. Where this
+     * path and the given path do not have a {@link #getRoot root} component,
+     * then a relative path can be constructed. A relative path cannot be
+     * constructed if only one of the paths have a root component. Where both
+     * paths have a root component then it is implementation dependent if a
+     * relative path can be constructed. If this path and the given path are
+     * {@link #equals equal} then an <i>empty path</i> is returned.
+     *
+     * <p> For any two {@link #normalize normalized} paths <i>p</i> and
+     * <i>q</i>, where <i>q</i> does not have a root component,
+     * <blockquote>
+     * <i>p</i>{@code .relativize(}<i>p</i>
+     * {@code .resolve(}<i>q</i>{@code )).equals(}<i>q</i>{@code )}
+     * </blockquote>
+     *
+     * <p> When symbolic links are supported, then whether the resulting path,
+     * when resolved against this path, yields a path that can be used to locate
+     * the {@link Files#isSameFile same} file as {@code other} is implementation
+     * dependent. For example, if this path is  {@code "/a/b"} and the given
+     * path is {@code "/a/x"} then the resulting relative path may be {@code
+     * "../x"}. If {@code "b"} is a symbolic link then is implementation
+     * dependent if {@code "a/b/../x"} would locate the same file as {@code "/a/x"}.
+     *
+     * @param other the path to relativize against this path
+     *
+     * @return the resulting relative path, or an empty path if both paths are
+     * equal
+     *
+     * @throws IllegalArgumentException if {@code other} is not a {@code Path} that can be relativized
+     *                                  against this path
+     */
+    // 相对化：返回一个相对路径，通过该相对路径，可以从当前路径访问到other路径(要求两种路径类型相同)
+    Path relativize(Path other);
+    
+    /**
+     * Resolve the given path against this path.
+     *
+     * <p> If the {@code other} parameter is an {@link #isAbsolute() absolute}
+     * path then this method trivially returns {@code other}. If {@code other}
+     * is an <i>empty path</i> then this method trivially returns this path.
+     * Otherwise this method considers this path to be a directory and resolves
+     * the given path against this path. In the simplest case, the given path
+     * does not have a {@link #getRoot root} component, in which case this method
+     * <em>joins</em> the given path to this path and returns a resulting path
+     * that {@link #endsWith ends} with the given path. Where the given path has
+     * a root component then resolution is highly implementation dependent and
+     * therefore unspecified.
+     *
+     * @param other the path to resolve against this path
+     *
+     * @return the resulting path
+     *
+     * @see #relativize
+     */
+    // 绝对化：基于当前路径解析other路径；如果other是相对路径，则返回"当前路径+other"，如果other是绝对路径，原样返回
+    Path resolve(Path other);
+    
+    /**
+     * Converts a given path string to a {@code Path} and resolves it against
+     * this {@code Path} in exactly the manner specified by the {@link
+     * #resolve(Path) resolve} method. For example, suppose that the name
+     * separator is "{@code /}" and a path represents "{@code foo/bar}", then
+     * invoking this method with the path string "{@code gus}" will result in
+     * the {@code Path} "{@code foo/bar/gus}".
+     *
+     * @param other the path string to resolve against this path
+     *
+     * @return the resulting path
+     *
+     * @throws InvalidPathException if the path string cannot be converted to a Path.
+     * @implSpec The default implementation is equivalent for this path to:
+     * <pre>{@code
+     *     resolve(getFileSystem().getPath(other));
+     * }</pre>
+     * @see FileSystem#getPath
+     */
+    // 绝对化：基于当前路径解析other路径；如果other是相对路径，则返回"当前路径+other"，如果other是绝对路径，原样返回
+    default Path resolve(String other) {
+        // 返回当前路径所属的文件系统
+        FileSystem fileSystem = getFileSystem();
+        
+        // 构造与fileSystem匹配的路径对象，返回的路径已经本地化
+        Path path = fileSystem.getPath(other);
+        
+        // 绝对化
+        return resolve(path);
+    }
+    
+    /**
+     * Converts a given path string to a {@code Path} and resolves it against
+     * this path's {@link #getParent parent} path in exactly the manner
+     * specified by the {@link #resolveSibling(Path) resolveSibling} method.
+     *
+     * @param other the path string to resolve against this path's parent
+     *
+     * @return the resulting path
+     *
+     * @throws InvalidPathException if the path string cannot be converted to a Path.
+     * @implSpec The default implementation is equivalent for this path to:
+     * <pre>{@code
+     *     resolveSibling(getFileSystem().getPath(other));
+     * }</pre>
+     * @see FileSystem#getPath
+     */
+    // 绝对化(兄弟路径)：基于当前路径的父级路径解析other路径；如果other是相对路径，则返回"当前路径的父路径+other"，如果other是绝对路径，原样返回
+    default Path resolveSibling(String other) {
+        // 返回当前路径所属的文件系统
+        FileSystem fileSystem = getFileSystem();
+        
+        // 构造与fileSystem匹配的路径对象，返回的路径已经本地化
+        Path path = fileSystem.getPath(other);
+        
+        // 绝对化(兄弟路径)
+        return resolveSibling(path);
+    }
+    
+    /**
+     * Resolves the given path against this path's {@link #getParent parent}
+     * path. This is useful where a file name needs to be <i>replaced</i> with
+     * another file name. For example, suppose that the name separator is
+     * "{@code /}" and a path represents "{@code dir1/dir2/foo}", then invoking
+     * this method with the {@code Path} "{@code bar}" will result in the {@code
+     * Path} "{@code dir1/dir2/bar}". If this path does not have a parent path,
+     * or {@code other} is {@link #isAbsolute() absolute}, then this method
+     * returns {@code other}. If {@code other} is an empty path then this method
+     * returns this path's parent, or where this path doesn't have a parent, the
+     * empty path.
+     *
+     * @param other the path to resolve against this path's parent
+     *
+     * @return the resulting path
+     *
+     * @implSpec The default implementation is equivalent for this path to:
+     * <pre>{@code
+     *     (getParent() == null) ? other : getParent().resolve(other);
+     * }</pre>
+     * unless {@code other == null}, in which case a
+     * {@code NullPointerException} is thrown.
+     * @see #resolve(Path)
+     */
+    // 绝对化(兄弟路径)：基于当前路径的父级路径解析other路径；如果other是相对路径，则返回"当前路径的父路径+other"，如果other是绝对路径，原样返回
+    default Path resolveSibling(Path other) {
+        if(other == null) {
+            throw new NullPointerException();
+        }
+    
+        // 返回当前路径的父路径
+        Path parent = getParent();
+    
+        return (parent == null) ? other : parent.resolve(other);
+    }
+    
+    /**
+     * Returns a {@code Path} object representing the absolute path of this
+     * path.
+     *
+     * <p> If this path is already {@link Path#isAbsolute absolute} then this
+     * method simply returns this path. Otherwise, this method resolves the path
+     * in an implementation dependent manner, typically by resolving the path
+     * against a file system default directory. Depending on the implementation,
+     * this method may throw an I/O error if the file system is not accessible.
+     *
+     * @return a {@code Path} object representing the absolute path
+     *
+     * @throws java.io.IOError   if an I/O error occurs
+     * @throws SecurityException In the case of the default provider, a security manager
+     *                           is installed, and this path is not absolute, then the security
+     *                           manager's {@link SecurityManager#checkPropertyAccess(String)
+     *                           checkPropertyAccess} method is invoked to check access to the
+     *                           system property {@code user.dir}
+     */
+    // 以绝对路径形式返回当前路径(不会消除路径中的"."或"..")
+    Path toAbsolutePath();
+    
+    /**
+     * Returns the <em>real</em> path of an existing file.
+     *
+     * <p> The precise definition of this method is implementation dependent but
+     * in general it derives from this path, an {@link #isAbsolute absolute}
+     * path that locates the {@link Files#isSameFile same} file as this path, but
+     * with name elements that represent the actual name of the directories
+     * and the file. For example, where filename comparisons on a file system
+     * are case insensitive then the name elements represent the names in their
+     * actual case. Additionally, the resulting path has redundant name
+     * elements removed.
+     *
+     * <p> If this path is relative then its absolute path is first obtained,
+     * as if by invoking the {@link #toAbsolutePath toAbsolutePath} method.
+     *
+     * <p> The {@code options} array may be used to indicate how symbolic links
+     * are handled. By default, symbolic links are resolved to their final
+     * target. If the option {@link LinkOption#NOFOLLOW_LINKS NOFOLLOW_LINKS} is
+     * present then this method does not resolve symbolic links.
+     *
+     * Some implementations allow special names such as "{@code ..}" to refer to
+     * the parent directory. When deriving the <em>real path</em>, and a
+     * "{@code ..}" (or equivalent) is preceded by a non-"{@code ..}" name then
+     * an implementation will typically cause both names to be removed. When
+     * not resolving symbolic links and the preceding name is a symbolic link
+     * then the names are only removed if it guaranteed that the resulting path
+     * will locate the same file as this path.
+     *
+     * @param options options indicating how symbolic links are handled
+     *
+     * @return an absolute path represent the <em>real</em> path of the file
+     * located by this object
+     *
+     * @throws IOException       if the file does not exist or an I/O error occurs
+     * @throws SecurityException In the case of the default provider, and a security manager
+     *                           is installed, its {@link SecurityManager#checkRead(String) checkRead}
+     *                           method is invoked to check read access to the file, and where
+     *                           this path is not absolute, its {@link SecurityManager#checkPropertyAccess(String)
+     *                           checkPropertyAccess} method is invoked to check access to the
+     *                           system property {@code user.dir}
+     */
+    // 以"真实路径"形式返回当前路径(已经消除了路径中的"."或"..")，options指示对于符号链接，是否将其链接到目标文件；如果显式设置了LinkOption.NOFOLLOW_LINKS，表示不链接
+    Path toRealPath(LinkOption... options) throws IOException;
+    
+    /*▲ 规范化/相对化/绝对化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 状态 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Tells whether or not this path is absolute.
      *
      * <p> An absolute path is complete in that it doesn't need to be combined
      * with other path information in order to locate a file.
      *
-     * @return  {@code true} if, and only if, this path is absolute
+     * @return {@code true} if, and only if, this path is absolute
      */
+    // 判断是否为绝对路径(不同平台上的判断标准不同)
     boolean isAbsolute();
-
+    
     /**
-     * Returns the root component of this path as a {@code Path} object,
-     * or {@code null} if this path does not have a root component.
+     * Tests if this path starts with the given path.
      *
-     * @return  a path representing the root component of this path,
-     *          or {@code null}
+     * <p> This path <em>starts</em> with the given path if this path's root
+     * component <em>starts</em> with the root component of the given path,
+     * and this path starts with the same name elements as the given path.
+     * If the given path has more name elements than this path then {@code false}
+     * is returned.
+     *
+     * <p> Whether or not the root component of this path starts with the root
+     * component of the given path is file system specific. If this path does
+     * not have a root component and the given path has a root component then
+     * this path does not start with the given path.
+     *
+     * <p> If the given path is associated with a different {@code FileSystem}
+     * to this path then {@code false} is returned.
+     *
+     * @param other the given path
+     *
+     * @return {@code true} if this path starts with the given path; otherwise
+     * {@code false}
      */
-    Path getRoot();
-
+    // 判断当前路径是否以other起始
+    boolean startsWith(Path other);
+    
+    /**
+     * Tests if this path ends with the given path.
+     *
+     * <p> If the given path has <em>N</em> elements, and no root component,
+     * and this path has <em>N</em> or more elements, then this path ends with
+     * the given path if the last <em>N</em> elements of each path, starting at
+     * the element farthest from the root, are equal.
+     *
+     * <p> If the given path has a root component then this path ends with the
+     * given path if the root component of this path <em>ends with</em> the root
+     * component of the given path, and the corresponding elements of both paths
+     * are equal. Whether or not the root component of this path ends with the
+     * root component of the given path is file system specific. If this path
+     * does not have a root component and the given path has a root component
+     * then this path does not end with the given path.
+     *
+     * <p> If the given path is associated with a different {@code FileSystem}
+     * to this path then {@code false} is returned.
+     *
+     * @param other the given path
+     *
+     * @return {@code true} if this path ends with the given path; otherwise
+     * {@code false}
+     */
+    // 判断当前路径是否以other结尾
+    boolean endsWith(Path other);
+    
+    /**
+     * Tests if this path starts with a {@code Path}, constructed by converting
+     * the given path string, in exactly the manner specified by the {@link
+     * #startsWith(Path) startsWith(Path)} method. On UNIX for example, the path
+     * "{@code foo/bar}" starts with "{@code foo}" and "{@code foo/bar}". It
+     * does not start with "{@code f}" or "{@code fo}".
+     *
+     * @param other the given path string
+     *
+     * @return {@code true} if this path starts with the given path; otherwise
+     * {@code false}
+     *
+     * @throws InvalidPathException If the path string cannot be converted to a Path.
+     * @implSpec The default implementation is equivalent for this path to:
+     * <pre>{@code
+     *     startsWith(getFileSystem().getPath(other));
+     * }</pre>
+     */
+    // 判断当前路径是否以other起始
+    default boolean startsWith(String other) {
+        // 返回当前路径所属的文件系统
+        FileSystem fileSystem = getFileSystem();
+        
+        // 构造与fileSystem匹配的路径对象，返回的路径已经本地化
+        Path path = fileSystem.getPath(other);
+        
+        return startsWith(path);
+    }
+    
+    /**
+     * Tests if this path ends with a {@code Path}, constructed by converting
+     * the given path string, in exactly the manner specified by the {@link
+     * #endsWith(Path) endsWith(Path)} method. On UNIX for example, the path
+     * "{@code foo/bar}" ends with "{@code foo/bar}" and "{@code bar}". It does
+     * not end with "{@code r}" or "{@code /bar}". Note that trailing separators
+     * are not taken into account, and so invoking this method on the {@code
+     * Path}"{@code foo/bar}" with the {@code String} "{@code bar/}" returns
+     * {@code true}.
+     *
+     * @param other the given path string
+     *
+     * @return {@code true} if this path ends with the given path; otherwise
+     * {@code false}
+     *
+     * @throws InvalidPathException If the path string cannot be converted to a Path.
+     * @implSpec The default implementation is equivalent for this path to:
+     * <pre>{@code
+     *     endsWith(getFileSystem().getPath(other));
+     * }</pre>
+     */
+    // 判断当前路径是否以other结尾
+    default boolean endsWith(String other) {
+        // 返回当前路径所属的文件系统
+        FileSystem fileSystem = getFileSystem();
+        
+        // 构造与fileSystem匹配的路径对象，返回的路径已经本地化
+        Path path = fileSystem.getPath(other);
+        
+        return endsWith(path);
+    }
+    
+    /*▲ 状态 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 属性 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the file system that created this object.
+     *
+     * @return the file system that created this object
+     */
+    // 返回当前路径所属的文件系统
+    FileSystem getFileSystem();
+    
     /**
      * Returns the name of the file or directory denoted by this path as a
      * {@code Path} object. The file name is the <em>farthest</em> element from
      * the root in the directory hierarchy.
      *
-     * @return  a path representing the name of the file or directory, or
-     *          {@code null} if this path has zero elements
+     * @return a path representing the name of the file or directory,
+     * or {@code null} if this path has zero elements
      */
+    // 返回当前路径的名称(路径上最后一个组件)
     Path getFileName();
-
+    
     /**
      * Returns the <em>parent path</em>, or {@code null} if this path does not
      * have a parent.
@@ -269,38 +661,27 @@ public interface Path
      * subpath(0,&nbsp;getNameCount()-1);
      * </pre></blockquote>
      *
-     * @return  a path representing the path's parent
+     * @return a path representing the path's parent
      */
+    // 返回当前路径的父路径
     Path getParent();
-
+    
+    /*▲ 属性 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 路径组件 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns the number of name elements in the path.
+     * Returns the root component of this path as a {@code Path} object,
+     * or {@code null} if this path does not have a root component.
      *
-     * @return  the number of elements in the path, or {@code 0} if this path
-     *          only represents a root component
+     * @return a path representing the root component of this path,
+     * or {@code null}
      */
-    int getNameCount();
-
-    /**
-     * Returns a name element of this path as a {@code Path} object.
-     *
-     * <p> The {@code index} parameter is the index of the name element to return.
-     * The element that is <em>closest</em> to the root in the directory hierarchy
-     * has index {@code 0}. The element that is <em>farthest</em> from the root
-     * has index {@link #getNameCount count}{@code -1}.
-     *
-     * @param   index
-     *          the index of the element
-     *
-     * @return  the name element
-     *
-     * @throws  IllegalArgumentException
-     *          if {@code index} is negative, {@code index} is greater than or
-     *          equal to the number of elements, or this path has zero name
-     *          elements
-     */
-    Path getName(int index);
-
+    // 返回根组件
+    Path getRoot();
+    
     /**
      * Returns a relative {@code Path} that is a subsequence of the name
      * elements of this path.
@@ -313,310 +694,124 @@ public interface Path
      * that begin at {@code beginIndex} and extend to the element at index {@code
      * endIndex-1}.
      *
-     * @param   beginIndex
-     *          the index of the first element, inclusive
-     * @param   endIndex
-     *          the index of the last element, exclusive
+     * @param beginIndex the index of the first element, inclusive
+     * @param endIndex   the index of the last element, exclusive
      *
-     * @return  a new {@code Path} object that is a subsequence of the name
-     *          elements in this {@code Path}
+     * @return a new {@code Path} object that is a subsequence of the name
+     * elements in this {@code Path}
      *
-     * @throws  IllegalArgumentException
-     *          if {@code beginIndex} is negative, or greater than or equal to
-     *          the number of elements. If {@code endIndex} is less than or
-     *          equal to {@code beginIndex}, or larger than the number of elements.
+     * @throws IllegalArgumentException if {@code beginIndex} is negative, or greater than or equal to
+     *                                  the number of elements. If {@code endIndex} is less than or
+     *                                  equal to {@code beginIndex}, or larger than the number of elements.
      */
+    // 返回路径组件中[beginIndex, endIndex)范围内的非根组件
     Path subpath(int beginIndex, int endIndex);
-
+    
     /**
-     * Tests if this path starts with the given path.
+     * Returns the number of name elements in the path.
      *
-     * <p> This path <em>starts</em> with the given path if this path's root
-     * component <em>starts</em> with the root component of the given path,
-     * and this path starts with the same name elements as the given path.
-     * If the given path has more name elements than this path then {@code false}
-     * is returned.
-     *
-     * <p> Whether or not the root component of this path starts with the root
-     * component of the given path is file system specific. If this path does
-     * not have a root component and the given path has a root component then
-     * this path does not start with the given path.
-     *
-     * <p> If the given path is associated with a different {@code FileSystem}
-     * to this path then {@code false} is returned.
-     *
-     * @param   other
-     *          the given path
-     *
-     * @return  {@code true} if this path starts with the given path; otherwise
-     *          {@code false}
+     * @return the number of elements in the path, or {@code 0} if this path
+     * only represents a root component
      */
-    boolean startsWith(Path other);
-
+    // 返回当前路径中非根组件的数量
+    int getNameCount();
+    
     /**
-     * Tests if this path starts with a {@code Path}, constructed by converting
-     * the given path string, in exactly the manner specified by the {@link
-     * #startsWith(Path) startsWith(Path)} method. On UNIX for example, the path
-     * "{@code foo/bar}" starts with "{@code foo}" and "{@code foo/bar}". It
-     * does not start with "{@code f}" or "{@code fo}".
+     * Returns a name element of this path as a {@code Path} object.
      *
-     * @implSpec
-     * The default implementation is equivalent for this path to:
-     * <pre>{@code
-     *     startsWith(getFileSystem().getPath(other));
-     * }</pre>
+     * <p> The {@code index} parameter is the index of the name element to return.
+     * The element that is <em>closest</em> to the root in the directory hierarchy
+     * has index {@code 0}. The element that is <em>farthest</em> from the root
+     * has index {@link #getNameCount count}{@code -1}.
      *
-     * @param   other
-     *          the given path string
+     * @param index the index of the element
      *
-     * @return  {@code true} if this path starts with the given path; otherwise
-     *          {@code false}
+     * @return the name element
      *
-     * @throws  InvalidPathException
-     *          If the path string cannot be converted to a Path.
+     * @throws IllegalArgumentException if {@code index} is negative, {@code index} is greater than or
+     *                                  equal to the number of elements, or this path has zero name
+     *                                  elements
      */
-    default boolean startsWith(String other) {
-        return startsWith(getFileSystem().getPath(other));
+    // 返回当前路径中第index(>=0)个非根组件
+    Path getName(int index);
+    
+    /**
+     * Returns an iterator over the name elements of this path.
+     *
+     * <p> The first element returned by the iterator represents the name
+     * element that is closest to the root in the directory hierarchy, the
+     * second element is the next closest, and so on. The last element returned
+     * is the name of the file or directory denoted by this path. The {@link
+     * #getRoot root} component, if present, is not returned by the iterator.
+     *
+     * @return an iterator over the name elements of this path.
+     *
+     * @implSpec The default implementation returns an {@code Iterator<Path>} which, for
+     * this path, traverses the {@code Path}s returned by
+     * {@code getName(index)}, where {@code index} ranges from zero to
+     * {@code getNameCount() - 1}, inclusive.
+     */
+    // 路径组件迭代器，遍历路径中的非根组件
+    @Override
+    default Iterator<Path> iterator() {
+        return new Iterator<>() {
+            private int i = 0;
+            
+            @Override
+            public boolean hasNext() {
+                return i<getNameCount();
+            }
+            
+            @Override
+            public Path next() {
+                if(i<getNameCount()) {
+                    Path result = getName(i);
+                    i++;
+                    return result;
+                } else {
+                    throw new NoSuchElementException();
+                }
+            }
+        };
     }
-
+    
+    /*▲ 路径组件 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 转换 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Tests if this path ends with the given path.
+     * Returns a {@link File} object representing this path. Where this {@code
+     * Path} is associated with the default provider, then this method is
+     * equivalent to returning a {@code File} object constructed with the
+     * {@code String} representation of this path.
      *
-     * <p> If the given path has <em>N</em> elements, and no root component,
-     * and this path has <em>N</em> or more elements, then this path ends with
-     * the given path if the last <em>N</em> elements of each path, starting at
-     * the element farthest from the root, are equal.
+     * <p> If this path was created by invoking the {@code File} {@link
+     * File#toPath toPath} method then there is no guarantee that the {@code
+     * File} object returned by this method is {@link #equals equal} to the
+     * original {@code File}.
      *
-     * <p> If the given path has a root component then this path ends with the
-     * given path if the root component of this path <em>ends with</em> the root
-     * component of the given path, and the corresponding elements of both paths
-     * are equal. Whether or not the root component of this path ends with the
-     * root component of the given path is file system specific. If this path
-     * does not have a root component and the given path has a root component
-     * then this path does not end with the given path.
+     * @return a {@code File} object representing this path
      *
-     * <p> If the given path is associated with a different {@code FileSystem}
-     * to this path then {@code false} is returned.
-     *
-     * @param   other
-     *          the given path
-     *
-     * @return  {@code true} if this path ends with the given path; otherwise
-     *          {@code false}
-     */
-    boolean endsWith(Path other);
-
-    /**
-     * Tests if this path ends with a {@code Path}, constructed by converting
-     * the given path string, in exactly the manner specified by the {@link
-     * #endsWith(Path) endsWith(Path)} method. On UNIX for example, the path
-     * "{@code foo/bar}" ends with "{@code foo/bar}" and "{@code bar}". It does
-     * not end with "{@code r}" or "{@code /bar}". Note that trailing separators
-     * are not taken into account, and so invoking this method on the {@code
-     * Path}"{@code foo/bar}" with the {@code String} "{@code bar/}" returns
-     * {@code true}.
-     *
-     * @implSpec
-     * The default implementation is equivalent for this path to:
+     * @throws UnsupportedOperationException if this {@code Path} is not associated with the default provider
+     * @implSpec The default implementation is equivalent for this path to:
      * <pre>{@code
-     *     endsWith(getFileSystem().getPath(other));
+     *     new File(toString());
      * }</pre>
-     *
-     * @param   other
-     *          the given path string
-     *
-     * @return  {@code true} if this path ends with the given path; otherwise
-     *          {@code false}
-     *
-     * @throws  InvalidPathException
-     *          If the path string cannot be converted to a Path.
+     * if the {@code FileSystem} which created this {@code Path} is the default
+     * file system; otherwise an {@code UnsupportedOperationException} is
+     * thrown.
      */
-    default boolean endsWith(String other) {
-        return endsWith(getFileSystem().getPath(other));
+    // 返回当前路径所指的文件(目前仅支持"file"协议下的文件系统)
+    default File toFile() {
+        if(getFileSystem() == FileSystems.getDefault()) {
+            return new File(toString());
+        }
+        
+        throw new UnsupportedOperationException("Path not associated with " + "default file system.");
     }
-
-    /**
-     * Returns a path that is this path with redundant name elements eliminated.
-     *
-     * <p> The precise definition of this method is implementation dependent but
-     * in general it derives from this path, a path that does not contain
-     * <em>redundant</em> name elements. In many file systems, the "{@code .}"
-     * and "{@code ..}" are special names used to indicate the current directory
-     * and parent directory. In such file systems all occurrences of "{@code .}"
-     * are considered redundant. If a "{@code ..}" is preceded by a
-     * non-"{@code ..}" name then both names are considered redundant (the
-     * process to identify such names is repeated until it is no longer
-     * applicable).
-     *
-     * <p> This method does not access the file system; the path may not locate
-     * a file that exists. Eliminating "{@code ..}" and a preceding name from a
-     * path may result in the path that locates a different file than the original
-     * path. This can arise when the preceding name is a symbolic link.
-     *
-     * @return  the resulting path or this path if it does not contain
-     *          redundant name elements; an empty path is returned if this path
-     *          does not have a root component and all name elements are redundant
-     *
-     * @see #getParent
-     * @see #toRealPath
-     */
-    Path normalize();
-
-    // -- resolution and relativization --
-
-    /**
-     * Resolve the given path against this path.
-     *
-     * <p> If the {@code other} parameter is an {@link #isAbsolute() absolute}
-     * path then this method trivially returns {@code other}. If {@code other}
-     * is an <i>empty path</i> then this method trivially returns this path.
-     * Otherwise this method considers this path to be a directory and resolves
-     * the given path against this path. In the simplest case, the given path
-     * does not have a {@link #getRoot root} component, in which case this method
-     * <em>joins</em> the given path to this path and returns a resulting path
-     * that {@link #endsWith ends} with the given path. Where the given path has
-     * a root component then resolution is highly implementation dependent and
-     * therefore unspecified.
-     *
-     * @param   other
-     *          the path to resolve against this path
-     *
-     * @return  the resulting path
-     *
-     * @see #relativize
-     */
-    Path resolve(Path other);
-
-    /**
-     * Converts a given path string to a {@code Path} and resolves it against
-     * this {@code Path} in exactly the manner specified by the {@link
-     * #resolve(Path) resolve} method. For example, suppose that the name
-     * separator is "{@code /}" and a path represents "{@code foo/bar}", then
-     * invoking this method with the path string "{@code gus}" will result in
-     * the {@code Path} "{@code foo/bar/gus}".
-     *
-     * @implSpec
-     * The default implementation is equivalent for this path to:
-     * <pre>{@code
-     *     resolve(getFileSystem().getPath(other));
-     * }</pre>
-     *
-     * @param   other
-     *          the path string to resolve against this path
-     *
-     * @return  the resulting path
-     *
-     * @throws  InvalidPathException
-     *          if the path string cannot be converted to a Path.
-     *
-     * @see FileSystem#getPath
-     */
-    default Path resolve(String other) {
-        return resolve(getFileSystem().getPath(other));
-    }
-
-    /**
-     * Resolves the given path against this path's {@link #getParent parent}
-     * path. This is useful where a file name needs to be <i>replaced</i> with
-     * another file name. For example, suppose that the name separator is
-     * "{@code /}" and a path represents "{@code dir1/dir2/foo}", then invoking
-     * this method with the {@code Path} "{@code bar}" will result in the {@code
-     * Path} "{@code dir1/dir2/bar}". If this path does not have a parent path,
-     * or {@code other} is {@link #isAbsolute() absolute}, then this method
-     * returns {@code other}. If {@code other} is an empty path then this method
-     * returns this path's parent, or where this path doesn't have a parent, the
-     * empty path.
-     *
-     * @implSpec
-     * The default implementation is equivalent for this path to:
-     * <pre>{@code
-     *     (getParent() == null) ? other : getParent().resolve(other);
-     * }</pre>
-     * unless {@code other == null}, in which case a
-     * {@code NullPointerException} is thrown.
-     *
-     * @param   other
-     *          the path to resolve against this path's parent
-     *
-     * @return  the resulting path
-     *
-     * @see #resolve(Path)
-     */
-    default Path resolveSibling(Path other) {
-        if (other == null)
-            throw new NullPointerException();
-        Path parent = getParent();
-        return (parent == null) ? other : parent.resolve(other);
-    }
-
-    /**
-     * Converts a given path string to a {@code Path} and resolves it against
-     * this path's {@link #getParent parent} path in exactly the manner
-     * specified by the {@link #resolveSibling(Path) resolveSibling} method.
-     *
-     * @implSpec
-     * The default implementation is equivalent for this path to:
-     * <pre>{@code
-     *     resolveSibling(getFileSystem().getPath(other));
-     * }</pre>
-     *
-     * @param   other
-     *          the path string to resolve against this path's parent
-     *
-     * @return  the resulting path
-     *
-     * @throws  InvalidPathException
-     *          if the path string cannot be converted to a Path.
-     *
-     * @see FileSystem#getPath
-     */
-    default Path resolveSibling(String other) {
-        return resolveSibling(getFileSystem().getPath(other));
-    }
-
-    /**
-     * Constructs a relative path between this path and a given path.
-     *
-     * <p> Relativization is the inverse of {@link #resolve(Path) resolution}.
-     * This method attempts to construct a {@link #isAbsolute relative} path
-     * that when {@link #resolve(Path) resolved} against this path, yields a
-     * path that locates the same file as the given path. For example, on UNIX,
-     * if this path is {@code "/a/b"} and the given path is {@code "/a/b/c/d"}
-     * then the resulting relative path would be {@code "c/d"}. Where this
-     * path and the given path do not have a {@link #getRoot root} component,
-     * then a relative path can be constructed. A relative path cannot be
-     * constructed if only one of the paths have a root component. Where both
-     * paths have a root component then it is implementation dependent if a
-     * relative path can be constructed. If this path and the given path are
-     * {@link #equals equal} then an <i>empty path</i> is returned.
-     *
-     * <p> For any two {@link #normalize normalized} paths <i>p</i> and
-     * <i>q</i>, where <i>q</i> does not have a root component,
-     * <blockquote>
-     *   <i>p</i>{@code .relativize(}<i>p</i>
-     *   {@code .resolve(}<i>q</i>{@code )).equals(}<i>q</i>{@code )}
-     * </blockquote>
-     *
-     * <p> When symbolic links are supported, then whether the resulting path,
-     * when resolved against this path, yields a path that can be used to locate
-     * the {@link Files#isSameFile same} file as {@code other} is implementation
-     * dependent. For example, if this path is  {@code "/a/b"} and the given
-     * path is {@code "/a/x"} then the resulting relative path may be {@code
-     * "../x"}. If {@code "b"} is a symbolic link then is implementation
-     * dependent if {@code "a/b/../x"} would locate the same file as {@code "/a/x"}.
-     *
-     * @param   other
-     *          the path to relativize against this path
-     *
-     * @return  the resulting relative path, or an empty path if both paths are
-     *          equal
-     *
-     * @throws  IllegalArgumentException
-     *          if {@code other} is not a {@code Path} that can be relativized
-     *          against this path
-     */
-    Path relativize(Path other);
-
+    
     /**
      * Returns a URI to represent this path.
      *
@@ -655,126 +850,25 @@ public interface Path
      * A format for compound URIs is not defined in this release; such a scheme
      * may be added in a future release.
      *
-     * @return  the URI representing this path
+     * @return the URI representing this path
      *
-     * @throws  java.io.IOError
-     *          if an I/O error occurs obtaining the absolute path, or where a
-     *          file system is constructed to access the contents of a file as
-     *          a file system, and the URI of the enclosing file system cannot be
-     *          obtained
-     *
-     * @throws  SecurityException
-     *          In the case of the default provider, and a security manager
-     *          is installed, the {@link #toAbsolutePath toAbsolutePath} method
-     *          throws a security exception.
+     * @throws java.io.IOError   if an I/O error occurs obtaining the absolute path, or where a
+     *                           file system is constructed to access the contents of a file as
+     *                           a file system, and the URI of the enclosing file system cannot be
+     *                           obtained
+     * @throws SecurityException In the case of the default provider, and a security manager
+     *                           is installed, the {@link #toAbsolutePath toAbsolutePath} method
+     *                           throws a security exception.
      */
+    // 以URI形式返回当前路径
     URI toUri();
-
-    /**
-     * Returns a {@code Path} object representing the absolute path of this
-     * path.
-     *
-     * <p> If this path is already {@link Path#isAbsolute absolute} then this
-     * method simply returns this path. Otherwise, this method resolves the path
-     * in an implementation dependent manner, typically by resolving the path
-     * against a file system default directory. Depending on the implementation,
-     * this method may throw an I/O error if the file system is not accessible.
-     *
-     * @return  a {@code Path} object representing the absolute path
-     *
-     * @throws  java.io.IOError
-     *          if an I/O error occurs
-     * @throws  SecurityException
-     *          In the case of the default provider, a security manager
-     *          is installed, and this path is not absolute, then the security
-     *          manager's {@link SecurityManager#checkPropertyAccess(String)
-     *          checkPropertyAccess} method is invoked to check access to the
-     *          system property {@code user.dir}
-     */
-    Path toAbsolutePath();
-
-    /**
-     * Returns the <em>real</em> path of an existing file.
-     *
-     * <p> The precise definition of this method is implementation dependent but
-     * in general it derives from this path, an {@link #isAbsolute absolute}
-     * path that locates the {@link Files#isSameFile same} file as this path, but
-     * with name elements that represent the actual name of the directories
-     * and the file. For example, where filename comparisons on a file system
-     * are case insensitive then the name elements represent the names in their
-     * actual case. Additionally, the resulting path has redundant name
-     * elements removed.
-     *
-     * <p> If this path is relative then its absolute path is first obtained,
-     * as if by invoking the {@link #toAbsolutePath toAbsolutePath} method.
-     *
-     * <p> The {@code options} array may be used to indicate how symbolic links
-     * are handled. By default, symbolic links are resolved to their final
-     * target. If the option {@link LinkOption#NOFOLLOW_LINKS NOFOLLOW_LINKS} is
-     * present then this method does not resolve symbolic links.
-     *
-     * Some implementations allow special names such as "{@code ..}" to refer to
-     * the parent directory. When deriving the <em>real path</em>, and a
-     * "{@code ..}" (or equivalent) is preceded by a non-"{@code ..}" name then
-     * an implementation will typically cause both names to be removed. When
-     * not resolving symbolic links and the preceding name is a symbolic link
-     * then the names are only removed if it guaranteed that the resulting path
-     * will locate the same file as this path.
-     *
-     * @param   options
-     *          options indicating how symbolic links are handled
-     *
-     * @return  an absolute path represent the <em>real</em> path of the file
-     *          located by this object
-     *
-     * @throws  IOException
-     *          if the file does not exist or an I/O error occurs
-     * @throws  SecurityException
-     *          In the case of the default provider, and a security manager
-     *          is installed, its {@link SecurityManager#checkRead(String) checkRead}
-     *          method is invoked to check read access to the file, and where
-     *          this path is not absolute, its {@link SecurityManager#checkPropertyAccess(String)
-     *          checkPropertyAccess} method is invoked to check access to the
-     *          system property {@code user.dir}
-     */
-    Path toRealPath(LinkOption... options) throws IOException;
-
-    /**
-     * Returns a {@link File} object representing this path. Where this {@code
-     * Path} is associated with the default provider, then this method is
-     * equivalent to returning a {@code File} object constructed with the
-     * {@code String} representation of this path.
-     *
-     * <p> If this path was created by invoking the {@code File} {@link
-     * File#toPath toPath} method then there is no guarantee that the {@code
-     * File} object returned by this method is {@link #equals equal} to the
-     * original {@code File}.
-     *
-     * @implSpec
-     * The default implementation is equivalent for this path to:
-     * <pre>{@code
-     *     new File(toString());
-     * }</pre>
-     * if the {@code FileSystem} which created this {@code Path} is the default
-     * file system; otherwise an {@code UnsupportedOperationException} is
-     * thrown.
-     *
-     * @return  a {@code File} object representing this path
-     *
-     * @throws  UnsupportedOperationException
-     *          if this {@code Path} is not associated with the default provider
-     */
-    default File toFile() {
-        if (getFileSystem() == FileSystems.getDefault()) {
-            return new File(toString());
-        } else {
-            throw new UnsupportedOperationException("Path not associated with "
-                    + "default file system.");
-        }
-    }
-
-    // -- watchable --
-
+    
+    /*▲ 转换 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 监视 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Registers the file located by this path with a watch service.
      *
@@ -807,45 +901,40 @@ public interface Path
      * link then it is implementation specific if the watch continues to depend
      * on the existence of the symbolic link after it is registered.
      *
-     * @param   watcher
-     *          the watch service to which this object is to be registered
-     * @param   events
-     *          the events for which this object should be registered
-     * @param   modifiers
-     *          the modifiers, if any, that modify how the object is registered
+     * @param watcher   the watch service to which this object is to be registered
+     * @param events    the events for which this object should be registered
+     * @param modifiers the modifiers, if any, that modify how the object is registered
      *
-     * @return  a key representing the registration of this object with the
-     *          given watch service
+     * @return a key representing the registration of this object with the
+     * given watch service
      *
-     * @throws  UnsupportedOperationException
-     *          if unsupported events or modifiers are specified
-     * @throws  IllegalArgumentException
-     *          if an invalid combination of events or modifiers is specified
-     * @throws  ClosedWatchServiceException
-     *          if the watch service is closed
-     * @throws  NotDirectoryException
-     *          if the file is registered to watch the entries in a directory
-     *          and the file is not a directory  <i>(optional specific exception)</i>
-     * @throws  IOException
-     *          if an I/O error occurs
-     * @throws  SecurityException
-     *          In the case of the default provider, and a security manager is
-     *          installed, the {@link SecurityManager#checkRead(String) checkRead}
-     *          method is invoked to check read access to the file.
+     * @throws UnsupportedOperationException if unsupported events or modifiers are specified
+     * @throws IllegalArgumentException      if an invalid combination of events or modifiers is specified
+     * @throws ClosedWatchServiceException   if the watch service is closed
+     * @throws NotDirectoryException         if the file is registered to watch the entries in a directory
+     *                                       and the file is not a directory  <i>(optional specific exception)</i>
+     * @throws IOException                   if an I/O error occurs
+     * @throws SecurityException             In the case of the default provider, and a security manager is
+     *                                       installed, the {@link SecurityManager#checkRead(String) checkRead}
+     *                                       method is invoked to check read access to the file.
+     */
+    /*
+     * 为当前路径指示的目录(树)注册监听服务watcher。
+     *
+     * watcher  : 目录监视服务，其获取途径为：FileSystems -> FileSystem -> WatchService
+     * events   : 监视的事件类型；通常从StandardWatchEventKinds中获取
+     * modifiers: 对被监视事件的修饰，参见ExtendedWatchEventModifier(通常用这个，可以决定是否监视子目录)和SensitivityWatchEventModifier
      */
     @Override
-    WatchKey register(WatchService watcher,
-                      WatchEvent.Kind<?>[] events,
-                      WatchEvent.Modifier... modifiers)
-        throws IOException;
-
+    WatchKey register(WatchService watcher, WatchEvent.Kind<?>[] events, WatchEvent.Modifier... modifiers) throws IOException;
+    
     /**
      * Registers the file located by this path with a watch service.
      *
      * <p> An invocation of this method behaves in exactly the same way as the
      * invocation
      * <pre>
-     *     watchable.{@link #register(WatchService,WatchEvent.Kind[],WatchEvent.Modifier[]) register}(watcher, events, new WatchEvent.Modifier[0]);
+     *     watchable.{@link #register(WatchService, WatchEvent.Kind[], WatchEvent.Modifier[]) register}(watcher, events, new WatchEvent.Modifier[0]);
      * </pre>
      *
      * <p> <b>Usage Example:</b>
@@ -858,86 +947,41 @@ public interface Path
      *     WatchKey key = dir.register(watcher, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY);
      * </pre>
      *
-     * @implSpec
-     * The default implementation is equivalent for this path to:
+     * @param watcher The watch service to which this object is to be registered
+     * @param events  The events for which this object should be registered
+     *
+     * @return A key representing the registration of this object with the
+     * given watch service
+     *
+     * @throws UnsupportedOperationException If unsupported events are specified
+     * @throws IllegalArgumentException      If an invalid combination of events is specified
+     * @throws ClosedWatchServiceException   If the watch service is closed
+     * @throws NotDirectoryException         If the file is registered to watch the entries in a directory
+     *                                       and the file is not a directory  <i>(optional specific exception)</i>
+     * @throws IOException                   If an I/O error occurs
+     * @throws SecurityException             In the case of the default provider, and a security manager is
+     *                                       installed, the {@link SecurityManager#checkRead(String) checkRead}
+     *                                       method is invoked to check read access to the file.
+     * @implSpec The default implementation is equivalent for this path to:
      * <pre>{@code
      *     register(watcher, events, new WatchEvent.Modifier[0]);
      * }</pre>
+     */
+    /*
+     * 为当前路径指示的目录(树)注册监听服务watcher，不会监视子目录。
      *
-     * @param   watcher
-     *          The watch service to which this object is to be registered
-     * @param   events
-     *          The events for which this object should be registered
-     *
-     * @return  A key representing the registration of this object with the
-     *          given watch service
-     *
-     * @throws  UnsupportedOperationException
-     *          If unsupported events are specified
-     * @throws  IllegalArgumentException
-     *          If an invalid combination of events is specified
-     * @throws  ClosedWatchServiceException
-     *          If the watch service is closed
-     * @throws  NotDirectoryException
-     *          If the file is registered to watch the entries in a directory
-     *          and the file is not a directory  <i>(optional specific exception)</i>
-     * @throws  IOException
-     *          If an I/O error occurs
-     * @throws  SecurityException
-     *          In the case of the default provider, and a security manager is
-     *          installed, the {@link SecurityManager#checkRead(String) checkRead}
-     *          method is invoked to check read access to the file.
+     * watcher  : 目录监视服务，其获取途径为：FileSystems -> FileSystem -> WatchService
+     * events   : 监视的事件类型；通常从StandardWatchEventKinds中获取
      */
     @Override
-    default WatchKey register(WatchService watcher,
-                      WatchEvent.Kind<?>... events) throws IOException {
+    default WatchKey register(WatchService watcher, WatchEvent.Kind<?>... events) throws IOException {
+        // 没有设置监视事件修饰符
         return register(watcher, events, new WatchEvent.Modifier[0]);
     }
-
-    // -- Iterable --
-
-    /**
-     * Returns an iterator over the name elements of this path.
-     *
-     * <p> The first element returned by the iterator represents the name
-     * element that is closest to the root in the directory hierarchy, the
-     * second element is the next closest, and so on. The last element returned
-     * is the name of the file or directory denoted by this path. The {@link
-     * #getRoot root} component, if present, is not returned by the iterator.
-     *
-     * @implSpec
-     * The default implementation returns an {@code Iterator<Path>} which, for
-     * this path, traverses the {@code Path}s returned by
-     * {@code getName(index)}, where {@code index} ranges from zero to
-     * {@code getNameCount() - 1}, inclusive.
-     *
-     * @return  an iterator over the name elements of this path.
-     */
-    @Override
-    default Iterator<Path> iterator() {
-        return new Iterator<>() {
-            private int i = 0;
-
-            @Override
-            public boolean hasNext() {
-                return (i < getNameCount());
-            }
-
-            @Override
-            public Path next() {
-                if (i < getNameCount()) {
-                    Path result = getName(i);
-                    i++;
-                    return result;
-                } else {
-                    throw new NoSuchElementException();
-                }
-            }
-        };
-    }
-
-    // -- compareTo/equals/hashCode --
-
+    
+    /*▲ 监视 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
     /**
      * Compares two abstract paths lexicographically. The ordering defined by
      * this method is provider specific, and in the case of the default
@@ -947,19 +991,18 @@ public interface Path
      * <p> This method may not be used to compare paths that are associated
      * with different file system providers.
      *
-     * @param   other  the path compared to this path.
+     * @param other the path compared to this path.
      *
-     * @return  zero if the argument is {@link #equals equal} to this path, a
-     *          value less than zero if this path is lexicographically less than
-     *          the argument, or a value greater than zero if this path is
-     *          lexicographically greater than the argument
+     * @return zero if the argument is {@link #equals equal} to this path, a
+     * value less than zero if this path is lexicographically less than
+     * the argument, or a value greater than zero if this path is
+     * lexicographically greater than the argument
      *
-     * @throws  ClassCastException
-     *          if the paths are associated with different providers
+     * @throws ClassCastException if the paths are associated with different providers
      */
     @Override
     int compareTo(Path other);
-
+    
     /**
      * Tests this path for equality with the given object.
      *
@@ -976,14 +1019,13 @@ public interface Path
      * <p> This method satisfies the general contract of the {@link
      * java.lang.Object#equals(Object) Object.equals} method. </p>
      *
-     * @param   other
-     *          the object to which this object is to be compared
+     * @param other the object to which this object is to be compared
      *
-     * @return  {@code true} if, and only if, the given object is a {@code Path}
-     *          that is identical to this {@code Path}
+     * @return {@code true} if, and only if, the given object is a {@code Path}
+     * that is identical to this {@code Path}
      */
     boolean equals(Object other);
-
+    
     /**
      * Computes a hash code for this path.
      *
@@ -991,10 +1033,10 @@ public interface Path
      * satisfies the general contract of the {@link Object#hashCode
      * Object.hashCode} method.
      *
-     * @return  the hash-code value for this path
+     * @return the hash-code value for this path
      */
     int hashCode();
-
+    
     /**
      * Returns the string representation of this path.
      *
@@ -1005,7 +1047,8 @@ public interface Path
      * <p> The returned path string uses the default name {@link
      * FileSystem#getSeparator separator} to separate names in the path.
      *
-     * @return  the string representation of this path
+     * @return the string representation of this path
      */
     String toString();
+    
 }
