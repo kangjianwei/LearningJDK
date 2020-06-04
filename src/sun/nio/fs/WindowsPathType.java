@@ -28,11 +28,11 @@ package sun.nio.fs;
 /**
  * A type safe enum of Windows path types.
  */
-
+// windows路径的类型
 enum WindowsPathType {
-    ABSOLUTE,                   //  C:\foo
-    UNC,                        //  \\server\share\foo
-    RELATIVE,                   //  foo
-    DIRECTORY_RELATIVE,         //  \foo
-    DRIVE_RELATIVE              //  C:foo
+    ABSOLUTE,                   // 绝对路径，如：C:\foo
+    UNC,                        // UNC路径，用来访问网络资源，如：\\server\share\foo
+    RELATIVE,                   // 相对路径，如：foo
+    DIRECTORY_RELATIVE,         // 目录相对路径，如：\foo
+    DRIVE_RELATIVE              // 磁盘相对路径，如：C:foo
 }
