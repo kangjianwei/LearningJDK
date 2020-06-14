@@ -38,8 +38,9 @@ package java.net;
  * @see     java.net.URLStreamHandler
  * @since   1.0
  */
+// 资源内容句柄工厂，系统的内置实现参见MultimediaContentHandlers
 public interface ContentHandlerFactory {
-
+    
     /**
      * Creates a new {@code ContentHandler} to read an object from
      * a {@code URLStreamHandler}.
@@ -51,5 +52,6 @@ public interface ContentHandlerFactory {
      * @see     java.net.ContentHandler
      * @see     java.net.URLStreamHandler
      */
+    // 创建指定MIME协议类型的资源内容句柄工厂
     ContentHandler createContentHandler(String mimetype);
 }
