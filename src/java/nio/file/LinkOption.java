@@ -30,14 +30,16 @@ package java.nio.file;
  *
  * @since 1.7
  */
-
+// 符号链接选项，用在创建/打开/复制/移动文件的操作中
 public enum LinkOption implements OpenOption, CopyOption {
+    
     /**
      * Do not follow symbolic links.
      *
-     * @see Files#getFileAttributeView(Path,Class,LinkOption[])
+     * @see Files#getFileAttributeView(Path, Class, LinkOption[])
      * @see Files#copy
      * @see SecureDirectoryStream#newByteChannel
      */
-    NOFOLLOW_LINKS;
+    // 指示对于符号链接，不会将其链接到目标文件
+    NOFOLLOW_LINKS
 }

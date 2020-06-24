@@ -34,12 +34,13 @@ package java.nio.file.attribute;
  *
  * @since 1.7
  */
-
+// 特定文件系统下的实体对象关联的只读或可更新的属性视图
 public interface AttributeView {
     /**
      * Returns the name of the attribute view.
      *
      * @return the name of the attribute view
      */
+    // 返回当前属性视图的名称
     String name();
 }

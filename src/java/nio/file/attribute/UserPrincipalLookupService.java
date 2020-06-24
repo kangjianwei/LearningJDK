@@ -45,39 +45,34 @@ import java.io.IOException;
  * #lookupPrincipalByGroupName lookupPrincipalByGroupName} should be used to
  * lookup groups.
  *
- * @since 1.7
- *
  * @see java.nio.file.FileSystem#getUserPrincipalLookupService
+ * @since 1.7
  */
-
+// 账户查询服务
 public abstract class UserPrincipalLookupService {
-
+    
     /**
      * Initializes a new instance of this class.
      */
     protected UserPrincipalLookupService() {
     }
-
+    
     /**
      * Lookup a user principal by name.
      *
-     * @param   name
-     *          the string representation of the user principal to lookup
+     * @param name the string representation of the user principal to lookup
      *
-     * @return  a user principal
+     * @return a user principal
      *
-     * @throws  UserPrincipalNotFoundException
-     *          the principal does not exist
-     * @throws  IOException
-     *          if an I/O error occurs
-     * @throws  SecurityException
-     *          In the case of the default provider, and a security manager is
-     *          installed, it checks
-     *          {@link RuntimePermission}{@code ("lookupUserInformation")}
+     * @throws UserPrincipalNotFoundException the principal does not exist
+     * @throws IOException                    if an I/O error occurs
+     * @throws SecurityException              In the case of the default provider, and a security manager is
+     *                                        installed, it checks
+     *                                        {@link RuntimePermission}{@code ("lookupUserInformation")}
      */
-    public abstract UserPrincipal lookupPrincipalByName(String name)
-        throws IOException;
-
+    // 查询指定名称的user
+    public abstract UserPrincipal lookupPrincipalByName(String name) throws IOException;
+    
     /**
      * Lookup a group principal by group name.
      *
@@ -87,20 +82,17 @@ public abstract class UserPrincipalLookupService {
      * is identical to invoking {@link #lookupPrincipalByName
      * lookupPrincipalByName}.
      *
-     * @param   group
-     *          the string representation of the group to lookup
+     * @param group the string representation of the group to lookup
      *
-     * @return  a group principal
+     * @return a group principal
      *
-     * @throws  UserPrincipalNotFoundException
-     *          the principal does not exist or is not a group
-     * @throws  IOException
-     *          if an I/O error occurs
-     * @throws  SecurityException
-     *          In the case of the default provider, and a security manager is
-     *          installed, it checks
-     *          {@link RuntimePermission}{@code ("lookupUserInformation")}
+     * @throws UserPrincipalNotFoundException the principal does not exist or is not a group
+     * @throws IOException                    if an I/O error occurs
+     * @throws SecurityException              In the case of the default provider, and a security manager is
+     *                                        installed, it checks
+     *                                        {@link RuntimePermission}{@code ("lookupUserInformation")}
      */
-    public abstract GroupPrincipal lookupPrincipalByGroupName(String group)
-        throws IOException;
+    // 查询指定名称的group
+    public abstract GroupPrincipal lookupPrincipalByGroupName(String group) throws IOException;
+    
 }

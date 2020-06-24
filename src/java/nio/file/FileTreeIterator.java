@@ -28,10 +28,10 @@ package java.nio.file;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.FileTreeWalker.Event;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.nio.file.FileTreeWalker.Event;
 
 /**
  * An {@code Iterator} to iterate over the nodes of a file tree.
@@ -46,78 +46,112 @@ import java.nio.file.FileTreeWalker.Event;
  *     }
  * }</pre>
  */
-
+// 文件树迭代器
 class FileTreeIterator implements Iterator<Event>, Closeable {
-    private final FileTreeWalker walker;
-    private Event next;
-
+    private final FileTreeWalker walker;    // 文件树访问器
+    private Event next;                     // 遍历事件
+    
     /**
      * Creates a new iterator to walk the file tree starting at the given file.
      *
-     * @throws  IllegalArgumentException
-     *          if {@code maxDepth} is negative
-     * @throws  IOException
-     *          if an I/O errors occurs opening the starting file
-     * @throws  SecurityException
-     *          if the security manager denies access to the starting file
-     * @throws  NullPointerException
-     *          if {@code start} or {@code options} is {@code null} or
-     *          the options array contains a {@code null} element
+     * @throws IllegalArgumentException if {@code maxDepth} is negative
+     * @throws IOException              if an I/O errors occurs opening the starting file
+     * @throws SecurityException        if the security manager denies access to the starting file
+     * @throws NullPointerException     if {@code start} or {@code options} is {@code null} or
+     *                                  the options array contains a {@code null} element
      */
-    FileTreeIterator(Path start, int maxDepth, FileVisitOption... options)
-        throws IOException
-    {
+    /*
+     * 构造针对start的文件树迭代器
+     *
+     * options：对于符号链接，是否将其链接到目标文件；如果显式设置了LinkOption.NOFOLLOW_LINKS，表示不链接
+     * maxDepth：最大递归层次
+     */
+    FileTreeIterator(Path start, int maxDepth, FileVisitOption... options) throws IOException {
+        
+        // 构造文件树访问器
         this.walker = new FileTreeWalker(Arrays.asList(options), maxDepth);
+        
+        // 访问给定的实体(文件或目录)，返回一个遍历事件以指示下一步应该如何决策
         this.next = walker.walk(start);
-        assert next.type() == FileTreeWalker.EventType.ENTRY ||
-               next.type() == FileTreeWalker.EventType.START_DIRECTORY;
-
+        
+        // 遍历事件的类型必须是ENTRY或START_DIRECTORY（即要求start为可访问的文件或目录）
+        assert next.type() == FileTreeWalker.EventType.ENTRY || next.type() == FileTreeWalker.EventType.START_DIRECTORY;
+        
         // IOException if there a problem accessing the starting file
         IOException ioe = next.ioeException();
-        if (ioe != null)
+        if(ioe != null) {
+            // 如果遍历中发生了异常，则需要抛出
             throw ioe;
-    }
-
-    private void fetchNextIfNeeded() {
-        if (next == null) {
-            FileTreeWalker.Event ev = walker.next();
-            while (ev != null) {
-                IOException ioe = ev.ioeException();
-                if (ioe != null)
-                    throw new UncheckedIOException(ioe);
-
-                // END_DIRECTORY events are ignored
-                if (ev.type() != FileTreeWalker.EventType.END_DIRECTORY) {
-                    next = ev;
-                    return;
-                }
-                ev = walker.next();
-            }
         }
     }
-
+    
+    // 是否存在下一个遍历事件
     @Override
     public boolean hasNext() {
-        if (!walker.isOpen())
+        // 如果指定的文件访问器walker已经关闭
+        if(!walker.isOpen()) {
             throw new IllegalStateException();
+        }
+        
+        // 获取下一个遍历事件，将其存储在next字段
         fetchNextIfNeeded();
+        
         return next != null;
     }
-
+    
+    // 获取下一个遍历事件
     @Override
     public Event next() {
-        if (!walker.isOpen())
+        // 如果指定的文件访问器walker已经关闭
+        if(!walker.isOpen()) {
             throw new IllegalStateException();
+        }
+        
+        // 获取下一个遍历事件，将其存储在next字段
         fetchNextIfNeeded();
-        if (next == null)
+        
+        if(next == null) {
             throw new NoSuchElementException();
+        }
+        
         Event result = next;
+        
         next = null;
+        
         return result;
     }
-
+    
     @Override
     public void close() {
         walker.close();
+    }
+    
+    // 获取下一个遍历事件，将其存储在next字段
+    private void fetchNextIfNeeded() {
+        // 如果next字段已有值，直接返回
+        if(next != null) {
+            return;
+        }
+        
+        // 返回对下一个兄弟项或子项的遍历事件。如果子项都被遍历完了，则返回top目录遍历结束的事件
+        FileTreeWalker.Event ev = walker.next();
+        
+        while(ev != null) {
+            // 如果出现异常，则直接抛出
+            IOException ioe = ev.ioeException();
+            if(ioe != null) {
+                throw new UncheckedIOException(ioe);
+            }
+            
+            /* END_DIRECTORY events are ignored */
+            if(ev.type() != FileTreeWalker.EventType.END_DIRECTORY) {
+                // 记录遍历事件
+                next = ev;
+                return;
+            }
+            
+            // 如果遇到了END_DIRECTORY事件，将被忽略，需要继续遍历
+            ev = walker.next();
+        }
     }
 }

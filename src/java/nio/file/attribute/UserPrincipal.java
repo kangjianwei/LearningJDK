@@ -50,5 +50,6 @@ import java.security.Principal;
  *
  * @since 1.7
  */
-
-public interface UserPrincipal extends Principal { }
+// 用来标识对象的"所有者"信息，以指示其关联文件在文件系统中的访问权限
+public interface UserPrincipal extends Principal {
+}

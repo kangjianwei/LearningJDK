@@ -25,22 +25,62 @@
 
 package sun.nio.fs;
 
-import java.util.Map;
 import java.io.IOException;
+import java.util.Map;
 
 /**
- * Implemented by FileAttributeView implementations to support access to
- * attributes by names.
+ * Implemented by FileAttributeView implementations to support access to attributes by names.
  */
-
+// 动态的文件属性视图，根据指定的名称确定对应的视图
 interface DynamicFileAttributeView {
+    
+    /*
+     * JDK中实现的文件属性视图类型：
+     *          windows   linux   mac
+     * "basic"     √        √      √
+     * "dos"       √        √
+     * "user"      √        √
+     * "owner"     √        √      √
+     * "acl"       √
+     * "posix"              √      √
+     * "unix"               √      √
+     *
+     *              视图"继承体系"
+     *                    |
+     *   +--------+-------+--------------+
+     *   |        |       |              |
+     *   |        |       |           "basic"
+     *   |        |       |       +-----+-----+
+     * "user"  "owner"  "acl"  "posix"      "dos"
+     *                            |
+     *                          "unix"
+     *
+     * 注："owner"是被"acl"(windows)或"posix"(linux/mac)代理的
+     *
+     *
+     *
+     * 各类型文件属性视图中可用的属性名称attName如下：
+     * ---------------------------------------------------------------------------------------------
+     * 属性类型 |                            属性名称
+     * "basic" | [creationTime, lastAccessTime, lastModifiedTime]
+     * "dos"   | [creationTime, lastAccessTime, lastModifiedTime, readonly, archive, system, hidden]
+     * "user"  | [自定义]
+     * "owner" | [owner]
+     * "acl"   | [owner, acl]
+     * "posix" | [creationTime, lastAccessTime, lastModifiedTime, permissions, owner, group]
+     * "unix"  | [creationTime, lastAccessTime, lastModifiedTime, permissions, owner, group, mode, ino, dev, rdev, nlink, uid, gid, ctime]
+     */
+    
     /**
      * Sets/updates the value of an attribute.
      */
-    void setAttribute(String attribute, Object value) throws IOException;
-
+    // 向当前文件属性视图中设置attName属性，设置的属性值为value
+    void setAttribute(String attName, Object value) throws IOException;
+    
     /**
      * Reads a set of file attributes as a bulk operation.
      */
-    Map<String,Object> readAttributes(String[] attributes) throws IOException;
+    // 从当前文件属性视图中获取一批属性的值；这批属性的名称由attNames给出，获取到的属性以<属性名, 属性值>的形式返回
+    Map<String, Object> readAttributes(String[] attNames) throws IOException;
+    
 }

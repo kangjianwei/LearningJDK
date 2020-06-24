@@ -35,14 +35,55 @@ import java.io.IOException;
 /**
  * Base implementation of FileTypeDetector
  */
-
-public abstract class AbstractFileTypeDetector
-    extends FileTypeDetector
-{
+// 文件类型检测器的抽象实现，更进一步的实现取决于不同的平台
+public abstract class AbstractFileTypeDetector extends FileTypeDetector {
+    
+    /**
+     * Special characters
+     */
+    // content type中排除的字符
+    private static final String TSPECIALS = "()<>@,;:/[]?=\\\"";
+    
     protected AbstractFileTypeDetector() {
         super();
     }
-
+    
+    /**
+     * Invokes the appropriate probe method to guess a file's content type,
+     * and checks that the content type's syntax is valid.
+     */
+    // 返回指定文件的类型(Content-Type)
+    @Override
+    public final String probeContentType(Path file) throws IOException {
+        if(file == null) {
+            throw new NullPointerException("'file' is null");
+        }
+        
+        // 获取指定文件的类型(Content-Type)，不同的平台有各自的实现
+        String result = implProbeContentType(file);
+        
+        // 如果上面的操作不成功，则回退到使用系统内置的MIME映射来判断文件类型
+        if(result == null) {
+            // 获取当前路径的名称(路径上最后一个组件)
+            Path fileName = file.getFileName();
+            if(fileName != null) {
+                // 获取文件名到MIME类型的映射
+                FileNameMap fileNameMap = URLConnection.getFileNameMap();
+                // 获取指定文件名对应的MIME类型
+                result = fileNameMap.getContentTypeFor(fileName.toString());
+            }
+        }
+        
+        // 如果result不为null，则从result中解析出首个匹配的content type
+        return (result == null) ? null : parse(result);
+    }
+    
+    /**
+     * Probes the given file to guess its content type.
+     */
+    // 获取指定文件的类型(Content-Type)，不同的平台有各自的实现
+    protected abstract String implProbeContentType(Path file) throws IOException;
+    
     /**
      * Returns the extension of a file name, specifically the portion of the
      * parameter string after the first dot. If the parameter is {@code null},
@@ -51,94 +92,77 @@ public abstract class AbstractFileTypeDetector
      * returned.
      *
      * @param name A file name
+     *
      * @return The characters after the first dot or an empty string.
      */
+    // 从指定的文件名中提取后缀
     protected final String getExtension(String name) {
         String ext = "";
-        if (name != null && !name.isEmpty()) {
+    
+        if(name != null && !name.isEmpty()) {
             int dot = name.indexOf('.');
-            if ((dot >= 0) && (dot < name.length() - 1)) {
+            if((dot >= 0) && (dot<name.length() - 1)) {
                 ext = name.substring(dot + 1);
             }
         }
+    
         return ext;
     }
-
+    
     /**
-     * Invokes the appropriate probe method to guess a file's content type,
-     * and checks that the content type's syntax is valid.
+     * Parses a candidate content type into its type and subtype, returning null if either token is invalid.
      */
-    @Override
-    public final String probeContentType(Path file) throws IOException {
-        if (file == null)
-            throw new NullPointerException("'file' is null");
-        String result = implProbeContentType(file);
-
-        // Fall back to content types property.
-        if (result == null) {
-            Path fileName = file.getFileName();
-            if (fileName != null) {
-                FileNameMap fileNameMap = URLConnection.getFileNameMap();
-                result = fileNameMap.getContentTypeFor(fileName.toString());
-            }
-        }
-
-        return (result == null) ? null : parse(result);
-    }
-
-    /**
-     * Probes the given file to guess its content type.
-     */
-    protected abstract String implProbeContentType(Path file)
-        throws IOException;
-
-    /**
-     * Parses a candidate content type into its type and subtype, returning
-     * null if either token is invalid.
-     */
+    // 从指定的字符串中解析出首个匹配的content type
     private static String parse(String s) {
+        // 获取'/'的位置
         int slash = s.indexOf('/');
-        int semicolon = s.indexOf(';');
-        if (slash < 0)
+        if(slash<0) {
             return null;  // no subtype
+        }
+    
+        // 获取content type中'/'之前的部分
         String type = s.substring(0, slash).trim().toLowerCase(Locale.ENGLISH);
-        if (!isValidToken(type))
+        if(!isValidToken(type)) {
             return null;  // invalid type
-        String subtype = (semicolon < 0) ? s.substring(slash + 1) :
-            s.substring(slash + 1, semicolon);
+        }
+    
+        // 获取';'的位置
+        int semicolon = s.indexOf(';');
+        // 如果存在多个subtype，只取第一个
+        String subtype = (semicolon<0) ? s.substring(slash + 1) : s.substring(slash + 1, semicolon);
         subtype = subtype.trim().toLowerCase(Locale.ENGLISH);
-        if (!isValidToken(subtype))
+        if(!isValidToken(subtype)) {
             return null;  // invalid subtype
-        StringBuilder sb = new StringBuilder(type.length() + subtype.length() + 1);
-        sb.append(type);
-        sb.append('/');
-        sb.append(subtype);
-        return sb.toString();
+        }
+    
+        return type + '/' + subtype;
     }
-
-    /**
-     * Special characters
-     */
-    private static final String TSPECIALS = "()<>@,;:/[]?=\\\"";
-
-    /**
-     * Returns true if the character is a valid token character.
-     */
-    private static boolean isTokenChar(char c) {
-        return (c > 040) && (c < 0177) && (TSPECIALS.indexOf(c) < 0);
-    }
-
+    
     /**
      * Returns true if the given string is a legal type or subtype.
      */
+    // 判断指定的字符串是否可以出现在content type中
     private static boolean isValidToken(String s) {
         int len = s.length();
-        if (len == 0)
+        if(len == 0) {
             return false;
-        for (int i = 0; i < len; i++) {
-            if (!isTokenChar(s.charAt(i)))
-                return false;
         }
+    
+        for(int i = 0; i<len; i++) {
+            if(!isTokenChar(s.charAt(i))) {
+                return false;
+            }
+        }
+    
         return true;
     }
+    
+    /**
+     * Returns true if the character is a valid token character.
+     */
+    // 判断指定的字符是否可以出现在content type中
+    private static boolean isTokenChar(char c) {
+        return (c>32) && (c<127) && (TSPECIALS.indexOf(c)<0);
+    }
+    
 }

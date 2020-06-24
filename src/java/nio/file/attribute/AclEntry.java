@@ -60,255 +60,52 @@ import java.util.*;
  *
  * @since 1.7
  */
-
+// 访问控制项(ACE)，用来描述与特定SID关联的访问权限，一组ACE构成了访问控制列表(ACL)
 public final class AclEntry {
-
-    private final AclEntryType type;
-    private final UserPrincipal who;
-    private final Set<AclEntryPermission> perms;
-    private final Set<AclEntryFlag> flags;
-
+    
+    private final Set<AclEntryFlag> flags;          // ACE继承规则
+    private final AclEntryType type;                // 访问控制权限
+    private final Set<AclEntryPermission> perms;    // 实体访问权限
+    private final UserPrincipal who;                // 实体"所有者"，内含SID
+    
     // cached hash code
     private volatile int hash;
-
+    
+    
     // private constructor
-    private AclEntry(AclEntryType type,
-                     UserPrincipal who,
-                     Set<AclEntryPermission> perms,
-                     Set<AclEntryFlag> flags)
-    {
+    private AclEntry(AclEntryType type, UserPrincipal who, Set<AclEntryPermission> perms, Set<AclEntryFlag> flags) {
         this.type = type;
         this.who = who;
         this.perms = perms;
         this.flags = flags;
     }
-
-    /**
-     * A builder of {@link AclEntry} objects.
-     *
-     * <p> A {@code Builder} object is obtained by invoking one of the {@link
-     * AclEntry#newBuilder newBuilder} methods defined by the {@code AclEntry}
-     * class.
-     *
-     * <p> Builder objects are mutable and are not safe for use by multiple
-     * concurrent threads without appropriate synchronization.
-     *
-     * @since 1.7
-     */
-    public static final class Builder {
-        private AclEntryType type;
-        private UserPrincipal who;
-        private Set<AclEntryPermission> perms;
-        private Set<AclEntryFlag> flags;
-
-        private Builder(AclEntryType type,
-                        UserPrincipal who,
-                        Set<AclEntryPermission> perms,
-                        Set<AclEntryFlag> flags)
-        {
-            assert perms != null && flags != null;
-            this.type = type;
-            this.who = who;
-            this.perms = perms;
-            this.flags = flags;
-        }
-
-        /**
-         * Constructs an {@link AclEntry} from the components of this builder.
-         * The type and who components are required to have been set in order
-         * to construct an {@code AclEntry}.
-         *
-         * @return  a new ACL entry
-         *
-         * @throws  IllegalStateException
-         *          if the type or who component have not been set
-         */
-        public AclEntry build() {
-            if (type == null)
-                throw new IllegalStateException("Missing type component");
-            if (who == null)
-                throw new IllegalStateException("Missing who component");
-            return new AclEntry(type, who, perms, flags);
-        }
-
-        /**
-         * Sets the type component of this builder.
-         *
-         * @param   type  the component type
-         * @return  this builder
-         */
-        public Builder setType(AclEntryType type) {
-            if (type == null)
-                throw new NullPointerException();
-            this.type = type;
-            return this;
-        }
-
-        /**
-         * Sets the principal component of this builder.
-         *
-         * @param   who  the principal component
-         * @return  this builder
-         */
-        public Builder setPrincipal(UserPrincipal who) {
-            if (who == null)
-                throw new NullPointerException();
-            this.who = who;
-            return this;
-        }
-
-        // check set only contains elements of the given type
-        private static void checkSet(Set<?> set, Class<?> type) {
-            for (Object e: set) {
-                if (e == null)
-                    throw new NullPointerException();
-                type.cast(e);
-            }
-        }
-
-        /**
-         * Sets the permissions component of this builder. On return, the
-         * permissions component of this builder is a copy of the given set.
-         *
-         * @param   perms  the permissions component
-         * @return  this builder
-         *
-         * @throws  ClassCastException
-         *          if the set contains elements that are not of type {@code
-         *          AclEntryPermission}
-         */
-        public Builder setPermissions(Set<AclEntryPermission> perms) {
-            if (perms.isEmpty()) {
-                // EnumSet.copyOf does not allow empty set
-                perms = Collections.emptySet();
-            } else {
-                // copy and check for erroneous elements
-                perms = EnumSet.copyOf(perms);
-                checkSet(perms, AclEntryPermission.class);
-            }
-
-            this.perms = perms;
-            return this;
-        }
-
-        /**
-         * Sets the permissions component of this builder. On return, the
-         * permissions component of this builder is a copy of the permissions in
-         * the given array.
-         *
-         * @param   perms  the permissions component
-         * @return  this builder
-         */
-        public Builder setPermissions(AclEntryPermission... perms) {
-            Set<AclEntryPermission> set = EnumSet.noneOf(AclEntryPermission.class);
-            // copy and check for null elements
-            for (AclEntryPermission p: perms) {
-                if (p == null)
-                    throw new NullPointerException();
-                set.add(p);
-            }
-            this.perms = set;
-            return this;
-        }
-
-        /**
-         * Sets the flags component of this builder. On return, the flags
-         * component of this builder is a copy of the given set.
-         *
-         * @param   flags  the flags component
-         * @return  this builder
-         *
-         * @throws  ClassCastException
-         *          if the set contains elements that are not of type {@code
-         *          AclEntryFlag}
-         */
-        public Builder setFlags(Set<AclEntryFlag> flags) {
-            if (flags.isEmpty()) {
-                // EnumSet.copyOf does not allow empty set
-                flags = Collections.emptySet();
-            } else {
-                // copy and check for erroneous elements
-                flags = EnumSet.copyOf(flags);
-                checkSet(flags, AclEntryFlag.class);
-            }
-
-            this.flags = flags;
-            return this;
-        }
-
-        /**
-         * Sets the flags component of this builder. On return, the flags
-         * component of this builder is a copy of the flags in the given
-         * array.
-         *
-         * @param   flags  the flags component
-         * @return  this builder
-         */
-        public Builder setFlags(AclEntryFlag... flags) {
-            Set<AclEntryFlag> set = EnumSet.noneOf(AclEntryFlag.class);
-            // copy and check for null elements
-            for (AclEntryFlag f: flags) {
-                if (f == null)
-                    throw new NullPointerException();
-                set.add(f);
-            }
-            this.flags = set;
-            return this;
-        }
-    }
-
+    
     /**
      * Constructs a new builder. The initial value of the type and who
      * components is {@code null}. The initial value of the permissions and
      * flags components is the empty set.
      *
-     * @return  a new builder
+     * @return a new builder
      */
+    // 构造一个空的ACE构建器
     public static Builder newBuilder() {
         Set<AclEntryPermission> perms = Collections.emptySet();
         Set<AclEntryFlag> flags = Collections.emptySet();
         return new Builder(null, null, perms, flags);
     }
-
+    
     /**
      * Constructs a new builder with the components of an existing ACL entry.
      *
-     * @param   entry  an ACL entry
-     * @return  a new builder
+     * @param entry an ACL entry
+     *
+     * @return a new builder
      */
+    // 使用指定的AclEntry构造一个ACE构建器
     public static Builder newBuilder(AclEntry entry) {
         return new Builder(entry.type, entry.who, entry.perms, entry.flags);
     }
-
-    /**
-     * Returns the ACL entry type.
-     *
-     * @return the ACL entry type
-     */
-    public AclEntryType type() {
-        return type;
-    }
-
-    /**
-     * Returns the principal component.
-     *
-     * @return the principal component
-     */
-    public UserPrincipal principal() {
-        return who;
-    }
-
-    /**
-     * Returns a copy of the permissions component.
-     *
-     * <p> The returned set is a modifiable copy of the permissions.
-     *
-     * @return the permissions component
-     */
-    public Set<AclEntryPermission> permissions() {
-        return new HashSet<>(perms);
-    }
-
+    
     /**
      * Returns a copy of the flags component.
      *
@@ -319,7 +116,37 @@ public final class AclEntry {
     public Set<AclEntryFlag> flags() {
         return new HashSet<>(flags);
     }
-
+    
+    /**
+     * Returns the ACL entry type.
+     *
+     * @return the ACL entry type
+     */
+    public AclEntryType type() {
+        return type;
+    }
+    
+    /**
+     * Returns a copy of the permissions component.
+     *
+     * <p> The returned set is a modifiable copy of the permissions.
+     *
+     * @return the permissions component
+     */
+    public Set<AclEntryPermission> permissions() {
+        return new HashSet<>(perms);
+    }
+    
+    /**
+     * Returns the principal component.
+     *
+     * @return the principal component
+     */
+    public UserPrincipal principal() {
+        return who;
+    }
+    
+    
     /**
      * Compares the specified object with this ACL entry for equality.
      *
@@ -333,33 +160,34 @@ public final class AclEntry {
      * <p> This method satisfies the general contract of the {@link
      * java.lang.Object#equals(Object) Object.equals} method. </p>
      *
-     * @param   ob   the object to which this object is to be compared
+     * @param ob the object to which this object is to be compared
      *
-     * @return  {@code true} if, and only if, the given object is an AclEntry that
-     *          is identical to this AclEntry
+     * @return {@code true} if, and only if, the given object is an AclEntry that
+     * is identical to this AclEntry
      */
     @Override
     public boolean equals(Object ob) {
-        if (ob == this)
+        if(ob == this) {
             return true;
-        if (ob == null || !(ob instanceof AclEntry))
+        }
+        
+        if(ob == null || !(ob instanceof AclEntry)) {
             return false;
-        AclEntry other = (AclEntry)ob;
-        if (this.type != other.type)
+        }
+        
+        AclEntry other = (AclEntry) ob;
+        if(this.type != other.type) {
             return false;
-        if (!this.who.equals(other.who))
+        }
+        if(!this.who.equals(other.who)) {
             return false;
-        if (!this.perms.equals(other.perms))
+        }
+        if(!this.perms.equals(other.perms)) {
             return false;
-        if (!this.flags.equals(other.flags))
-            return false;
-        return true;
+        }
+        return this.flags.equals(other.flags);
     }
-
-    private static int hash(int h, Object o) {
-        return h * 127 + o.hashCode();
-    }
-
+    
     /**
      * Returns the hash-code value for this ACL entry.
      *
@@ -369,8 +197,9 @@ public final class AclEntry {
     @Override
     public int hashCode() {
         // return cached hash if available
-        if (hash != 0)
+        if(hash != 0) {
             return hash;
+        }
         int h = type.hashCode();
         h = hash(h, who);
         h = hash(h, perms);
@@ -378,40 +207,228 @@ public final class AclEntry {
         hash = h;
         return hash;
     }
-
+    
     /**
      * Returns the string representation of this ACL entry.
      *
-     * @return  the string representation of this entry
+     * @return the string representation of this entry
      */
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-
+        
         // who
         sb.append(who.getName());
         sb.append(':');
-
+        
         // permissions
-        for (AclEntryPermission perm: perms) {
+        for(AclEntryPermission perm : perms) {
             sb.append(perm.name());
             sb.append('/');
         }
-        sb.setLength(sb.length()-1); // drop final slash
+        sb.setLength(sb.length() - 1); // drop final slash
         sb.append(':');
-
+        
         // flags
-        if (!flags.isEmpty()) {
-            for (AclEntryFlag flag: flags) {
+        if(!flags.isEmpty()) {
+            for(AclEntryFlag flag : flags) {
                 sb.append(flag.name());
                 sb.append('/');
             }
-            sb.setLength(sb.length()-1);  // drop final slash
+            sb.setLength(sb.length() - 1);  // drop final slash
             sb.append(':');
         }
-
+        
         // type
         sb.append(type.name());
         return sb.toString();
     }
+    
+    
+    private static int hash(int h, Object o) {
+        return h * 127 + o.hashCode();
+    }
+    
+    
+    /**
+     * A builder of {@link AclEntry} objects.
+     *
+     * <p> A {@code Builder} object is obtained by invoking one of the {@link
+     * AclEntry#newBuilder newBuilder} methods defined by the {@code AclEntry}
+     * class.
+     *
+     * <p> Builder objects are mutable and are not safe for use by multiple
+     * concurrent threads without appropriate synchronization.
+     *
+     * @since 1.7
+     */
+    public static final class Builder {
+        private Set<AclEntryFlag> flags;
+        private AclEntryType type;
+        private Set<AclEntryPermission> perms;
+        private UserPrincipal who;
+        
+        private Builder(AclEntryType type, UserPrincipal who, Set<AclEntryPermission> perms, Set<AclEntryFlag> flags) {
+            assert perms != null && flags != null;
+            this.type = type;
+            this.who = who;
+            this.perms = perms;
+            this.flags = flags;
+        }
+        
+        /**
+         * Constructs an {@link AclEntry} from the components of this builder.
+         * The type and who components are required to have been set in order
+         * to construct an {@code AclEntry}.
+         *
+         * @return a new ACL entry
+         *
+         * @throws IllegalStateException if the type or who component have not been set
+         */
+        // 返回构造的ACE实体
+        public AclEntry build() {
+            if(type == null) {
+                throw new IllegalStateException("Missing type component");
+            }
+            if(who == null) {
+                throw new IllegalStateException("Missing who component");
+            }
+            return new AclEntry(type, who, perms, flags);
+        }
+        
+        /**
+         * Sets the type component of this builder.
+         *
+         * @param type the component type
+         *
+         * @return this builder
+         */
+        public Builder setType(AclEntryType type) {
+            if(type == null) {
+                throw new NullPointerException();
+            }
+            this.type = type;
+            return this;
+        }
+        
+        /**
+         * Sets the principal component of this builder.
+         *
+         * @param who the principal component
+         *
+         * @return this builder
+         */
+        public Builder setPrincipal(UserPrincipal who) {
+            if(who == null) {
+                throw new NullPointerException();
+            }
+            this.who = who;
+            return this;
+        }
+        
+        /**
+         * Sets the permissions component of this builder. On return, the
+         * permissions component of this builder is a copy of the given set.
+         *
+         * @param perms the permissions component
+         *
+         * @return this builder
+         *
+         * @throws ClassCastException if the set contains elements that are not of type {@code
+         *                            AclEntryPermission}
+         */
+        public Builder setPermissions(Set<AclEntryPermission> perms) {
+            if(perms.isEmpty()) {
+                // EnumSet.copyOf does not allow empty set
+                perms = Collections.emptySet();
+            } else {
+                // copy and check for erroneous elements
+                perms = EnumSet.copyOf(perms);
+                checkSet(perms, AclEntryPermission.class);
+            }
+    
+            this.perms = perms;
+            return this;
+        }
+        
+        /**
+         * Sets the permissions component of this builder. On return, the
+         * permissions component of this builder is a copy of the permissions in
+         * the given array.
+         *
+         * @param perms the permissions component
+         *
+         * @return this builder
+         */
+        public Builder setPermissions(AclEntryPermission... perms) {
+            Set<AclEntryPermission> set = EnumSet.noneOf(AclEntryPermission.class);
+            // copy and check for null elements
+            for(AclEntryPermission p : perms) {
+                if(p == null) {
+                    throw new NullPointerException();
+                }
+                set.add(p);
+            }
+            this.perms = set;
+            return this;
+        }
+        
+        /**
+         * Sets the flags component of this builder. On return, the flags
+         * component of this builder is a copy of the given set.
+         *
+         * @param flags the flags component
+         *
+         * @return this builder
+         *
+         * @throws ClassCastException if the set contains elements that are not of type {@code
+         *                            AclEntryFlag}
+         */
+        public Builder setFlags(Set<AclEntryFlag> flags) {
+            if(flags.isEmpty()) {
+                // EnumSet.copyOf does not allow empty set
+                flags = Collections.emptySet();
+            } else {
+                // copy and check for erroneous elements
+                flags = EnumSet.copyOf(flags);
+                checkSet(flags, AclEntryFlag.class);
+            }
+    
+            this.flags = flags;
+            return this;
+        }
+        
+        /**
+         * Sets the flags component of this builder. On return, the flags
+         * component of this builder is a copy of the flags in the given
+         * array.
+         *
+         * @param flags the flags component
+         *
+         * @return this builder
+         */
+        public Builder setFlags(AclEntryFlag... flags) {
+            Set<AclEntryFlag> set = EnumSet.noneOf(AclEntryFlag.class);
+            // copy and check for null elements
+            for(AclEntryFlag f : flags) {
+                if(f == null) {
+                    throw new NullPointerException();
+                }
+                set.add(f);
+            }
+            this.flags = set;
+            return this;
+        }
+        
+        // check set only contains elements of the given type
+        private static void checkSet(Set<?> set, Class<?> type) {
+            for(Object e : set) {
+                if(e == null) {
+                    throw new NullPointerException();
+                }
+                type.cast(e);
+            }
+        }
+    }
+    
 }

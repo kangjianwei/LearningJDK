@@ -32,10 +32,11 @@ package java.nio.file;
  *
  * @see Files#walkFileTree
  */
-
+// 文件树遍历选项
 public enum FileVisitOption {
     /**
      * Follow symbolic links.
      */
+    // 指示对于符号链接，会将其链接到目标文件
     FOLLOW_LINKS;
 }

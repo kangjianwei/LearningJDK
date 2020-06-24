@@ -25,36 +25,86 @@
 
 package sun.nio.fs;
 
-import java.util.*;
-import java.nio.file.*;
 import java.nio.charset.Charset;
+import java.nio.file.LinkOption;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import sun.security.action.GetPropertyAction;
 
 /**
  * Utility methods
  */
-
+// 内部使用的工具类
 class Util {
-    private Util() { }
-
-    private static final Charset jnuEncoding = Charset.forName(
-        GetPropertyAction.privilegedGetProperty("sun.jnu.encoding"));
-
+    
+    private static final Charset jnuEncoding = Charset.forName(GetPropertyAction.privilegedGetProperty("sun.jnu.encoding"));
+    
+    private Util() {
+    }
+    
+    /**
+     * Returns {@code true} if symbolic links should be followed
+     */
+    // 判断对于符号链接，是否将其链接到目标文件
+    static boolean followLinks(LinkOption... options) {
+        boolean followLinks = true;
+        
+        for(LinkOption option : options) {
+            if(option == LinkOption.NOFOLLOW_LINKS) {
+                followLinks = false;
+            } else if(option == null) {
+                throw new NullPointerException();
+            } else {
+                throw new AssertionError("Should not get here");
+            }
+        }
+        
+        return followLinks;
+    }
+    
+    /**
+     * Returns a Set containing all the elements of the given Set plus the given elements.
+     */
+    // 返回一个集合，该集合包含了other和elements中的所有元素
+    @SafeVarargs
+    static <E> Set<E> newSet(Set<E> other, E... elements) {
+        HashSet<E> set = new HashSet<>(other);
+        
+        // 将elements添加到指定的容器中
+        Collections.addAll(set, elements);
+        
+        return set;
+    }
+    
+    /**
+     * Returns a Set containing the given elements.
+     */
+    // 返回一个集合，该集合包含了elements中的所有元素
+    @SafeVarargs
+    static <E> Set<E> newSet(E... elements) {
+        HashSet<E> set = new HashSet<>();
+        
+        // 将elements添加到指定的容器中
+        Collections.addAll(set, elements);
+        
+        return set;
+    }
+    
     /**
      * Returns {@code Charset} corresponding to the sun.jnu.encoding property
      */
     static Charset jnuEncoding() {
         return jnuEncoding;
     }
-
+    
     /**
-     * Encodes the given String into a sequence of bytes using the {@code Charset}
-     * specified by the sun.jnu.encoding property.
+     * Encodes the given String into a sequence of bytes using the {@code Charset} specified by the sun.jnu.encoding property.
      */
     static byte[] toBytes(String s) {
         return s.getBytes(jnuEncoding);
     }
-
+    
     /**
      * Constructs a new String by decoding the specified array of bytes using the
      * {@code Charset} specified by the sun.jnu.encoding property.
@@ -62,8 +112,7 @@ class Util {
     static String toString(byte[] bytes) {
         return new String(bytes, jnuEncoding);
     }
-
-
+    
     /**
      * Splits a string around the given character. The array returned by this
      * method contains each substring that is terminated by the character. Use
@@ -71,62 +120,25 @@ class Util {
      */
     static String[] split(String s, char c) {
         int count = 0;
-        for (int i=0; i<s.length(); i++) {
-            if (s.charAt(i) == c)
+        for(int i = 0; i<s.length(); i++) {
+            if(s.charAt(i) == c) {
                 count++;
+            }
         }
-        String[] result = new String[count+1];
+    
+        String[] result = new String[count + 1];
         int n = 0;
         int last = 0;
-        for (int i=0; i<s.length(); i++) {
-            if (s.charAt(i) == c) {
+        for(int i = 0; i<s.length(); i++) {
+            if(s.charAt(i) == c) {
                 result[n++] = s.substring(last, i);
                 last = i + 1;
             }
         }
-        result[n] = s.substring(last, s.length());
+    
+        result[n] = s.substring(last);
+    
         return result;
     }
-
-    /**
-     * Returns a Set containing the given elements.
-     */
-    @SafeVarargs
-    static <E> Set<E> newSet(E... elements) {
-        HashSet<E> set = new HashSet<>();
-        for (E e: elements) {
-            set.add(e);
-        }
-        return set;
-    }
-
-    /**
-     * Returns a Set containing all the elements of the given Set plus
-     * the given elements.
-     */
-    @SafeVarargs
-    static <E> Set<E> newSet(Set<E> other, E... elements) {
-        HashSet<E> set = new HashSet<>(other);
-        for (E e: elements) {
-            set.add(e);
-        }
-        return set;
-    }
-
-    /**
-     * Returns {@code true} if symbolic links should be followed
-     */
-    static boolean followLinks(LinkOption... options) {
-        boolean followLinks = true;
-        for (LinkOption option: options) {
-            if (option == LinkOption.NOFOLLOW_LINKS) {
-                followLinks = false;
-            } else if (option == null) {
-                throw new NullPointerException();
-            } else {
-                throw new AssertionError("Should not get here");
-            }
-        }
-        return followLinks;
-    }
+    
 }

@@ -25,8 +25,8 @@
 
 package java.nio.file;
 
-import java.nio.file.attribute.BasicFileAttributes;
 import java.io.IOException;
+import java.nio.file.attribute.BasicFileAttributes;
 
 /**
  * A visitor of files. An implementation of this interface is provided to the
@@ -94,9 +94,9 @@ import java.io.IOException;
  *
  * @since 1.7
  */
-
+// 文件树遍历器，包含了遍历过程中对各种遍历事件的回调处理
 public interface FileVisitor<T> {
-
+    
     /**
      * Invoked for a directory before entries in the directory are visited.
      *
@@ -106,53 +106,44 @@ public interface FileVisitor<T> {
      * FileVisitResult#SKIP_SIBLINGS SKIP_SIBLINGS} then entries in the
      * directory (and any descendants) will not be visited.
      *
-     * @param   dir
-     *          a reference to the directory
-     * @param   attrs
-     *          the directory's basic attributes
+     * @param dir   a reference to the directory
+     * @param attrs the directory's basic attributes
      *
-     * @return  the visit result
+     * @return the visit result
      *
-     * @throws  IOException
-     *          if an I/O error occurs
+     * @throws IOException if an I/O error occurs
      */
-    FileVisitResult preVisitDirectory(T dir, BasicFileAttributes attrs)
-        throws IOException;
-
+    // 【进入目录】遍历文件树过程中遇到了目录，attrs是目录的属性
+    FileVisitResult preVisitDirectory(T dir, BasicFileAttributes attrs) throws IOException;
+    
     /**
      * Invoked for a file in a directory.
      *
-     * @param   file
-     *          a reference to the file
-     * @param   attrs
-     *          the file's basic attributes
+     * @param file  a reference to the file
+     * @param attrs the file's basic attributes
      *
-     * @return  the visit result
+     * @return the visit result
      *
-     * @throws  IOException
-     *          if an I/O error occurs
+     * @throws IOException if an I/O error occurs
      */
-    FileVisitResult visitFile(T file, BasicFileAttributes attrs)
-        throws IOException;
-
+    // 【遇到文件】遍历文件树过程中遇到了文件(而不是目录)，或者递归层次达到了上限，attrs是文件/目录的属性
+    FileVisitResult visitFile(T file, BasicFileAttributes attrs) throws IOException;
+    
     /**
      * Invoked for a file that could not be visited. This method is invoked
      * if the file's attributes could not be read, the file is a directory
      * that could not be opened, and other reasons.
      *
-     * @param   file
-     *          a reference to the file
-     * @param   exc
-     *          the I/O exception that prevented the file from being visited
+     * @param file a reference to the file
+     * @param exc  the I/O exception that prevented the file from being visited
      *
-     * @return  the visit result
+     * @return the visit result
      *
-     * @throws  IOException
-     *          if an I/O error occurs
+     * @throws IOException if an I/O error occurs
      */
-    FileVisitResult visitFileFailed(T file, IOException exc)
-        throws IOException;
-
+    // 【遇到异常】遍历文件树过程中遇到了异常，ex是异常信息
+    FileVisitResult visitFileFailed(T file, IOException ex) throws IOException;
+    
     /**
      * Invoked for a directory after entries in the directory, and all of their
      * descendants, have been visited. This method is also invoked when iteration
@@ -160,18 +151,16 @@ public interface FileVisitor<T> {
      * method returning {@link FileVisitResult#SKIP_SIBLINGS SKIP_SIBLINGS},
      * or an I/O error when iterating over the directory).
      *
-     * @param   dir
-     *          a reference to the directory
-     * @param   exc
-     *          {@code null} if the iteration of the directory completes without
-     *          an error; otherwise the I/O exception that caused the iteration
-     *          of the directory to complete prematurely
+     * @param dir a reference to the directory
+     * @param exc {@code null} if the iteration of the directory completes without
+     *            an error; otherwise the I/O exception that caused the iteration
+     *            of the directory to complete prematurely
      *
-     * @return  the visit result
+     * @return the visit result
      *
-     * @throws  IOException
-     *          if an I/O error occurs
+     * @throws IOException if an I/O error occurs
      */
-    FileVisitResult postVisitDirectory(T dir, IOException exc)
-        throws IOException;
+    // 【退出目录】结束了对指定目录的遍历，ex是异常信息
+    FileVisitResult postVisitDirectory(T dir, IOException ex) throws IOException;
+    
 }

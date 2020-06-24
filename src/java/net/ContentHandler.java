@@ -81,19 +81,23 @@ import java.io.IOException;
  * @see     java.net.URLConnection#setContentHandlerFactory(java.net.ContentHandlerFactory)
  * @since   1.0
  */
+// 资源内容句柄
 public abstract class ContentHandler {
-
+    
     /**
      * Given a URL connect stream positioned at the beginning of the
      * representation of an object, this method reads that stream and
      * creates an object from it.
      *
-     * @param      urlc   a URL connection.
-     * @return     the object read by the {@code ContentHandler}.
-     * @exception  IOException  if an I/O error occurs while reading the object.
+     * @param urlc a URL connection.
+     *
+     * @return the object read by the {@code ContentHandler}.
+     *
+     * @throws IOException if an I/O error occurs while reading the object.
      */
-    public abstract Object getContent(URLConnection urlc) throws IOException;
-
+    // 返回目标资源的内容，返回的形式取决于资源的类型(不一定总是输入流)
+    public abstract Object getContent(URLConnection connection) throws IOException;
+    
     /**
      * Given a URL connect stream positioned at the beginning of the
      * representation of an object, this method reads that stream and
@@ -103,23 +107,29 @@ public abstract class ContentHandler {
      * {@link #getContent(URLConnection)}
      * and screen the return type for a match of the suggested types.
      *
-     * @param      urlc   a URL connection.
-     * @param      classes      an array of types requested
-     * @return     the object read by the {@code ContentHandler} that is
-     *                 the first match of the suggested types or
-     *                 {@code null} if none of the requested  are supported.
-     * @exception  IOException  if an I/O error occurs while reading the object.
+     * @param urlc    a URL connection.
+     * @param classes an array of types requested
+     *
+     * @return the object read by the {@code ContentHandler} that is
+     * the first match of the suggested types or
+     * {@code null} if none of the requested  are supported.
+     *
+     * @throws IOException if an I/O error occurs while reading the object.
      * @since 1.3
      */
+    // 返回目标资源的内容，且限定该"内容"只能是指定的类型；内容的返回形式取决于资源的类型(不一定总是输入流)
     @SuppressWarnings("rawtypes")
-    public Object getContent(URLConnection urlc, Class[] classes) throws IOException {
-        Object obj = getContent(urlc);
-
-        for (Class<?> c : classes) {
-            if (c.isInstance(obj)) {
+    public Object getContent(URLConnection connection, Class[] classes) throws IOException {
+        // 返回目标资源的内容，返回的形式取决于资源的类型
+        Object obj = getContent(connection);
+        
+        // 限定该"内容"只能是指定的类型
+        for(Class<?> c : classes) {
+            if(c.isInstance(obj)) {
                 return obj;
             }
         }
+        
         return null;
     }
 }

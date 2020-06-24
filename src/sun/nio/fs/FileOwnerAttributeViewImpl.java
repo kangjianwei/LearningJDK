@@ -33,73 +33,88 @@ import java.io.IOException;
  * An implementation of FileOwnerAttributeView that delegates to a given
  * PosixFileAttributeView or AclFileAttributeView object.
  */
-
-final class FileOwnerAttributeViewImpl
-    implements FileOwnerAttributeView, DynamicFileAttributeView
-{
-    private static final String OWNER_NAME = "owner";
-
+/*
+ * "owner"文件属性视图的实现，可以获取/设置文件所有者信息
+ *
+ * 注：不同的操作系统平台会有不同的实现机制
+ * 在windows上，该实现是委托给AclFileAttributeView来完成的；
+ * 在linux和mac上，该实现是委托给PosixFileAttributeView来完成的。
+ */
+final class FileOwnerAttributeViewImpl implements FileOwnerAttributeView, DynamicFileAttributeView {
+    private static final String OWNER_NAME = "owner";   // "owner"属性
+    
+    // 当前类的一个代理，在windows上是AclFileAttributeView，在linux和mac上是PosixFileAttributeView
     private final FileAttributeView view;
+    
+    // 判断view是否为PosixFileAttributeView
     private final boolean isPosixView;
-
-    FileOwnerAttributeViewImpl(PosixFileAttributeView view) {
-        this.view = view;
-        this.isPosixView = true;
-    }
-
+    
+    // windows上通过此途径构造FileOwnerAttributeView
     FileOwnerAttributeViewImpl(AclFileAttributeView view) {
         this.view = view;
         this.isPosixView = false;
     }
-
+    
+    // linux和mac上通过此途径构造FileOwnerAttributeView
+    FileOwnerAttributeViewImpl(PosixFileAttributeView view) {
+        this.view = view;
+        this.isPosixView = true;
+    }
+    
+    // 返回当前属性视图的名称："owner"
     @Override
     public String name() {
         return "owner";
     }
-
+    
+    /*
+     * 向当前"owner"文件属性视图中设置attName属性，设置的属性值为value，可设置的属性包括：
+     * - owner: "owner"属性，其值是UserPrincipal类型的对象
+     */
     @Override
-    public void setAttribute(String attribute, Object value)
-        throws IOException
-    {
-        if (attribute.equals(OWNER_NAME)) {
-            setOwner((UserPrincipal)value);
+    public void setAttribute(String attName, Object value) throws IOException {
+        if(attName.equals(OWNER_NAME)) {
+            setOwner((UserPrincipal) value);
         } else {
-            throw new IllegalArgumentException("'" + name() + ":" +
-                attribute + "' not recognized");
+            throw new IllegalArgumentException("'" + name() + ":" + attName + "' not recognized");
         }
     }
-
+    
+    /**
+     * 从当前"owner"文件属性视图中获取一批属性的值；这批属性的名称由attNames给出，获取到的属性以<属性名, 属性值>的形式返回，可获取的属性包括：
+     * - owner: "owner"属性，其值是UserPrincipal类型的对象
+     */
     @Override
-    public Map<String,Object> readAttributes(String[] attributes) throws IOException {
-        Map<String,Object> result = new HashMap<>();
-        for (String attribute: attributes) {
-            if (attribute.equals("*") || attribute.equals(OWNER_NAME)) {
+    public Map<String, Object> readAttributes(String[] attributes) throws IOException {
+        Map<String, Object> result = new HashMap<>();
+        
+        for(String attribute : attributes) {
+            if(attribute.equals("*") || attribute.equals(OWNER_NAME)) {
                 result.put(OWNER_NAME, getOwner());
             } else {
-                throw new IllegalArgumentException("'" + name() + ":" +
-                    attribute + "' not recognized");
+                throw new IllegalArgumentException("'" + name() + ":" + attribute + "' not recognized");
             }
         }
         return result;
     }
-
+    
+    // 返回关联文件的所有者
     @Override
     public UserPrincipal getOwner() throws IOException {
-        if (isPosixView) {
-            return ((PosixFileAttributeView)view).readAttributes().owner();
+        if(isPosixView) {
+            return ((PosixFileAttributeView) view).readAttributes().owner();
         } else {
-            return ((AclFileAttributeView)view).getOwner();
+            return ((AclFileAttributeView) view).getOwner();
         }
     }
-
+    
+    // 更新/设置关联文件的所有者信息
     @Override
-    public void setOwner(UserPrincipal owner)
-        throws IOException
-    {
-        if (isPosixView) {
-            ((PosixFileAttributeView)view).setOwner(owner);
+    public void setOwner(UserPrincipal owner) throws IOException {
+        if(isPosixView) {
+            ((PosixFileAttributeView) view).setOwner(owner);
         } else {
-            ((AclFileAttributeView)view).setOwner(owner);
+            ((AclFileAttributeView) view).setOwner(owner);
         }
     }
- }
+}

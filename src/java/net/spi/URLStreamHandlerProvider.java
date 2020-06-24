@@ -30,7 +30,7 @@ import java.net.URLStreamHandlerFactory;
 /**
  * URL stream handler service-provider class.
  *
- *<p> A URL stream handler provider is a concrete subclass of this class that
+ * <p> A URL stream handler provider is a concrete subclass of this class that
  * has a zero-argument constructor. URL stream handler providers may be
  * installed in an instance of the Java platform by adding them to the
  * application class path.
@@ -42,29 +42,33 @@ import java.net.URLStreamHandlerFactory;
  * line.
  *
  * <p> URL stream handler providers are located at runtime, as specified in the
- * {@linkplain java.net.URL#URL(String,String,int,String) URL constructor}.
+ * {@linkplain java.net.URL#URL(String, String, int, String) URL constructor}.
  *
  * @since 9
  */
-public abstract class URLStreamHandlerProvider
-    implements URLStreamHandlerFactory
-{
-    private static Void checkPermission() {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null)
-            sm.checkPermission(new RuntimePermission("setFactory"));
-        return null;
-    }
-    private URLStreamHandlerProvider(Void ignore) { }
-
+// 流协议处理器工厂的抽象实现，允许以"服务"形式使用，参见ServiceLoader
+public abstract class URLStreamHandlerProvider implements URLStreamHandlerFactory {
+    
     /**
      * Initializes a new URL stream handler provider.
      *
-     * @throws  SecurityException
-     *          If a security manager has been installed and it denies
-     *          {@link RuntimePermission}{@code ("setFactory")}.
+     * @throws SecurityException If a security manager has been installed and it denies
+     *                           {@link RuntimePermission}{@code ("setFactory")}.
      */
     protected URLStreamHandlerProvider() {
         this(checkPermission());
     }
+    
+    private URLStreamHandlerProvider(Void ignore) {
+    }
+    
+    private static Void checkPermission() {
+        SecurityManager sm = System.getSecurityManager();
+        if(sm != null) {
+            sm.checkPermission(new RuntimePermission("setFactory"));
+        }
+        
+        return null;
+    }
+    
 }

@@ -25,8 +25,10 @@
 
 package java.nio.file;
 
-import java.nio.file.attribute.*;
 import java.io.IOException;
+import java.nio.file.attribute.BasicFileAttributeView;
+import java.nio.file.attribute.FileAttributeView;
+import java.nio.file.attribute.FileStoreAttributeView;
 
 /**
  * Storage for files. A {@code FileStore} represents a storage pool, device,
@@ -42,173 +44,111 @@ import java.io.IOException;
  *
  * @since 1.7
  */
-
+// 文件存储，包括：存储池，磁盘，分区，卷，具体文件系统(区别于虚拟文件系统)，其他文件存储实现
 public abstract class FileStore {
-
+    
     /**
      * Initializes a new instance of this class.
      */
     protected FileStore() {
     }
-
+    
     /**
-     * Returns the name of this file store. The format of the name is highly
-     * implementation specific. It will typically be the name of the storage
-     * pool or volume.
+     * Returns the name of this file store.
+     * The format of the name is highly implementation specific.
+     * It will typically be the name of the storage pool or volume.
      *
      * <p> The string returned by this method may differ from the string
      * returned by the {@link Object#toString() toString} method.
      *
-     * @return  the name of this file store
+     * @return the name of this file store
      */
+    // 返回文件存储的名称（通常是显式设置的名称）
     public abstract String name();
-
+    
     /**
-     * Returns the <em>type</em> of this file store. The format of the string
-     * returned by this method is highly implementation specific. It may
-     * indicate, for example, the format used or if the file store is local
-     * or remote.
+     * Returns the <em>type</em> of this file store.
+     * The format of the string returned by this method is highly implementation specific.
+     * It may indicate, for example, the format used or if the file store is local or remote.
      *
-     * @return  a string representing the type of this file store
+     * @return a string representing the type of this file store
      */
+    // 返回文件存储的类型
     public abstract String type();
-
+    
     /**
-     * Tells whether this file store is read-only. A file store is read-only if
-     * it does not support write operations or other changes to files. Any
-     * attempt to create a file, open an existing file for writing etc. causes
-     * an {@code IOException} to be thrown.
+     * Tells whether this file store is read-only.
+     * A file store is read-only if it does not support write operations or other changes to files.
+     * Any attempt to create a file, open an existing file for writing etc. causes an {@code IOException} to be thrown.
      *
-     * @return  {@code true} if, and only if, this file store is read-only
+     * @return {@code true} if, and only if, this file store is read-only
      */
+    // 判断当前文件存储是否只读
     public abstract boolean isReadOnly();
-
+    
     /**
      * Returns the size, in bytes, of the file store.
      *
-     * @return  the size of the file store, in bytes
+     * @return the size of the file store, in bytes
      *
-     * @throws  IOException
-     *          if an I/O error occurs
+     * @throws IOException if an I/O error occurs
      */
+    // 返回当前存储器的总空间(字节)
     public abstract long getTotalSpace() throws IOException;
-
+    
     /**
-     * Returns the number of bytes available to this Java virtual machine on the
-     * file store.
+     * Returns the number of bytes available to this Java virtual machine on the file store.
      *
-     * <p> The returned number of available bytes is a hint, but not a
-     * guarantee, that it is possible to use most or any of these bytes.  The
-     * number of usable bytes is most likely to be accurate immediately
-     * after the space attributes are obtained. It is likely to be made inaccurate
-     * by any external I/O operations including those made on the system outside
-     * of this Java virtual machine.
+     * The returned number of available bytes is a hint, but not a guarantee,
+     * that it is possible to use most or any of these bytes.
+     * The number of usable bytes is most likely to be accurate immediately
+     * after the space attributes are obtained.
+     * It is likely to be made inaccurate by any external I/O operations
+     * including those made on the system outside of this Java virtual machine.
      *
-     * @return  the number of bytes available
+     * @return the number of bytes available
      *
-     * @throws  IOException
-     *          if an I/O error occurs
+     * @throws IOException if an I/O error occurs
      */
+    // 返回当前存储器的可用空间(字节)
     public abstract long getUsableSpace() throws IOException;
-
-    /**
-     * Returns the number of bytes per block in this file store.
-     *
-     * <p> File storage is typically organized into discrete sequences of bytes
-     * called <i>blocks</i>. A block is the smallest storage unit of a file store.
-     * Every read and write operation is performed on a multiple of blocks.
-     *
-     * @implSpec The implementation in this class throws an
-     *         {@code UnsupportedOperationException}.
-     *
-     * @return  a positive value representing the block size of this file store,
-     *          in bytes
-     *
-     * @throws  IOException
-     *          if an I/O error occurs
-     *
-     * @throws  UnsupportedOperationException
-     *          if the operation is not supported
-     *
-     * @since 10
-     */
-    public long getBlockSize() throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
+    
     /**
      * Returns the number of unallocated bytes in the file store.
      *
-     * <p> The returned number of unallocated bytes is a hint, but not a
-     * guarantee, that it is possible to use most or any of these bytes.  The
-     * number of unallocated bytes is most likely to be accurate immediately
-     * after the space attributes are obtained. It is likely to be
-     * made inaccurate by any external I/O operations including those made on
-     * the system outside of this virtual machine.
+     * The returned number of unallocated bytes is a hint, but not a guarantee,
+     * that it is possible to use most or any of these bytes.
+     * The number of unallocated bytes is most likely to be accurate immediately
+     * after the space attributes are obtained.
+     * It is likely to be made inaccurate by any external I/O operations
+     * including those made on the system outside of this virtual machine.
      *
-     * @return  the number of unallocated bytes
+     * @return the number of unallocated bytes
      *
-     * @throws  IOException
-     *          if an I/O error occurs
+     * @throws IOException if an I/O error occurs
      */
+    // 返回当前存储器的未使用空间(字节)
     public abstract long getUnallocatedSpace() throws IOException;
-
+    
     /**
-     * Tells whether or not this file store supports the file attributes
-     * identified by the given file attribute view.
+     * Returns the number of bytes per block in this file store.
      *
-     * <p> Invoking this method to test if the file store supports {@link
-     * BasicFileAttributeView} will always return {@code true}. In the case of
-     * the default provider, this method cannot guarantee to give the correct
-     * result when the file store is not a local storage device. The reasons for
-     * this are implementation specific and therefore unspecified.
+     * File storage is typically organized into discrete sequences of bytes called <i>blocks</i>.
+     * A block is the smallest storage unit of a file store.
+     * Every read and write operation is performed on a multiple of blocks.
      *
-     * @param   type
-     *          the file attribute view type
+     * @return a positive value representing the block size of this file store, in bytes
      *
-     * @return  {@code true} if, and only if, the file attribute view is
-     *          supported
+     * @throws IOException                   if an I/O error occurs
+     * @throws UnsupportedOperationException if the operation is not supported
+     * @implSpec The implementation in this class throws an {@code UnsupportedOperationException}.
+     * @since 10
      */
-    public abstract boolean supportsFileAttributeView(Class<? extends FileAttributeView> type);
-
-    /**
-     * Tells whether or not this file store supports the file attributes
-     * identified by the given file attribute view.
-     *
-     * <p> Invoking this method to test if the file store supports {@link
-     * BasicFileAttributeView}, identified by the name "{@code basic}" will
-     * always return {@code true}. In the case of the default provider, this
-     * method cannot guarantee to give the correct result when the file store is
-     * not a local storage device. The reasons for this are implementation
-     * specific and therefore unspecified.
-     *
-     * @param   name
-     *          the {@link FileAttributeView#name name} of file attribute view
-     *
-     * @return  {@code true} if, and only if, the file attribute view is
-     *          supported
-     */
-    public abstract boolean supportsFileAttributeView(String name);
-
-    /**
-     * Returns a {@code FileStoreAttributeView} of the given type.
-     *
-     * <p> This method is intended to be used where the file store attribute
-     * view defines type-safe methods to read or update the file store attributes.
-     * The {@code type} parameter is the type of the attribute view required and
-     * the method returns an instance of that type if supported.
-     *
-     * @param   <V>
-     *          The {@code FileStoreAttributeView} type
-     * @param   type
-     *          the {@code Class} object corresponding to the attribute view
-     *
-     * @return  a file store attribute view of the specified type or
-     *          {@code null} if the attribute view is not available
-     */
-    public abstract <V extends FileStoreAttributeView> V
-        getFileStoreAttributeView(Class<V> type);
-
+    // 返回当前文件存储中每个块的字节数（块是存储的最小单位，如扇区）
+    public long getBlockSize() throws IOException {
+        throw new UnsupportedOperationException();
+    }
+    
     /**
      * Reads the value of a file store attribute.
      *
@@ -230,17 +170,96 @@ public abstract class FileStore {
      *    boolean compression = (Boolean)fs.getAttribute("zfs:compression");
      * </pre>
      *
-     * @param   attribute
-     *          the attribute to read
-
-     * @return  the attribute value; {@code null} may be valid for some
-     *          attributes
+     * @param attribute the attribute to read
      *
-     * @throws  UnsupportedOperationException
-     *          if the attribute view is not available or it does not support
-     *          reading the attribute
-     * @throws  IOException
-     *          if an I/O error occurs
+     * @return the attribute value; {@code null} may be valid for some attributes
+     *
+     * @throws UnsupportedOperationException if the attribute view is not available or it does not support
+     *                                       reading the attribute
+     * @throws IOException                   if an I/O error occurs
+     */
+    /*
+     * 返回当前文件存储中指定名称的属性值，attribute的可选值包括：
+     *   windows linux/mac
+     * -    √        √     totalSpace         // 当前存储器的总空间(字节)
+     * -    √        √     usableSpace        // 当前存储器的可用空间(字节)
+     * -    √        √     unallocatedSpace   // 当前存储器的未使用空间(字节)
+     * -    √              bytesPerSector     // 当前存储器中每个扇区包含的字节数
+     * -    √              volume:vsn         // 卷序列号
+     * -    √              volume:isRemovable // 是否为"可移动"磁盘，例如U盘或软盘
+     * -    √              volume:isCdrom     // 是否为CD-ROM磁盘
      */
     public abstract Object getAttribute(String attribute) throws IOException;
+    
+    /**
+     * Tells whether or not this file store supports the file attributes identified by the given file attribute view.
+     *
+     * Invoking this method to test if the file store supports {@link BasicFileAttributeView} will always return {@code true}.
+     * In the case of the default provider, this method cannot guarantee to give the correct result
+     * when the file store is not a local storage device.
+     * The reasons for this are implementation specific and therefore unspecified.
+     *
+     * @param type the file attribute view type
+     *
+     * @return {@code true} if, and only if, the file attribute view is supported
+     */
+    /*
+     * 判断当前文件存储是否支持指定类型的文件属性视图，type的可选值包括：
+     *                                    windows linux mac
+     * UserDefinedFileAttributeView.class    √      √
+     * BasicFileAttributeView.class          √      √    √
+     * DosFileAttributeView.class            √      √
+     * FileOwnerAttributeView.class          √      √    √
+     * AclFileAttributeView.class            √
+     * PosixFileAttributeView.class                 √    √
+     * JrtFileAttributeView.class            √      √    √
+     * ZipFileAttributeView.class            √      √    √
+     */
+    public abstract boolean supportsFileAttributeView(Class<? extends FileAttributeView> type);
+    
+    /**
+     * Tells whether or not this file store supports the file attributes identified by the given file attribute view.
+     *
+     * Invoking this method to test if the file store supports {@link BasicFileAttributeView},
+     * identified by the name "{@code basic}" will always return {@code true}.
+     * In the case of the default provider, this method cannot guarantee to give the correct result
+     * when the file store is not a local storage device.
+     * The reasons for this are implementation specific and therefore unspecified.
+     *
+     * @param name the {@link FileAttributeView#name name} of file attribute view
+     *
+     * @return {@code true} if, and only if, the file attribute view is supported
+     */
+    /*
+     * 判断当前文件存储是否支持指定类型的文件属性视图，name的可选值包括：
+     *         windows linux mac
+     * "user"     √      √
+     * "basic"    √      √    √
+     * "dos"      √      √
+     * "owner"    √      √    √
+     * "acl"      √
+     * "posix"           √    √
+     * "unix"            √    √
+     * "jrt"      √      √    √
+     * "zip"      √      √    √
+     */
+    public abstract boolean supportsFileAttributeView(String name);
+    
+    /**
+     * Returns a {@code FileStoreAttributeView} of the given type.
+     *
+     * <p> This method is intended to be used where the file store attribute
+     * view defines type-safe methods to read or update the file store attributes.
+     * The {@code type} parameter is the type of the attribute view required and
+     * the method returns an instance of that type if supported.
+     *
+     * @param <V>  The {@code FileStoreAttributeView} type
+     * @param type the {@code Class} object corresponding to the attribute view
+     *
+     * @return a file store attribute view of the specified type or
+     * {@code null} if the attribute view is not available
+     */
+    // 返回指定类型的文件存储属性视图；目前，JDK对该方法的实现总是返回null
+    public abstract <V extends FileStoreAttributeView> V getFileStoreAttributeView(Class<V> type);
+    
 }

@@ -25,8 +25,8 @@
 
 package java.nio.file;
 
-import java.nio.file.attribute.BasicFileAttributes;
 import java.io.IOException;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Objects;
 
 /**
@@ -35,78 +35,71 @@ import java.util.Objects;
  *
  * <p> Methods in this class may be overridden subject to their general contract.
  *
- * @param   <T>     The type of reference to the files
+ * @param <T> The type of reference to the files
  *
  * @since 1.7
  */
-
+// 文件树遍历器的简单实现：除非遇到异常，否则访问所有遇到的子项；可以通过自定义子类来继续扩展该遍历器
 public class SimpleFileVisitor<T> implements FileVisitor<T> {
+    
     /**
      * Initializes a new instance of this class.
      */
     protected SimpleFileVisitor() {
     }
-
+    
     /**
      * Invoked for a directory before entries in the directory are visited.
      *
-     * <p> Unless overridden, this method returns {@link FileVisitResult#CONTINUE
-     * CONTINUE}.
+     * Unless overridden, this method returns {@link FileVisitResult#CONTINUE CONTINUE}.
      */
+    // 【进入目录】遍历文件树过程中遇到了目录，attrs是目录的属性
     @Override
-    public FileVisitResult preVisitDirectory(T dir, BasicFileAttributes attrs)
-        throws IOException
-    {
+    public FileVisitResult preVisitDirectory(T dir, BasicFileAttributes attrs) throws IOException {
         Objects.requireNonNull(dir);
         Objects.requireNonNull(attrs);
         return FileVisitResult.CONTINUE;
     }
-
+    
     /**
      * Invoked for a file in a directory.
      *
-     * <p> Unless overridden, this method returns {@link FileVisitResult#CONTINUE
-     * CONTINUE}.
+     * Unless overridden, this method returns {@link FileVisitResult#CONTINUE CONTINUE}.
      */
+    // 【遇到文件】遍历文件树过程中遇到了文件(而不是目录)，或者递归层次达到了上限，attrs是文件/目录的属性
     @Override
-    public FileVisitResult visitFile(T file, BasicFileAttributes attrs)
-        throws IOException
-    {
+    public FileVisitResult visitFile(T file, BasicFileAttributes attrs) throws IOException {
         Objects.requireNonNull(file);
         Objects.requireNonNull(attrs);
         return FileVisitResult.CONTINUE;
     }
-
+    
     /**
      * Invoked for a file that could not be visited.
      *
-     * <p> Unless overridden, this method re-throws the I/O exception that prevented
-     * the file from being visited.
+     * Unless overridden, this method re-throws the I/O exception that prevented the file from being visited.
      */
+    // 【遇到异常】遍历文件树过程中遇到了异常，ex是异常信息
     @Override
-    public FileVisitResult visitFileFailed(T file, IOException exc)
-        throws IOException
-    {
+    public FileVisitResult visitFileFailed(T file, IOException exc) throws IOException {
         Objects.requireNonNull(file);
         throw exc;
     }
-
+    
     /**
-     * Invoked for a directory after entries in the directory, and all of their
-     * descendants, have been visited.
+     * Invoked for a directory after entries in the directory, and all of their descendants, have been visited.
      *
-     * <p> Unless overridden, this method returns {@link FileVisitResult#CONTINUE
-     * CONTINUE} if the directory iteration completes without an I/O exception;
-     * otherwise this method re-throws the I/O exception that caused the iteration
-     * of the directory to terminate prematurely.
+     * Unless overridden, this method returns {@link FileVisitResult#CONTINUE CONTINUE}
+     * if the directory iteration completes without an I/O exception;
+     * otherwise this method re-throws the I/O exception that caused the iteration of the directory to terminate prematurely.
      */
+    // 【退出目录】结束了对指定目录的遍历，ex是异常信息
     @Override
-    public FileVisitResult postVisitDirectory(T dir, IOException exc)
-        throws IOException
-    {
+    public FileVisitResult postVisitDirectory(T dir, IOException exc) throws IOException {
         Objects.requireNonNull(dir);
-        if (exc != null)
+        if(exc != null) {
             throw exc;
+        }
         return FileVisitResult.CONTINUE;
     }
 }

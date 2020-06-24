@@ -29,19 +29,19 @@ import java.nio.file.WatchEvent.Modifier;
 import sun.nio.fs.ExtendedOptions;
 
 /**
- * Defines <em>extended</em> watch event modifiers supported on some platforms
- * by Sun's provider implementation.
+ * Defines <em>extended</em> watch event modifiers supported on some platforms by Sun's provider implementation.
  *
  * @since 1.7
  */
-
+// 目录监视的扩展可选参数
 public enum ExtendedWatchEventModifier implements Modifier {
-
+    
     /**
      * Register a file tree instead of a single directory.
      */
+    // 向监视服务注册整个目录树，会监视子目录，而不是仅监视根目录
     FILE_TREE(ExtendedOptions.FILE_TREE);
-
+    
     ExtendedWatchEventModifier(ExtendedOptions.InternalOption<Void> option) {
         option.register(this);
     }

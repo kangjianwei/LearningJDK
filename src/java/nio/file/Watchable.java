@@ -37,13 +37,12 @@ import java.io.IOException;
  * watch service. Registration with a watch service is cancelled by invoking the
  * key's {@link WatchKey#cancel cancel} method.
  *
- * @since 1.7
- *
  * @see Path#register
+ * @since 1.7
  */
-
+// 指示可被监视的对象，如Path
 public interface Watchable {
-
+    
     /**
      * Registers an object with a watch service.
      *
@@ -63,65 +62,59 @@ public interface Watchable {
      * <p> Implementations of this interface should specify the events they
      * support.
      *
-     * @param   watcher
-     *          the watch service to which this object is to be registered
-     * @param   events
-     *          the events for which this object should be registered
-     * @param   modifiers
-     *          the modifiers, if any, that modify how the object is registered
+     * @param watcher   the watch service to which this object is to be registered
+     * @param events    the events for which this object should be registered
+     * @param modifiers the modifiers, if any, that modify how the object is registered
      *
-     * @return  a key representing the registration of this object with the
-     *          given watch service
+     * @return a key representing the registration of this object with the
+     * given watch service
      *
-     * @throws  UnsupportedOperationException
-     *          if unsupported events or modifiers are specified
-     * @throws  IllegalArgumentException
-     *          if an invalid of combination of events are modifiers are specified
-     * @throws  ClosedWatchServiceException
-     *          if the watch service is closed
-     * @throws  IOException
-     *          if an I/O error occurs
-     * @throws  SecurityException
-     *          if a security manager is installed and it denies an unspecified
-     *          permission required to monitor this object. Implementations of
-     *          this interface should specify the permission checks.
+     * @throws UnsupportedOperationException if unsupported events or modifiers are specified
+     * @throws IllegalArgumentException      if an invalid of combination of events are modifiers are specified
+     * @throws ClosedWatchServiceException   if the watch service is closed
+     * @throws IOException                   if an I/O error occurs
+     * @throws SecurityException             if a security manager is installed and it denies an unspecified
+     *                                       permission required to monitor this object. Implementations of
+     *                                       this interface should specify the permission checks.
      */
-    WatchKey register(WatchService watcher,
-                      WatchEvent.Kind<?>[] events,
-                      WatchEvent.Modifier... modifiers)
-        throws IOException;
-
-
+    /*
+     * 为当前路径指示的目录(树)注册监听服务watcher。
+     *
+     * watcher  : 目录监视服务，其获取途径为：FileSystems -> FileSystem -> WatchService
+     * events   : 监视的事件类型；通常从StandardWatchEventKinds中获取
+     * modifiers: 对被监视事件的修饰，参见ExtendedWatchEventModifier(通常用这个，可以决定是否监视子目录)和SensitivityWatchEventModifier
+     */
+    WatchKey register(WatchService watcher, WatchEvent.Kind<?>[] events, WatchEvent.Modifier... modifiers) throws IOException;
+    
     /**
      * Registers an object with a watch service.
      *
      * <p> An invocation of this method behaves in exactly the same way as the
      * invocation
      * <pre>
-     *     watchable.{@link #register(WatchService,WatchEvent.Kind[],WatchEvent.Modifier[]) register}(watcher, events, new WatchEvent.Modifier[0]);
+     *     watchable.{@link #register(WatchService, WatchEvent.Kind[], WatchEvent.Modifier[]) register}(watcher, events, new WatchEvent.Modifier[0]);
      * </pre>
      *
-     * @param   watcher
-     *          the watch service to which this object is to be registered
-     * @param   events
-     *          the events for which this object should be registered
+     * @param watcher the watch service to which this object is to be registered
+     * @param events  the events for which this object should be registered
      *
-     * @return  a key representing the registration of this object with the
-     *          given watch service
+     * @return a key representing the registration of this object with the
+     * given watch service
      *
-     * @throws  UnsupportedOperationException
-     *          if unsupported events are specified
-     * @throws  IllegalArgumentException
-     *          if an invalid of combination of events are specified
-     * @throws  ClosedWatchServiceException
-     *          if the watch service is closed
-     * @throws  IOException
-     *          if an I/O error occurs
-     * @throws  SecurityException
-     *          if a security manager is installed and it denies an unspecified
-     *          permission required to monitor this object. Implementations of
-     *          this interface should specify the permission checks.
+     * @throws UnsupportedOperationException if unsupported events are specified
+     * @throws IllegalArgumentException      if an invalid of combination of events are specified
+     * @throws ClosedWatchServiceException   if the watch service is closed
+     * @throws IOException                   if an I/O error occurs
+     * @throws SecurityException             if a security manager is installed and it denies an unspecified
+     *                                       permission required to monitor this object. Implementations of
+     *                                       this interface should specify the permission checks.
      */
-    WatchKey register(WatchService watcher, WatchEvent.Kind<?>... events)
-        throws IOException;
+    /*
+     * 为当前路径指示的目录(树)注册监听服务watcher，不会监视子目录。
+     *
+     * watcher  : 目录监视服务，其获取途径为：FileSystems -> FileSystem -> WatchService
+     * events   : 监视的事件类型；通常从StandardWatchEventKinds中获取
+     */
+    WatchKey register(WatchService watcher, WatchEvent.Kind<?>... events) throws IOException;
+    
 }

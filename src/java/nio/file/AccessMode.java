@@ -30,18 +30,22 @@ package java.nio.file;
  *
  * @since 1.7
  */
-
+// 文件访问模式，用来测试文件是否可读/可写/可执行
 public enum AccessMode {
+    
     /**
      * Test read access.
      */
-    READ,
+    READ,       // 可读
+    
     /**
      * Test write access.
      */
-    WRITE,
+    WRITE,      // 可写
+    
     /**
      * Test execute access.
      */
-    EXECUTE;
+    EXECUTE;    // 可执行
+    
 }

@@ -25,31 +25,78 @@
 
 package sun.net.www.protocol.file;
 
-import java.net.InetAddress;
-import java.net.URLConnection;
-import java.net.URL;
-import java.net.Proxy;
-import java.net.MalformedURLException;
-import java.net.URLStreamHandler;
-import java.io.InputStream;
-import java.io.IOException;
-import sun.net.www.ParseUtil;
 import java.io.File;
+import java.io.IOException;
+import java.net.URL;
+import java.net.URLConnection;
+import java.net.URLStreamHandler;
+import sun.net.www.ParseUtil;
 
 /**
  * Open an file input stream given a URL.
- * @author      James Gosling
+ *
+ * @author James Gosling
  */
+// "file"协议处理器
 public class Handler extends URLStreamHandler {
-
-    private String getHost(URL url) {
-        String host = url.getHost();
-        if (host == null)
-            host = "";
-        return host;
+    
+    // 打开URL处的资源连接
+    public synchronized URLConnection openConnection(URL url) throws IOException {
+        return openConnection(url, null);
     }
-
-
+    
+    // 使用指定的代理打开URL处的资源连接
+    public synchronized URLConnection openConnection(URL url, java.net.Proxy proxy) throws IOException {
+        
+        String path;
+        String file = url.getFile();
+        String host = url.getHost();
+        
+        // 解析路径中的转义符
+        path = ParseUtil.decode(file);
+        path = path.replace('/', '\\');
+        path = path.replace('|', ':');
+        
+        if((host == null) || host.equals("") || host.equalsIgnoreCase("localhost") || host.equals("~")) {
+            return createFileURLConnection(url, new File(path));
+        }
+        
+        /*
+         * attempt to treat this as a UNC path. See 4180841
+         */
+        path = "\\\\" + host + path;
+        File f = new File(path);
+        if(f.exists()) {
+            // 如果URL指向的资源存在于本地，则返回"file"协议下对应的URL连接
+            return createFileURLConnection(url, f);
+        }
+        
+        /*
+         * Now attempt an ftp connection.
+         */
+        URLConnection uc;
+        URL newurl;
+        
+        try {
+            // 构造"ftp"资源连接
+            newurl = new URL("ftp", host, file + (url.getRef() == null ? "" : "#" + url.getRef()));
+            if(proxy != null) {
+                uc = newurl.openConnection(proxy);
+            } else {
+                uc = newurl.openConnection();
+            }
+        } catch(IOException e) {
+            uc = null;
+        }
+        
+        if(uc == null) {
+            throw new IOException("Unable to connect to: " + url.toExternalForm());
+        }
+        
+        return uc;
+    }
+    
+    // 基于url解析spec中指定范围内的字符串，从spec中解析到的URL组件会覆盖到url中以形成新的URL返回，如果spec是相对路径，则会追加在url的原有路径上
     protected void parseURL(URL u, String spec, int start, int limit) {
         /*
          * Ugly backwards compatibility. Flip any file separator
@@ -66,77 +113,25 @@ public class Handler extends URLStreamHandler {
          */
         super.parseURL(u, spec.replace(File.separatorChar, '/'), start, limit);
     }
-
-    public synchronized URLConnection openConnection(URL url)
-        throws IOException {
-        return openConnection(url, null);
-    }
-
-    public synchronized URLConnection openConnection(URL url, Proxy p)
-           throws IOException {
-
-        String path;
-        String file = url.getFile();
-        String host = url.getHost();
-
-        path = ParseUtil.decode(file);
-        path = path.replace('/', '\\');
-        path = path.replace('|', ':');
-
-        if ((host == null) || host.equals("") ||
-                host.equalsIgnoreCase("localhost") ||
-                host.equals("~")) {
-           return createFileURLConnection(url, new File(path));
-        }
-
-        /*
-         * attempt to treat this as a UNC path. See 4180841
-         */
-        path = "\\\\" + host + path;
-        File f = new File(path);
-        if (f.exists()) {
-            return createFileURLConnection(url, f);
-        }
-
-        /*
-         * Now attempt an ftp connection.
-         */
-        URLConnection uc;
-        URL newurl;
-
-        try {
-            newurl = new URL("ftp", host, file +
-                            (url.getRef() == null ? "":
-                            "#" + url.getRef()));
-            if (p != null) {
-                uc = newurl.openConnection(p);
-            } else {
-                uc = newurl.openConnection();
-            }
-        } catch (IOException e) {
-            uc = null;
-        }
-        if (uc == null) {
-            throw new IOException("Unable to connect to: " +
-                                        url.toExternalForm());
-        }
-        return uc;
-    }
-
+    
     /**
      * Template method to be overriden by Java Plug-in. [stanleyh]
      */
+    // 构造并返回指定url和file对应的"file"资源连接
     protected URLConnection createFileURLConnection(URL url, File file) {
         return new FileURLConnection(url, file);
     }
-
+    
     /**
      * Compares the host components of two URLs.
+     *
      * @param u1 the URL of the first host to compare
      * @param u2 the URL of the second host to compare
-     * @return  {@code true} if and only if they
+     *
+     * @return {@code true} if and only if they
      * are equal, {@code false} otherwise.
      */
+    // 比较两个URL的host组件是否相同(未设置host等价于使用了"localhost")
     protected boolean hostsEqual(URL u1, URL u2) {
         /*
          * Special case for file: URLs
@@ -145,10 +140,24 @@ public class Handler extends URLStreamHandler {
          */
         String s1 = u1.getHost();
         String s2 = u2.getHost();
-        if ("localhost".equalsIgnoreCase(s1) && ( s2 == null || "".equals(s2)))
+        if("localhost".equalsIgnoreCase(s1) && (s2 == null || "".equals(s2))) {
             return true;
-        if ("localhost".equalsIgnoreCase(s2) && ( s1 == null || "".equals(s1)))
+        }
+    
+        if("localhost".equalsIgnoreCase(s2) && (s1 == null || "".equals(s1))) {
             return true;
+        }
+    
         return super.hostsEqual(u1, u2);
     }
+    
+    // 返回指定URL的host
+    private String getHost(URL url) {
+        String host = url.getHost();
+        if(host == null) {
+            host = "";
+        }
+        return host;
+    }
+    
 }

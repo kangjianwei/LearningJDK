@@ -27,10 +27,15 @@ package sun.nio.fs;
 
 import java.nio.file.spi.FileTypeDetector;
 
+// 系统默认的文件类型检测器，不同的平台有不同的实现
 public class DefaultFileTypeDetector {
-    private DefaultFileTypeDetector() { }
-
+    
+    private DefaultFileTypeDetector() {
+    }
+    
+    // 构造一个默认的文件类型检测器
     public static FileTypeDetector create() {
         return new RegistryFileTypeDetector();
     }
+    
 }

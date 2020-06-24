@@ -33,22 +33,26 @@ package java.nio.file.attribute;
  *
  * @param <T> The type of the file attribute value
  *
- * @since 1.7
  * @see PosixFilePermissions#asFileAttribute
+ * @since 1.7
  */
-
+// 封装文件属性值，通常用在创建文件/目录中，往往需要自定义
 public interface FileAttribute<T> {
+    
     /**
      * Returns the attribute name.
      *
      * @return The attribute name
      */
+    // 返回属性名
     String name();
-
+    
     /**
      * Returns the attribute value.
      *
      * @return The attribute value
      */
+    // 返回属性值
     T value();
+    
 }

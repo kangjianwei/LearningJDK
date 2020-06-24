@@ -45,36 +45,41 @@ import java.io.IOException;
  *
  * @since 1.7
  */
-
-public interface FileOwnerAttributeView
-    extends FileAttributeView
-{
+/*
+ * "owner"文件属性视图接口，可以获取/设置文件所有者信息
+ *
+ * 注：不同的操作系统平台会有不同的实现机制
+ * 在windows上，该实现是委托给AclFileAttributeView来完成的；
+ * 在linux和mac上，该实现是委托给PosixFileAttributeView来完成的。
+ */
+public interface FileOwnerAttributeView extends FileAttributeView {
+    
     /**
      * Returns the name of the attribute view. Attribute views of this type
      * have the name {@code "owner"}.
      */
+    // 返回当前属性视图的名称，通常返回"owner"
     @Override
     String name();
-
+    
     /**
      * Read the file owner.
      *
      * <p> It is implementation specific if the file owner can be a {@link
      * GroupPrincipal group}.
      *
-     * @return  the file owner
+     * @return the file owner
      *
-     * @throws  IOException
-     *          if an I/O error occurs
-     * @throws  SecurityException
-     *          In the case of the default provider, a security manager is
-     *          installed, and it denies {@link
-     *          RuntimePermission}{@code ("accessUserInformation")} or its
-     *          {@link SecurityManager#checkRead(String) checkRead} method
-     *          denies read access to the file.
+     * @throws IOException       if an I/O error occurs
+     * @throws SecurityException In the case of the default provider, a security manager is
+     *                           installed, and it denies {@link
+     *                           RuntimePermission}{@code ("accessUserInformation")} or its
+     *                           {@link SecurityManager#checkRead(String) checkRead} method
+     *                           denies read access to the file.
      */
+    // 返回关联文件的所有者
     UserPrincipal getOwner() throws IOException;
-
+    
     /**
      * Updates the file owner.
      *
@@ -83,19 +88,18 @@ public interface FileOwnerAttributeView
      * across platforms it is recommended that this method should only be used
      * to set the file owner to a user principal that is not a group.
      *
-     * @param   owner
-     *          the new file owner
+     * @param owner the new file owner
      *
-     * @throws  IOException
-     *          if an I/O error occurs, or the {@code owner} parameter is a
-     *          group and this implementation does not support setting the owner
-     *          to a group
-     * @throws  SecurityException
-     *          In the case of the default provider, a security manager is
-     *          installed, and it denies {@link
-     *          RuntimePermission}{@code ("accessUserInformation")} or its
-     *          {@link SecurityManager#checkWrite(String) checkWrite} method
-     *          denies write access to the file.
+     * @throws IOException       if an I/O error occurs, or the {@code owner} parameter is a
+     *                           group and this implementation does not support setting the owner
+     *                           to a group
+     * @throws SecurityException In the case of the default provider, a security manager is
+     *                           installed, and it denies {@link
+     *                           RuntimePermission}{@code ("accessUserInformation")} or its
+     *                           {@link SecurityManager#checkWrite(String) checkWrite} method
+     *                           denies write access to the file.
      */
+    // 更新/设置关联文件的所有者信息
     void setOwner(UserPrincipal owner) throws IOException;
+    
 }

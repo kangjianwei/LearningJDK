@@ -26,14 +26,14 @@
 package java.io;
 
 /**
- *
  * @since 1.8
  */
+// 当前JVM适配的平台文件系统
 class DefaultFileSystem {
-
     /**
      * Return the FileSystem object for Windows platform.
      */
+    // 此处返回Wndows平台文件系统
     public static FileSystem getFileSystem() {
         return new WinNTFileSystem();
     }

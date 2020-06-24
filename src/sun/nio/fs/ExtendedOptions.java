@@ -32,114 +32,117 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Provides support for handling JDK-specific OpenOption, CopyOption and
- * WatchEvent.Modifier types.
+ * Provides support for handling JDK-specific OpenOption, CopyOption and WatchEvent.Modifier types.
  */
-
+// 对一部分文件操作的扩展可选参数以及目录监视修饰符提供统一支持
 public final class ExtendedOptions {
-
-    // maps InternalOption to ExternalOption
-    private static final Map<InternalOption<?>, Wrapper<?>> internalToExternal
-        = new ConcurrentHashMap<>();
-
+    
+    // 参见ExtendedWatchEventModifier：监视修饰符，表示向监视服务注册整个目录树，会监视子目录，而不是仅监视根目录
+    public static final InternalOption<Void> FILE_TREE = new InternalOption<>();
+    
+    // 参见SensitivityWatchEventModifier：监视修饰符，指示监视服务的灵敏度
+    public static final InternalOption<Integer> SENSITIVITY_HIGH = new InternalOption<>();
+    public static final InternalOption<Integer> SENSITIVITY_MEDIUM = new InternalOption<>();
+    public static final InternalOption<Integer> SENSITIVITY_LOW = new InternalOption<>();
+    
+    // 参见ExtendedOpenOption：扩展的文件创建/打开操作配置项
+    public static final InternalOption<Void> NOSHARE_READ = new InternalOption<>();
+    public static final InternalOption<Void> NOSHARE_WRITE = new InternalOption<>();
+    public static final InternalOption<Void> NOSHARE_DELETE = new InternalOption<>();
+    public static final InternalOption<Void> DIRECT = new InternalOption<>();
+    
+    // 参见ExtendedCopyOptionL：复制受线程中断影响
+    public static final InternalOption<Void> INTERRUPTIBLE = new InternalOption<>();
+    
+    /** maps InternalOption to ExternalOption */
+    private static final Map<InternalOption<?>, Wrapper<?>> internalToExternal = new ConcurrentHashMap<>();
+    
     /**
-     * Wraps an option or modifier.
+     * The internal version of a JDK-specific OpenOption, CopyOption or WatchEvent.Modifier.
      */
-    private static final class Wrapper<T> {
-        private final Object option;
-        private final T param;
-
-        Wrapper(Object option, T param) {
-            this.option = option;
-            this.param = param;
-        }
-
-        T parameter() {
-            return param;
-        }
-    }
-
-    /**
-     * The internal version of a JDK-specific OpenOption, CopyOption or
-     * WatchEvent.Modifier.
-     */
+    // 内部可选参数
     public static final class InternalOption<T> {
-
-        InternalOption() { }
-
+        
+        InternalOption() {
+        }
+        
         private void registerInternal(Object option, T param) {
             Wrapper<T> wrapper = new Wrapper<T>(option, param);
             internalToExternal.put(this, wrapper);
         }
-
+        
         /**
          * Register this internal option as a OpenOption.
          */
         public void register(OpenOption option) {
             registerInternal(option, null);
         }
-
+        
         /**
          * Register this internal option as a CopyOption.
          */
         public void register(CopyOption option) {
             registerInternal(option, null);
         }
-
+        
         /**
          * Register this internal option as a WatchEvent.Modifier.
          */
         public void register(WatchEvent.Modifier option) {
             registerInternal(option, null);
         }
-
+        
         /**
-         * Register this internal option as a WatchEvent.Modifier with the
-         * given parameter.
+         * Register this internal option as a WatchEvent.Modifier with the given parameter.
          */
         public void register(WatchEvent.Modifier option, T param) {
             registerInternal(option, param);
         }
-
+        
         /**
-         * Returns true if the given option (or modifier) maps to this internal
-         * option.
+         * Returns true if the given option (or modifier) maps to this internal option.
          */
         public boolean matches(Object option) {
-            Wrapper <?> wrapper = internalToExternal.get(this);
-            if (wrapper == null)
+            Wrapper<?> wrapper = internalToExternal.get(this);
+    
+            if(wrapper == null) {
                 return false;
-            else
+            } else {
                 return option == wrapper.option;
+            }
         }
-
+        
         /**
          * Returns the parameter object associated with this internal option.
          */
         @SuppressWarnings("unchecked")
         public T parameter() {
             Wrapper<?> wrapper = internalToExternal.get(this);
-            if (wrapper == null)
+            if(wrapper == null) {
                 return null;
-            else
+            } else {
                 return (T) wrapper.parameter();
+            }
+        }
+        
+    }
+    
+    /**
+     * Wraps an option or modifier.
+     */
+    // 对扩展可选参数或监视修饰符的包装
+    private static final class Wrapper<T> {
+        private final Object option;    // 扩展可选参数或监视修饰符
+        private final T param;          // 附加参数
+        
+        Wrapper(Object option, T param) {
+            this.option = option;
+            this.param = param;
+        }
+        
+        T parameter() {
+            return param;
         }
     }
-
-    // Internal equivalents of the options and modifiers defined in
-    // package com.sun.nio.file
-
-    public static final InternalOption<Void> INTERRUPTIBLE = new InternalOption<>();
-
-    public static final InternalOption<Void> NOSHARE_READ = new InternalOption<>();
-    public static final InternalOption<Void> NOSHARE_WRITE = new InternalOption<>();
-    public static final InternalOption<Void> NOSHARE_DELETE = new InternalOption<>();
-
-    public static final InternalOption<Void> FILE_TREE = new InternalOption<>();
-
-    public static final InternalOption<Void> DIRECT = new InternalOption<>();
-
-    public static final InternalOption<Integer> SENSITIVITY_HIGH = new InternalOption<>();
-    public static final InternalOption<Integer> SENSITIVITY_MEDIUM = new InternalOption<>();
-    public static final InternalOption<Integer> SENSITIVITY_LOW = new InternalOption<>();
+    
 }
