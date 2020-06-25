@@ -573,6 +573,7 @@ public interface List<E> extends Collection<E> {
      *         sequence
      * @see Arrays#asList(Object[])
      */
+    // 以数组形式返回当前顺序表
     Object[] toArray();
     
     /**
@@ -614,6 +615,7 @@ public interface List<E> extends Collection<E> {
      *         this list
      * @throws NullPointerException if the specified array is null
      */
+    // 将当前顺序表中的元素存入数组a后返回，需要将链表中的元素转换为T类型
     <T> T[] toArray(T[] a);
     
     /*▲ 视图 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -945,8 +947,7 @@ public interface List<E> extends Collection<E> {
      * @since 9
      */
     static <E> List<E> of(E e1, E e2, E e3, E e4, E e5, E e6) {
-        return new ImmutableCollections.ListN<>(e1, e2, e3, e4, e5,
-            e6);
+        return new ImmutableCollections.ListN<>(e1, e2, e3, e4, e5, e6);
     }
     
     /**
@@ -968,8 +969,7 @@ public interface List<E> extends Collection<E> {
      * @since 9
      */
     static <E> List<E> of(E e1, E e2, E e3, E e4, E e5, E e6, E e7) {
-        return new ImmutableCollections.ListN<>(e1, e2, e3, e4, e5,
-            e6, e7);
+        return new ImmutableCollections.ListN<>(e1, e2, e3, e4, e5, e6, e7);
     }
     
     /**
@@ -992,8 +992,7 @@ public interface List<E> extends Collection<E> {
      * @since 9
      */
     static <E> List<E> of(E e1, E e2, E e3, E e4, E e5, E e6, E e7, E e8) {
-        return new ImmutableCollections.ListN<>(e1, e2, e3, e4, e5,
-            e6, e7, e8);
+        return new ImmutableCollections.ListN<>(e1, e2, e3, e4, e5, e6, e7, e8);
     }
     
     /**
@@ -1017,8 +1016,7 @@ public interface List<E> extends Collection<E> {
      * @since 9
      */
     static <E> List<E> of(E e1, E e2, E e3, E e4, E e5, E e6, E e7, E e8, E e9) {
-        return new ImmutableCollections.ListN<>(e1, e2, e3, e4, e5,
-            e6, e7, e8, e9);
+        return new ImmutableCollections.ListN<>(e1, e2, e3, e4, e5, e6, e7, e8, e9);
     }
     
     /**
@@ -1043,8 +1041,7 @@ public interface List<E> extends Collection<E> {
      * @since 9
      */
     static <E> List<E> of(E e1, E e2, E e3, E e4, E e5, E e6, E e7, E e8, E e9, E e10) {
-        return new ImmutableCollections.ListN<>(e1, e2, e3, e4, e5,
-            e6, e7, e8, e9, e10);
+        return new ImmutableCollections.ListN<>(e1, e2, e3, e4, e5, e6, e7, e8, e9, e10);
     }
     
     /**

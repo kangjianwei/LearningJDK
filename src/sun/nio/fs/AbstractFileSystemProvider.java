@@ -35,7 +35,7 @@ import java.util.Map;
 /**
  * Base implementation class of FileSystemProvider
  */
-// 文件系统提供器(服务)的抽象实现
+// 文件系统工厂(服务)的抽象实现
 public abstract class AbstractFileSystemProvider extends FileSystemProvider {
     
     /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */

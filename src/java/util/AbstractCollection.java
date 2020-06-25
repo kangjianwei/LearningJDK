@@ -345,15 +345,19 @@ public abstract class AbstractCollection<E> implements Collection<E> {
      * return list.toArray();
      * }</pre>
      */
+    // 以数组形式返回当前顺序表
     public Object[] toArray() {
         // Estimate size of array; be prepared to see more or fewer elements
         Object[] r = new Object[size()];
         Iterator<E> it = iterator();
         for(int i = 0; i<r.length; i++) {
-            if(!it.hasNext()) // fewer elements than expected
+            if(!it.hasNext()) {
+                // fewer elements than expected
                 return Arrays.copyOf(r, i);
+            }
             r[i] = it.next();
         }
+    
         return it.hasNext() ? finishToArray(r, it) : r;
     }
     
@@ -383,6 +387,7 @@ public abstract class AbstractCollection<E> implements Collection<E> {
      * return list.toArray(a);
      * }</pre>
      */
+    // 将当前顺序表中的元素存入数组a后返回，需要将链表中的元素转换为T类型
     @SuppressWarnings("unchecked")
     public <T> T[] toArray(T[] a) {
         // Estimate size of array; be prepared to see more or fewer elements
@@ -391,6 +396,7 @@ public abstract class AbstractCollection<E> implements Collection<E> {
         Iterator<E> it = iterator();
         
         for(int i = 0; i<r.length; i++) {
+            // 如果已经不存在下个元素了
             if(!it.hasNext()) { // fewer elements than expected
                 if(a == r) {
                     r[i] = null; // null-terminate
@@ -404,8 +410,10 @@ public abstract class AbstractCollection<E> implements Collection<E> {
                 }
                 return a;
             }
+    
             r[i] = (T) it.next();
         }
+    
         // more elements than expected
         return it.hasNext() ? finishToArray(r, it) : r;
     }
@@ -421,6 +429,7 @@ public abstract class AbstractCollection<E> implements Collection<E> {
      *
      * @return an iterator over the elements contained in this collection
      */
+    // 返回当前容器的迭代器
     public abstract Iterator<E> iterator();
     
     /*▲ 迭代 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -460,24 +469,29 @@ public abstract class AbstractCollection<E> implements Collection<E> {
     @SuppressWarnings("unchecked")
     private static <T> T[] finishToArray(T[] r, Iterator<?> it) {
         int i = r.length;
+    
         while(it.hasNext()) {
             int cap = r.length;
             if(i == cap) {
                 int newCap = cap + (cap >> 1) + 1;
                 // overflow-conscious code
-                if(newCap - MAX_ARRAY_SIZE>0)
+                if(newCap - MAX_ARRAY_SIZE>0) {
                     newCap = hugeCapacity(cap + 1);
+                }
                 r = Arrays.copyOf(r, newCap);
             }
+        
             r[i++] = (T) it.next();
         }
+    
         // trim if overallocated
         return (i == r.length) ? r : Arrays.copyOf(r, i);
     }
     
     private static int hugeCapacity(int minCapacity) {
-        if(minCapacity<0) // overflow
+        if(minCapacity<0) {
             throw new OutOfMemoryError("Required array size too large");
+        }
         return (minCapacity>MAX_ARRAY_SIZE) ? Integer.MAX_VALUE : MAX_ARRAY_SIZE;
     }
     

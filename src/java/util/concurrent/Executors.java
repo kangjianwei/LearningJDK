@@ -124,252 +124,6 @@ public class Executors {
     
     
     
-    /*▼ 【线程池】 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Creates a thread pool that creates new threads as needed, but
-     * will reuse previously constructed threads when they are
-     * available.  These pools will typically improve the performance
-     * of programs that execute many short-lived asynchronous tasks.
-     * Calls to {@code execute} will reuse previously constructed
-     * threads if available. If no existing thread is available, a new
-     * thread will be created and added to the pool. Threads that have
-     * not been used for sixty seconds are terminated and removed from
-     * the cache. Thus, a pool that remains idle for long enough will
-     * not consume any resources. Note that pools with similar
-     * properties but different details (for example, timeout parameters)
-     * may be created using {@link ThreadPoolExecutor} constructors.
-     *
-     * @return the newly created thread pool
-     */
-    // 使用的阻塞队列为SynchronousQueue，线程池【核心阙值】为0，【最大阙值】无限
-    public static ExecutorService newCachedThreadPool() {
-        return new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<Runnable>());
-    }
-    
-    /**
-     * Creates a thread pool that creates new threads as needed, but
-     * will reuse previously constructed threads when they are
-     * available, and uses the provided
-     * ThreadFactory to create new threads when needed.
-     *
-     * @param threadFactory the factory to use when creating new threads
-     *
-     * @return the newly created thread pool
-     *
-     * @throws NullPointerException if threadFactory is null
-     */
-    // 使用的阻塞队列为SynchronousQueue，线程池【核心阙值】为0，【最大阙值】无限
-    public static ExecutorService newCachedThreadPool(ThreadFactory threadFactory) {
-        return new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(), threadFactory);
-    }
-    
-    /**
-     * Creates a thread pool that reuses a fixed number of threads
-     * operating off a shared unbounded queue.  At any point, at most
-     * {@code nThreads} threads will be active processing tasks.
-     * If additional tasks are submitted when all threads are active,
-     * they will wait in the queue until a thread is available.
-     * If any thread terminates due to a failure during execution
-     * prior to shutdown, a new one will take its place if needed to
-     * execute subsequent tasks.  The threads in the pool will exist
-     * until it is explicitly {@link ExecutorService#shutdown shutdown}.
-     *
-     * @param nThreads the number of threads in the pool
-     *
-     * @return the newly created thread pool
-     *
-     * @throws IllegalArgumentException if {@code nThreads <= 0}
-     */
-    // 使用的阻塞队列为LinkedBlockingQueue，线程池【核心阙值】/【最大阙值】为nThreads
-    public static ExecutorService newFixedThreadPool(int nThreads) {
-        return new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
-    }
-    
-    /**
-     * Creates a thread pool that reuses a fixed number of threads
-     * operating off a shared unbounded queue, using the provided
-     * ThreadFactory to create new threads when needed.  At any point,
-     * at most {@code nThreads} threads will be active processing
-     * tasks.  If additional tasks are submitted when all threads are
-     * active, they will wait in the queue until a thread is
-     * available.  If any thread terminates due to a failure during
-     * execution prior to shutdown, a new one will take its place if
-     * needed to execute subsequent tasks.  The threads in the pool will
-     * exist until it is explicitly {@link ExecutorService#shutdown
-     * shutdown}.
-     *
-     * @param nThreads      the number of threads in the pool
-     * @param threadFactory the factory to use when creating new threads
-     *
-     * @return the newly created thread pool
-     *
-     * @throws NullPointerException     if threadFactory is null
-     * @throws IllegalArgumentException if {@code nThreads <= 0}
-     */
-    // 使用的阻塞队列为LinkedBlockingQueue，线程池【核心阙值】/【最大阙值】为nThreads
-    public static ExecutorService newFixedThreadPool(int nThreads, ThreadFactory threadFactory) {
-        return new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(), threadFactory);
-    }
-    
-    /*▲ 【线程池】 ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
-    /*▼ 【定时任务线程池】 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Creates a thread pool that can schedule commands to run after a
-     * given delay, or to execute periodically.
-     *
-     * @param corePoolSize the number of threads to keep in the pool,
-     *                     even if they are idle
-     *
-     * @return the newly created scheduled thread pool
-     *
-     * @throws IllegalArgumentException if {@code corePoolSize < 0}
-     */
-    // 线程池【核心阙值】为corePoolSize，【最大阙值】无限
-    public static ScheduledExecutorService newScheduledThreadPool(int corePoolSize) {
-        return new ScheduledThreadPoolExecutor(corePoolSize);
-    }
-    
-    /**
-     * Creates a thread pool that can schedule commands to run after a
-     * given delay, or to execute periodically.
-     *
-     * @param corePoolSize  the number of threads to keep in the pool,
-     *                      even if they are idle
-     * @param threadFactory the factory to use when the executor
-     *                      creates a new thread
-     *
-     * @return the newly created scheduled thread pool
-     *
-     * @throws IllegalArgumentException if {@code corePoolSize < 0}
-     * @throws NullPointerException     if threadFactory is null
-     */
-    // 线程池【核心阙值】为corePoolSize，【最大阙值】无限
-    public static ScheduledExecutorService newScheduledThreadPool(int corePoolSize, ThreadFactory threadFactory) {
-        return new ScheduledThreadPoolExecutor(corePoolSize, threadFactory);
-    }
-    
-    /*▲ 【定时任务线程池】 ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
-    /*▼ 【定时任务线程池代理】 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Creates a single-threaded executor that can schedule commands
-     * to run after a given delay, or to execute periodically.
-     * (Note however that if this single
-     * thread terminates due to a failure during execution prior to
-     * shutdown, a new one will take its place if needed to execute
-     * subsequent tasks.)  Tasks are guaranteed to execute
-     * sequentially, and no more than one task will be active at any
-     * given time. Unlike the otherwise equivalent
-     * {@code newScheduledThreadPool(1)} the returned executor is
-     * guaranteed not to be reconfigurable to use additional threads.
-     *
-     * @return the newly created scheduled executor
-     */
-    // 单线程
-    public static ScheduledExecutorService newSingleThreadScheduledExecutor() {
-        return new DelegatedScheduledExecutorService(new ScheduledThreadPoolExecutor(1));
-    }
-    
-    /**
-     * Creates a single-threaded executor that can schedule commands
-     * to run after a given delay, or to execute periodically.  (Note
-     * however that if this single thread terminates due to a failure
-     * during execution prior to shutdown, a new one will take its
-     * place if needed to execute subsequent tasks.)  Tasks are
-     * guaranteed to execute sequentially, and no more than one task
-     * will be active at any given time. Unlike the otherwise
-     * equivalent {@code newScheduledThreadPool(1, threadFactory)}
-     * the returned executor is guaranteed not to be reconfigurable to
-     * use additional threads.
-     *
-     * @param threadFactory the factory to use when creating new threads
-     *
-     * @return the newly created scheduled executor
-     *
-     * @throws NullPointerException if threadFactory is null
-     */
-    // 单线程
-    public static ScheduledExecutorService newSingleThreadScheduledExecutor(ThreadFactory threadFactory) {
-        return new DelegatedScheduledExecutorService(new ScheduledThreadPoolExecutor(1, threadFactory));
-    }
-    
-    /**
-     * Returns an object that delegates all defined {@link
-     * ScheduledExecutorService} methods to the given executor, but
-     * not any other methods that might otherwise be accessible using
-     * casts. This provides a way to safely "freeze" configuration and
-     * disallow tuning of a given concrete implementation.
-     *
-     * @param executor the underlying implementation
-     *
-     * @return a {@code ScheduledExecutorService} instance
-     *
-     * @throws NullPointerException if executor null
-     */
-    // 不可配置，只是对原【定时任务执行框架】的简单代理
-    public static ScheduledExecutorService unconfigurableScheduledExecutorService(ScheduledExecutorService executor) {
-        if(executor == null) {
-            throw new NullPointerException();
-        }
-        
-        return new DelegatedScheduledExecutorService(executor);
-    }
-    
-    /*▲ 【定时任务线程池代理】 ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
-    /*▼ 【Finalizable线程池】 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Creates an Executor that uses a single worker thread operating
-     * off an unbounded queue. (Note however that if this single
-     * thread terminates due to a failure during execution prior to
-     * shutdown, a new one will take its place if needed to execute
-     * subsequent tasks.)  Tasks are guaranteed to execute
-     * sequentially, and no more than one task will be active at any
-     * given time. Unlike the otherwise equivalent
-     * {@code newFixedThreadPool(1)} the returned executor is
-     * guaranteed not to be reconfigurable to use additional threads.
-     *
-     * @return the newly created single-threaded Executor
-     */
-    // 单线程
-    public static ExecutorService newSingleThreadExecutor() {
-        return new FinalizableDelegatedExecutorService(new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>()));
-    }
-    
-    /**
-     * Creates an Executor that uses a single worker thread operating
-     * off an unbounded queue, and uses the provided ThreadFactory to
-     * create a new thread when needed. Unlike the otherwise
-     * equivalent {@code newFixedThreadPool(1, threadFactory)} the
-     * returned executor is guaranteed not to be reconfigurable to use
-     * additional threads.
-     *
-     * @param threadFactory the factory to use when creating new threads
-     *
-     * @return the newly created single-threaded Executor
-     *
-     * @throws NullPointerException if threadFactory is null
-     */
-    // 单线程
-    public static ExecutorService newSingleThreadExecutor(ThreadFactory threadFactory) {
-        return new FinalizableDelegatedExecutorService(new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(), threadFactory));
-    }
-    
-    /*▲ 【Finalizable线程池】 ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
     /*▼ 【任务执行框架代理】 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
@@ -395,6 +149,334 @@ public class Executors {
     }
     
     /*▲ 【任务执行框架代理】 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 【线程池】 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Creates a thread pool that creates new threads as needed, but
+     * will reuse previously constructed threads when they are
+     * available.  These pools will typically improve the performance
+     * of programs that execute many short-lived asynchronous tasks.
+     * Calls to {@code execute} will reuse previously constructed
+     * threads if available. If no existing thread is available, a new
+     * thread will be created and added to the pool. Threads that have
+     * not been used for sixty seconds are terminated and removed from
+     * the cache. Thus, a pool that remains idle for long enough will
+     * not consume any resources. Note that pools with similar
+     * properties but different details (for example, timeout parameters)
+     * may be created using {@link ThreadPoolExecutor} constructors.
+     *
+     * @return the newly created thread pool
+     */
+    /*
+     *【缓冲线程池】
+     *
+     * 提交新任务之后，会创建一个新线程执行它，该新线程在空闲期的存活时长为60秒。
+     * 换句话说，每个线程在空闲60秒之后就被销毁了，所以适合做缓冲(不是缓存)。
+     *
+     * 配置：
+     * - 阻塞队列   : SynchronousQueue
+     * -【核心阙值】: 0
+     * -【最大阙值】: 无限
+     */
+    public static ExecutorService newCachedThreadPool() {
+        return new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<Runnable>());
+    }
+    
+    /**
+     * Creates a thread pool that creates new threads as needed, but
+     * will reuse previously constructed threads when they are
+     * available, and uses the provided
+     * ThreadFactory to create new threads when needed.
+     *
+     * @param threadFactory the factory to use when creating new threads
+     *
+     * @return the newly created thread pool
+     *
+     * @throws NullPointerException if threadFactory is null
+     */
+    /*
+     *【缓冲线程池】，允许自行指定线程工厂
+     *
+     * 提交新任务之后，会创建一个新线程执行它，该新线程在空闲期的存活时长为60秒。
+     * 换句话说，每个线程在空闲60秒之后就被销毁了，所以适合做缓冲(不是缓存)。
+     *
+     * 配置：
+     * - 阻塞队列   : SynchronousQueue
+     * -【核心阙值】: 0
+     * -【最大阙值】: 无限
+     */
+    public static ExecutorService newCachedThreadPool(ThreadFactory threadFactory) {
+        return new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(), threadFactory);
+    }
+    
+    
+    /**
+     * Creates a thread pool that reuses a fixed number of threads
+     * operating off a shared unbounded queue.  At any point, at most
+     * {@code nThreads} threads will be active processing tasks.
+     * If additional tasks are submitted when all threads are active,
+     * they will wait in the queue until a thread is available.
+     * If any thread terminates due to a failure during execution
+     * prior to shutdown, a new one will take its place if needed to
+     * execute subsequent tasks.  The threads in the pool will exist
+     * until it is explicitly {@link ExecutorService#shutdown shutdown}.
+     *
+     * @param nThreads the number of threads in the pool
+     *
+     * @return the newly created thread pool
+     *
+     * @throws IllegalArgumentException if {@code nThreads <= 0}
+     */
+    /*
+     *【固定容量线程池】
+     *
+     * 线程池中常驻线程数量为nThreads
+     *
+     * 配置：
+     * - 阻塞队列   : LinkedBlockingQueue
+     * -【核心阙值】: nThreads
+     * -【最大阙值】: nThreads
+     */
+    public static ExecutorService newFixedThreadPool(int nThreads) {
+        return new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
+    }
+    
+    /**
+     * Creates a thread pool that reuses a fixed number of threads
+     * operating off a shared unbounded queue, using the provided
+     * ThreadFactory to create new threads when needed.  At any point,
+     * at most {@code nThreads} threads will be active processing
+     * tasks.  If additional tasks are submitted when all threads are
+     * active, they will wait in the queue until a thread is
+     * available.  If any thread terminates due to a failure during
+     * execution prior to shutdown, a new one will take its place if
+     * needed to execute subsequent tasks.  The threads in the pool will
+     * exist until it is explicitly {@link ExecutorService#shutdown
+     * shutdown}.
+     *
+     * @param nThreads      the number of threads in the pool
+     * @param threadFactory the factory to use when creating new threads
+     *
+     * @return the newly created thread pool
+     *
+     * @throws NullPointerException     if threadFactory is null
+     * @throws IllegalArgumentException if {@code nThreads <= 0}
+     */
+    /*
+     *【固定容量线程池】，允许自行指定线程工厂
+     *
+     * 线程池中常驻线程数量为nThreads
+     *
+     * 配置：
+     * - 阻塞队列   : LinkedBlockingQueue
+     * -【核心阙值】: nThreads
+     * -【最大阙值】: nThreads
+     */
+    public static ExecutorService newFixedThreadPool(int nThreads, ThreadFactory threadFactory) {
+        return new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(), threadFactory);
+    }
+    
+    
+    /**
+     * Creates a thread pool that can schedule commands to run after a
+     * given delay, or to execute periodically.
+     *
+     * @param corePoolSize the number of threads to keep in the pool,
+     *                     even if they are idle
+     *
+     * @return the newly created scheduled thread pool
+     *
+     * @throws IllegalArgumentException if {@code corePoolSize < 0}
+     */
+    /*
+     *【定时任务线程池】
+     *
+     * 用于执行一次性或周期性的定时任务
+     *
+     * 配置：
+     * - 阻塞队列   : DelayedWorkQueue
+     * -【核心阙值】: corePoolSize
+     * -【最大阙值】: 无限
+     */
+    public static ScheduledExecutorService newScheduledThreadPool(int corePoolSize) {
+        return new ScheduledThreadPoolExecutor(corePoolSize);
+    }
+    
+    /**
+     * Creates a thread pool that can schedule commands to run after a
+     * given delay, or to execute periodically.
+     *
+     * @param corePoolSize  the number of threads to keep in the pool,
+     *                      even if they are idle
+     * @param threadFactory the factory to use when the executor
+     *                      creates a new thread
+     *
+     * @return the newly created scheduled thread pool
+     *
+     * @throws IllegalArgumentException if {@code corePoolSize < 0}
+     * @throws NullPointerException     if threadFactory is null
+     */
+    /*
+     *【定时任务线程池】，允许自行指定线程工厂
+     *
+     * 用于执行一次性或周期性的定时任务
+     *
+     * 配置：
+     * - 阻塞队列   : DelayedWorkQueue
+     * -【核心阙值】: corePoolSize
+     * -【最大阙值】: 无限
+     */
+    public static ScheduledExecutorService newScheduledThreadPool(int corePoolSize, ThreadFactory threadFactory) {
+        return new ScheduledThreadPoolExecutor(corePoolSize, threadFactory);
+    }
+    
+    
+    /**
+     * Creates a single-threaded executor that can schedule commands
+     * to run after a given delay, or to execute periodically.
+     * (Note however that if this single
+     * thread terminates due to a failure during execution prior to
+     * shutdown, a new one will take its place if needed to execute
+     * subsequent tasks.)  Tasks are guaranteed to execute
+     * sequentially, and no more than one task will be active at any
+     * given time. Unlike the otherwise equivalent
+     * {@code newScheduledThreadPool(1)} the returned executor is
+     * guaranteed not to be reconfigurable to use additional threads.
+     *
+     * @return the newly created scheduled executor
+     */
+    /*
+     *【定时任务线程池代理】
+     *
+     * 用于执行一次性或周期性的定时任务，线程池中只有一个常驻线程。
+     *
+     * 配置：
+     * - 阻塞队列   : DelayedWorkQueue
+     * -【核心阙值】: 1
+     * -【最大阙值】: 无限
+     */
+    public static ScheduledExecutorService newSingleThreadScheduledExecutor() {
+        return new DelegatedScheduledExecutorService(new ScheduledThreadPoolExecutor(1));
+    }
+    
+    /**
+     * Creates a single-threaded executor that can schedule commands
+     * to run after a given delay, or to execute periodically.  (Note
+     * however that if this single thread terminates due to a failure
+     * during execution prior to shutdown, a new one will take its
+     * place if needed to execute subsequent tasks.)  Tasks are
+     * guaranteed to execute sequentially, and no more than one task
+     * will be active at any given time. Unlike the otherwise
+     * equivalent {@code newScheduledThreadPool(1, threadFactory)}
+     * the returned executor is guaranteed not to be reconfigurable to
+     * use additional threads.
+     *
+     * @param threadFactory the factory to use when creating new threads
+     *
+     * @return the newly created scheduled executor
+     *
+     * @throws NullPointerException if threadFactory is null
+     */
+    /*
+     *【定时任务线程池代理】，允许自行指定线程工厂
+     *
+     * 用于执行一次性或周期性的定时任务，线程池中只有一个常驻线程。
+     *
+     * 配置：
+     * - 阻塞队列   : DelayedWorkQueue
+     * -【核心阙值】: 1
+     * -【最大阙值】: 无限
+     */
+    public static ScheduledExecutorService newSingleThreadScheduledExecutor(ThreadFactory threadFactory) {
+        return new DelegatedScheduledExecutorService(new ScheduledThreadPoolExecutor(1, threadFactory));
+    }
+    
+    /**
+     * Returns an object that delegates all defined {@link
+     * ScheduledExecutorService} methods to the given executor, but
+     * not any other methods that might otherwise be accessible using
+     * casts. This provides a way to safely "freeze" configuration and
+     * disallow tuning of a given concrete implementation.
+     *
+     * @param executor the underlying implementation
+     *
+     * @return a {@code ScheduledExecutorService} instance
+     *
+     * @throws NullPointerException if executor null
+     */
+    /*
+     *【定时任务线程池代理】
+     *
+     * 不可自定义配置，只是对指定的【定时任务执行框架】的简单代理
+     */
+    public static ScheduledExecutorService unconfigurableScheduledExecutorService(ScheduledExecutorService executor) {
+        if(executor == null) {
+            throw new NullPointerException();
+        }
+    
+        return new DelegatedScheduledExecutorService(executor);
+    }
+    
+    
+    /**
+     * Creates an Executor that uses a single worker thread operating
+     * off an unbounded queue. (Note however that if this single
+     * thread terminates due to a failure during execution prior to
+     * shutdown, a new one will take its place if needed to execute
+     * subsequent tasks.)  Tasks are guaranteed to execute
+     * sequentially, and no more than one task will be active at any
+     * given time. Unlike the otherwise equivalent
+     * {@code newFixedThreadPool(1)} the returned executor is
+     * guaranteed not to be reconfigurable to use additional threads.
+     *
+     * @return the newly created single-threaded Executor
+     */
+    /*
+     *【Finalizable线程池】
+     *
+     * 顺序执行普通任务，线程池中最多只有一个线程。
+     *
+     * 配置：
+     * - 阻塞队列   : LinkedBlockingQueue
+     * -【核心阙值】: 1
+     * -【最大阙值】: 1
+     */
+    public static ExecutorService newSingleThreadExecutor() {
+        return new FinalizableDelegatedExecutorService(new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>()));
+    }
+    
+    /**
+     * Creates an Executor that uses a single worker thread operating
+     * off an unbounded queue, and uses the provided ThreadFactory to
+     * create a new thread when needed. Unlike the otherwise
+     * equivalent {@code newFixedThreadPool(1, threadFactory)} the
+     * returned executor is guaranteed not to be reconfigurable to use
+     * additional threads.
+     *
+     * @param threadFactory the factory to use when creating new threads
+     *
+     * @return the newly created single-threaded Executor
+     *
+     * @throws NullPointerException if threadFactory is null
+     */
+    /*
+     *【Finalizable线程池】，允许自行指定线程工厂
+     *
+     * 顺序执行普通任务，线程池中最多只有一个线程。
+     *
+     * 配置：
+     * - 阻塞队列   : LinkedBlockingQueue
+     * -【核心阙值】: 1
+     * -【最大阙值】: 1
+     */
+    public static ExecutorService newSingleThreadExecutor(ThreadFactory threadFactory) {
+        return new FinalizableDelegatedExecutorService(new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(), threadFactory));
+    }
+    
+    /*▲ 【线程池】 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     

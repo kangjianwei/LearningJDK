@@ -116,7 +116,7 @@ public interface Future<V> {
      * typically because it has already completed normally;
      * {@code true} otherwise
      */
-    // 中止异步任务，包括取消或中断，参数表示是否可在任务执行期间中断线程
+    // 中止异步任务，包括取消或中断，参数【通常】表示是否可在任务执行期间中断线程
     boolean cancel(boolean mayInterruptIfRunning);
     
     /**
@@ -173,4 +173,5 @@ public interface Future<V> {
      */
     // 在规定时间内获取任务计算结果，超时后还没获取到的话，会抛出超时异常
     V get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException;
+    
 }
