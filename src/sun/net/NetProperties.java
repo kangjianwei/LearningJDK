@@ -24,137 +24,167 @@
  */
 package sun.net;
 
-import jdk.internal.util.StaticProperty;
-
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Properties;
+import jdk.internal.util.StaticProperty;
 
-/*
+/**
  * This class allows for centralized access to Networking properties.
  * Default values are loaded from the file jre/lib/net.properties
  *
- *
  * @author Jean-Christophe Collet
- *
  */
-
+// 网络属性配置，默认从jre/lib/net.properties中加载
 public class NetProperties {
+    
+    // 网络属性配置文件
     private static Properties props = new Properties();
+    
+    
     static {
-        AccessController.doPrivileged(
-            new PrivilegedAction<Void>() {
-                public Void run() {
-                    loadDefaultProperties();
-                    return null;
-                }});
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            public Void run() {
+                // 加载系统文件%JAVA_HOME%\conf\net.properties中设定的网络属性
+                loadDefaultProperties();
+                return null;
+            }
+        });
     }
-
-    private NetProperties() { };
-
-
-    /*
-     * Loads the default networking system properties
-     * the file is in jre/lib/net.properties
-     */
-    private static void loadDefaultProperties() {
-        String fname = StaticProperty.javaHome();
-        if (fname == null) {
-            throw new Error("Can't find java.home ??");
-        }
-        try {
-            File f = new File(fname, "conf");
-            f = new File(f, "net.properties");
-            fname = f.getCanonicalPath();
-            InputStream in = new FileInputStream(fname);
-            BufferedInputStream bin = new BufferedInputStream(in);
-            props.load(bin);
-            bin.close();
-        } catch (Exception e) {
-            // Do nothing. We couldn't find or access the file
-            // so we won't have default properties...
-        }
+    
+    
+    private NetProperties() {
     }
-
+    
     /**
      * Get a networking system property. If no system property was defined
      * returns the default value, if it exists, otherwise returns
      * <code>null</code>.
-     * @param      key  the property name.
-     * @throws  SecurityException  if a security manager exists and its
-     *          <code>checkPropertiesAccess</code> method doesn't allow access
-     *          to the system properties.
+     *
+     * @param key the property name.
+     *
      * @return the <code>String</code> value for the property,
-     *         or <code>null</code>
+     * or <code>null</code>
+     *
+     * @throws SecurityException if a security manager exists and its
+     *                           <code>checkPropertiesAccess</code> method doesn't allow access
+     *                           to the system properties.
      */
+    // 从运行参数中获取指定的网络属性；如果未找到，则从net.properties配置中查找
     public static String get(String key) {
         String def = props.getProperty(key);
+    
         try {
             return System.getProperty(key, def);
-        } catch (IllegalArgumentException e) {
-        } catch (NullPointerException e) {
+        } catch(IllegalArgumentException | NullPointerException e) {
+            // ...
         }
+    
         return null;
     }
-
-    /**
-     * Get an Integer networking system property. If no system property was
-     * defined returns the default value, if it exists, otherwise returns
-     * <code>null</code>.
-     * @param   key     the property name.
-     * @param   defval  the default value to use if the property is not found
-     * @throws  SecurityException  if a security manager exists and its
-     *          <code>checkPropertiesAccess</code> method doesn't allow access
-     *          to the system properties.
-     * @return the <code>Integer</code> value for the property,
-     *         or <code>null</code>
-     */
-    public static Integer getInteger(String key, int defval) {
-        String val = null;
-
-        try {
-            val = System.getProperty(key, props.getProperty(key));
-        } catch (IllegalArgumentException e) {
-        } catch (NullPointerException e) {
-        }
-
-        if (val != null) {
-            try {
-                return Integer.decode(val);
-            } catch (NumberFormatException ex) {
-            }
-        }
-        return defval;
-    }
-
+    
     /**
      * Get a Boolean networking system property. If no system property was
      * defined returns the default value, if it exists, otherwise returns
      * <code>null</code>.
-     * @param   key     the property name.
-     * @throws  SecurityException  if a security manager exists and its
-     *          <code>checkPropertiesAccess</code> method doesn't allow access
-     *          to the system properties.
+     *
+     * @param key the property name.
+     *
      * @return the <code>Boolean</code> value for the property,
-     *         or <code>null</code>
+     * or <code>null</code>
+     *
+     * @throws SecurityException if a security manager exists and its
+     *                           <code>checkPropertiesAccess</code> method doesn't allow access
+     *                           to the system properties.
      */
+    // 从运行参数中获取布尔类型的网络属性；如果未找到，则从net.properties配置中查找
     public static Boolean getBoolean(String key) {
         String val = null;
-
+        
         try {
             val = System.getProperty(key, props.getProperty(key));
-        } catch (IllegalArgumentException e) {
-        } catch (NullPointerException e) {
+        } catch(IllegalArgumentException | NullPointerException e) {
+            // ...
         }
-
-        if (val != null) {
+        
+        if(val != null) {
             try {
                 return Boolean.valueOf(val);
-            } catch (NumberFormatException ex) {
+            } catch(NumberFormatException ex) {
+                // ...
             }
         }
+        
         return null;
     }
-
+    
+    /**
+     * Get an Integer networking system property. If no system property was
+     * defined returns the default value, if it exists, otherwise returns
+     * <code>null</code>.
+     *
+     * @param key    the property name.
+     * @param defval the default value to use if the property is not found
+     *
+     * @return the <code>Integer</code> value for the property,
+     * or <code>null</code>
+     *
+     * @throws SecurityException if a security manager exists and its
+     *                           <code>checkPropertiesAccess</code> method doesn't allow access
+     *                           to the system properties.
+     */
+    // 从运行参数中获取整型类型的网络属性；如果未找到，则从net.properties配置中查找；如果还未找到，返回默认值
+    public static Integer getInteger(String key, int defval) {
+        String val = null;
+        
+        try {
+            val = System.getProperty(key, props.getProperty(key));
+        } catch(IllegalArgumentException | NullPointerException e) {
+            // ...
+        }
+        
+        if(val != null) {
+            try {
+                return Integer.decode(val);
+            } catch(NumberFormatException ex) {
+                // ...
+            }
+        }
+        
+        return defval;
+    }
+    
+    /**
+     * Loads the default networking system properties the file is in jre/lib/net.properties
+     */
+    // 加载系统文件%JAVA_HOME%\conf\net.properties中设定的网络属性
+    private static void loadDefaultProperties() {
+        // 获取JDK根目录
+        String fname = StaticProperty.javaHome();
+        if(fname == null) {
+            throw new Error("Can't find java.home ??");
+        }
+        
+        try {
+            // 获取文件%JAVA_HOME%\conf\net.properties
+            File f = new File(new File(fname, "conf"), "net.properties");
+            fname = f.getCanonicalPath();
+            
+            // 创建指向net.properties文件的输入流
+            BufferedInputStream bin = new BufferedInputStream(new FileInputStream(fname));
+            
+            // 从properties文件加载属性集
+            props.load(bin);
+            
+            // 关闭输入流
+            bin.close();
+        } catch(Exception e) {
+            // Do nothing. We couldn't find or access the file
+            // so we won't have default properties...
+        }
+    }
+    
 }
