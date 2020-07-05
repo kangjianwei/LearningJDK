@@ -23,52 +23,69 @@
  * questions.
  */
 package java.net;
-import java.io.IOException;
 
-/*
+import java.io.IOException;
+import java.util.Enumeration;
+
+/**
  * Package private implementation of InetAddressImpl for IPv4.
  *
  * @since 1.4
  */
+// Inet4Address类的补充
 class Inet4AddressImpl implements InetAddressImpl {
+    
+    private InetAddress anyLocalAddress;    // 通配符地址
+    private InetAddress loopbackAddress;    // 本地环回地址
+    
+    // 本地主机名称
     public native String getLocalHostName() throws UnknownHostException;
-    public native InetAddress[]
-        lookupAllHostAddr(String hostname) throws UnknownHostException;
-    public native String getHostByAddr(byte[] addr) throws UnknownHostException;
-    private native boolean isReachable0(byte[] addr, int timeout, byte[] ifaddr, int ttl) throws IOException;
-
+    
+    // 本地环回地址
+    public synchronized InetAddress loopbackAddress() {
+        if(loopbackAddress == null) {
+            byte[] loopback = {0x7f, 0x00, 0x00, 0x01};
+            loopbackAddress = new Inet4Address("localhost", loopback);
+        }
+        return loopbackAddress;
+    }
+    
+    // 通配符地址（特殊地址，字节全为0）
     public synchronized InetAddress anyLocalAddress() {
-        if (anyLocalAddress == null) {
+        if(anyLocalAddress == null) {
             anyLocalAddress = new Inet4Address(); // {0x00,0x00,0x00,0x00}
             anyLocalAddress.holder().hostName = "0.0.0.0";
         }
         return anyLocalAddress;
     }
-
-    public synchronized InetAddress loopbackAddress() {
-        if (loopbackAddress == null) {
-            byte[] loopback = {0x7f,0x00,0x00,0x01};
-            loopbackAddress = new Inet4Address("localhost", loopback);
+    
+    // 通过指定的网络接口判断给定的网络地址是否可用，ttl代表网络跳数
+    public boolean isReachable(InetAddress addr, int timeout, NetworkInterface netif, int ttl) throws IOException {
+        byte[] ifaddr = null;
+        
+        if(netif != null) {
+            /* Let's make sure we use an address of the proper family */
+            Enumeration<InetAddress> it = netif.getInetAddresses();
+            InetAddress inetaddr = null;
+            while(!(inetaddr instanceof Inet4Address) && it.hasMoreElements()) {
+                inetaddr = it.nextElement();
+            }
+            
+            if(inetaddr instanceof Inet4Address) {
+                ifaddr = inetaddr.getAddress();
+            }
         }
-        return loopbackAddress;
+        
+        return isReachable0(addr.getAddress(), timeout, ifaddr, ttl);
     }
-
-  public boolean isReachable(InetAddress addr, int timeout, NetworkInterface netif, int ttl) throws IOException {
-      byte[] ifaddr = null;
-      if (netif != null) {
-          /*
-           * Let's make sure we use an address of the proper family
-           */
-          java.util.Enumeration<InetAddress> it = netif.getInetAddresses();
-          InetAddress inetaddr = null;
-          while (!(inetaddr instanceof Inet4Address) &&
-                 it.hasMoreElements())
-              inetaddr = it.nextElement();
-          if (inetaddr instanceof Inet4Address)
-              ifaddr = inetaddr.getAddress();
-      }
-      return isReachable0(addr.getAddress(), timeout, ifaddr, ttl);
-  }
-    private InetAddress      anyLocalAddress;
-    private InetAddress      loopbackAddress;
+    
+    private native boolean isReachable0(byte[] addr, int timeout, byte[] ifaddr, int ttl) throws IOException;
+    
+    
+    // 将主机名称或主机地址映射为InetAddress实例
+    public native InetAddress[] lookupAllHostAddr(String hostname) throws UnknownHostException;
+    
+    // 根据主机地址查找映射的主机名称
+    public native String getHostByAddr(byte[] addr) throws UnknownHostException;
+    
 }
