@@ -25,12 +25,13 @@
 package java.net;
 
 import java.io.IOException;
+import java.util.Enumeration;
+
 import static java.net.InetAddress.PREFER_IPV6_VALUE;
 import static java.net.InetAddress.PREFER_SYSTEM_VALUE;
 
-/*
- * Package private implementation of InetAddressImpl for dual
- * IPv4/IPv6 stack.
+/**
+ * Package private implementation of InetAddressImpl for dual IPv4/IPv6 stack.
  * <p>
  * If InetAddress.preferIPv6Address is true then anyLocalAddress(),
  * loopbackAddress(), and localHost() will return IPv6 addresses,
@@ -38,84 +39,88 @@ import static java.net.InetAddress.PREFER_SYSTEM_VALUE;
  *
  * @since 1.4
  */
+// Inet6Address类的补充
 class Inet6AddressImpl implements InetAddressImpl {
-
+    
+    private InetAddress anyLocalAddress;    // 通配符地址
+    private InetAddress loopbackAddress;    // 本地环回地址
+    
+    // 本地主机名称
     public native String getLocalHostName() throws UnknownHostException;
-
-    public native InetAddress[] lookupAllHostAddr(String hostname)
-        throws UnknownHostException;
-
-    public native String getHostByAddr(byte[] addr) throws UnknownHostException;
-
-    private native boolean isReachable0(byte[] addr, int scope, int timeout,
-                                        byte[] inf, int ttl, int if_scope)
-        throws IOException;
-
-    public boolean isReachable(InetAddress addr, int timeout,
-                               NetworkInterface netif, int ttl)
-        throws IOException
-    {
-        byte[] ifaddr = null;
-        int scope = -1;
-        int netif_scope = -1;
-        if (netif != null) {
-            /*
-             * Let's make sure we bind to an address of the proper family.
-             * Which means same family as addr because at this point it could
-             * be either an IPv6 address or an IPv4 address (case of a dual
-             * stack system).
-             */
-            java.util.Enumeration<InetAddress> it = netif.getInetAddresses();
-            InetAddress inetaddr = null;
-            while (it.hasMoreElements()) {
-                inetaddr = it.nextElement();
-                if (inetaddr.getClass().isInstance(addr)) {
-                    ifaddr = inetaddr.getAddress();
-                    if (inetaddr instanceof Inet6Address) {
-                        netif_scope = ((Inet6Address) inetaddr).getScopeId();
-                    }
-                    break;
-                }
-            }
-            if (ifaddr == null) {
-                // Interface doesn't support the address family of
-                // the destination
-                return false;
+    
+    // 本地环回地址
+    public synchronized InetAddress loopbackAddress() {
+        if(loopbackAddress == null) {
+            if(InetAddress.preferIPv6Address == PREFER_IPV6_VALUE || InetAddress.preferIPv6Address == PREFER_SYSTEM_VALUE) {
+                byte[] loopback = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01};
+                loopbackAddress = new Inet6Address("localhost", loopback);
+            } else {
+                loopbackAddress = (new Inet4AddressImpl()).loopbackAddress();
             }
         }
-        if (addr instanceof Inet6Address)
-            scope = ((Inet6Address) addr).getScopeId();
-        return isReachable0(addr.getAddress(), scope, timeout, ifaddr, ttl, netif_scope);
+        
+        return loopbackAddress;
     }
-
+    
+    // 通配符地址（特殊地址，字节全为0）
     public synchronized InetAddress anyLocalAddress() {
-        if (anyLocalAddress == null) {
-            if (InetAddress.preferIPv6Address == PREFER_IPV6_VALUE ||
-                InetAddress.preferIPv6Address == PREFER_SYSTEM_VALUE) {
+        if(anyLocalAddress == null) {
+            if(InetAddress.preferIPv6Address == PREFER_IPV6_VALUE || InetAddress.preferIPv6Address == PREFER_SYSTEM_VALUE) {
                 anyLocalAddress = new Inet6Address();
                 anyLocalAddress.holder().hostName = "::";
             } else {
                 anyLocalAddress = (new Inet4AddressImpl()).anyLocalAddress();
             }
         }
+        
         return anyLocalAddress;
     }
-
-    public synchronized InetAddress loopbackAddress() {
-        if (loopbackAddress == null) {
-             if (InetAddress.preferIPv6Address == PREFER_IPV6_VALUE ||
-                 InetAddress.preferIPv6Address == PREFER_SYSTEM_VALUE) {
-                 byte[] loopback =
-                        {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01};
-                 loopbackAddress = new Inet6Address("localhost", loopback);
-             } else {
-                loopbackAddress = (new Inet4AddressImpl()).loopbackAddress();
-             }
+    
+    // 通过指定的网络接口判断给定的网络地址是否可用，ttl代表网络跳数
+    public boolean isReachable(InetAddress addr, int timeout, NetworkInterface netif, int ttl) throws IOException {
+        byte[] ifaddr = null;
+        int scope = -1;
+        int netif_scope = -1;
+        
+        if(netif != null) {
+            /*
+             * Let's make sure we bind to an address of the proper family.
+             * Which means same family as addr because at this point it could
+             * be either an IPv6 address or an IPv4 address (case of a dual
+             * stack system).
+             */
+            Enumeration<InetAddress> it = netif.getInetAddresses();
+            InetAddress inetaddr = null;
+            while(it.hasMoreElements()) {
+                inetaddr = it.nextElement();
+                if(inetaddr.getClass().isInstance(addr)) {
+                    ifaddr = inetaddr.getAddress();
+                    if(inetaddr instanceof Inet6Address) {
+                        netif_scope = ((Inet6Address) inetaddr).getScopeId();
+                    }
+                    break;
+                }
+            }
+            if(ifaddr == null) {
+                // Interface doesn't support the address family of the destination
+                return false;
+            }
         }
-        return loopbackAddress;
+        
+        if(addr instanceof Inet6Address) {
+            scope = ((Inet6Address) addr).getScopeId();
+        }
+        
+        return isReachable0(addr.getAddress(), scope, timeout, ifaddr, ttl, netif_scope);
     }
-
-    private InetAddress anyLocalAddress;
-    private InetAddress loopbackAddress;
+    
+    private native boolean isReachable0(byte[] addr, int scope, int timeout, byte[] inf, int ttl, int if_scope) throws IOException;
+    
+    
+    // 将主机名称或主机地址映射为InetAddress实例
+    public native InetAddress[] lookupAllHostAddr(String hostname) throws UnknownHostException;
+    
+    // 根据主机地址查找映射的主机名称
+    public native String getHostByAddr(byte[] addr) throws UnknownHostException;
+    
 }
