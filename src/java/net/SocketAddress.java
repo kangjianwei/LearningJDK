@@ -24,22 +24,24 @@
  */
 package java.net;
 
+import java.io.Serializable;
 
 /**
- *
  * This class represents a Socket Address with no protocol attachment.
- * As an abstract class, it is meant to be subclassed with a specific,
- * protocol dependent, implementation.
+ * As an abstract class, it is meant to be subclassed with a specific, protocol dependent, implementation.
  * <p>
- * It provides an immutable object used by sockets for binding, connecting, or
- * as returned values.
+ * It provides an immutable object used by sockets for binding, connecting, or as returned values.
  *
  * @see java.net.Socket
  * @see java.net.ServerSocket
  * @since 1.4
  */
-public abstract class SocketAddress implements java.io.Serializable {
-
+/*
+ * 表示连接端点的地址(ip + port)
+ *
+ * 理论上，该类可以用于TCP和非TCP的socket，但实际上，当前只支持TCP/IP socket。
+ * 实际使用的Socket地址都是InetSocketAddress的实例。
+ */
+public abstract class SocketAddress implements Serializable {
     static final long serialVersionUID = 5215720748342549866L;
-
 }
