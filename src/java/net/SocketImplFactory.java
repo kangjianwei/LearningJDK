@@ -26,23 +26,23 @@
 package java.net;
 
 /**
- * This interface defines a factory for socket implementations. It
- * is used by the classes {@code Socket} and
- * {@code ServerSocket} to create actual socket
- * implementations.
+ * This interface defines a factory for socket implementations.
+ * It is used by the classes {@code Socket} and {@code ServerSocket} to create actual socket implementations.
  *
- * @author  Arthur van Hoff
- * @see     java.net.Socket
- * @see     java.net.ServerSocket
- * @since   1.0
+ * @author Arthur van Hoff
+ * @see java.net.Socket
+ * @see java.net.ServerSocket
+ * @since 1.0
  */
-public
-interface SocketImplFactory {
+// "Socket委托"工厂，用来生成"Socket委托"的实例
+public interface SocketImplFactory {
     /**
      * Creates a new {@code SocketImpl} instance.
      *
-     * @return  a new instance of {@code SocketImpl}.
-     * @see     java.net.SocketImpl
+     * @return a new instance of {@code SocketImpl}.
+     *
+     * @see java.net.SocketImpl
      */
+    // 创建一个"Socket委托"
     SocketImpl createSocketImpl();
 }
