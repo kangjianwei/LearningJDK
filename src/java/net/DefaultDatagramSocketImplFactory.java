@@ -42,65 +42,84 @@ import sun.security.action.GetPropertyAction;
  *
  * @author Chris Hegarty
  */
-
-class DefaultDatagramSocketImplFactory
-{
+// 系统内置的"UDP-Socket委托"工厂，不同的平台上对该工厂有各自的实现
+class DefaultDatagramSocketImplFactory {
+    
+    // 自定义的"UDP-Socket委托"实现类，以某个前缀起始
     private static final Class<?> prefixImplClass;
-
-    /* java.net.preferIPv4Stack */
+    
+    /*
+     * 是否偏向使用IP4地址
+     *
+     * 可以通过java.net.preferIPv4Stack属性设置此字段
+     */
     private static final boolean preferIPv4Stack;
-
-    /* True if exclusive binding is on for Windows */
+    
+    /** True if exclusive binding is on for Windows */
+    /*
+     * windows平台上的选项：是否使用独占的绑定
+     *
+     * 可以通过sun.net.useExclusiveBind属性设置此字段
+     */
     private static final boolean exclusiveBind;
-
+    
+    
     static {
         Class<?> prefixImplClassLocal = null;
-
+        
         Properties props = GetPropertyAction.privilegedGetProperties();
-        preferIPv4Stack = Boolean.parseBoolean(
-                props.getProperty("java.net.preferIPv4Stack"));
-
+        preferIPv4Stack = Boolean.parseBoolean(props.getProperty("java.net.preferIPv4Stack"));
+        
         String exclBindProp = props.getProperty("sun.net.useExclusiveBind", "");
-        exclusiveBind = (exclBindProp.isEmpty())
-                ? true
-                : Boolean.parseBoolean(exclBindProp);
-
+        exclusiveBind = (exclBindProp.isEmpty()) || Boolean.parseBoolean(exclBindProp);
+        
         // impl.prefix
         String prefix = null;
         try {
             prefix = props.getProperty("impl.prefix");
-            if (prefix != null)
-                prefixImplClassLocal = Class.forName("java.net."+prefix+"DatagramSocketImpl");
-        } catch (Exception e) {
-            System.err.println("Can't find class: java.net." +
-                                prefix +
-                                "DatagramSocketImpl: check impl.prefix property");
+            if(prefix != null) {
+                prefixImplClassLocal = Class.forName("java.net." + prefix + "DatagramSocketImpl");
+            }
+        } catch(Exception e) {
+            System.err.println("Can't find class: java.net." + prefix + "DatagramSocketImpl: check impl.prefix property");
         }
-
+        
         prefixImplClass = prefixImplClassLocal;
     }
-
+    
+    
     /**
      * Creates a new <code>DatagramSocketImpl</code> instance.
      *
-     * @param   isMulticast true if this impl is to be used for a MutlicastSocket
-     * @return  a new instance of <code>PlainDatagramSocketImpl</code>.
+     * @param isMulticast true if this impl is to be used for a MutlicastSocket
+     *
+     * @return a new instance of <code>PlainDatagramSocketImpl</code>.
      */
-    static DatagramSocketImpl createDatagramSocketImpl(boolean isMulticast)
-        throws SocketException {
-        if (prefixImplClass != null) {
+    /*
+     * 创建一个"UDP-Socket委托"，不同的平台上会有不同的实现。
+     *
+     * isMulticast: 是否为组播
+     */
+    static DatagramSocketImpl createDatagramSocketImpl(boolean isMulticast) throws SocketException {
+        // 如果存在自定义的"UDP-Socket委托"实现类，则使用该实现类构造"UDP-Socket委托"实例
+        if(prefixImplClass != null) {
             try {
                 @SuppressWarnings("deprecation")
                 Object result = prefixImplClass.newInstance();
                 return (DatagramSocketImpl) result;
-            } catch (Exception e) {
+            } catch(Exception e) {
                 throw new SocketException("can't instantiate DatagramSocketImpl");
             }
+        }
+        
+        // 如果仅需支持IP4地址，或者使用了组播
+        if(preferIPv4Stack || isMulticast) {
+            // 兼容Vista以下的系统
+            return new TwoStacksPlainDatagramSocketImpl(exclusiveBind && !isMulticast);
         } else {
-            if (!preferIPv4Stack && !isMulticast)
-                return new DualStackPlainDatagramSocketImpl(exclusiveBind);
-            else
-                return new TwoStacksPlainDatagramSocketImpl(exclusiveBind && !isMulticast);
+            // 兼容Vista以上的系统
+            return new DualStackPlainDatagramSocketImpl(exclusiveBind);
         }
     }
+    
 }
