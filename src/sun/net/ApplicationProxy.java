@@ -26,18 +26,20 @@
 package sun.net;
 
 import java.net.Proxy;
-import java.net.SocketAddress;
 
 /**
- * Proxy wrapper class so that we can determine application set
- * proxies by type.
+ * Proxy wrapper class so that we can determine application set proxies by type.
  */
+// 网络代理工厂，网络代理的类型必须是HTTP或SOCKS
 public final class ApplicationProxy extends Proxy {
+    
     private ApplicationProxy(Proxy proxy) {
         super(proxy.type(), proxy.address());
     }
-
+    
+    // 工厂方法，创建代理对象
     public static ApplicationProxy create(Proxy proxy) {
         return new ApplicationProxy(proxy);
     }
+    
 }
