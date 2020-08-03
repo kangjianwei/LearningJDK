@@ -30,53 +30,57 @@ import java.util.concurrent.atomic.AtomicInteger;
 import sun.security.action.GetPropertyAction;
 
 /**
- * Manages count of total number of UDP sockets and ensures
- * that exception is thrown if we try to create more than the
- * configured limit.
+ * Manages count of total number of UDP sockets and ensures that exception is thrown if we try to create more than the configured limit.
  *
  * This functionality could be put in NetHooks some time in future.
  */
-
+/*
+ * UDP Socket进行创建和关闭操作之前的回调。
+ * 当存在安全管理器时，限制每个虚拟机上允许打开的最大UDP连接数量。
+ */
 public class ResourceManager {
-
-    /* default maximum number of udp sockets per VM
-     * when a security manager is enabled.
-     * The default is 25 which is high enough to be useful
-     * but low enough to be well below the maximum number
-     * of port numbers actually available on all OSes
-     * when multiplied by the maximum feasible number of VM processes
-     * that could practically be spawned.
+    
+    /**
+     * default maximum number of udp sockets per VM when a security manager is enabled.
+     * The default is 25 which is high enough to be useful but low enough to be well below the maximum number of port numbers actually available on all OSes
+     * when multiplied by the maximum feasible number of VM processes that could practically be spawned.
      */
-
+    
     private static final int DEFAULT_MAX_SOCKETS = 25;
+    
     private static final int maxSockets;
+    
     private static final AtomicInteger numSockets;
-
+    
     static {
-        String prop = GetPropertyAction
-                .privilegedGetProperty("sun.net.maxDatagramSockets");
+        String prop = GetPropertyAction.privilegedGetProperty("sun.net.maxDatagramSockets");
+        
         int defmax = DEFAULT_MAX_SOCKETS;
         try {
-            if (prop != null) {
+            if(prop != null) {
                 defmax = Integer.parseInt(prop);
             }
-        } catch (NumberFormatException e) {}
+        } catch(NumberFormatException e) {
+        }
         maxSockets = defmax;
         numSockets = new AtomicInteger(0);
     }
-
+    
+    // 创建UDP-Socket之时的回调
     public static void beforeUdpCreate() throws SocketException {
-        if (System.getSecurityManager() != null) {
-            if (numSockets.incrementAndGet() > maxSockets) {
+        if(System.getSecurityManager() != null) {
+            if(numSockets.incrementAndGet()>maxSockets) {
                 numSockets.decrementAndGet();
                 throw new SocketException("maximum number of DatagramSockets reached");
             }
         }
     }
-
+    
+    // 关闭UDP-Socket之时的回调
     public static void afterUdpClose() {
-        if (System.getSecurityManager() != null) {
+        if(System.getSecurityManager() != null) {
             numSockets.decrementAndGet();
         }
     }
+    
 }
