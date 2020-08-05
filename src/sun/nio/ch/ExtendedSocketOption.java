@@ -31,14 +31,25 @@ import java.net.SocketOption;
  * Defines socket options that are supported by the implementation
  * but not defined in StandardSocketOptions.
  */
-
+// 扩展Socket配置参数实现
 class ExtendedSocketOption {
-    private ExtendedSocketOption() { }
-
-    static final SocketOption<Boolean> SO_OOBINLINE =
-        new SocketOption<Boolean>() {
-            public String name() { return "SO_OOBINLINE"; }
-            public Class<Boolean> type() { return Boolean.class; }
-            public String toString() { return name(); }
-        };
+    
+    // 扩展参数
+    static final SocketOption<Boolean> SO_OOBINLINE = new SocketOption<Boolean>() {
+        public String name() {
+            return "SO_OOBINLINE";
+        }
+        
+        public Class<Boolean> type() {
+            return Boolean.class;
+        }
+        
+        public String toString() {
+            return name();
+        }
+    };
+    
+    private ExtendedSocketOption() {
+    }
+    
 }
