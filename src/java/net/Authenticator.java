@@ -26,6 +26,7 @@
 package java.net;
 
 import sun.net.www.protocol.http.AuthenticatorKeys;
+import sun.net.www.protocol.http.AuthenticatorKeys.AuthenticatorKeyAccess;
 
 /**
  * The class Authenticator represents an object that knows how to obtain
@@ -49,21 +50,25 @@ import sun.net.www.protocol.http.AuthenticatorKeys;
  * All methods that request authentication have a default implementation
  * that fails.
  *
+ * @author Bill Foote
  * @see java.net.Authenticator#setDefault(java.net.Authenticator)
  * @see java.net.Authenticator#getPasswordAuthentication()
- *
- * @author  Bill Foote
- * @since   1.2
+ * @since 1.2
  */
-
-// There are no abstract methods, but to be useful the user must
-// subclass.
-public abstract
-class Authenticator {
-
-    // The system-wide authenticator object.  See setDefault().
+/*
+ * 身份认证器，用来生成一个特定的用户身份信息。
+ *
+ * 注：该类虽然是抽象类，但是没有抽象方法，因此使用该类之前仍需要先"实现"它
+ */
+public abstract class Authenticator {
+    
+    /** The system-wide authenticator object. See setDefault(). */
+    // 默认的身份认证器
     private static volatile Authenticator theAuthenticator;
-
+    
+    // 记录(计算)当前身份认证器的key
+    private final String key = AuthenticatorKeys.computeKey(this);
+    
     private String requestingHost;
     private InetAddress requestingSite;
     private int requestingPort;
@@ -72,67 +77,17 @@ class Authenticator {
     private String requestingScheme;
     private URL requestingURL;
     private RequestorType requestingAuthType;
-    private final String key = AuthenticatorKeys.computeKey(this);
-
-    /**
-     * The type of the entity requesting authentication.
-     *
-     * @since 1.5
-     */
-    public enum RequestorType {
-        /**
-         * Entity requesting authentication is a HTTP proxy server.
-         */
-        PROXY,
-        /**
-         * Entity requesting authentication is a HTTP origin server.
-         */
-        SERVER
+    
+    static {
+        // 设置一个AuthenticatorKeyAccess，以便后续获取指定身份认证器的key
+        AuthenticatorKeys.setAuthenticatorKeyAccess(new AuthenticatorKeyAccess() {
+            @Override
+            public String getKey(Authenticator authenticator) {
+                return getKey(authenticator);
+            }
+        });
     }
-
-    private void reset() {
-        requestingHost = null;
-        requestingSite = null;
-        requestingPort = -1;
-        requestingProtocol = null;
-        requestingPrompt = null;
-        requestingScheme = null;
-        requestingURL = null;
-        requestingAuthType = RequestorType.SERVER;
-    }
-
-
-    /**
-     * Sets the authenticator that will be used by the networking code
-     * when a proxy or an HTTP server asks for authentication.
-     * <p>
-     * First, if there is a security manager, its {@code checkPermission}
-     * method is called with a
-     * {@code NetPermission("setDefaultAuthenticator")} permission.
-     * This may result in a java.lang.SecurityException.
-     *
-     * @param   a       The authenticator to be set. If a is {@code null} then
-     *                  any previously set authenticator is removed.
-     *
-     * @throws SecurityException
-     *        if a security manager exists and its
-     *        {@code checkPermission} method doesn't allow
-     *        setting the default authenticator.
-     *
-     * @see SecurityManager#checkPermission
-     * @see java.net.NetPermission
-     */
-    public static synchronized void setDefault(Authenticator a) {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            NetPermission setDefaultPermission
-                = new NetPermission("setDefaultAuthenticator");
-            sm.checkPermission(setDefaultPermission);
-        }
-
-        theAuthenticator = a;
-    }
-
+    
     /**
      * Gets the default authenticator.
      * First, if there is a security manager, its {@code checkPermission}
@@ -144,81 +99,101 @@ class Authenticator {
      *
      * @return The default authenticator, if set, {@code null} otherwise.
      *
-     * @throws SecurityException
-     *        if a security manager exists and its
-     *        {@code checkPermission} method doesn't allow
-     *        requesting password authentication.
-     * @since 9
+     * @throws SecurityException if a security manager exists and its
+     *                           {@code checkPermission} method doesn't allow
+     *                           requesting password authentication.
      * @see SecurityManager#checkPermission
      * @see java.net.NetPermission
+     * @since 9
      */
+    // 返回默认的身份认证器
     public static Authenticator getDefault() {
         SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            NetPermission requestPermission
-                = new NetPermission("requestPasswordAuthentication");
+        if(sm != null) {
+            NetPermission requestPermission = new NetPermission("requestPasswordAuthentication");
             sm.checkPermission(requestPermission);
         }
+    
         return theAuthenticator;
     }
-
+    
     /**
-     * Ask the authenticator that has been registered with the system
-     * for a password.
+     * Sets the authenticator that will be used by the networking code
+     * when a proxy or an HTTP server asks for authentication.
      * <p>
      * First, if there is a security manager, its {@code checkPermission}
      * method is called with a
-     * {@code NetPermission("requestPasswordAuthentication")} permission.
+     * {@code NetPermission("setDefaultAuthenticator")} permission.
      * This may result in a java.lang.SecurityException.
      *
-     * @param addr The InetAddress of the site requesting authorization,
-     *             or null if not known.
-     * @param port the port for the requested connection
-     * @param protocol The protocol that's requesting the connection
-     *          ({@link java.net.Authenticator#getRequestingProtocol()})
-     * @param prompt A prompt string for the user
-     * @param scheme The authentication scheme
+     * @param a The authenticator to be set. If a is {@code null} then
+     *          any previously set authenticator is removed.
      *
-     * @return The username/password, or null if one can't be gotten.
-     *
-     * @throws SecurityException
-     *        if a security manager exists and its
-     *        {@code checkPermission} method doesn't allow
-     *        the password authentication request.
-     *
+     * @throws SecurityException if a security manager exists and its
+     *                           {@code checkPermission} method doesn't allow
+     *                           setting the default authenticator.
      * @see SecurityManager#checkPermission
      * @see java.net.NetPermission
      */
-    public static PasswordAuthentication requestPasswordAuthentication(
-                                            InetAddress addr,
-                                            int port,
-                                            String protocol,
-                                            String prompt,
-                                            String scheme) {
-
+    // 设置默认的身份认证器
+    public static synchronized void setDefault(Authenticator authenticator) {
         SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            NetPermission requestPermission
-                = new NetPermission("requestPasswordAuthentication");
+        if(sm != null) {
+            NetPermission setDefaultPermission = new NetPermission("setDefaultAuthenticator");
+            sm.checkPermission(setDefaultPermission);
+        }
+        
+        theAuthenticator = authenticator;
+    }
+    
+    /**
+     * Ask the authenticator that has been registered with the system for a password.
+     * <p>
+     * First, if there is a security manager, its {@code checkPermission} method is called with a
+     * {@code NetPermission("requestPasswordAuthentication")} permission.
+     * This may result in a java.lang.SecurityException.
+     *
+     * @param addr     The InetAddress of the site requesting authorization,
+     *                 or null if not known.
+     * @param port     the port for the requested connection
+     * @param protocol The protocol that's requesting the connection
+     *                 ({@link java.net.Authenticator#getRequestingProtocol()})
+     * @param prompt   A prompt string for the user
+     * @param scheme   The authentication scheme
+     *
+     * @return The username/password, or null if one can't be gotten.
+     *
+     * @throws SecurityException if a security manager exists and its
+     *                           {@code checkPermission} method doesn't allow
+     *                           the password authentication request.
+     * @see SecurityManager#checkPermission
+     * @see java.net.NetPermission
+     */
+    public static PasswordAuthentication requestPasswordAuthentication(InetAddress addr, int port, String protocol, String prompt, String scheme) {
+        SecurityManager sm = System.getSecurityManager();
+        if(sm != null) {
+            NetPermission requestPermission = new NetPermission("requestPasswordAuthentication");
             sm.checkPermission(requestPermission);
         }
-
+        
         Authenticator a = theAuthenticator;
-        if (a == null) {
+        if(a == null) {
             return null;
-        } else {
-            synchronized(a) {
-                a.reset();
-                a.requestingSite = addr;
-                a.requestingPort = port;
-                a.requestingProtocol = protocol;
-                a.requestingPrompt = prompt;
-                a.requestingScheme = scheme;
-                return a.getPasswordAuthentication();
-            }
+        }
+        
+        synchronized(a) {
+            a.reset();
+            
+            a.requestingSite = addr;
+            a.requestingPort = port;
+            a.requestingProtocol = protocol;
+            a.requestingPrompt = prompt;
+            a.requestingScheme = scheme;
+            
+            return a.getPasswordAuthentication();
         }
     }
-
+    
     /**
      * Ask the authenticator that has been registered with the system
      * for a password. This is the preferred method for requesting a password
@@ -230,58 +205,50 @@ class Authenticator {
      * {@code NetPermission("requestPasswordAuthentication")} permission.
      * This may result in a java.lang.SecurityException.
      *
-     * @param host The hostname of the site requesting authentication.
-     * @param addr The InetAddress of the site requesting authentication,
-     *             or null if not known.
-     * @param port the port for the requested connection.
+     * @param host     The hostname of the site requesting authentication.
+     * @param addr     The InetAddress of the site requesting authentication,
+     *                 or null if not known.
+     * @param port     the port for the requested connection.
      * @param protocol The protocol that's requesting the connection
-     *          ({@link java.net.Authenticator#getRequestingProtocol()})
-     * @param prompt A prompt string for the user which identifies the authentication realm.
-     * @param scheme The authentication scheme
+     *                 ({@link java.net.Authenticator#getRequestingProtocol()})
+     * @param prompt   A prompt string for the user which identifies the authentication realm.
+     * @param scheme   The authentication scheme
      *
      * @return The username/password, or null if one can't be gotten.
      *
-     * @throws SecurityException
-     *        if a security manager exists and its
-     *        {@code checkPermission} method doesn't allow
-     *        the password authentication request.
-     *
+     * @throws SecurityException if a security manager exists and its
+     *                           {@code checkPermission} method doesn't allow
+     *                           the password authentication request.
      * @see SecurityManager#checkPermission
      * @see java.net.NetPermission
      * @since 1.4
      */
-    public static PasswordAuthentication requestPasswordAuthentication(
-                                            String host,
-                                            InetAddress addr,
-                                            int port,
-                                            String protocol,
-                                            String prompt,
-                                            String scheme) {
-
+    public static PasswordAuthentication requestPasswordAuthentication(String host, InetAddress addr, int port, String protocol, String prompt, String scheme) {
         SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            NetPermission requestPermission
-                = new NetPermission("requestPasswordAuthentication");
+        if(sm != null) {
+            NetPermission requestPermission = new NetPermission("requestPasswordAuthentication");
             sm.checkPermission(requestPermission);
         }
-
+        
         Authenticator a = theAuthenticator;
-        if (a == null) {
+        if(a == null) {
             return null;
-        } else {
-            synchronized(a) {
-                a.reset();
-                a.requestingHost = host;
-                a.requestingSite = addr;
-                a.requestingPort = port;
-                a.requestingProtocol = protocol;
-                a.requestingPrompt = prompt;
-                a.requestingScheme = scheme;
-                return a.getPasswordAuthentication();
-            }
+        }
+        
+        synchronized(a) {
+            a.reset();
+            
+            a.requestingHost = host;
+            a.requestingSite = addr;
+            a.requestingPort = port;
+            a.requestingProtocol = protocol;
+            a.requestingPrompt = prompt;
+            a.requestingScheme = scheme;
+            
+            return a.getPasswordAuthentication();
         }
     }
-
+    
     /**
      * Ask the authenticator that has been registered with the system
      * for a password.
@@ -291,66 +258,55 @@ class Authenticator {
      * {@code NetPermission("requestPasswordAuthentication")} permission.
      * This may result in a java.lang.SecurityException.
      *
-     * @param host The hostname of the site requesting authentication.
-     * @param addr The InetAddress of the site requesting authorization,
-     *             or null if not known.
-     * @param port the port for the requested connection
+     * @param host     The hostname of the site requesting authentication.
+     * @param addr     The InetAddress of the site requesting authorization,
+     *                 or null if not known.
+     * @param port     the port for the requested connection
      * @param protocol The protocol that's requesting the connection
-     *          ({@link java.net.Authenticator#getRequestingProtocol()})
-     * @param prompt A prompt string for the user
-     * @param scheme The authentication scheme
-     * @param url The requesting URL that caused the authentication
-     * @param reqType The type (server or proxy) of the entity requesting
-     *              authentication.
+     *                 ({@link java.net.Authenticator#getRequestingProtocol()})
+     * @param prompt   A prompt string for the user
+     * @param scheme   The authentication scheme
+     * @param url      The requesting URL that caused the authentication
+     * @param reqType  The type (server or proxy) of the entity requesting
+     *                 authentication.
      *
      * @return The username/password, or null if one can't be gotten.
      *
-     * @throws SecurityException
-     *        if a security manager exists and its
-     *        {@code checkPermission} method doesn't allow
-     *        the password authentication request.
-     *
+     * @throws SecurityException if a security manager exists and its
+     *                           {@code checkPermission} method doesn't allow
+     *                           the password authentication request.
      * @see SecurityManager#checkPermission
      * @see java.net.NetPermission
-     *
      * @since 1.5
      */
-    public static PasswordAuthentication requestPasswordAuthentication(
-                                    String host,
-                                    InetAddress addr,
-                                    int port,
-                                    String protocol,
-                                    String prompt,
-                                    String scheme,
-                                    URL url,
-                                    RequestorType reqType) {
-
+    public static PasswordAuthentication requestPasswordAuthentication(String host, InetAddress addr, int port, String protocol, String prompt, String scheme, URL url, RequestorType reqType) {
         SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            NetPermission requestPermission
-                = new NetPermission("requestPasswordAuthentication");
+        if(sm != null) {
+            NetPermission requestPermission = new NetPermission("requestPasswordAuthentication");
             sm.checkPermission(requestPermission);
         }
-
+        
         Authenticator a = theAuthenticator;
-        if (a == null) {
+        if(a == null) {
             return null;
-        } else {
-            synchronized(a) {
-                a.reset();
-                a.requestingHost = host;
-                a.requestingSite = addr;
-                a.requestingPort = port;
-                a.requestingProtocol = protocol;
-                a.requestingPrompt = prompt;
-                a.requestingScheme = scheme;
-                a.requestingURL = url;
-                a.requestingAuthType = reqType;
-                return a.getPasswordAuthentication();
-            }
+        }
+        
+        synchronized(a) {
+            a.reset();
+            
+            a.requestingHost = host;
+            a.requestingSite = addr;
+            a.requestingPort = port;
+            a.requestingProtocol = protocol;
+            a.requestingPrompt = prompt;
+            a.requestingScheme = scheme;
+            a.requestingURL = url;
+            a.requestingAuthType = reqType;
+            
+            return a.getPasswordAuthentication();
         }
     }
-
+    
     /**
      * Ask the given {@code authenticator} for a password. If the given
      * {@code authenticator} is null, the authenticator, if any, that has been
@@ -363,93 +319,65 @@ class Authenticator {
      * This may result in a java.lang.SecurityException.
      *
      * @param authenticator the authenticator, or {@code null}.
-     * @param host The hostname of the site requesting authentication.
-     * @param addr The InetAddress of the site requesting authorization,
-     *             or null if not known.
-     * @param port the port for the requested connection
-     * @param protocol The protocol that's requesting the connection
-     *          ({@link java.net.Authenticator#getRequestingProtocol()})
-     * @param prompt A prompt string for the user
-     * @param scheme The authentication scheme
-     * @param url The requesting URL that caused the authentication
-     * @param reqType The type (server or proxy) of the entity requesting
-     *              authentication.
+     * @param host          The hostname of the site requesting authentication.
+     * @param addr          The InetAddress of the site requesting authorization,
+     *                      or null if not known.
+     * @param port          the port for the requested connection
+     * @param protocol      The protocol that's requesting the connection
+     *                      ({@link java.net.Authenticator#getRequestingProtocol()})
+     * @param prompt        A prompt string for the user
+     * @param scheme        The authentication scheme
+     * @param url           The requesting URL that caused the authentication
+     * @param reqType       The type (server or proxy) of the entity requesting
+     *                      authentication.
      *
      * @return The username/password, or {@code null} if one can't be gotten.
      *
-     * @throws SecurityException
-     *        if a security manager exists and its
-     *        {@code checkPermission} method doesn't allow
-     *        the password authentication request.
-     *
+     * @throws SecurityException if a security manager exists and its
+     *                           {@code checkPermission} method doesn't allow
+     *                           the password authentication request.
      * @see SecurityManager#checkPermission
      * @see java.net.NetPermission
-     *
      * @since 9
      */
-    public static PasswordAuthentication requestPasswordAuthentication(
-                                    Authenticator authenticator,
-                                    String host,
-                                    InetAddress addr,
-                                    int port,
-                                    String protocol,
-                                    String prompt,
-                                    String scheme,
-                                    URL url,
-                                    RequestorType reqType) {
-
+    public static PasswordAuthentication requestPasswordAuthentication(Authenticator authenticator, String host, InetAddress addr, int port, String protocol, String prompt, String scheme, URL url, RequestorType reqType) {
         SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            NetPermission requestPermission
-                = new NetPermission("requestPasswordAuthentication");
+        if(sm != null) {
+            NetPermission requestPermission = new NetPermission("requestPasswordAuthentication");
             sm.checkPermission(requestPermission);
         }
-
+        
         Authenticator a = authenticator == null ? theAuthenticator : authenticator;
-        if (a == null) {
+        if(a == null) {
             return null;
-        } else {
-            return a.requestPasswordAuthenticationInstance(host,
-                                                           addr,
-                                                           port,
-                                                           protocol,
-                                                           prompt,
-                                                           scheme,
-                                                           url,
-                                                           reqType);
         }
+        
+        return a.requestPasswordAuthenticationInstance(host, addr, port, protocol, prompt, scheme, url, reqType);
     }
-
+    
     /**
      * Ask this authenticator for a password.
      *
-     * @param host The hostname of the site requesting authentication.
-     * @param addr The InetAddress of the site requesting authorization,
-     *             or null if not known.
-     * @param port the port for the requested connection
+     * @param host     The hostname of the site requesting authentication.
+     * @param addr     The InetAddress of the site requesting authorization,
+     *                 or null if not known.
+     * @param port     the port for the requested connection
      * @param protocol The protocol that's requesting the connection
-     *          ({@link java.net.Authenticator#getRequestingProtocol()})
-     * @param prompt A prompt string for the user
-     * @param scheme The authentication scheme
-     * @param url The requesting URL that caused the authentication
-     * @param reqType The type (server or proxy) of the entity requesting
-     *              authentication.
+     *                 ({@link java.net.Authenticator#getRequestingProtocol()})
+     * @param prompt   A prompt string for the user
+     * @param scheme   The authentication scheme
+     * @param url      The requesting URL that caused the authentication
+     * @param reqType  The type (server or proxy) of the entity requesting
+     *                 authentication.
      *
      * @return The username/password, or null if one can't be gotten
      *
      * @since 9
      */
-    public PasswordAuthentication
-    requestPasswordAuthenticationInstance(String host,
-                                          InetAddress addr,
-                                          int port,
-                                          String protocol,
-                                          String prompt,
-                                          String scheme,
-                                          URL url,
-                                          RequestorType reqType) {
-        synchronized (this) {
+    public PasswordAuthentication requestPasswordAuthenticationInstance(String host, InetAddress addr, int port, String protocol, String prompt, String scheme, URL url, RequestorType reqType) {
+        synchronized(this) {
             this.reset();
+            
             this.requestingHost = host;
             this.requestingSite = addr;
             this.requestingPort = port;
@@ -458,118 +386,148 @@ class Authenticator {
             this.requestingScheme = scheme;
             this.requestingURL = url;
             this.requestingAuthType = reqType;
+            
             return this.getPasswordAuthentication();
         }
     }
-
+    
+    /**
+     * Called when password authorization is needed.
+     * Subclasses should override the default implementation, which returns null.
+     *
+     * @return The PasswordAuthentication collected from the user, or null if none is provided.
+     */
+    /*
+     * 返回认证信息(用户名和密码)
+     * 该方法需要在认证身份时调用，子类应当覆盖其实现，默认返回null
+     */
+    protected PasswordAuthentication getPasswordAuthentication() {
+        return null;
+    }
+    
     /**
      * Gets the {@code hostname} of the
      * site or proxy requesting authentication, or {@code null}
      * if not available.
      *
      * @return the hostname of the connection requiring authentication, or null
-     *          if it's not available.
+     * if it's not available.
+     *
      * @since 1.4
      */
     protected final String getRequestingHost() {
         return requestingHost;
     }
-
+    
     /**
      * Gets the {@code InetAddress} of the
      * site requesting authorization, or {@code null}
      * if not available.
      *
      * @return the InetAddress of the site requesting authorization, or null
-     *          if it's not available.
+     * if it's not available.
      */
     protected final InetAddress getRequestingSite() {
         return requestingSite;
     }
-
+    
     /**
      * Gets the port number for the requested connection.
+     *
      * @return an {@code int} indicating the
      * port for the requested connection.
      */
     protected final int getRequestingPort() {
         return requestingPort;
     }
-
+    
     /**
      * Give the protocol that's requesting the connection.  Often this
      * will be based on a URL, but in a future JDK it could be, for
      * example, "SOCKS" for a password-protected SOCKS5 firewall.
      *
      * @return the protocol, optionally followed by "/version", where
-     *          version is a version number.
+     * version is a version number.
      *
      * @see java.net.URL#getProtocol()
      */
     protected final String getRequestingProtocol() {
         return requestingProtocol;
     }
-
+    
     /**
      * Gets the prompt string given by the requestor.
      *
      * @return the prompt string given by the requestor (realm for
-     *          http requests)
+     * http requests)
      */
     protected final String getRequestingPrompt() {
         return requestingPrompt;
     }
-
+    
     /**
      * Gets the scheme of the requestor (the HTTP scheme
      * for an HTTP firewall, for example).
      *
      * @return the scheme of the requestor
-     *
      */
     protected final String getRequestingScheme() {
         return requestingScheme;
     }
-
-    /**
-     * Called when password authorization is needed.  Subclasses should
-     * override the default implementation, which returns null.
-     * @return The PasswordAuthentication collected from the
-     *          user, or null if none is provided.
-     */
-    protected PasswordAuthentication getPasswordAuthentication() {
-        return null;
-    }
-
+    
     /**
      * Returns the URL that resulted in this
      * request for authentication.
      *
-     * @since 1.5
-     *
      * @return the requesting URL
      *
+     * @since 1.5
      */
-    protected URL getRequestingURL () {
+    protected URL getRequestingURL() {
         return requestingURL;
     }
-
+    
     /**
      * Returns whether the requestor is a Proxy or a Server.
      *
-     * @since 1.5
-     *
      * @return the authentication type of the requestor
      *
+     * @since 1.5
      */
-    protected RequestorType getRequestorType () {
+    protected RequestorType getRequestorType() {
         return requestingAuthType;
     }
-
-    static String getKey(Authenticator a) {
-        return a.key;
+    
+    // 返回指定身份认证器的key
+    static String getKey(Authenticator authenticator) {
+        return authenticator.key;
     }
-    static {
-        AuthenticatorKeys.setAuthenticatorKeyAccess(Authenticator::getKey);
+    
+    private void reset() {
+        requestingHost = null;
+        requestingSite = null;
+        requestingPort = -1;
+        requestingProtocol = null;
+        requestingPrompt = null;
+        requestingScheme = null;
+        requestingURL = null;
+        requestingAuthType = RequestorType.SERVER;
+    }
+    
+    /**
+     * The type of the entity requesting authentication.
+     *
+     * @since 1.5
+     */
+    public enum RequestorType {
+        /**
+         * Entity requesting authentication is a HTTP proxy server.
+         */
+        PROXY,
+        
+        /**
+         * Entity requesting authentication is a HTTP origin server.
+         */
+        SERVER
     }
 }
