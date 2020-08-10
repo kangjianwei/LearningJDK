@@ -34,27 +34,32 @@ package java.net;
  * @see java.net.NetworkInterface
  * @since 1.6
  */
+// 网络接口的IP，包括网络IP和广播IP
 public class InterfaceAddress {
-    private InetAddress address = null;
-    private Inet4Address broadcast = null;
-    private short        maskLength = 0;
-
-    /*
+    
+    private InetAddress address = null;     // 网络IP
+    private Inet4Address broadcast = null;  // 广播IP
+    private short maskLength = 0;           // 掩码长度
+    
+    
+    /**
      * Package private constructor. Can't be built directly, instances are
      * obtained through the NetworkInterface class.
      */
     InterfaceAddress() {
     }
-
+    
+    
     /**
      * Returns an {@code InetAddress} for this address.
      *
      * @return the {@code InetAddress} for this address.
      */
+    // 获取网络IP
     public InetAddress getAddress() {
         return address;
     }
-
+    
     /**
      * Returns an {@code InetAddress} for the broadcast address
      * for this InterfaceAddress.
@@ -63,12 +68,13 @@ public class InterfaceAddress {
      * of an IPv6 network, {@code null} will be returned.
      *
      * @return the {@code InetAddress} representing the broadcast
-     *         address or {@code null} if there is no broadcast address.
+     * address or {@code null} if there is no broadcast address.
      */
+    // 获取广播IP
     public InetAddress getBroadcast() {
         return broadcast;
     }
-
+    
     /**
      * Returns the network prefix length for this address. This is also known
      * as the subnet mask in the context of IPv4 addresses.
@@ -77,12 +83,14 @@ public class InterfaceAddress {
      * Typical IPv6 values would be 128 (::1/128) or 10 (fe80::203:baff:fe27:1243/10)
      *
      * @return a {@code short} representing the prefix length for the
-     *         subnet of that address.
+     * subnet of that address.
      */
-     public short getNetworkPrefixLength() {
+    // 获取掩码长度
+    public short getNetworkPrefixLength() {
         return maskLength;
     }
-
+    
+    
     /**
      * Compares this object against the specified object.
      * The result is {@code true} if and only if the argument is
@@ -93,42 +101,51 @@ public class InterfaceAddress {
      * address if the InetAddress, the prefix length and the broadcast are
      * the same for both.
      *
-     * @param   obj   the object to compare against.
-     * @return  {@code true} if the objects are the same;
-     *          {@code false} otherwise.
-     * @see     java.net.InterfaceAddress#hashCode()
+     * @param obj the object to compare against.
+     *
+     * @return {@code true} if the objects are the same;
+     * {@code false} otherwise.
+     *
+     * @see java.net.InterfaceAddress#hashCode()
      */
+    @Override
     public boolean equals(Object obj) {
-        if (!(obj instanceof InterfaceAddress)) {
+        if(!(obj instanceof InterfaceAddress)) {
             return false;
         }
+        
         InterfaceAddress cmp = (InterfaceAddress) obj;
-        if ( !(address == null ? cmp.address == null : address.equals(cmp.address)) )
+        
+        if(!(address == null ? cmp.address == null : address.equals(cmp.address))) {
             return false;
-        if ( !(broadcast  == null ? cmp.broadcast == null : broadcast.equals(cmp.broadcast)) )
+        }
+        
+        if(!(broadcast == null ? cmp.broadcast == null : broadcast.equals(cmp.broadcast))) {
             return false;
-        if (maskLength != cmp.maskLength)
-            return false;
-        return true;
+        }
+        
+        return maskLength == cmp.maskLength;
     }
-
+    
     /**
      * Returns a hashcode for this Interface address.
      *
-     * @return  a hash code value for this Interface address.
+     * @return a hash code value for this Interface address.
      */
+    @Override
     public int hashCode() {
         return address.hashCode() + ((broadcast != null) ? broadcast.hashCode() : 0) + maskLength;
     }
-
+    
     /**
      * Converts this Interface address to a {@code String}. The
      * string returned is of the form: InetAddress / prefix length [ broadcast address ].
      *
-     * @return  a string representation of this Interface address.
+     * @return a string representation of this Interface address.
      */
+    @Override
     public String toString() {
         return address + "/" + maskLength + " [" + broadcast + "]";
     }
-
+    
 }

@@ -24,36 +24,31 @@
  */
 package sun.net;
 
-import java.net.InetAddress;
 import java.io.FileDescriptor;
 import java.io.IOException;
+import java.net.InetAddress;
 
 /**
  * Defines static methods to ensure that any installed net hooks are invoked
  * prior to binding or connecting TCP sockets.
  */
-
+// TCP Socket进行【bind】和【connect】操作之前的回调
 public final class NetHooks {
-
+    
     /**
      * Invoke prior to binding a TCP socket.
      */
-    public static void beforeTcpBind(FileDescriptor fdObj,
-                                     InetAddress address,
-                                     int port)
-        throws IOException
-    {
+    // Socket/ServerSocket进行bind操作之前的回调
+    public static void beforeTcpBind(FileDescriptor fdObj, InetAddress address, int port) throws IOException {
         // nothing to do
     }
-
+    
     /**
      * Invoke prior to connecting an unbound TCP socket.
      */
-    public static void beforeTcpConnect(FileDescriptor fdObj,
-                                        InetAddress address,
-                                        int port)
-        throws IOException
-    {
+    // Socket进行connect操作之前的回调
+    public static void beforeTcpConnect(FileDescriptor fdObj, InetAddress address, int port) throws IOException {
         // nothing to do
     }
+    
 }

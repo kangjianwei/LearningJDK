@@ -30,16 +30,15 @@ package java.net;
  *
  * @since 1.7
  */
-
+// 标准协议族
 public enum StandardProtocolFamily implements ProtocolFamily {
-
     /**
      * Internet Protocol Version 4 (IPv4)
      */
-    INET,
-
+    INET,   // IP4协议
+    
     /**
      * Internet Protocol Version 6 (IPv6)
      */
-    INET6
+    INET6   // IP6协议
 }

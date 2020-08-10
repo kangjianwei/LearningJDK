@@ -30,17 +30,19 @@ package java.net;
  * is used by the classes {@code DatagramSocket} to create actual socket
  * implementations.
  *
- * @author  Yingxian Wang
- * @see     java.net.DatagramSocket
- * @since   1.3
+ * @author Yingxian Wang
+ * @see java.net.DatagramSocket
+ * @since 1.3
  */
-public
-interface DatagramSocketImplFactory {
+// "UDP-Socket委托"工厂，用来生成"UDP-Socket委托"实例
+public interface DatagramSocketImplFactory {
     /**
      * Creates a new {@code DatagramSocketImpl} instance.
      *
-     * @return  a new instance of {@code DatagramSocketImpl}.
-     * @see     java.net.DatagramSocketImpl
+     * @return a new instance of {@code DatagramSocketImpl}.
+     *
+     * @see java.net.DatagramSocketImpl
      */
+    // 创建一个"UDP-Socket委托"
     DatagramSocketImpl createDatagramSocketImpl();
 }

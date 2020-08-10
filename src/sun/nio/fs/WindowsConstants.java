@@ -62,8 +62,8 @@ class WindowsConstants {
     
     // flags - 文件标记
     public static final int FILE_FLAG_NO_BUFFERING = 0x20000000;   // 打开文件时不使用系统缓存，如果此时写入数据，注意磁盘对齐
-    public static final int FILE_FLAG_OVERLAPPED = 0x40000000;   // 使用重叠IO，而不是默认的同步IO
-    public static final int FILE_FLAG_WRITE_THROUGH = 0x80000000;   // 文件直接写入磁盘
+    public static final int FILE_FLAG_OVERLAPPED = 0x40000000;   // 使用重叠(异步)IO，而不是默认的同步IO
+    public static final int FILE_FLAG_WRITE_THROUGH = 0x80000000;   // 文件直接写入磁盘，不使用缓存
     public static final int FILE_FLAG_BACKUP_SEMANTICS = 0x02000000;   // 指示系统为文件的打开或创建执行一个备份或恢复操作
     public static final int FILE_FLAG_DELETE_ON_CLOSE = 0x04000000;   // 指示系统在文件所有打开的句柄关闭后立即删除文件
     public static final int FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000;   // 指示系统打开重解析点，而不是打开链接的目标文件
@@ -77,13 +77,13 @@ class WindowsConstants {
     public static final int MAXIMUM_REPARSE_DATA_BUFFER_SIZE = 16 * 1024;    // reparse point数据的最大尺寸
     public static final int SYMBOLIC_LINK_FLAG_DIRECTORY = 0x1;          // 目录的符号链接
     
-    // volume flags
-    public static final int FILE_CASE_SENSITIVE_SEARCH = 0x00000001;
-    public static final int FILE_CASE_PRESERVED_NAMES = 0x00000002;
-    public static final int FILE_PERSISTENT_ACLS = 0x00000008;
-    public static final int FILE_VOLUME_IS_COMPRESSED = 0x00008000;
-    public static final int FILE_NAMED_STREAMS = 0x00040000;
-    public static final int FILE_READ_ONLY_VOLUME = 0x00080000;
+    // volume flags - 卷标记
+    public static final int FILE_CASE_SENSITIVE_SEARCH = 0x00000001;   // 文件系统支持大小写敏感文件名查询
+    public static final int FILE_CASE_PRESERVED_NAMES = 0x00000002;   // 当文件名被放在磁盘上时，它的大小写被保留了
+    public static final int FILE_PERSISTENT_ACLS = 0x00000008;   // 文件系统保留和强制使用了访问控制列表(只用于NTFS)
+    public static final int FILE_VOLUME_IS_COMPRESSED = 0x00008000;   // 文件系统支持基于卷的压缩(NTFS关闭，FAT开启)
+    public static final int FILE_NAMED_STREAMS = 0x00040000;   //
+    public static final int FILE_READ_ONLY_VOLUME = 0x00080000;   //
     
     // error codes
     public static final int ERROR_FILE_NOT_FOUND = 2;    // The system cannot find the file specified.
@@ -109,25 +109,25 @@ class WindowsConstants {
     public static final int ERROR_NOT_A_REPARSE_POINT = 4390; // The file or directory is not a reparse point.
     public static final int ERROR_INVALID_REPARSE_DATA = 4392; // The data present in the reparse point buffer is invalid.
     
-    // notify filters
-    public static final int FILE_NOTIFY_CHANGE_FILE_NAME = 0x00000001;
-    public static final int FILE_NOTIFY_CHANGE_DIR_NAME = 0x00000002;
-    public static final int FILE_NOTIFY_CHANGE_ATTRIBUTES = 0x00000004;
-    public static final int FILE_NOTIFY_CHANGE_SIZE = 0x00000008;
-    public static final int FILE_NOTIFY_CHANGE_LAST_WRITE = 0x00000010;
-    public static final int FILE_NOTIFY_CHANGE_LAST_ACCESS = 0x00000020;
-    public static final int FILE_NOTIFY_CHANGE_CREATION = 0x00000040;
-    public static final int FILE_NOTIFY_CHANGE_SECURITY = 0x00000100;
+    // 文件系统变化通知参数(注册)
+    public static final int FILE_NOTIFY_CHANGE_FILE_NAME = 0x00000001;    // 文件被创建、重命名或删除
+    public static final int FILE_NOTIFY_CHANGE_DIR_NAME = 0x00000002;    // 目录被创建、重命名或删除
+    public static final int FILE_NOTIFY_CHANGE_ATTRIBUTES = 0x00000004;    // 文件属性被修改
+    public static final int FILE_NOTIFY_CHANGE_SIZE = 0x00000008;    // 文件大小被修改
+    public static final int FILE_NOTIFY_CHANGE_LAST_WRITE = 0x00000010;    // 文件创建时间被修改
+    public static final int FILE_NOTIFY_CHANGE_LAST_ACCESS = 0x00000020;    // 文件的最后写时间被修改
+    public static final int FILE_NOTIFY_CHANGE_CREATION = 0x00000040;    // 文件的休后访问时间被修改
+    public static final int FILE_NOTIFY_CHANGE_SECURITY = 0x00000100;    // 目录或文件的安全描述符被修改
     
-    // notify actions
-    public static final int FILE_ACTION_ADDED = 0x00000001;    // 文件创建
-    public static final int FILE_ACTION_REMOVED = 0x00000002;    // 文件移除
-    public static final int FILE_ACTION_MODIFIED = 0x00000003;    // 文件修改
-    public static final int FILE_ACTION_RENAMED_OLD_NAME = 0x00000004;    // 文件移除旧名
-    public static final int FILE_ACTION_RENAMED_NEW_NAME = 0x00000005;    // 文件创建新名
+    // 文件系统变化通知参数(反馈)
+    public static final int FILE_ACTION_ADDED = 0x00000001;    // 文件创建(文件被添加到目录中)
+    public static final int FILE_ACTION_REMOVED = 0x00000002;    // 文件移除(文件从目录中删除)
+    public static final int FILE_ACTION_MODIFIED = 0x00000003;    // 文件修改(比如时间戳或者属性的变化)
+    public static final int FILE_ACTION_RENAMED_OLD_NAME = 0x00000004;    // 文件移除旧名(重命名)
+    public static final int FILE_ACTION_RENAMED_NEW_NAME = 0x00000005;    // 文件创建新名(重命名)
     
     // copy flags
-    public static final int COPY_FILE_FAIL_IF_EXISTS = 0x00000001;
+    public static final int COPY_FILE_FAIL_IF_EXISTS = 0x00000001;    // 文件已存在时不拷贝
     public static final int COPY_FILE_COPY_SYMLINK = 0x00000800;    // 如果源文件是符号链接，则目标文件也是符号链接，且它指向源符号链接指向的同一文件。
     
     // move flags

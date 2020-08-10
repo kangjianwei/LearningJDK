@@ -87,12 +87,12 @@ import static sun.nio.fs.WindowsNativeDispatcher.DeleteFile;
 import static sun.nio.fs.WindowsNativeDispatcher.RemoveDirectory;
 import static sun.nio.fs.WindowsSecurity.checkAccessMask;
 
-// "file"文件系统提供器在windows上的实现
+// "file"文件系统工厂在windows上的实现
 public class WindowsFileSystemProvider extends AbstractFileSystemProvider {
     
     private static final Unsafe unsafe = Unsafe.getUnsafe();
     
-    // 当前提供器可以提供的windows文件系统对象
+    // 当前工厂可以提供的windows文件系统对象
     private final WindowsFileSystem theFileSystem;
     
     
@@ -124,9 +124,9 @@ public class WindowsFileSystemProvider extends AbstractFileSystemProvider {
     }
     
     /*
-     * 返回与指定的URI匹配的文件系统，env是目标文件系统提供器用到的属性
+     * 返回与指定的URI匹配的文件系统，env是目标文件系统工厂用到的属性
      * 注1：此处要求URI协议为"file"
-     * 注2：目前，"file"文件系统提供器未实现该方法
+     * 注2：目前，"file"文件系统工厂未实现该方法
      */
     @Override
     public FileSystem newFileSystem(URI uri, Map<String, ?> env) throws IOException {
@@ -218,10 +218,11 @@ public class WindowsFileSystemProvider extends AbstractFileSystemProvider {
      */
     @Override
     public AsynchronousFileChannel newAsynchronousFileChannel(Path path, Set<? extends OpenOption> options, ExecutorService executor, FileAttribute<?>... attrs) throws IOException {
+    
         // 将Path强制转换为WindowsPath
         WindowsPath file = WindowsPath.toWindowsPath(path);
-        
-        // 创建工作线程的线程池
+    
+        // 将指定的【任务执行框架】包装为异步IO线程池：容量非固定，初始容量为0
         ThreadPool pool = (executor == null) ? null : ThreadPool.wrap(executor, 0);
         
         // 通过指定的文件属性构造windows安全描述符，该方法仅在windows平台使用
@@ -238,6 +239,7 @@ public class WindowsFileSystemProvider extends AbstractFileSystemProvider {
                 sd.release();
             }
         }
+    
     }
     
     /*▲ 文件通道 ████████████████████████████████████████████████████████████████████████████████┛ */

@@ -258,7 +258,7 @@ public class CountDownLatch {
      * @throws InterruptedException if the current thread is interrupted
      *                              while waiting
      */
-    // 使线程陷入阻塞，不允许阻塞带有中断标记的线程（一次失败后，带着超时标记继续申请）
+    // 使线程陷入阻塞，不允许阻塞带有中断标记的线程（一次申请锁失败后，会带着超时标记重新申请）
     public boolean await(long timeout, TimeUnit unit) throws InterruptedException {
         return sync.tryAcquireSharedNanos(1, unit.toNanos(timeout));
     }

@@ -106,7 +106,7 @@ import sun.nio.ch.FileChannelImpl;
  *
  * @since 1.7
  */
-// 文件系统提供器(服务)，系统默认支持"file"/"jar"/"jrt"这三类文件系统提供器
+// 文件系统工厂(服务)，系统默认支持"file"/"jar"/"jrt"这三类文件系统工厂
 public abstract class FileSystemProvider {
     
     /** lock using when loading providers */
@@ -118,11 +118,11 @@ public abstract class FileSystemProvider {
         StandardOpenOption.WRITE              // 写文件，指示向文件中写入数据 , 并且移动文件指针
     );
     
-    // 缓存已注册的文件系统提供器
+    // 缓存已注册的文件系统工厂
     private static volatile List<FileSystemProvider> installedProviders;
     
     /** used to avoid recursive loading of installed providers */
-    // 是否已经加载过文件系统提供器
+    // 是否已经加载过文件系统工厂
     private static boolean loadingProviders = false;
     
     
@@ -830,8 +830,8 @@ public abstract class FileSystemProvider {
      *                                       permission.
      */
     /*
-     * 返回与指定的Path匹配的文件系统，env是当前文件系统提供器用到的属性，可以不设置
-     * 注：目前仅有"jar"文件系统提供器实现了该方法
+     * 返回与指定的Path匹配的文件系统，env是当前文件系统工厂用到的属性，可以不设置
+     * 注：目前仅有"jar"文件系统工厂实现了该方法
      */
     public FileSystem newFileSystem(Path path, Map<String, ?> env) throws IOException {
         throw new UnsupportedOperationException();
@@ -910,9 +910,9 @@ public abstract class FileSystemProvider {
      * @throws FileSystemAlreadyExistsException If the file system has already been created
      */
     /*
-     * 返回与指定的URI匹配的文件系统，env是目标文件系统提供器用到的属性
-     * 注1：系统内部默认仅支持"file"/"jar"/"jrt"协议，如果需要使用其它协议，则应当自定义匹配的文件系统提供器
-     * 注2：目前，默认的"file"文件系统提供器【未实现】该方法
+     * 返回与指定的URI匹配的文件系统，env是目标文件系统工厂用到的属性
+     * 注1：系统内部默认仅支持"file"/"jar"/"jrt"协议，如果需要使用其它协议，则应当自定义匹配的文件系统工厂
+     * 注2：目前，默认的"file"文件系统工厂【未实现】该方法
      */
     public abstract FileSystem newFileSystem(URI uri, Map<String, ?> env) throws IOException;
     
@@ -935,27 +935,27 @@ public abstract class FileSystemProvider {
      *
      * @throws ServiceConfigurationError When an error occurs while loading a service provider
      */
-    // 返回当前所有可用的文件系统提供器，系统已实现的包括"file"/"jar"/"jrt"文件系统提供器
+    // 返回当前所有可用的文件系统工厂，系统已实现的包括"file"/"jar"/"jrt"文件系统工厂
     public static List<FileSystemProvider> installedProviders() {
         if(installedProviders != null) {
             return installedProviders;
         }
-        
+    
         /* ensure default provider is initialized */
-        // 获取默认的文件系统提供器："file"文件系统提供器
+        // 获取默认的文件系统工厂："file"文件系统工厂
         FileSystemProvider defaultProvider = FileSystems.getDefault().provider();
-        
+    
+        // 双重检查
         synchronized(lock) {
-            // 双重检查
             if(installedProviders == null) {
                 if(loadingProviders) {
                     throw new Error("Circular loading of installed providers detected");
                 }
-                
-                // 标记为已加载过文件系统提供器
+            
+                // 标记为已加载过文件系统工厂
                 loadingProviders = true;
-                
-                // 加载所有已注册的FileSystemProvider服务，返回除"file"之外的文件系统提供器
+            
+                // 加载所有已注册的FileSystemProvider服务，返回除"file"之外的文件系统工厂
                 List<FileSystemProvider> list = AccessController.doPrivileged(new PrivilegedAction<>() {
                     @Override
                     public List<FileSystemProvider> run() {
@@ -964,7 +964,7 @@ public abstract class FileSystemProvider {
                 });
                 
                 /* insert the default provider at the start of the list */
-                // 添加"file"文件系统提供器
+                // 添加"file"文件系统工厂
                 list.add(0, defaultProvider);
                 
                 installedProviders = Collections.unmodifiableList(list);
@@ -975,7 +975,7 @@ public abstract class FileSystemProvider {
     }
     
     /** loads all installed providers */
-    // 加载所有已注册的FileSystemProvider服务，返回除"file"之外的文件系统提供器
+    // 加载所有已注册的FileSystemProvider服务，返回除"file"之外的文件系统工厂
     private static List<FileSystemProvider> loadInstalledProviders() {
         List<FileSystemProvider> list = new ArrayList<>();
         
@@ -984,7 +984,7 @@ public abstract class FileSystemProvider {
         
         // 遍历注册的FileSystemProvider
         for(FileSystemProvider provider : providers) {
-            // 获取文件系统提供器provider支持的协议
+            // 获取文件系统工厂provider支持的协议
             String scheme = provider.getScheme();
             
             // add to list if the provider is not "file" and isn't a duplicate
@@ -995,7 +995,7 @@ public abstract class FileSystemProvider {
             boolean found = false;
             
             for(FileSystemProvider p : list) {
-                // 获取文件系统提供器provider支持的协议
+                // 获取文件系统工厂provider支持的协议
                 String sch = p.getScheme();
                 
                 if(sch.equalsIgnoreCase(scheme)) {
@@ -1048,7 +1048,7 @@ public abstract class FileSystemProvider {
      *
      * @return The URI scheme
      */
-    // 返回当前文件系统提供器支持的协议，目前支持file/jar/jrt协议，也可以自定义
+    // 返回当前文件系统工厂支持的协议，目前支持file/jar/jrt协议，也可以自定义
     public abstract String getScheme();
     
     /**

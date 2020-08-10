@@ -59,6 +59,7 @@ import java.util.Objects;
  * 注：应用程序不应创建自己的文件描述符。
  */
 public final class FileDescriptor {
+    
     /**
      * A handle to the standard input stream. Usually, this file
      * descriptor is not used directly, but rather via the input stream
@@ -88,7 +89,7 @@ public final class FileDescriptor {
     public static final FileDescriptor err = new FileDescriptor(2);
     
     /*
-     * 文件描述符(通用概念)
+     * 当前文件描述符在本地(native层)的引用
      *
      * 每个打开的文件都会为它分配一个fd值作为其唯一编号，通过该值可以找到对应的文件并进行相关操作。
      *
@@ -129,7 +130,7 @@ public final class FileDescriptor {
         initIDs();
     }
     
-    /* This routine initializes JNI field offsets for the class */
+    /** This routine initializes JNI field offsets for the class */
     private static native void initIDs();
     
     // Set up JavaIOFileDescriptorAccess in SharedSecrets
@@ -232,7 +233,7 @@ public final class FileDescriptor {
      */
     public native void sync() throws SyncFailedException;
     
-    /*
+    /**
      * On Windows return the handle for the standard streams.
      */
     // 返回标准流（输入流、输出流、错误流）的句柄
@@ -274,7 +275,7 @@ public final class FileDescriptor {
      * @param fd the raw fd or -1 to indicate closed
      */
     /*
-     * 设置文件描述符，常用于类UNIX系统。
+     * 将本地文件描述符设置到当前Java层的文件描述符中，常用于类UNIX系统。
      * 在socket编程中，也会将此方法用于Windows系统。
      * 如果fd为-1，则开始清理资源。
      */
@@ -411,8 +412,9 @@ public final class FileDescriptor {
 //                ioe = ex;
 //            }
             finally {
-                if(ioe != null)
+                if(ioe != null) {
                     throw ioe;
+                }
             }
         }
     }

@@ -28,62 +28,23 @@ package java.net;
 /**
  * Defines the <em>standard</em> socket options.
  *
- * <p> The {@link SocketOption#name name} of each socket option defined by this
- * class is its field name.
+ * The {@link SocketOption#name name} of each socket option defined by this class is its field name.
  *
- * <p> In this release, the socket options defined here are used by {@link
- * java.nio.channels.NetworkChannel network} channels in the {@link
- * java.nio.channels channels} package.
+ * In this release, the socket options defined here
+ * are used by {@link java.nio.channels.NetworkChannel network} channels in the {@link java.nio.channels channels} package.
  *
  * @since 1.7
  */
-
+// 标准Socket配置参数
 public final class StandardSocketOptions {
-    private StandardSocketOptions() { }
-
-    // -- SOL_SOCKET --
-
-    /**
-     * Allow transmission of broadcast datagrams.
-     *
-     * <p> The value of this socket option is a {@code Boolean} that represents
-     * whether the option is enabled or disabled. The option is specific to
-     * datagram-oriented sockets sending to {@link java.net.Inet4Address IPv4}
-     * broadcast addresses. When the socket option is enabled then the socket
-     * can be used to send <em>broadcast datagrams</em>.
-     *
-     * <p> The initial value of this socket option is {@code FALSE}. The socket
-     * option may be enabled or disabled at any time. Some operating systems may
-     * require that the Java virtual machine be started with implementation
-     * specific privileges to enable this option or send broadcast datagrams.
-     *
-     * @see <a href="http://www.ietf.org/rfc/rfc919.txt">RFC&nbsp;929:
-     * Broadcasting Internet Datagrams</a>
-     * @see DatagramSocket#setBroadcast
-     */
-    public static final SocketOption<Boolean> SO_BROADCAST =
-        new StdSocketOption<Boolean>("SO_BROADCAST", Boolean.class);
-
-    /**
-     * Keep connection alive.
-     *
-     * <p> The value of this socket option is a {@code Boolean} that represents
-     * whether the option is enabled or disabled. When the {@code SO_KEEPALIVE}
-     * option is enabled the operating system may use a <em>keep-alive</em>
-     * mechanism to periodically probe the other end of a connection when the
-     * connection is otherwise idle. The exact semantics of the keep alive
-     * mechanism is system dependent and therefore unspecified.
-     *
-     * <p> The initial value of this socket option is {@code FALSE}. The socket
-     * option may be enabled or disabled at any time.
-     *
-     * @see <a href="http://www.ietf.org/rfc/rfc1122.txt">RFC&nbsp;1122
-     * Requirements for Internet Hosts -- Communication Layers</a>
-     * @see Socket#setKeepAlive
-     */
-    public static final SocketOption<Boolean> SO_KEEPALIVE =
-        new StdSocketOption<Boolean>("SO_KEEPALIVE", Boolean.class);
-
+    
+    private StandardSocketOptions() {
+    }
+    
+    
+    
+    /*▼ SOL_SOCKET ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┓ */
+    
     /**
      * The size of the socket send buffer.
      *
@@ -112,10 +73,9 @@ public final class StandardSocketOptions {
      *
      * @see Socket#setSendBufferSize
      */
-    public static final SocketOption<Integer> SO_SNDBUF =
-        new StdSocketOption<Integer>("SO_SNDBUF", Integer.class);
-
-
+    // 设置输出流缓冲区大小
+    public static final SocketOption<Integer> SO_SNDBUF = new StdSocketOption<Integer>("SO_SNDBUF", Integer.class);
+    
     /**
      * The size of the socket receive buffer.
      *
@@ -152,9 +112,9 @@ public final class StandardSocketOptions {
      * @see Socket#setReceiveBufferSize
      * @see ServerSocket#setReceiveBufferSize
      */
-    public static final SocketOption<Integer> SO_RCVBUF =
-        new StdSocketOption<Integer>("SO_RCVBUF", Integer.class);
-
+    // 设置输入流缓冲区大小
+    public static final SocketOption<Integer> SO_RCVBUF = new StdSocketOption<Integer>("SO_RCVBUF", Integer.class);
+    
     /**
      * Re-use address.
      *
@@ -183,9 +143,9 @@ public final class StandardSocketOptions {
      * Control Protocol</a>
      * @see ServerSocket#setReuseAddress
      */
-    public static final SocketOption<Boolean> SO_REUSEADDR =
-        new StdSocketOption<Boolean>("SO_REUSEADDR", Boolean.class);
-
+    // 是否允许立刻重用(绑定)已关闭的socket地址；另一方面，也用来指示是否允许相同端口下的通配地址与别的地址同时被绑定
+    public static final SocketOption<Boolean> SO_REUSEADDR = new StdSocketOption<Boolean>("SO_REUSEADDR", Boolean.class);
+    
     /**
      * Re-use port.
      *
@@ -206,9 +166,50 @@ public final class StandardSocketOptions {
      *
      * @since 9
      */
-    public static final SocketOption<Boolean> SO_REUSEPORT =
-        new StdSocketOption<Boolean>("SO_REUSEPORT", Boolean.class);
-
+    // 是否允许多个socket绑定相同的地址和端口对
+    public static final SocketOption<Boolean> SO_REUSEPORT = new StdSocketOption<Boolean>("SO_REUSEPORT", Boolean.class);
+    
+    /**
+     * Keep connection alive.
+     *
+     * <p> The value of this socket option is a {@code Boolean} that represents
+     * whether the option is enabled or disabled. When the {@code SO_KEEPALIVE}
+     * option is enabled the operating system may use a <em>keep-alive</em>
+     * mechanism to periodically probe the other end of a connection when the
+     * connection is otherwise idle. The exact semantics of the keep alive
+     * mechanism is system dependent and therefore unspecified.
+     *
+     * <p> The initial value of this socket option is {@code FALSE}. The socket
+     * option may be enabled or disabled at any time.
+     *
+     * @see <a href="http://www.ietf.org/rfc/rfc1122.txt">RFC&nbsp;1122
+     * Requirements for Internet Hosts -- Communication Layers</a>
+     * @see Socket#setKeepAlive
+     */
+    // 是否开启设置心跳机制
+    public static final SocketOption<Boolean> SO_KEEPALIVE = new StdSocketOption<Boolean>("SO_KEEPALIVE", Boolean.class);
+    
+    /**
+     * Allow transmission of broadcast datagrams.
+     *
+     * <p> The value of this socket option is a {@code Boolean} that represents
+     * whether the option is enabled or disabled. The option is specific to
+     * datagram-oriented sockets sending to {@link java.net.Inet4Address IPv4}
+     * broadcast addresses. When the socket option is enabled then the socket
+     * can be used to send <em>broadcast datagrams</em>.
+     *
+     * <p> The initial value of this socket option is {@code FALSE}. The socket
+     * option may be enabled or disabled at any time. Some operating systems may
+     * require that the Java virtual machine be started with implementation
+     * specific privileges to enable this option or send broadcast datagrams.
+     *
+     * @see <a href="http://www.ietf.org/rfc/rfc919.txt">RFC&nbsp;929:
+     * Broadcasting Internet Datagrams</a>
+     * @see DatagramSocket#setBroadcast
+     */
+    // 是否启用发送广播的能力
+    public static final SocketOption<Boolean> SO_BROADCAST = new StdSocketOption<Boolean>("SO_BROADCAST", Boolean.class);
+    
     /**
      * Linger on close if data is present.
      *
@@ -238,12 +239,15 @@ public final class StandardSocketOptions {
      *
      * @see Socket#setSoLinger
      */
-    public static final SocketOption<Integer> SO_LINGER =
-        new StdSocketOption<Integer>("SO_LINGER", Integer.class);
-
-
-    // -- IPPROTO_IP --
-
+    // 是否启用延时关闭，即关闭Socket后，是否立即断开TCP连接；与SO_REUSEADDR参数有关联
+    public static final SocketOption<Integer> SO_LINGER = new StdSocketOption<Integer>("SO_LINGER", Integer.class);
+    
+    /*▲ SOL_SOCKET ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┛ */
+    
+    
+    
+    /*▼ IPPROTO_IP ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┓ */
+    
     /**
      * The Type of Service (ToS) octet in the Internet Protocol (IP) header.
      *
@@ -270,9 +274,9 @@ public final class StandardSocketOptions {
      *
      * @see DatagramSocket#setTrafficClass
      */
-    public static final SocketOption<Integer> IP_TOS =
-        new StdSocketOption<Integer>("IP_TOS", Integer.class);
-
+    // 设置IP头部的Type-of-Service字段
+    public static final SocketOption<Integer> IP_TOS = new StdSocketOption<Integer>("IP_TOS", Integer.class);
+    
     /**
      * The network interface for Internet Protocol (IP) multicast datagrams.
      *
@@ -293,9 +297,34 @@ public final class StandardSocketOptions {
      * @see java.nio.channels.MulticastChannel
      * @see MulticastSocket#setInterface
      */
-    public static final SocketOption<NetworkInterface> IP_MULTICAST_IF =
-        new StdSocketOption<NetworkInterface>("IP_MULTICAST_IF", NetworkInterface.class);
-
+    // 设置组播地址和端口
+    public static final SocketOption<NetworkInterface> IP_MULTICAST_IF = new StdSocketOption<NetworkInterface>("IP_MULTICAST_IF", NetworkInterface.class);
+    
+    /**
+     * Loopback for Internet Protocol (IP) multicast datagrams.
+     *
+     * <p> The value of this socket option is a {@code Boolean} that controls
+     * the <em>loopback</em> of multicast datagrams. The value of the socket
+     * option represents if the option is enabled or disabled.
+     *
+     * <p> The exact semantics of this socket options are system dependent.
+     * In particular, it is system dependent whether the loopback applies to
+     * multicast datagrams sent from the socket or received by the socket.
+     * For {@link StandardProtocolFamily#INET6 IPv6} sockets then it is
+     * system dependent whether the option also applies to multicast datagrams
+     * sent to IPv4 addresses.
+     *
+     * <p> The initial/default value of this socket option is {@code TRUE}. An
+     * implementation allows this socket option to be set after the socket is
+     * bound. Whether the socket option can be queried or changed prior to
+     * binding the socket is system dependent.
+     *
+     * @see java.nio.channels.MulticastChannel
+     * @see MulticastSocket#setLoopbackMode
+     */
+    // 是否禁用组播回环
+    public static final SocketOption<Boolean> IP_MULTICAST_LOOP = new StdSocketOption<Boolean>("IP_MULTICAST_LOOP", Boolean.class);
+    
     /**
      * The <em>time-to-live</em> for Internet Protocol (IP) multicast datagrams.
      *
@@ -320,37 +349,15 @@ public final class StandardSocketOptions {
      * @see java.nio.channels.MulticastChannel
      * @see MulticastSocket#setTimeToLive
      */
-    public static final SocketOption<Integer> IP_MULTICAST_TTL =
-        new StdSocketOption<Integer>("IP_MULTICAST_TTL", Integer.class);
-
-    /**
-     * Loopback for Internet Protocol (IP) multicast datagrams.
-     *
-     * <p> The value of this socket option is a {@code Boolean} that controls
-     * the <em>loopback</em> of multicast datagrams. The value of the socket
-     * option represents if the option is enabled or disabled.
-     *
-     * <p> The exact semantics of this socket options are system dependent.
-     * In particular, it is system dependent whether the loopback applies to
-     * multicast datagrams sent from the socket or received by the socket.
-     * For {@link StandardProtocolFamily#INET6 IPv6} sockets then it is
-     * system dependent whether the option also applies to multicast datagrams
-     * sent to IPv4 addresses.
-     *
-     * <p> The initial/default value of this socket option is {@code TRUE}. An
-     * implementation allows this socket option to be set after the socket is
-     * bound. Whether the socket option can be queried or changed prior to
-     * binding the socket is system dependent.
-     *
-     * @see java.nio.channels.MulticastChannel
-     *  @see MulticastSocket#setLoopbackMode
-     */
-    public static final SocketOption<Boolean> IP_MULTICAST_LOOP =
-        new StdSocketOption<Boolean>("IP_MULTICAST_LOOP", Boolean.class);
-
-
-    // -- IPPROTO_TCP --
-
+    // 设置网络跳数(生存时间)
+    public static final SocketOption<Integer> IP_MULTICAST_TTL = new StdSocketOption<Integer>("IP_MULTICAST_TTL", Integer.class);
+    
+    /*▲ IPPROTO_IP ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┛ */
+    
+    
+    
+    /*▼ IPPROTO_TCP ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┓ */
+    
     /**
      * Disable the Nagle algorithm.
      *
@@ -372,19 +379,36 @@ public final class StandardSocketOptions {
      * Requirements for Internet Hosts -- Communication Layers</a>
      * @see Socket#setTcpNoDelay
      */
-    public static final SocketOption<Boolean> TCP_NODELAY =
-        new StdSocketOption<Boolean>("TCP_NODELAY", Boolean.class);
-
-
+    // 是否禁用Nagle算法
+    public static final SocketOption<Boolean> TCP_NODELAY = new StdSocketOption<Boolean>("TCP_NODELAY", Boolean.class);
+    
+    /*▲ IPPROTO_TCP ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┛ */
+    
+    
+    // 标准Socket配置参数实现
     private static class StdSocketOption<T> implements SocketOption<T> {
         private final String name;
         private final Class<T> type;
+        
         StdSocketOption(String name, Class<T> type) {
             this.name = name;
             this.type = type;
         }
-        @Override public String name() { return name; }
-        @Override public Class<T> type() { return type; }
-        @Override public String toString() { return name; }
+        
+        @Override
+        public String name() {
+            return name;
+        }
+        
+        @Override
+        public Class<T> type() {
+            return type;
+        }
+        
+        @Override
+        public String toString() {
+            return name;
+        }
     }
+    
 }

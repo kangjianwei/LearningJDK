@@ -30,12 +30,13 @@ package java.net;
  *
  * @since 1.7
  */
-
+// 通信协议族，通常为IP4协议和IP6协议
 public interface ProtocolFamily {
     /**
      * Returns the name of the protocol family.
      *
      * @return the name of the protocol family
      */
+    // 返回协议名称
     String name();
 }

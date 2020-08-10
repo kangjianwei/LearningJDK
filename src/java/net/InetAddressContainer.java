@@ -25,6 +25,7 @@
 
 package java.net;
 
+// IP地址容器，存放一个IP地址
 class InetAddressContainer {
     InetAddress addr;
 }

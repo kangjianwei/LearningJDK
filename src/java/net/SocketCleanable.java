@@ -24,62 +24,40 @@
  */
 package java.net;
 
+import java.io.FileDescriptor;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.lang.ref.Cleaner;
 import jdk.internal.misc.JavaIOFileDescriptorAccess;
 import jdk.internal.misc.SharedSecrets;
 import jdk.internal.ref.CleanerFactory;
 import jdk.internal.ref.PhantomCleanable;
 
-import java.io.FileDescriptor;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.lang.ref.Cleaner;
-
-
 /**
  * Cleanable for a socket/datagramsocket FileDescriptor when it becomes phantom reachable.
  * Create a cleanup if the raw fd != -1. Windows closes sockets using the fd.
- * Subclassed from {@code PhantomCleanable} so that {@code clear} can be
- * called to disable the cleanup when the socket fd is closed by any means
- * other than calling {@link FileDescriptor#close}.
+ * Subclassed from {@code PhantomCleanable} so that {@code clear} can be called to disable the cleanup
+ * when the socket fd is closed by any means other than calling {FileDescriptor#close()}.
  * Otherwise, it might incorrectly close the handle or fd after it has been reused.
  */
+/*
+ *    Reference
+ *        │
+ * PhantomReference   Cleanable
+ *        └──────┬────────┘
+ *        PhantomCleanable
+ *               │
+ *        SocketCleanable
+ *
+ * Socket（虚引用）清理器，此类的属性既是虚引用，又是清理器
+ */
 final class SocketCleanable extends PhantomCleanable<FileDescriptor> {
-
     // Access to FileDescriptor private fields
-    private static final JavaIOFileDescriptorAccess fdAccess =
-            SharedSecrets.getJavaIOFileDescriptorAccess();
-
-    // Native function to call NET_SocketClose(fd)
-    // Used only for last chance cleanup.
-    private static native void cleanupClose0(int fd) throws IOException;
-
-    // The raw fd to close
+    private static final JavaIOFileDescriptorAccess fdAccess = SharedSecrets.getJavaIOFileDescriptorAccess();
+    
+    // Socket文件的文件描述符编号
     private final int fd;
-
-    /**
-     * Register a socket specific Cleanable with the FileDescriptor
-     * if the FileDescriptor is non-null and the raw fd is != -1.
-     *
-     * @param fdo the FileDescriptor; may be null
-     */
-    static void register(FileDescriptor fdo) {
-        if (fdo != null && fdo.valid()) {
-            int fd = fdAccess.get(fdo);
-            fdAccess.registerCleanup(fdo,
-                    new SocketCleanable(fdo, CleanerFactory.cleaner(), fd));
-        }
-    }
-
-    /**
-     * Unregister a Cleanable from the FileDescriptor.
-     * @param fdo the FileDescriptor; may be null
-     */
-    static void unregister(FileDescriptor fdo) {
-        if (fdo != null) {
-            fdAccess.unregisterCleanup(fdo);
-        }
-    }
-
+    
     /**
      * Constructor for a phantom cleanable reference.
      *
@@ -91,16 +69,47 @@ final class SocketCleanable extends PhantomCleanable<FileDescriptor> {
         super(obj, cleaner);
         this.fd = fd;
     }
-
+    
+    /**
+     * Register a socket specific Cleanable with the FileDescriptor
+     * if the FileDescriptor is non-null and the raw fd is != -1.
+     *
+     * @param fdo the FileDescriptor; may be null
+     */
+    // 注册Socket的文件描述符到清理器
+    static void register(FileDescriptor fdo) {
+        if(fdo != null && fdo.valid()) {
+            int fd = fdAccess.get(fdo);
+            fdAccess.registerCleanup(fdo, new SocketCleanable(fdo, CleanerFactory.cleaner(), fd));
+        }
+    }
+    
+    /**
+     * Unregister a Cleanable from the FileDescriptor.
+     *
+     * @param fdo the FileDescriptor; may be null
+     */
+    // 取消注册
+    static void unregister(FileDescriptor fdo) {
+        if(fdo != null) {
+            fdAccess.unregisterCleanup(fdo);
+        }
+    }
+    
     /**
      * Close the native handle or fd.
      */
+    // 关闭本地的fd。CleanerImpl.run()==>清理器clean()-->清理器performCleanup()
     @Override
     protected void performCleanup() {
         try {
             cleanupClose0(fd);
-        } catch (IOException ioe) {
+        } catch(IOException ioe) {
             throw new UncheckedIOException("close", ioe);
         }
     }
+    
+    /** Native function to call NET_SocketClose(fd) Used only for last chance cleanup */
+    private static native void cleanupClose0(int fd) throws IOException;
+    
 }

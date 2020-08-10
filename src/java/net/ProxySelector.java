@@ -57,96 +57,69 @@ import sun.security.util.SecurityConstants;
  * @author Jean-Christophe Collet
  * @since 1.5
  */
+// 代理选择器，用来获取当前可用的代理
 public abstract class ProxySelector {
+    
     /**
-     * The system wide proxy selector that selects the proxy server to
-     * use, if any, when connecting to a remote object referenced by
-     * an URL.
+     * The system wide proxy selector that selects the proxy server to use,
+     * if any, when connecting to a remote object referenced by an URL.
      *
      * @see #setDefault(ProxySelector)
      */
+    // 代理选择器，默认为DefaultProxySelector
     private static ProxySelector theProxySelector;
-
+    
     static {
         try {
+            // 加载默认代理选择器
             Class<?> c = Class.forName("sun.net.spi.DefaultProxySelector");
-            if (c != null && ProxySelector.class.isAssignableFrom(c)) {
-                @SuppressWarnings("deprecation")
-                ProxySelector tmp = (ProxySelector) c.newInstance();
-                theProxySelector = tmp;
+            
+            if(c != null && ProxySelector.class.isAssignableFrom(c)) {
+                theProxySelector = (ProxySelector) c.newInstance();
             }
-        } catch (Exception e) {
+        } catch(Exception e) {
             theProxySelector = null;
         }
     }
-
+    
+    
     /**
-     * Gets the system-wide proxy selector.
+     * Returns a ProxySelector which uses the given proxy address for all HTTP
+     * and HTTPS requests. If proxy is {@code null} then proxying is disabled.
      *
-     * @throws  SecurityException
-     *          If a security manager has been installed and it denies
-     * {@link NetPermission}{@code ("getProxySelector")}
-     * @see #setDefault(ProxySelector)
-     * @return the system-wide {@code ProxySelector}
-     * @since 1.5
+     * @param proxyAddress The address of the proxy
+     *
+     * @return a ProxySelector
+     *
+     * @since 9
      */
-    public static ProxySelector getDefault() {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(SecurityConstants.GET_PROXYSELECTOR_PERMISSION);
-        }
-        return theProxySelector;
+    // 工厂方法，使用指定的代理地址构造代理
+    public static ProxySelector of(InetSocketAddress proxyAddress) {
+        return new StaticProxySelector(proxyAddress);
     }
-
+    
     /**
-     * Sets (or unsets) the system-wide proxy selector.
-     *
-     * Note: non-standard protocol handlers may ignore this setting.
-     *
-     * @param ps The HTTP proxy selector, or
-     *          {@code null} to unset the proxy selector.
-     *
-     * @throws  SecurityException
-     *          If a security manager has been installed and it denies
-     * {@link NetPermission}{@code ("setProxySelector")}
-     *
-     * @see #getDefault()
-     * @since 1.5
-     */
-    public static void setDefault(ProxySelector ps) {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(SecurityConstants.SET_PROXYSELECTOR_PERMISSION);
-        }
-        theProxySelector = ps;
-    }
-
-    /**
-     * Selects all the applicable proxies based on the protocol to
-     * access the resource with and a destination address to access
-     * the resource at.
+     * Selects all the applicable proxies based on the protocol to access the resource with and a destination address to access the resource at.
      * The format of the URI is defined as follow:
      * <UL>
      * <LI>http URI for http connections</LI>
      * <LI>https URI for https connections
      * <LI>{@code socket://host:port}<br>
-     *     for tcp client sockets connections</LI>
+     * for tcp client sockets connections</LI>
      * </UL>
      *
-     * @param   uri
-     *          The URI that a connection is required to
+     * @param uri The URI that a connection is required to
      *
-     * @return  a List of Proxies. Each element in the
-     *          the List is of type
-     *          {@link java.net.Proxy Proxy};
-     *          when no proxy is available, the list will
-     *          contain one element of type
-     *          {@link java.net.Proxy Proxy}
-     *          that represents a direct connection.
+     * @return a List of Proxies.
+     * Each element in the the List is of type {@link java.net.Proxy Proxy};
+     * when no proxy is available, the list will contain one element of type {@link java.net.Proxy Proxy}
+     * that represents a direct connection.
+     *
      * @throws IllegalArgumentException if the argument is null
      */
+    // 根据指定的目标URI解析出可用的网络代理
     public abstract List<Proxy> select(URI uri);
-
+    
     /**
      * Called to indicate that a connection could not be established
      * to a proxy/socks server. An implementation of this method can
@@ -154,59 +127,84 @@ public abstract class ProxySelector {
      * proxies returned by {@link #select(URI)}, using the address
      * and the IOException caught when trying to connect.
      *
-     * @param   uri
-     *          The URI that the proxy at sa failed to serve.
-     * @param   sa
-     *          The socket address of the proxy/SOCKS server
+     * @param uri The URI that the proxy at sa failed to serve.
+     * @param sa  The socket address of the proxy/SOCKS server
+     * @param ioe The I/O exception thrown when the connect failed.
      *
-     * @param   ioe
-     *          The I/O exception thrown when the connect failed.
      * @throws IllegalArgumentException if either argument is null
      */
+    // 与代理连接失败后的回调，可以在这里删掉无效代理
     public abstract void connectFailed(URI uri, SocketAddress sa, IOException ioe);
-
+    
     /**
-     * Returns a ProxySelector which uses the given proxy address for all HTTP
-     * and HTTPS requests. If proxy is {@code null} then proxying is disabled.
+     * Gets the system-wide proxy selector.
      *
-     * @param proxyAddress
-     *        The address of the proxy
+     * @return the system-wide {@code ProxySelector}
      *
-     * @return a ProxySelector
-     *
-     * @since 9
+     * @throws SecurityException If a security manager has been installed and it denies
+     *                           {@link NetPermission}{@code ("getProxySelector")}
+     * @see #setDefault(ProxySelector)
+     * @since 1.5
      */
-    public static ProxySelector of(InetSocketAddress proxyAddress) {
-        return new StaticProxySelector(proxyAddress);
+    // 获取系统使用的代理选择器，默认为DefaultProxySelector
+    public static ProxySelector getDefault() {
+        SecurityManager sm = System.getSecurityManager();
+        if(sm != null) {
+            sm.checkPermission(SecurityConstants.GET_PROXYSELECTOR_PERMISSION);
+        }
+        return theProxySelector;
     }
-
+    
+    /**
+     * Sets (or unsets) the system-wide proxy selector.
+     *
+     * Note: non-standard protocol handlers may ignore this setting.
+     *
+     * @param ps The HTTP proxy selector, or
+     *           {@code null} to unset the proxy selector.
+     *
+     * @throws SecurityException If a security manager has been installed and it denies
+     *                           {@link NetPermission}{@code ("setProxySelector")}
+     * @see #getDefault()
+     * @since 1.5
+     */
+    // 设置系统使用的代理选择器
+    public static void setDefault(ProxySelector ps) {
+        SecurityManager sm = System.getSecurityManager();
+        if(sm != null) {
+            sm.checkPermission(SecurityConstants.SET_PROXYSELECTOR_PERMISSION);
+        }
+        theProxySelector = ps;
+    }
+    
+    
     static class StaticProxySelector extends ProxySelector {
-        private static final List<Proxy> NO_PROXY_LIST = List.of(Proxy.NO_PROXY);
         final List<Proxy> list;
-
-        StaticProxySelector(InetSocketAddress address){
+        private static final List<Proxy> NO_PROXY_LIST = List.of(Proxy.NO_PROXY);
+        
+        StaticProxySelector(InetSocketAddress address) {
             Proxy p;
-            if (address == null) {
+            if(address == null) {
                 p = Proxy.NO_PROXY;
             } else {
                 p = new Proxy(Proxy.Type.HTTP, address);
             }
             list = List.of(p);
         }
-
-        @Override
-        public void connectFailed(URI uri, SocketAddress sa, IOException e) {
-            /* ignore */
-        }
-
+        
         @Override
         public synchronized List<Proxy> select(URI uri) {
             String scheme = uri.getScheme().toLowerCase();
-            if (scheme.equals("http") || scheme.equals("https")) {
+            if(scheme.equals("http") || scheme.equals("https")) {
                 return list;
             } else {
                 return NO_PROXY_LIST;
             }
+        }
+        
+        @Override
+        public void connectFailed(URI uri, SocketAddress sa, IOException e) {
+            /* ignore */
         }
     }
 }

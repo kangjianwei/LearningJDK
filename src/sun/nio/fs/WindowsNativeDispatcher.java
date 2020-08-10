@@ -32,10 +32,11 @@ import jdk.internal.misc.Unsafe;
 /**
  * Win32 and library calls.
  */
-// windows本地描述符，用来完成与本地库的交互
+// windows操作分派器，用来完成与本地库的交互
 class WindowsNativeDispatcher {
     
     private static final Unsafe unsafe = Unsafe.getUnsafe();
+    
     
     static {
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
@@ -55,7 +56,7 @@ class WindowsNativeDispatcher {
     
     
     
-    /*▼  ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 文件属性 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * DWORD GetFileAttributes(
@@ -74,8 +75,8 @@ class WindowsNativeDispatcher {
     
     /**
      * SetFileAttributes(
-     * LPCTSTR lpFileName,
-     * DWORD dwFileAttributes
+     *   LPCTSTR lpFileName,
+     *   DWORD dwFileAttributes
      * )
      */
     // 设置文件属性
@@ -90,9 +91,9 @@ class WindowsNativeDispatcher {
     
     /**
      * GetFileAttributesEx(
-     * LPCTSTR lpFileName,
-     * GET_FILEEX_INFO_LEVELS fInfoLevelId,
-     * LPVOID lpFileInformation
+     *   LPCTSTR lpFileName,
+     *   GET_FILEEX_INFO_LEVELS fInfoLevelId,
+     *   LPVOID lpFileInformation
      * );
      */
     // 获取文件(扩展)属性，除了可以获取GetFileAttributes中获取到的属性，还能够获取到文件的创建日期，最后读写日期以及文件大小等信息
@@ -107,8 +108,8 @@ class WindowsNativeDispatcher {
     
     /**
      * GetFileInformationByHandle(
-     * HANDLE hFile,
-     * LPBY_HANDLE_FILE_INFORMATION lpFileInformation
+     *   HANDLE hFile,
+     *   LPBY_HANDLE_FILE_INFORMATION lpFileInformation
      * )
      */
     // 检索handle文件的属性信息，将其存入address指示的内存
@@ -120,11 +121,11 @@ class WindowsNativeDispatcher {
     
     private static native void SetFileAttributes0(long lpFileName, int dwFileAttributes) throws WindowsException;
     
-    /*▲  ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 文件属性 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
-    /*▼  ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 文件操作 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     // 创建/打开文件
     static long CreateFile(String path, int dwDesiredAccess, int dwShareMode, int dwCreationDisposition, int dwFlagsAndAttributes) throws WindowsException {
@@ -133,13 +134,13 @@ class WindowsNativeDispatcher {
     
     /**
      * HANDLE CreateFile(
-     * LPCTSTR lpFileName,                            // 普通文件名或者设备文件名
-     * DWORD dwDesiredAccess,                         // 访问模式（写/读）
-     * DWORD dwShareMode,                             // 共享模式
-     * LPSECURITY_ATTRIBUTES lpSecurityAttributes,    // 指向安全属性的指针
-     * DWORD dwCreationDisposition,                   // 创建模式
-     * DWORD dwFlagsAndAttributes,                    // 文件属性
-     * HANDLE hTemplateFile                           // 模板文件。如果不为零，则指定一个文件句柄，新文件将从这个文件中复制扩展属性
+     *   LPCTSTR lpFileName,                            // 普通文件名或者设备文件名
+     *   DWORD dwDesiredAccess,                         // 访问模式（写/读）
+     *   DWORD dwShareMode,                             // 共享模式
+     *   LPSECURITY_ATTRIBUTES lpSecurityAttributes,    // 指向安全属性的指针
+     *   DWORD dwCreationDisposition,                   // 创建模式
+     *   DWORD dwFlagsAndAttributes,                    // 文件属性
+     *   HANDLE hTemplateFile                           // 模板文件。如果不为零，则指定一个文件句柄，新文件将从这个文件中复制扩展属性
      * )
      */
     // 创建/打开文件
@@ -222,9 +223,9 @@ class WindowsNativeDispatcher {
     
     /**
      * MoveFileEx(
-     * LPCTSTR lpExistingFileName,
-     * LPCTSTR lpNewFileName,
-     * DWORD dwFlags
+     *   LPCTSTR lpExistingFileName,
+     *   LPCTSTR lpNewFileName,
+     *   DWORD dwFlags
      * )
      */
     // 移动
@@ -241,9 +242,9 @@ class WindowsNativeDispatcher {
     
     /**
      * CreateSymbolicLink(
-     * LPCWSTR lpSymlinkFileName,
-     * LPCWSTR lpTargetFileName,
-     * DWORD dwFlags
+     *   LPCWSTR lpSymlinkFileName,
+     *   LPCWSTR lpTargetFileName,
+     *   DWORD dwFlags
      * )
      */
     // 创建符号链接
@@ -260,9 +261,9 @@ class WindowsNativeDispatcher {
     
     /**
      * CreateHardLink(
-     * LPCTSTR lpFileName,
-     * LPCTSTR lpExistingFileName,
-     * LPSECURITY_ATTRIBUTES lpSecurityAttributes
+     *    LPCTSTR lpFileName,
+     *    LPCTSTR lpExistingFileName,
+     *    LPSECURITY_ATTRIBUTES lpSecurityAttributes
      * )
      */
     // 创建文件的硬链接
@@ -279,38 +280,31 @@ class WindowsNativeDispatcher {
     
     /**
      * CloseHandle(
-     * HANDLE hObject
+     *   HANDLE hObject
      * )
      */
     // 关闭一个打开的句柄
     static native void CloseHandle(long handle);
     
     private static native long CreateFile0(long lpFileName, int dwDesiredAccess, int dwShareMode, long lpSecurityAttributes, int dwCreationDisposition, int dwFlagsAndAttributes) throws WindowsException;
-    
     private static native void CreateDirectory0(long lpFileName, long lpSecurityAttributes) throws WindowsException;
-    
     private static native void CreateSymbolicLink0(long linkAddress, long targetAddress, int flags) throws WindowsException;
-    
     private static native void CreateHardLink0(long newFileBuffer, long existingFileBuffer) throws WindowsException;
-    
     private static native void DeleteFile0(long lpFileName) throws WindowsException;
-    
     private static native void RemoveDirectory0(long lpFileName) throws WindowsException;
-    
     private static native void CopyFileEx0(long existingAddress, long newAddress, int flags, long addressToPollForCancel) throws WindowsException;
-    
     private static native void MoveFileEx0(long existingAddress, long newAddress, int flags) throws WindowsException;
     
-    /*▲  ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 文件操作 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
-    /*▼  ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 查找 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * HANDLE FindFirstFile(
-     * LPCTSTR lpFileName,                // 用于指定搜索目录和文件类型，可以用通配符
-     * LPWIN32_FIND_DATA lpFindFileData   // 用于保存搜索得到的文件信息
+     *   LPCTSTR lpFileName,                // 用于指定搜索目录和文件类型，可以用通配符
+     *   LPWIN32_FIND_DATA lpFindFileData   // 用于保存搜索得到的文件信息
      * )
      */
     // 返回指定目录的第一个文件，返回搜索到的文件信息
@@ -328,8 +322,8 @@ class WindowsNativeDispatcher {
     
     /**
      * HANDLE FindFirstFile(
-     * LPCTSTR lpFileName,
-     * LPWIN32_FIND_DATA lpFindFileData
+     *   LPCTSTR lpFileName,
+     *   LPWIN32_FIND_DATA lpFindFileData
      * )
      */
     // 查找path标识的文件，如果找到，将其属性信息存入address指示的内存
@@ -344,10 +338,10 @@ class WindowsNativeDispatcher {
     
     /**
      * HANDLE FindFirstStreamW(
-     * LPCWSTR lpFileName,
-     * STREAM_INFO_LEVELS InfoLevel,
-     * LPVOID lpFindStreamData,
-     * DWORD dwFlags
+     *   LPCWSTR lpFileName,
+     *   STREAM_INFO_LEVELS InfoLevel,
+     *   LPVOID lpFindStreamData,
+     *   DWORD dwFlags
      * )
      */
     // 获取到file上首个备用数据流(对于目录，返回null)
@@ -375,8 +369,8 @@ class WindowsNativeDispatcher {
     
     /**
      * FindNextFile(
-     * HANDLE hFindFile,                  // 上一次FindFirstFile或FindNextFile得到的HANDLE
-     * LPWIN32_FIND_DATA lpFindFileData   // 用于保存搜索得到的文件信息
+     *   HANDLE hFindFile,                  // 上一次FindFirstFile或FindNextFile得到的HANDLE
+     *   LPWIN32_FIND_DATA lpFindFileData   // 用于保存搜索得到的文件信息
      * )
      *
      * @return lpFindFileData->cFileName or null
@@ -392,22 +386,22 @@ class WindowsNativeDispatcher {
     
     /**
      * FindClose(
-     * HANDLE hFindFile
+     *   HANDLE hFindFile
      * )
      */
     // 关闭由FindFirstFile函数创建的一个搜索句柄
     static native void FindClose(long handle) throws WindowsException;
     
-    /*▲  ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 查找 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
-    /*▼  ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ SID ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * ConvertStringSidToSid(
-     * LPCTSTR StringSid,
-     * PSID* pSid
+     *   LPCTSTR StringSid,
+     *   PSID* pSid
      * )
      *
      * @return pSid
@@ -424,8 +418,8 @@ class WindowsNativeDispatcher {
     
     /**
      * ConvertSidToStringSid(
-     * PSID Sid,
-     * LPTSTR* StringSid
+     *   PSID Sid,
+     *   LPTSTR* StringSid
      * )
      *
      * @return StringSid
@@ -435,7 +429,7 @@ class WindowsNativeDispatcher {
     
     private static native long ConvertStringSidToSid0(long lpStringSid) throws WindowsException;
     
-    /*▲  ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ SID ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -443,11 +437,11 @@ class WindowsNativeDispatcher {
     
     /**
      * GetFileSecurity(
-     * LPCTSTR lpFileName,
-     * SECURITY_INFORMATION RequestedInformation,
-     * PSECURITY_DESCRIPTOR pSecurityDescriptor,
-     * DWORD nLength,
-     * LPDWORD lpnLengthNeeded
+     *   LPCTSTR lpFileName,
+     *   SECURITY_INFORMATION RequestedInformation,
+     *   PSECURITY_DESCRIPTOR pSecurityDescriptor,
+     *   DWORD nLength,
+     *   LPDWORD lpnLengthNeeded
      * )
      */
     /*
@@ -469,9 +463,9 @@ class WindowsNativeDispatcher {
     
     /**
      * SetFileSecurity(
-     * LPCTSTR lpFileName,
-     * SECURITY_INFORMATION SecurityInformation,
-     * PSECURITY_DESCRIPTOR pSecurityDescriptor
+     *   LPCTSTR lpFileName,
+     *   SECURITY_INFORMATION SecurityInformation,
+     *   PSECURITY_DESCRIPTOR pSecurityDescriptor
      * )
      */
     // 为文件设置安全属性
@@ -486,10 +480,10 @@ class WindowsNativeDispatcher {
     
     /**
      * GetAclInformation(
-     * PACL pAcl,
-     * LPVOID pAclInformation,
-     * DWORD nAclInformationLength,
-     * ACL_INFORMATION_CLASS dwAclInformationClass
+     *   PACL pAcl,
+     *   LPVOID pAclInformation,
+     *   DWORD nAclInformationLength,
+     *   ACL_INFORMATION_CLASS dwAclInformationClass
      * )
      */
     // 从指定的安全描述符中获取DACL实体信息
@@ -501,13 +495,13 @@ class WindowsNativeDispatcher {
     
     /**
      * LookupAccountSid(
-     * LPCTSTR lpSystemName,
-     * PSID Sid,
-     * LPTSTR Name,
-     * LPDWORD cbName,
-     * LPTSTR ReferencedDomainName,
-     * LPDWORD cbReferencedDomainName,
-     * PSID_NAME_USE peUse
+     *   LPCTSTR lpSystemName,
+     *   PSID Sid,
+     *   LPTSTR Name,
+     *   LPDWORD cbName,
+     *   LPTSTR ReferencedDomainName,
+     *   LPDWORD cbReferencedDomainName,
+     *   PSID_NAME_USE peUse
      * )
      */
     // 将SID转换为账户信息
@@ -519,13 +513,13 @@ class WindowsNativeDispatcher {
     
     /**
      * LookupAccountName(
-     * LPCTSTR lpSystemName,
-     * LPCTSTR lpAccountName,
-     * PSID Sid,
-     * LPDWORD cbSid,
-     * LPTSTR ReferencedDomainName,
-     * LPDWORD cbReferencedDomainName,
-     * PSID_NAME_USE peUse
+     *   LPCTSTR lpSystemName,
+     *   LPCTSTR lpAccountName,
+     *   PSID Sid,
+     *   LPDWORD cbSid,
+     *   LPTSTR ReferencedDomainName,
+     *   LPDWORD cbReferencedDomainName,
+     *   PSID_NAME_USE peUse
      * )
      *
      * @return cbSid
@@ -546,17 +540,17 @@ class WindowsNativeDispatcher {
     
     /**
      * InitializeSecurityDescriptor(
-     * PSECURITY_DESCRIPTOR pSecurityDescriptor,
-     * DWORD dwRevision
+     *   PSECURITY_DESCRIPTOR pSecurityDescriptor,
+     *   DWORD dwRevision
      * )
      */
     static native void InitializeSecurityDescriptor(long sdAddress) throws WindowsException;
     
     /**
      * GetSecurityDescriptorOwner(
-     * PSECURITY_DESCRIPTOR pSecurityDescriptor
-     * PSID *pOwner,
-     * LPBOOL lpbOwnerDefaulted
+     *   PSECURITY_DESCRIPTOR pSecurityDescriptor
+     *   PSID *pOwner,
+     *   LPBOOL lpbOwnerDefaulted
      * )
      *
      * @return pOwner
@@ -565,38 +559,38 @@ class WindowsNativeDispatcher {
     
     /**
      * SetSecurityDescriptorOwner(
-     * PSECURITY_DESCRIPTOR pSecurityDescriptor,
-     * PSID pOwner,
-     * BOOL bOwnerDefaulted
+     *   PSECURITY_DESCRIPTOR pSecurityDescriptor,
+     *   PSID pOwner,
+     *   BOOL bOwnerDefaulted
      * )
      */
     static native void SetSecurityDescriptorOwner(long pSecurityDescriptor, long pOwner) throws WindowsException;
     
     /**
      * GetSecurityDescriptorDacl(
-     * PSECURITY_DESCRIPTOR pSecurityDescriptor,
-     * LPBOOL lpbDaclPresent,
-     * PACL *pDacl,
-     * LPBOOL lpbDaclDefaulted
+     *   PSECURITY_DESCRIPTOR pSecurityDescriptor,
+     *   LPBOOL lpbDaclPresent,
+     *   PACL *pDacl,
+     *   LPBOOL lpbDaclDefaulted
      * )
      */
     static native long GetSecurityDescriptorDacl(long pSecurityDescriptor);
     
     /**
      * SetSecurityDescriptorDacl(
-     * PSECURITY_DESCRIPTOR pSecurityDescriptor,
-     * BOOL bDaclPresent,
-     * PACL pDacl,
-     * BOOL bDaclDefaulted
+     *   PSECURITY_DESCRIPTOR pSecurityDescriptor,
+     *   BOOL bDaclPresent,
+     *   PACL pDacl,
+     *   BOOL bDaclDefaulted
      * )
      */
     static native void SetSecurityDescriptorDacl(long pSecurityDescriptor, long pAcl) throws WindowsException;
     
     /**
      * InitializeAcl(
-     * PACL pAcl,
-     * DWORD nAclLength,
-     * DWORD dwAclRevision
+     *   PACL pAcl,
+     *   DWORD nAclLength,
+     *   DWORD dwAclRevision
      * )
      */
     static native void InitializeAcl(long aclAddress, int size) throws WindowsException;
@@ -605,31 +599,31 @@ class WindowsNativeDispatcher {
     
     /**
      * GetAce(
-     * PACL pAcl,
-     * DWORD dwAceIndex,
-     * LPVOID *pAce
+     *   PACL pAcl,
+     *   DWORD dwAceIndex,
+     *   LPVOID *pAce
      * )
      */
     static native long GetAce(long aclAddress, int aceIndex);
     
     /**
      * AddAccessAllowedAceEx(
-     * PACL pAcl,
-     * DWORD dwAceRevision,
-     * DWORD AceFlags,
-     * DWORD AccessMask,
-     * PSID pSid
+     *   PACL pAcl,
+     *   DWORD dwAceRevision,
+     *   DWORD AceFlags,
+     *   DWORD AccessMask,
+     *   PSID pSid
      * )
      */
     static native void AddAccessAllowedAceEx(long aclAddress, int flags, int mask, long sidAddress) throws WindowsException;
     
     /**
      * AddAccessDeniedAceEx(
-     * PACL pAcl,
-     * DWORD dwAceRevision,
-     * DWORD AceFlags,
-     * DWORD AccessMask,
-     * PSID pSid
+     *   PACL pAcl,
+     *   DWORD dwAceRevision,
+     *   DWORD AceFlags,
+     *   DWORD AccessMask,
+     *   PSID pSid
      * )
      */
     static native void AddAccessDeniedAceEx(long aclAddress, int flags, int mask, long sidAddress) throws WindowsException;
@@ -640,7 +634,7 @@ class WindowsNativeDispatcher {
     
     /**
      * DWORD GetLengthSid(
-     * PSID pSid
+     *   PSID pSid
      * )
      */
     static native int GetLengthSid(long sidAddress);
@@ -649,7 +643,13 @@ class WindowsNativeDispatcher {
     
     
     
-    /*▼  ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 磁盘 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * DWORD GetLogicalDrives(VOID)
+     */
+    // 返回驱动器的盘符列表；返回值是一个32位的值，每一位表示一个逻辑驱动器是否存在，比如A盘存在，那么第0位将被设置为1
+    static native int GetLogicalDrives() throws WindowsException;
     
     /**
      * UINT GetDriveType(
@@ -669,14 +669,14 @@ class WindowsNativeDispatcher {
     
     /**
      * GetVolumeInformation(
-     * LPCTSTR lpRootPathName,
-     * LPTSTR lpVolumeNameBuffer,
-     * DWORD nVolumeNameSize,
-     * LPDWORD lpVolumeSerialNumber,
-     * LPDWORD lpMaximumComponentLength,
-     * LPDWORD lpFileSystemFlags,
-     * LPTSTR lpFileSystemNameBuffer,
-     * DWORD nFileSystemNameSize
+     *   LPCTSTR lpRootPathName,
+     *   LPTSTR lpVolumeNameBuffer,
+     *   DWORD nVolumeNameSize,
+     *   LPDWORD lpVolumeSerialNumber,
+     *   LPDWORD lpMaximumComponentLength,
+     *   LPDWORD lpFileSystemFlags,
+     *   LPTSTR lpFileSystemNameBuffer,
+     *   DWORD nFileSystemNameSize
      * )
      */
     // 获取指定盘符的磁盘卷信息
@@ -696,9 +696,9 @@ class WindowsNativeDispatcher {
     
     /**
      * GetVolumePathName(
-     * LPCTSTR lpszFileName,
-     * LPTSTR lpszVolumePathName,
-     * DWORD cchBufferLength
+     *   LPCTSTR lpszFileName,
+     *   LPTSTR lpszVolumePathName,
+     *   DWORD cchBufferLength
      * )
      *
      * @return lpFileName
@@ -713,30 +713,22 @@ class WindowsNativeDispatcher {
         }
     }
     
-    /**
-     * DWORD GetLogicalDrives(VOID)
-     */
-    // 返回驱动器的盘符列表
-    static native int GetLogicalDrives() throws WindowsException;
-    
     private static native int GetDriveType0(long lpRoot) throws WindowsException;
-    
     private static native void GetVolumeInformation0(long lpRoot, VolumeInformation obj) throws WindowsException;
-    
     private static native String GetVolumePathName0(long lpFileName) throws WindowsException;
     
-    /*▲  ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 磁盘 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
-    /*▼  ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 完成端口 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * HANDLE CreateIoCompletionPort (
-     * HANDLE FileHandle,
-     * HANDLE ExistingCompletionPort,
-     * ULONG_PTR CompletionKey,
-     * DWORD NumberOfConcurrentThreads
+     *   HANDLE FileHandle,
+     *   HANDLE ExistingCompletionPort,
+     *   ULONG_PTR CompletionKey,
+     *   DWORD NumberOfConcurrentThreads
      * )
      */
     // 用于创建一个完成端口对象，或将一个文件句柄与已有的完成端口关联到一起
@@ -744,11 +736,11 @@ class WindowsNativeDispatcher {
     
     /**
      * GetQueuedCompletionStatus(
-     * HANDLE CompletionPort,
-     * LPDWORD lpNumberOfBytesTransferred,
-     * PULONG_PTR lpCompletionKey,
-     * LPOVERLAPPED *lpOverlapped,
-     * DWORD dwMilliseconds
+     *   HANDLE CompletionPort,
+     *   LPDWORD lpNumberOfBytesTransferred,
+     *   PULONG_PTR lpCompletionKey,
+     *   LPOVERLAPPED *lpOverlapped,
+     *   DWORD dwMilliseconds
      */
     // 无限阻塞，直到"完成端口"completionPort有新的通知就绪时，获取该通知的内容，并存入status中后返回
     static CompletionStatus GetQueuedCompletionStatus(long completionPort) throws WindowsException {
@@ -763,10 +755,10 @@ class WindowsNativeDispatcher {
     
     /**
      * PostQueuedCompletionStatus(
-     * HANDLE CompletionPort,
-     * DWORD dwNumberOfBytesTransferred,
-     * ULONG_PTR dwCompletionKey,
-     * LPOVERLAPPED lpOverlapped
+     *   HANDLE CompletionPort,
+     *   DWORD dwNumberOfBytesTransferred,
+     *   ULONG_PTR dwCompletionKey,
+     *   LPOVERLAPPED lpOverlapped
      * )
      */
     /*
@@ -781,34 +773,35 @@ class WindowsNativeDispatcher {
     
     /**
      * CancelIo(
-     * HANDLE hFile
+     *   HANDLE hFile
      * )
      */
+    // 取消完成队列中尚未处理的IO操作
     static native void CancelIo(long hFile) throws WindowsException;
     
     /**
      * GetOverlappedResult(
-     * HANDLE hFile,
-     * LPOVERLAPPED lpOverlapped,
-     * LPDWORD lpNumberOfBytesTransferred,
-     * BOOL bWait
+     *   HANDLE hFile,
+     *   LPOVERLAPPED lpOverlapped,
+     *   LPDWORD lpNumberOfBytesTransferred,
+     *   BOOL bWait
      * );
      */
     static native int GetOverlappedResult(long hFile, long lpOverlapped) throws WindowsException;
     
-    /*▲  ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 完成端口 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
-    /*▼  ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 存储器容量 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * GetDiskFreeSpace(
-     * LPCTSTR lpRootPathName,
-     * LPDWORD lpSectorsPerCluster,
-     * LPDWORD lpBytesPerSector,
-     * LPDWORD lpNumberOfFreeClusters,
-     * LPDWORD lpTotalNumberOfClusters
+     *   LPCTSTR lpRootPathName,
+     *   LPDWORD lpSectorsPerCluster,
+     *   LPDWORD lpBytesPerSector,
+     *   LPDWORD lpNumberOfFreeClusters,
+     *   LPDWORD lpTotalNumberOfClusters
      * )
      */
     // 获取存储器的容量信息，限定在2G以内的磁盘上使用
@@ -825,10 +818,10 @@ class WindowsNativeDispatcher {
     
     /**
      * GetDiskFreeSpaceEx(
-     * LPCTSTR lpDirectoryName,
-     * PULARGE_INTEGER lpFreeBytesAvailableToCaller,
-     * PULARGE_INTEGER lpTotalNumberOfBytes,
-     * PULARGE_INTEGER lpTotalNumberOfFreeBytes
+     *   LPCTSTR lpDirectoryName,
+     *   PULARGE_INTEGER lpFreeBytesAvailableToCaller,
+     *   PULARGE_INTEGER lpTotalNumberOfBytes,
+     *   PULARGE_INTEGER lpTotalNumberOfFreeBytes
      * )
      */
     // 获取存储器的容量信息
@@ -847,7 +840,7 @@ class WindowsNativeDispatcher {
     
     private static native void GetDiskFreeSpaceEx0(long lpDirectoryName, DiskFreeSpace obj) throws WindowsException;
     
-    /*▲  ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 存储器容量 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -865,45 +858,42 @@ class WindowsNativeDispatcher {
     
     /**
      * OpenProcessToken(
-     * HANDLE ProcessHandle,
-     * DWORD DesiredAccess,
-     * PHANDLE TokenHandle
+     *   HANDLE ProcessHandle,
+     *   DWORD DesiredAccess,
+     *   PHANDLE TokenHandle
      * )
      */
     static native long OpenProcessToken(long hProcess, int desiredAccess) throws WindowsException;
     
     /**
      * OpenThreadToken(
-     * HANDLE ThreadHandle,
-     * DWORD DesiredAccess,
-     * BOOL OpenAsSelf,
-     * PHANDLE TokenHandle
+     *   HANDLE ThreadHandle,
+     *   DWORD DesiredAccess,
+     *   BOOL OpenAsSelf,
+     *   PHANDLE TokenHandle
      * )
      */
     static native long OpenThreadToken(long hThread, int desiredAccess, boolean openAsSelf) throws WindowsException;
     
     /**
      * SetThreadToken(
-     * PHANDLE Thread,
-     * HANDLE Token
+     *   PHANDLE Thread,
+     *   HANDLE Token
      * )
      */
     static native void SetThreadToken(long thread, long hToken) throws WindowsException;
     
     /**
      * GetTokenInformation(
-     * HANDLE TokenHandle,
-     * TOKEN_INFORMATION_CLASS TokenInformationClass,
-     * LPVOID TokenInformation,
-     * DWORD TokenInformationLength,
-     * PDWORD ReturnLength
+     *   HANDLE TokenHandle,
+     *   TOKEN_INFORMATION_CLASS TokenInformationClass,
+     *   LPVOID TokenInformation,
+     *   DWORD TokenInformationLength,
+     *   PDWORD ReturnLength
      * )
      */
     static native int GetTokenInformation(long token, int tokenInfoClass, long pTokenInfo, int tokenInfoLength) throws WindowsException;
     
-    /**
-     *
-     */
     static native long DuplicateTokenEx(long hThread, int desiredAccess) throws WindowsException;
     
     /*▲  ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -949,10 +939,10 @@ class WindowsNativeDispatcher {
     
     /**
      * GetFullPathName(
-     * LPCTSTR lpFileName,
-     * DWORD nBufferLength,
-     * LPTSTR lpBuffer,
-     * LPTSTR *lpFilePart
+     *   LPCTSTR lpFileName,
+     *   DWORD nBufferLength,
+     *   LPTSTR lpBuffer,
+     *   LPTSTR *lpFilePart
      * )
      */
     // 获取指定路径path的完整路径
@@ -971,7 +961,7 @@ class WindowsNativeDispatcher {
      * Marks a file as a sparse file.
      *
      * DeviceIoControl(
-     * FSCTL_SET_SPARSE
+     *   FSCTL_SET_SPARSE
      * )
      */
     static native void DeviceIoControlSetSparse(long handle) throws WindowsException;
@@ -980,7 +970,7 @@ class WindowsNativeDispatcher {
      * Retrieves the reparse point data associated with the file or directory.
      *
      * DeviceIoControl(
-     * FSCTL_GET_REPARSE_POINT
+     *   FSCTL_GET_REPARSE_POINT
      * )
      */
     // 检索与handle处的资源关联的reparse point数据
@@ -999,66 +989,66 @@ class WindowsNativeDispatcher {
     
     /**
      * AdjustTokenPrivileges(
-     * HANDLE TokenHandle,
-     * BOOL DisableAllPrivileges
-     * PTOKEN_PRIVILEGES NewState
-     * DWORD BufferLength
-     * PTOKEN_PRIVILEGES
-     * PDWORD ReturnLength
+     *   HANDLE TokenHandle,
+     *   BOOL DisableAllPrivileges
+     *   PTOKEN_PRIVILEGES NewState
+     *   DWORD BufferLength
+     *   PTOKEN_PRIVILEGES
+     *   PDWORD ReturnLength
      * )
      */
     static native void AdjustTokenPrivileges(long token, long luid, int attributes) throws WindowsException;
     
     /**
      * SetFileTime(
-     * HANDLE hFile,
-     * CONST FILETIME *lpCreationTime,
-     * CONST FILETIME *lpLastAccessTime,
-     * CONST FILETIME *lpLastWriteTime
+     *   HANDLE hFile,
+     *   CONST FILETIME *lpCreationTime,
+     *   CONST FILETIME *lpLastAccessTime,
+     *   CONST FILETIME *lpLastWriteTime
      * )
      */
     static native void SetFileTime(long handle, long createTime, long lastAccessTime, long lastWriteTime) throws WindowsException;
     
     /**
      * SetEndOfFile(
-     * HANDLE hFile
+     *   HANDLE hFile
      * )
      */
     static native void SetEndOfFile(long handle) throws WindowsException;
     
     /**
      * AccessCheck(
-     * PSECURITY_DESCRIPTOR pSecurityDescriptor,
-     * HANDLE ClientToken,
-     * DWORD DesiredAccess,
-     * PGENERIC_MAPPING GenericMapping,
-     * PPRIVILEGE_SET PrivilegeSet,
-     * LPDWORD PrivilegeSetLength,
-     * LPDWORD GrantedAccess,
-     * LPBOOL AccessStatus
+     *   PSECURITY_DESCRIPTOR pSecurityDescriptor,
+     *   HANDLE ClientToken,
+     *   DWORD DesiredAccess,
+     *   PGENERIC_MAPPING GenericMapping,
+     *   PPRIVILEGE_SET PrivilegeSet,
+     *   LPDWORD PrivilegeSetLength,
+     *   LPDWORD GrantedAccess,
+     *   LPBOOL AccessStatus
      * )
      */
     static native boolean AccessCheck(long token, long securityInfo, int accessMask, int genericRead, int genericWrite, int genericExecute, int genericAll) throws WindowsException;
     
     /**
      * GetFinalPathNameByHandle(
-     * HANDLE hFile,
-     * LPTSTR lpszFilePath,
-     * DWORD cchFilePath,
-     * DWORD dwFlags
+     *   HANDLE hFile,
+     *   LPTSTR lpszFilePath,
+     *   DWORD cchFilePath,
+     *   DWORD dwFlags
      * )
      */
     static native String GetFinalPathNameByHandle(long handle) throws WindowsException;
     
     /**
      * FormatMessage(
-     * DWORD dwFlags,
-     * LPCVOID lpSource,
-     * DWORD dwMessageId,
-     * DWORD dwLanguageId,
-     * LPTSTR lpBuffer,
-     * DWORD nSize,
-     * va_list *Arguments
+     *   DWORD dwFlags,
+     *   LPCVOID lpSource,
+     *   DWORD dwMessageId,
+     *   DWORD dwLanguageId,
+     *   LPTSTR lpBuffer,
+     *   DWORD nSize,
+     *   va_list *Arguments
      * )
      */
     static native String FormatMessage(int errorCode);
@@ -1083,14 +1073,14 @@ class WindowsNativeDispatcher {
     
     /**
      * ReadDirectoryChangesW (
-     * HANDLE  hDirectory,        // 要监视的目录的句柄
-     * LPVOID  lpBuffer,          // 指向DWORD对齐格式缓冲区的指针，将在其中返回读取结果
-     * DWORD   nBufferLength,     // lpBuffer参数指向的缓冲区大小，以字节为单位
-     * BOOL    bWatchSubtree,     // 是否递归监控目录
-     * DWORD   dwNotifyFilter,    // 需要关注的更改事件
-     * LPDWORD lpBytesReturned,   // 对于同步调用，此参数接收传输到lpBuffer参数中的字节数。对于异步调用，该参数未定义
-     * LPOVERLAPPED lpOverlapped, // 指向OVERLAPPED结构的指针
-     * LPOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine
+     *   HANDLE  hDirectory,        // 要监视的目录的句柄
+     *   LPVOID  lpBuffer,          // 指向DWORD对齐格式缓冲区的指针，将在其中返回读取结果
+     *   DWORD   nBufferLength,     // lpBuffer参数指向的缓冲区大小，以字节为单位
+     *   BOOL    bWatchSubtree,     // 是否递归监控目录
+     *   DWORD   dwNotifyFilter,    // 需要关注的更改事件
+     *   LPDWORD lpBytesReturned,   // 对于同步调用，此参数接收传输到lpBuffer参数中的字节数。对于异步调用，该参数未定义
+     *   LPOVERLAPPED lpOverlapped, // 指向OVERLAPPED结构的指针
+     *   LPOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine
      * )
      */
     // 监听指定的目录，如果有感兴趣的事件到达，会填充到OVERLAPPED结构中的hEvent字段中

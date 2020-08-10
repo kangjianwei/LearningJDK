@@ -24,25 +24,35 @@
  */
 
 package java.net;
+
 import java.io.IOException;
-/*
- * Package private interface to "implementation" used by
- * {@link InetAddress}.
- * <p>
- * See {@link java.net.Inet4AddressImp} and
- * {@link java.net.Inet6AddressImp}.
+
+/**
+ * Package private interface to "implementation" used by {@link InetAddress}.
+ *
+ * See {@link java.net.Inet4AddressImpl} and {@link java.net.Inet6AddressImpl}.
  *
  * @since 1.4
  */
+// InetAddress类的一些补充，主要用来映射主机地址/名称，以及判断网络地址的可用性
 interface InetAddressImpl {
-
+    
+    // 本地主机名称
     String getLocalHostName() throws UnknownHostException;
-    InetAddress[]
-        lookupAllHostAddr(String hostname) throws UnknownHostException;
-    String getHostByAddr(byte[] addr) throws UnknownHostException;
-
-    InetAddress anyLocalAddress();
+    
+    // 本地环回地址
     InetAddress loopbackAddress();
-    boolean isReachable(InetAddress addr, int timeout, NetworkInterface netif,
-                        int ttl) throws IOException;
+    
+    // 通配符地址（特殊地址，字节全为0）
+    InetAddress anyLocalAddress();
+    
+    // 通过指定的网络接口判断给定的网络地址是否可用，ttl代表网络跳数
+    boolean isReachable(InetAddress addr, int timeout, NetworkInterface netif, int ttl) throws IOException;
+    
+    // 将主机名称或主机地址映射为InetAddress实例
+    InetAddress[] lookupAllHostAddr(String hostname) throws UnknownHostException;
+    
+    // 根据主机地址查找映射的主机名称
+    String getHostByAddr(byte[] addr) throws UnknownHostException;
+    
 }

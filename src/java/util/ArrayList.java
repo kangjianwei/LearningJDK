@@ -680,6 +680,7 @@ found:
      * @return an array containing all of the elements in this list in
      * proper sequence
      */
+    // 以数组形式返回当前顺序表
     public Object[] toArray() {
         return Arrays.copyOf(elementData, size);
     }
@@ -710,6 +711,7 @@ found:
      *                              this list
      * @throws NullPointerException if the specified array is null
      */
+    // 将当前顺序表中的元素存入数组a后返回，需要将链表中的元素转换为T类型
     @SuppressWarnings("unchecked")
     public <T> T[] toArray(T[] a) {
         if(a.length<size){
@@ -1375,6 +1377,7 @@ found:
     /**
      * An optimized version of AbstractList.Itr
      */
+    // 普通的迭代器
     private class Itr implements Iterator<E> {
         // 下一个待遍历元素的游标
         int cursor;       // index of next element to return
@@ -1460,6 +1463,7 @@ found:
     /**
      * An optimized version of AbstractList.ListItr
      */
+    // 增强的迭代器
     private class ListItr extends Itr implements ListIterator<E> {
         ListItr(int index) {
             super();
@@ -1529,6 +1533,7 @@ found:
     }
     
     /** Index-based split-by-two, lazily initialized Spliterator */
+    // 可分割的迭代器
     final class ArrayListSpliterator implements Spliterator<E> {
         
         /*
@@ -1641,8 +1646,10 @@ found:
             }
             return hi;
         }
+    
     }
     
+    // 子视图
     private static class SubList<E> extends AbstractList<E> implements RandomAccess {
         private final ArrayList<E> root;
         private final SubList<E> parent;
@@ -1943,8 +1950,7 @@ found:
                 public ArrayList<E>.ArrayListSpliterator trySplit() {
                     int hi = getFence(), lo = index, mid = (lo + hi) >>> 1;
                     // ArrayListSpliterator can be used here as the source is already bound
-                    return (lo >= mid)
-                        ? null // divide range in half unless too small
+                    return (lo >= mid) ? null // divide range in half unless too small
                         : root.new ArrayListSpliterator(lo, index = mid, expectedModCount);
                 }
                 
@@ -2048,6 +2054,7 @@ found:
                 slist = slist.parent;
             } while(slist != null);
         }
+        
     }
     
 }

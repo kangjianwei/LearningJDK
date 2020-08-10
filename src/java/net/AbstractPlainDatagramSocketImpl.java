@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-
 import sun.net.ResourceManager;
 import sun.security.action.GetPropertyAction;
 
@@ -42,61 +41,250 @@ import sun.security.action.GetPropertyAction;
  *
  * @author Pavani Diwanji
  */
-
-abstract class AbstractPlainDatagramSocketImpl extends DatagramSocketImpl
-{
-    /* timeout value for receive() */
-    int timeout = 0;
-    boolean connected = false;
-    private int trafficClass = 0;
-    protected InetAddress connectedAddress = null;
-    private int connectedPort = -1;
-
-    private static final String os =
-            GetPropertyAction.privilegedGetProperty("os.name");
-
+// 普通"UDP-Socket委托"的抽象实现，更进一步的实现取决于不同的平台
+abstract class AbstractPlainDatagramSocketImpl extends DatagramSocketImpl {
+    
+    // 获取操作系统(平台)名称
+    private static final String os = GetPropertyAction.privilegedGetProperty("os.name");
     /**
      * flag set if the native connect() call not to be used
      */
+    // 是否禁用了UDP连接(苹果系统下默认是禁止的)
     private static final boolean connectDisabled = os.contains("OS X");
-
+    
+    boolean connected = false;  // 是否建立了连接
+    
+    protected InetAddress connectedAddress = null; // 连接到的远程IP
+    private int connectedPort = -1;   // 连接到的远程端口
+    
+    // 是否对isReusePortAvailable进行过检验
+    private static volatile boolean checkedReusePort;
+    // 是否允许多个socket监听相同的地址和端口
+    private static volatile boolean isReusePortAvailable;
+    
+    /** timeout value for receive() */
+    // 接收(查看)数据的超时
+    int timeout = 0;
+    
+    // IP参数，用于设置IP头部的Type-of-Service字段
+    private int trafficClass = 0;
+    
+    
     /**
      * Load net library into runtime.
      */
     static {
-        java.security.AccessController.doPrivileged(
-            new java.security.PrivilegedAction<>() {
-                public Void run() {
-                    System.loadLibrary("net");
-                    return null;
-                }
-            });
+        java.security.AccessController.doPrivileged(new java.security.PrivilegedAction<>() {
+            public Void run() {
+                System.loadLibrary("net");
+                return null;
+            }
+        });
     }
-
-    private static volatile boolean checkedReusePort;
-    private static volatile boolean isReusePortAvailable;
-
+    
+    
+    
+    /*▼ Socket操作 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Tells whether SO_REUSEPORT is supported.
+     * Creates a datagram socket
      */
-    static boolean isReusePortAvailable() {
-        if (!checkedReusePort) {
-            isReusePortAvailable = isReusePortAvailable0();
-            checkedReusePort = true;
+    // 创建Socket文件，并记下其文件描述符到fd字段中（该文件描述符会被清理器追踪）
+    protected synchronized void create() throws SocketException {
+        // 创建UDP-Socket之时的回调
+        ResourceManager.beforeUdpCreate();
+        
+        // 创建Java层的Socket文件描述符中
+        fd = new FileDescriptor();
+        
+        try {
+            // 创建一个socket文件，并将其本地文件描述符存储到Java层的文件描述符中
+            datagramSocketCreate();
+            
+            // 注册Socket的文件描述符到清理器
+            SocketCleanable.register(fd);
+        } catch(SocketException ioe) {
+            // 关闭UDP-Socket之时的回调
+            ResourceManager.afterUdpClose();
+            fd = null;
+            throw ioe;
         }
-        return isReusePortAvailable;
     }
-
+    
+    /**
+     * Binds a datagram socket to a local port.
+     */
+    // 将UDP-Socket绑定到指定的IP和端口
+    protected synchronized void bind(int lport, InetAddress laddr) throws SocketException {
+        bind0(lport, laddr);
+    }
+    
+    /**
+     * Connects a datagram socket to a remote destination.
+     * This associates the remote address with the local socket
+     * so that datagrams may only be sent to this destination and received from this destination.
+     *
+     * @param address the remote InetAddress to connect to
+     * @param port    the remote port number
+     */
+    // 将UDP-Socket连接到远程地址，之后只能向该远程地址发送数据，或从该远程地址接收数据。
+    protected void connect(InetAddress address, int port) throws SocketException {
+        connect0(address, port);
+        connectedAddress = address;
+        connectedPort = port;
+        connected = true;
+    }
+    
+    /**
+     * Disconnects a previously connected socket.
+     * Does nothing if the socket was not connected already.
+     */
+    // 断开UDP-Socket与远程的连接
+    protected void disconnect() {
+        disconnect0(connectedAddress.holder().getFamily());
+        connected = false;
+        connectedAddress = null;
+        connectedPort = -1;
+    }
+    
+    
+    protected abstract void datagramSocketCreate() throws SocketException;
+    
+    protected abstract void bind0(int lport, InetAddress laddr) throws SocketException;
+    
+    protected abstract void connect0(InetAddress address, int port) throws SocketException;
+    
+    protected abstract void disconnect0(int family);
+    
+    /*▲ Socket操作 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 数据传输 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Sends a datagram packet.
+     * The packet contains the data and the destination address to send the packet to.
+     *
+     * @param p the packet to be sent.
+     */
+    // 发送UDP数据包，待发送的数据存储在packet中
+    protected abstract void send(DatagramPacket packet) throws IOException;
+    
+    /**
+     * Receive the datagram packet.
+     *
+     * @param packet the packet to receive into
+     */
+    // 接收UDP数据包，接收到的数据存储到packet中
+    protected synchronized void receive(DatagramPacket packet) throws IOException {
+        receive0(packet);
+    }
+    
+    
+    /**
+     * Peek at the packet to see who it is from.
+     *
+     * @param address the address to populate with the sender address
+     */
+    // 预读：查看指定远端IP处积压的首个UDP数据包，并返回其存储的端口号
+    protected abstract int peek(InetAddress address) throws IOException;
+    
+    // 预读：复制远端积压的首个UDP数据包到packet中，并返回其存储的端口号
+    protected abstract int peekData(DatagramPacket packet) throws IOException;
+    
+    
+    protected abstract void receive0(DatagramPacket packet) throws IOException;
+    
+    /*▲ 数据传输 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 关闭 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Close the socket.
+     */
+    // 关闭UDP-Socket
+    protected void close() {
+        if(fd == null) {
+            return;
+        }
+        
+        // 取消清理器对fd的追踪
+        SocketCleanable.unregister(fd);
+        
+        datagramSocketClose();
+        
+        // 关闭UDP-Socket之时的回调
+        ResourceManager.afterUdpClose();
+        
+        fd = null;
+    }
+    
+    // 关闭UDP-Socket的内部实现
+    protected abstract void datagramSocketClose();
+    
+    /*▲ 关闭 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 状态 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 判断UDP-Socket是否已关闭
+    protected boolean isClosed() {
+        return fd == null;
+    }
+    
+    /*▲ 状态 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ Socket配置参数 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Get the TTL (time-to-live) option.
+     */
+    // 获取网络跳数
+    protected abstract int getTimeToLive() throws IOException;
+    
+    /**
+     * Set the TTL (time-to-live) option.
+     *
+     * @param ttl TTL to be set.
+     */
+    // 设置网络跳数
+    protected abstract void setTimeToLive(int ttl) throws IOException;
+    
+    /**
+     * Get the TTL (time-to-live) option.
+     */
+    // 获取网络跳数，已过时，参见getTimeToLive()
+    @Deprecated
+    protected abstract byte getTTL() throws IOException;
+    
+    /**
+     * Set the TTL (time-to-live) option.
+     *
+     * @param ttl TTL to be set.
+     */
+    // 设置网络跳数，已过时，参见setTimeToLive(int)
+    @Deprecated
+    protected abstract void setTTL(byte ttl) throws IOException;
+    
+    
     /**
      * Returns a set of SocketOptions supported by this impl and by this impl's
      * socket (Socket or ServerSocket)
      *
      * @return a Set of SocketOptions
      */
+    // 获取当前UDP-Socket支持的所有参数
     @Override
     protected Set<SocketOption<?>> supportedOptions() {
         Set<SocketOption<?>> options;
-        if (isReusePortAvailable()) {
+        
+        if(isReusePortAvailable()) {
             options = new HashSet<>();
             options.addAll(super.supportedOptions());
             options.add(StandardSocketOptions.SO_REUSEPORT);
@@ -104,277 +292,30 @@ abstract class AbstractPlainDatagramSocketImpl extends DatagramSocketImpl
         } else {
             options = super.supportedOptions();
         }
+        
         return options;
     }
-
-    /**
-     * Creates a datagram socket
-     */
-    protected synchronized void create() throws SocketException {
-        ResourceManager.beforeUdpCreate();
-        fd = new FileDescriptor();
-        try {
-            datagramSocketCreate();
-            SocketCleanable.register(fd);
-        } catch (SocketException ioe) {
-            ResourceManager.afterUdpClose();
-            fd = null;
-            throw ioe;
-        }
-    }
-
-    /**
-     * Binds a datagram socket to a local port.
-     */
-    protected synchronized void bind(int lport, InetAddress laddr)
-        throws SocketException {
-        bind0(lport, laddr);
-    }
-
-    protected abstract void bind0(int lport, InetAddress laddr)
-        throws SocketException;
-
-    /**
-     * Sends a datagram packet. The packet contains the data and the
-     * destination address to send the packet to.
-     * @param p the packet to be sent.
-     */
-    protected abstract void send(DatagramPacket p) throws IOException;
-
-    /**
-     * Connects a datagram socket to a remote destination. This associates the remote
-     * address with the local socket so that datagrams may only be sent to this destination
-     * and received from this destination.
-     * @param address the remote InetAddress to connect to
-     * @param port the remote port number
-     */
-    protected void connect(InetAddress address, int port) throws SocketException {
-        connect0(address, port);
-        connectedAddress = address;
-        connectedPort = port;
-        connected = true;
-    }
-
-    /**
-     * Disconnects a previously connected socket. Does nothing if the socket was
-     * not connected already.
-     */
-    protected void disconnect() {
-        disconnect0(connectedAddress.holder().getFamily());
-        connected = false;
-        connectedAddress = null;
-        connectedPort = -1;
-    }
-
-    /**
-     * Peek at the packet to see who it is from.
-     * @param i the address to populate with the sender address
-     */
-    protected abstract int peek(InetAddress i) throws IOException;
-    protected abstract int peekData(DatagramPacket p) throws IOException;
-    /**
-     * Receive the datagram packet.
-     * @param p the packet to receive into
-     */
-    protected synchronized void receive(DatagramPacket p)
-        throws IOException {
-        receive0(p);
-    }
-
-    protected abstract void receive0(DatagramPacket p)
-        throws IOException;
-
-    /**
-     * Set the TTL (time-to-live) option.
-     * @param ttl TTL to be set.
-     */
-    protected abstract void setTimeToLive(int ttl) throws IOException;
-
-    /**
-     * Get the TTL (time-to-live) option.
-     */
-    protected abstract int getTimeToLive() throws IOException;
-
-    /**
-     * Set the TTL (time-to-live) option.
-     * @param ttl TTL to be set.
-     */
-    @Deprecated
-    protected abstract void setTTL(byte ttl) throws IOException;
-
-    /**
-     * Get the TTL (time-to-live) option.
-     */
-    @Deprecated
-    protected abstract byte getTTL() throws IOException;
-
-    /**
-     * Join the multicast group.
-     * @param inetaddr multicast address to join.
-     */
-    protected void join(InetAddress inetaddr) throws IOException {
-        join(inetaddr, null);
-    }
-
-    /**
-     * Leave the multicast group.
-     * @param inetaddr multicast address to leave.
-     */
-    protected void leave(InetAddress inetaddr) throws IOException {
-        leave(inetaddr, null);
-    }
-    /**
-     * Join the multicast group.
-     * @param mcastaddr multicast address to join.
-     * @param netIf specifies the local interface to receive multicast
-     *        datagram packets
-     * @throws  IllegalArgumentException if mcastaddr is null or is a
-     *          SocketAddress subclass not supported by this socket
-     * @since 1.4
-     */
-
-    protected void joinGroup(SocketAddress mcastaddr, NetworkInterface netIf)
-        throws IOException {
-        if (mcastaddr == null || !(mcastaddr instanceof InetSocketAddress))
-            throw new IllegalArgumentException("Unsupported address type");
-        join(((InetSocketAddress)mcastaddr).getAddress(), netIf);
-    }
-
-    protected abstract void join(InetAddress inetaddr, NetworkInterface netIf)
-        throws IOException;
-
-    /**
-     * Leave the multicast group.
-     * @param mcastaddr  multicast address to leave.
-     * @param netIf specified the local interface to leave the group at
-     * @throws  IllegalArgumentException if mcastaddr is null or is a
-     *          SocketAddress subclass not supported by this socket
-     * @since 1.4
-     */
-    protected void leaveGroup(SocketAddress mcastaddr, NetworkInterface netIf)
-        throws IOException {
-        if (mcastaddr == null || !(mcastaddr instanceof InetSocketAddress))
-            throw new IllegalArgumentException("Unsupported address type");
-        leave(((InetSocketAddress)mcastaddr).getAddress(), netIf);
-    }
-
-    protected abstract void leave(InetAddress inetaddr, NetworkInterface netIf)
-        throws IOException;
-
-    /**
-     * Close the socket.
-     */
-    protected void close() {
-        if (fd != null) {
-            SocketCleanable.unregister(fd);
-            datagramSocketClose();
-            ResourceManager.afterUdpClose();
-            fd = null;
-        }
-    }
-
-    protected boolean isClosed() {
-        return (fd == null) ? true : false;
-    }
-
-    /**
-     * set a value - since we only support (setting) binary options
-     * here, o must be a Boolean
-     */
-
-     public void setOption(int optID, Object o) throws SocketException {
-         if (isClosed()) {
-             throw new SocketException("Socket Closed");
-         }
-         switch (optID) {
-            /* check type safety b4 going native.  These should never
-             * fail, since only java.Socket* has access to
-             * PlainSocketImpl.setOption().
-             */
-         case SO_TIMEOUT:
-             if (o == null || !(o instanceof Integer)) {
-                 throw new SocketException("bad argument for SO_TIMEOUT");
-             }
-             int tmp = ((Integer) o).intValue();
-             if (tmp < 0)
-                 throw new IllegalArgumentException("timeout < 0");
-             timeout = tmp;
-             return;
-         case IP_TOS:
-             if (o == null || !(o instanceof Integer)) {
-                 throw new SocketException("bad argument for IP_TOS");
-             }
-             trafficClass = ((Integer)o).intValue();
-             break;
-         case SO_REUSEADDR:
-             if (o == null || !(o instanceof Boolean)) {
-                 throw new SocketException("bad argument for SO_REUSEADDR");
-             }
-             break;
-         case SO_BROADCAST:
-             if (o == null || !(o instanceof Boolean)) {
-                 throw new SocketException("bad argument for SO_BROADCAST");
-             }
-             break;
-         case SO_BINDADDR:
-             throw new SocketException("Cannot re-bind Socket");
-         case SO_RCVBUF:
-         case SO_SNDBUF:
-             if (o == null || !(o instanceof Integer) ||
-                 ((Integer)o).intValue() < 0) {
-                 throw new SocketException("bad argument for SO_SNDBUF or " +
-                                           "SO_RCVBUF");
-             }
-             break;
-         case IP_MULTICAST_IF:
-             if (o == null || !(o instanceof InetAddress))
-                 throw new SocketException("bad argument for IP_MULTICAST_IF");
-             break;
-         case IP_MULTICAST_IF2:
-             if (o == null || !(o instanceof NetworkInterface))
-                 throw new SocketException("bad argument for IP_MULTICAST_IF2");
-             break;
-         case IP_MULTICAST_LOOP:
-             if (o == null || !(o instanceof Boolean))
-                 throw new SocketException("bad argument for IP_MULTICAST_LOOP");
-             break;
-         case SO_REUSEPORT:
-             if (o == null || !(o instanceof Boolean)) {
-                 throw new SocketException("bad argument for SO_REUSEPORT");
-             }
-             if (!supportedOptions().contains(StandardSocketOptions.SO_REUSEPORT)) {
-                 throw new UnsupportedOperationException("unsupported option");
-             }
-             break;
-         default:
-             throw new SocketException("invalid option: " + optID);
-         }
-         socketSetOption(optID, o);
-     }
-
-    /*
-     * get option's state - set or not
-     */
-
+    
+    // 根据UDP-Socket参数ID（名称），返回参数的值
     public Object getOption(int optID) throws SocketException {
-        if (isClosed()) {
+        if(isClosed()) {
             throw new SocketException("Socket Closed");
         }
-
+        
         Object result;
-
-        switch (optID) {
+        
+        switch(optID) {
             case SO_TIMEOUT:
                 result = timeout;
                 break;
-
+            
             case IP_TOS:
                 result = socketGetOption(optID);
-                if ( ((Integer)result).intValue() == -1) {
+                if((Integer) result == -1) {
                     result = trafficClass;
                 }
                 break;
-
+            
             case SO_BINDADDR:
             case IP_MULTICAST_IF:
             case IP_MULTICAST_IF2:
@@ -385,34 +326,193 @@ abstract class AbstractPlainDatagramSocketImpl extends DatagramSocketImpl
             case SO_BROADCAST:
                 result = socketGetOption(optID);
                 break;
-
+            
             case SO_REUSEPORT:
-                if (!supportedOptions().contains(StandardSocketOptions.SO_REUSEPORT)) {
+                if(!supportedOptions().contains(StandardSocketOptions.SO_REUSEPORT)) {
                     throw new UnsupportedOperationException("unsupported option");
                 }
                 result = socketGetOption(optID);
                 break;
-
+            
             default:
                 throw new SocketException("invalid option: " + optID);
         }
-
+        
         return result;
     }
-
-    protected abstract void datagramSocketCreate() throws SocketException;
-    protected abstract void datagramSocketClose();
-    protected abstract void socketSetOption(int opt, Object val)
-        throws SocketException;
+    
+    /**
+     * set a value - since we only support (setting) binary options
+     * here, o must be a Boolean
+     */
+    // 根据UDP-Socket参数ID（名称），设置参数的值
+    public void setOption(int optID, Object o) throws SocketException {
+        if(isClosed()) {
+            throw new SocketException("Socket Closed");
+        }
+        
+        switch(optID) {
+            /*
+             * check type safety b4 going native.
+             * These should never fail, since only java.Socket* has access to PlainSocketImpl.setOption().
+             */
+            case SO_TIMEOUT:
+                if(!(o instanceof Integer)) {
+                    throw new SocketException("bad argument for SO_TIMEOUT");
+                }
+                int tmp = (Integer) o;
+                if(tmp<0) {
+                    throw new IllegalArgumentException("timeout < 0");
+                }
+                timeout = tmp;
+                return;
+            case IP_TOS:
+                if(!(o instanceof Integer)) {
+                    throw new SocketException("bad argument for IP_TOS");
+                }
+                trafficClass = (Integer) o;
+                break;
+            case SO_REUSEADDR:
+                if(!(o instanceof Boolean)) {
+                    throw new SocketException("bad argument for SO_REUSEADDR");
+                }
+                break;
+            case SO_BROADCAST:
+                if(!(o instanceof Boolean)) {
+                    throw new SocketException("bad argument for SO_BROADCAST");
+                }
+                break;
+            case SO_BINDADDR:
+                throw new SocketException("Cannot re-bind Socket");
+            case SO_RCVBUF:
+            case SO_SNDBUF:
+                if(!(o instanceof Integer) || (Integer) o<0) {
+                    throw new SocketException("bad argument for SO_SNDBUF or " + "SO_RCVBUF");
+                }
+                break;
+            case IP_MULTICAST_IF:
+                if(!(o instanceof InetAddress)) {
+                    throw new SocketException("bad argument for IP_MULTICAST_IF");
+                }
+                break;
+            case IP_MULTICAST_IF2:
+                if(!(o instanceof NetworkInterface)) {
+                    throw new SocketException("bad argument for IP_MULTICAST_IF2");
+                }
+                break;
+            case IP_MULTICAST_LOOP:
+                if(!(o instanceof Boolean)) {
+                    throw new SocketException("bad argument for IP_MULTICAST_LOOP");
+                }
+                break;
+            case SO_REUSEPORT:
+                if(!(o instanceof Boolean)) {
+                    throw new SocketException("bad argument for SO_REUSEPORT");
+                }
+                if(!supportedOptions().contains(StandardSocketOptions.SO_REUSEPORT)) {
+                    throw new UnsupportedOperationException("unsupported option");
+                }
+                break;
+            default:
+                throw new SocketException("invalid option: " + optID);
+        }
+        socketSetOption(optID, o);
+    }
+    
+    
+    protected abstract void socketSetOption(int opt, Object val) throws SocketException;
+    
     protected abstract Object socketGetOption(int opt) throws SocketException;
-
-    protected abstract void connect0(InetAddress address, int port) throws SocketException;
-    protected abstract void disconnect0(int family);
-
+    
+    /*▲ Socket配置参数 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 组播操作 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Join the multicast group.
+     *
+     * @param group multicast address to join.
+     */
+    // 将当前组播Socket加入到group处的组播小组中，后续它将接收到该小组中的数据
+    protected void join(InetAddress group) throws IOException {
+        join(group, null);
+    }
+    
+    /**
+     * Leave the multicast group.
+     *
+     * @param group multicast address to leave.
+     */
+    // 将当前组播Socket从group处的组播小组中移除，后续它将无法接收到该小组中的数据
+    protected void leave(InetAddress group) throws IOException {
+        leave(group, null);
+    }
+    
+    /**
+     * Join the multicast group.
+     *
+     * @param group  multicast address to join.
+     * @param interf specifies the local interface to receive multicast datagram packets
+     *
+     * @throws IllegalArgumentException if mcastaddr is null or is a SocketAddress subclass not supported by this socket
+     * @since 1.4
+     */
+    // 将当前组播Socket加入到group处的组播小组中，后续它将接收到该小组中的数据；interf是用来接收消息的网络接口(网卡)
+    protected void joinGroup(SocketAddress group, NetworkInterface interf) throws IOException {
+        if(!(group instanceof InetSocketAddress)) {
+            throw new IllegalArgumentException("Unsupported address type");
+        }
+        join(((InetSocketAddress) group).getAddress(), interf);
+    }
+    
+    /**
+     * Leave the multicast group.
+     *
+     * @param group  multicast address to leave.
+     * @param interf specified the local interface to leave the group at
+     *
+     * @throws IllegalArgumentException if mcastaddr is null or is a SocketAddress subclass not supported by this socket
+     * @since 1.4
+     */
+    // 将当前组播Socket从group处的组播小组中移除，后续它将无法接收到该小组中的数据；interf是用来接收消息的网络接口(网卡)
+    protected void leaveGroup(SocketAddress group, NetworkInterface interf) throws IOException {
+        if(!(group instanceof InetSocketAddress)) {
+            throw new IllegalArgumentException("Unsupported address type");
+        }
+        leave(((InetSocketAddress) group).getAddress(), interf);
+    }
+    
+    
+    protected abstract void join(InetAddress group, NetworkInterface interf) throws IOException;
+    
+    protected abstract void leave(InetAddress group, NetworkInterface interf) throws IOException;
+    
+    /*▲ 组播操作 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    // 返回当前Socket中积压的待读数据量，默认实现为0
+    abstract int dataAvailable();
+    
+    // 是否禁用了UDP连接
     protected boolean nativeConnectDisabled() {
         return connectDisabled;
     }
-
-    abstract int dataAvailable();
+    
+    /**
+     * Tells whether SO_REUSEPORT is supported.
+     */
+    // 判断是否允许多个socket监听相同的地址和端口
+    static boolean isReusePortAvailable() {
+        if(!checkedReusePort) {
+            isReusePortAvailable = isReusePortAvailable0();
+            checkedReusePort = true;
+        }
+        
+        return isReusePortAvailable;
+    }
+    
     private static native boolean isReusePortAvailable0();
+    
 }

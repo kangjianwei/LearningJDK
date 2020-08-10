@@ -51,7 +51,7 @@ import java.io.ObjectStreamException;
  * <p> When four parts are specified, each is interpreted as a byte of
  * data and assigned, from left to right, to the four bytes of an IPv4
  * address.
-
+ *
  * <p> When a three part address is specified, the last part is
  * interpreted as a 16-bit quantity and placed in the right most two
  * bytes of the network address. This makes the three part address
@@ -79,38 +79,36 @@ import java.io.ObjectStreamException;
  * 255 are global. However, the administrative scoping is preferred.
  * Please refer to <a href="http://www.ietf.org/rfc/rfc2365.txt">
  * <i>RFC&nbsp;2365: Administratively Scoped IP Multicast</i></a>
+ *
  * @since 1.4
  */
-
-public final
-class Inet4Address extends InetAddress {
-    static final int INADDRSZ = 4;
-
-    /** use serialVersionUID from InetAddress, but Inet4Address instance
-     *  is always replaced by an InetAddress instance before being
-     *  serialized */
-    private static final long serialVersionUID = 3286316764910316507L;
-
-    /*
-     * Perform initializations.
-     */
+// IP4地址的实现类
+public final class Inet4Address extends InetAddress {
+    
+    static final int INADDRSZ = 4;  // IP4地址包含的字节数
+    
+    /* Perform initializations */
     static {
         init();
     }
-
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     Inet4Address() {
         super();
         holder().hostName = null;
         holder().address = 0;
         holder().family = IPv4;
     }
-
-    Inet4Address(String hostName, byte addr[]) {
+    
+    Inet4Address(String hostName, byte[] addr) {
         holder().hostName = hostName;
         holder().family = IPv4;
-        if (addr != null) {
-            if (addr.length == INADDRSZ) {
-                int address  = addr[3] & 0xFF;
+        if(addr != null) {
+            if(addr.length == INADDRSZ) {
+                int address = addr[3] & 0xFF;
                 address |= ((addr[2] << 8) & 0xFF00);
                 address |= ((addr[1] << 16) & 0xFF0000);
                 address |= ((addr[0] << 24) & 0xFF000000);
@@ -119,75 +117,89 @@ class Inet4Address extends InetAddress {
         }
         holder().originalHostName = hostName;
     }
+    
     Inet4Address(String hostName, int address) {
         holder().hostName = hostName;
         holder().family = IPv4;
         holder().address = address;
         holder().originalHostName = hostName;
     }
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 属性 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Replaces the object to be serialized with an InetAddress object.
+     * Returns the raw IP address of this {@code InetAddress}
+     * object. The result is in network byte order: the highest order
+     * byte of the address is in {@code getAddress()[0]}.
      *
-     * @return the alternate object to be serialized.
+     * @return the raw IP address of this object.
+     */
+    // 返回IP4地址的字节形式
+    public byte[] getAddress() {
+        int address = holder().getAddress();
+        byte[] addr = new byte[INADDRSZ];
+        
+        addr[0] = (byte) ((address >>> 24) & 0xFF);
+        addr[1] = (byte) ((address >>> 16) & 0xFF);
+        addr[2] = (byte) ((address >>> 8) & 0xFF);
+        addr[3] = (byte) (address & 0xFF);
+        return addr;
+    }
+    
+    /**
+     * Returns the IP address string in textual presentation form.
      *
-     * @throws ObjectStreamException if a new object replacing this
-     * object could not be created
+     * @return the raw IP address in a string format.
      */
-    private Object writeReplace() throws ObjectStreamException {
-        // will replace the to be serialized 'this' object
-        InetAddress inet = new InetAddress();
-        inet.holder().hostName = holder().getHostName();
-        inet.holder().address = holder().getAddress();
-
-        /**
-         * Prior to 1.4 an InetAddress was created with a family
-         * based on the platform AF_INET value (usually 2).
-         * For compatibility reasons we must therefore write
-         * the InetAddress with this family.
-         */
-        inet.holder().family = 2;
-
-        return inet;
+    // 返回IP4地址的文本形式
+    public String getHostAddress() {
+        return numericToTextFormat(getAddress());
     }
-
-    /**
-     * Utility routine to check if the InetAddress is an
-     * IP multicast address. IP multicast address is a Class D
-     * address i.e first four bits of the address are 1110.
-     * @return a {@code boolean} indicating if the InetAddress is
-     * an IP multicast address
-     */
-    public boolean isMulticastAddress() {
-        return ((holder().getAddress() & 0xf0000000) == 0xe0000000);
-    }
-
-    /**
-     * Utility routine to check if the InetAddress is a wildcard address.
-     * @return a {@code boolean} indicating if the Inetaddress is
-     *         a wildcard address.
-     */
-    public boolean isAnyLocalAddress() {
-        return holder().getAddress() == 0;
-    }
-
+    
+    /*▲ 属性 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 特殊地址 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Utility routine to check if the InetAddress is a loopback address.
      *
      * @return a {@code boolean} indicating if the InetAddress is
      * a loopback address; or false otherwise.
      */
+    // 判断当前地址是否为本地环回地址（特殊地址，如127.0.0.1）
     public boolean isLoopbackAddress() {
         /* 127.x.x.x */
         byte[] byteAddr = getAddress();
         return byteAddr[0] == 127;
     }
-
+    
+    /**
+     * Utility routine to check if the InetAddress is a wildcard address.
+     *
+     * @return a {@code boolean} indicating if the Inetaddress is a wildcard address.
+     */
+    // 判断当前地址是否为通配地址（特殊地址，字节全为0）
+    public boolean isAnyLocalAddress() {
+        return holder().getAddress() == 0;
+    }
+    
     /**
      * Utility routine to check if the InetAddress is an link local address.
      *
      * @return a {@code boolean} indicating if the InetAddress is
      * a link local address; or false if address is not a link local unicast address.
+     */
+    /*
+     * 判断当前地址是否为链路本地地址（特殊地址，169.254.0.0）
+     *
+     * 通常情况下，每台主机都通过DHCP服务器自动分配一个IP地址
+     * 当DHCP分配失败或者没有DHCP服务器时，主机可以为自身分配169.254.0.0这个IP
      */
     public boolean isLinkLocalAddress() {
         // link-local unicast in IPv4 (169.254.0.0/16)
@@ -195,15 +207,18 @@ class Inet4Address extends InetAddress {
         // that have been Registered with IANA" by Bill Manning
         // draft-manning-dsua-06.txt
         int address = holder().getAddress();
-        return (((address >>> 24) & 0xFF) == 169)
-            && (((address >>> 16) & 0xFF) == 254);
+        return (((address >>> 24) & 0xFF) == 169) && (((address >>> 16) & 0xFF) == 254);
     }
-
+    
     /**
      * Utility routine to check if the InetAddress is a site local address.
      *
      * @return a {@code boolean} indicating if the InetAddress is
      * a site local address; or false if address is not a site local unicast address.
+     */
+    /*
+     * 判断当前地址是否为站点本地地址（特殊地址10/8、172.16/12、192.168/16）
+     * 该类地址被设计用于不会与互联网直接通信的设备，比如：打印机、内部网服务器、网络交换机等
      */
     public boolean isSiteLocalAddress() {
         // refer to RFC 1918
@@ -211,121 +226,161 @@ class Inet4Address extends InetAddress {
         // 172.16/12 prefix
         // 192.168/16 prefix
         int address = holder().getAddress();
-        return (((address >>> 24) & 0xFF) == 10)
-            || ((((address >>> 24) & 0xFF) == 172)
-                && (((address >>> 16) & 0xF0) == 16))
-            || ((((address >>> 24) & 0xFF) == 192)
-                && (((address >>> 16) & 0xFF) == 168));
+        return (((address >>> 24) & 0xFF) == 10) || ((((address >>> 24) & 0xFF) == 172) && (((address >>> 16) & 0xF0) == 16)) || ((((address >>> 24) & 0xFF) == 192) && (((address >>> 16) & 0xFF) == 168));
     }
-
+    
     /**
-     * Utility routine to check if the multicast address has global scope.
+     * Utility routine to check if the InetAddress is an
+     * IP multicast address. IP multicast address is a Class D
+     * address i.e first four bits of the address are 1110.
      *
-     * @return a {@code boolean} indicating if the address has
-     *         is a multicast address of global scope, false if it is not
-     *         of global scope or it is not a multicast address
+     * @return a {@code boolean} indicating if the InetAddress is
+     * an IP multicast address
      */
-    public boolean isMCGlobal() {
-        // 224.0.1.0 to 238.255.255.255
-        byte[] byteAddr = getAddress();
-        return ((byteAddr[0] & 0xff) >= 224 && (byteAddr[0] & 0xff) <= 238 ) &&
-            !((byteAddr[0] & 0xff) == 224 && byteAddr[1] == 0 &&
-              byteAddr[2] == 0);
+    // 判断当前地址是否为组播地址（D类地址，以1110开头）
+    public boolean isMulticastAddress() {
+        return ((holder().getAddress() & 0xf0000000) == 0xe0000000);
     }
-
+    
     /**
      * Utility routine to check if the multicast address has node scope.
      *
      * @return a {@code boolean} indicating if the address has
-     *         is a multicast address of node-local scope, false if it is not
-     *         of node-local scope or it is not a multicast address
+     * is a multicast address of node-local scope, false if it is not
+     * of node-local scope or it is not a multicast address
      */
+    // 判断当前地址是否为节点（或接口）本地范围的组播地址
     public boolean isMCNodeLocal() {
         // unless ttl == 0
         return false;
     }
-
+    
     /**
      * Utility routine to check if the multicast address has link scope.
      *
      * @return a {@code boolean} indicating if the address has
-     *         is a multicast address of link-local scope, false if it is not
-     *         of link-local scope or it is not a multicast address
+     * is a multicast address of link-local scope, false if it is not
+     * of link-local scope or it is not a multicast address
      */
+    // 判断当前地址是否为链路本地范围的组播地址（224.0.0/24）
     public boolean isMCLinkLocal() {
         // 224.0.0/24 prefix and ttl == 1
         int address = holder().getAddress();
-        return (((address >>> 24) & 0xFF) == 224)
-            && (((address >>> 16) & 0xFF) == 0)
-            && (((address >>> 8) & 0xFF) == 0);
+        return (((address >>> 24) & 0xFF) == 224) && (((address >>> 16) & 0xFF) == 0) && (((address >>> 8) & 0xFF) == 0);
     }
-
+    
     /**
      * Utility routine to check if the multicast address has site scope.
      *
      * @return a {@code boolean} indicating if the address has
-     *         is a multicast address of site-local scope, false if it is not
-     *         of site-local scope or it is not a multicast address
+     * is a multicast address of site-local scope, false if it is not
+     * of site-local scope or it is not a multicast address
      */
+    // 判断当前地址是否为站点本地范围的组播地址
     public boolean isMCSiteLocal() {
         // 239.255/16 prefix or ttl < 32
         int address = holder().getAddress();
-        return (((address >>> 24) & 0xFF) == 239)
-            && (((address >>> 16) & 0xFF) == 255);
+        return (((address >>> 24) & 0xFF) == 239) && (((address >>> 16) & 0xFF) == 255);
     }
-
+    
     /**
      * Utility routine to check if the multicast address has organization scope.
      *
      * @return a {@code boolean} indicating if the address has
-     *         is a multicast address of organization-local scope,
-     *         false if it is not of organization-local scope
-     *         or it is not a multicast address
+     * is a multicast address of organization-local scope,
+     * false if it is not of organization-local scope
+     * or it is not a multicast address
      */
+    // 判断当前地址是否为机构本地范围的组播地址
     public boolean isMCOrgLocal() {
         // 239.192 - 239.195
         int address = holder().getAddress();
-        return (((address >>> 24) & 0xFF) == 239)
-            && (((address >>> 16) & 0xFF) >= 192)
-            && (((address >>> 16) & 0xFF) <= 195);
+        return (((address >>> 24) & 0xFF) == 239) && (((address >>> 16) & 0xFF) >= 192) && (((address >>> 16) & 0xFF)<=195);
     }
-
+    
     /**
-     * Returns the raw IP address of this {@code InetAddress}
-     * object. The result is in network byte order: the highest order
-     * byte of the address is in {@code getAddress()[0]}.
+     * Utility routine to check if the multicast address has global scope.
      *
-     * @return  the raw IP address of this object.
+     * @return a {@code boolean} indicating if the address has
+     * is a multicast address of global scope, false if it is not
+     * of global scope or it is not a multicast address
      */
-    public byte[] getAddress() {
-        int address = holder().getAddress();
-        byte[] addr = new byte[INADDRSZ];
-
-        addr[0] = (byte) ((address >>> 24) & 0xFF);
-        addr[1] = (byte) ((address >>> 16) & 0xFF);
-        addr[2] = (byte) ((address >>> 8) & 0xFF);
-        addr[3] = (byte) (address & 0xFF);
-        return addr;
+    // 判断当前地址是否为全局范围的组播地址（224.0.1.0到238.255.255.255）
+    public boolean isMCGlobal() {
+        // 224.0.1.0 to 238.255.255.255
+        byte[] byteAddr = getAddress();
+        return ((byteAddr[0] & 0xff) >= 224 && (byteAddr[0] & 0xff)<=238) && !((byteAddr[0] & 0xff) == 224 && byteAddr[1] == 0 && byteAddr[2] == 0);
     }
-
+    
+    /*▲ 特殊地址 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns the IP address string in textual presentation form.
-     *
-     * @return  the raw IP address in a string format.
+     * use serialVersionUID from InetAddress, but Inet4Address instance
+     * is always replaced by an InetAddress instance before being
+     * serialized
      */
-    public String getHostAddress() {
-        return numericToTextFormat(getAddress());
+    private static final long serialVersionUID = 3286316764910316507L;
+    
+    /**
+     * Replaces the object to be serialized with an InetAddress object.
+     *
+     * @return the alternate object to be serialized.
+     *
+     * @throws ObjectStreamException if a new object replacing this
+     *                               object could not be created
+     */
+    private Object writeReplace() throws ObjectStreamException {
+        // will replace the to be serialized 'this' object
+        InetAddress inet = new InetAddress();
+        inet.holder().hostName = holder().getHostName();
+        inet.holder().address = holder().getAddress();
+        
+        /*
+         * Prior to 1.4 an InetAddress was created with a family
+         * based on the platform AF_INET value (usually 2).
+         * For compatibility reasons we must therefore write
+         * the InetAddress with this family.
+         */
+        inet.holder().family = 2;
+        
+        return inet;
     }
-
+    
+    /*▲ 序列化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    /**
+     * Converts IPv4 binary address into a string suitable for presentation.
+     *
+     * @param src a byte array representing an IPv4 numeric address
+     *
+     * @return a String representing the IPv4 address in
+     * textual representation format
+     */
+    // 将二进制形式的IP4地址转换为文本形式的IP4地址
+    static String numericToTextFormat(byte[] src) {
+        return (src[0] & 0xff) + "." + (src[1] & 0xff) + "." + (src[2] & 0xff) + "." + (src[3] & 0xff);
+    }
+    
+    /**
+     * Perform class load-time initializations.
+     */
+    private static native void init();
+    
+    
     /**
      * Returns a hashcode for this IP address.
      *
-     * @return  a hash code value for this IP address.
+     * @return a hash code value for this IP address.
      */
     public int hashCode() {
         return holder().getAddress();
     }
-
+    
     /**
      * Compares this object against the specified object.
      * The result is {@code true} if and only if the argument is
@@ -337,32 +392,15 @@ class Inet4Address extends InetAddress {
      * {@code getAddress} is the same for both, and each of the
      * array components is the same for the byte arrays.
      *
-     * @param   obj   the object to compare against.
-     * @return  {@code true} if the objects are the same;
-     *          {@code false} otherwise.
-     * @see     java.net.InetAddress#getAddress()
+     * @param obj the object to compare against.
+     *
+     * @return {@code true} if the objects are the same;
+     * {@code false} otherwise.
+     *
+     * @see java.net.InetAddress#getAddress()
      */
     public boolean equals(Object obj) {
-        return (obj != null) && (obj instanceof Inet4Address) &&
-            (((InetAddress)obj).holder().getAddress() == holder().getAddress());
+        return (obj != null) && (obj instanceof Inet4Address) && (((InetAddress) obj).holder().getAddress() == holder().getAddress());
     }
-
-    // Utilities
-
-    /**
-     * Converts IPv4 binary address into a string suitable for presentation.
-     *
-     * @param src a byte array representing an IPv4 numeric address
-     * @return a String representing the IPv4 address in
-     *         textual representation format
-     */
-    static String numericToTextFormat(byte[] src)
-    {
-        return (src[0] & 0xff) + "." + (src[1] & 0xff) + "." + (src[2] & 0xff) + "." + (src[3] & 0xff);
-    }
-
-    /**
-     * Perform class load-time initializations.
-     */
-    private static native void init();
+    
 }

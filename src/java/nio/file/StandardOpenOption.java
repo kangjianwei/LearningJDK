@@ -122,4 +122,5 @@ public enum StandardOpenOption implements OpenOption {
      * @see <a href="package-summary.html#integrity">Synchronized I/O file integrity</a>
      */
     DSYNC;  // 对文件内容的每次更新都会同步写入基础存储设备(直接写入磁盘)
+    
 }
