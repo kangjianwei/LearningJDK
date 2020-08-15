@@ -34,30 +34,43 @@ import java.io.IOException;
 /**
  * Provides access to implementation private constructors and methods.
  */
-
+/*
+ * Socket/ServerSocket/Selector工厂
+ *
+ * 根据指定的文件描述符，构造SocketChannel和ServerSocketChannel对象。
+ * 该方法实现了对SocketChannel和ServerSocketChannel中特定的非公开方法的访问。
+ * 此外，该方法还支持构造选择器工厂。
+ */
 public final class Secrets {
-    private Secrets() { }
-
-    private static SelectorProvider provider() {
-        SelectorProvider p = SelectorProvider.provider();
-        if (!(p instanceof SelectorProviderImpl))
-            throw new UnsupportedOperationException();
-        return p;
+    
+    private Secrets() {
     }
-
+    
+    // 用指定的文件描述符构造一个异步Socket通道
     public static SocketChannel newSocketChannel(FileDescriptor fd) {
         try {
             return new SocketChannelImpl(provider(), fd, false);
-        } catch (IOException ioe) {
+        } catch(IOException ioe) {
             throw new AssertionError(ioe);
         }
     }
-
+    
+    // 用指定的文件描述符构造一个异步ServerSocket通道
     public static ServerSocketChannel newServerSocketChannel(FileDescriptor fd) {
         try {
             return new ServerSocketChannelImpl(provider(), fd, false);
-        } catch (IOException ioe) {
+        } catch(IOException ioe) {
             throw new AssertionError(ioe);
         }
     }
+    
+    // 构造并返回默认的选择器工厂(接受用户的定义)
+    private static SelectorProvider provider() {
+        SelectorProvider p = SelectorProvider.provider();
+        if(!(p instanceof SelectorProviderImpl)) {
+            throw new UnsupportedOperationException();
+        }
+        return p;
+    }
+    
 }
