@@ -28,7 +28,6 @@ package java.nio.channels;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-
 /**
  * A channel that can read bytes.
  *
@@ -39,14 +38,13 @@ import java.nio.ByteBuffer;
  * I/O operations may proceed concurrently with a read operation depends upon
  * the type of the channel. </p>
  *
- *
  * @author Mark Reinhold
  * @author JSR-51 Expert Group
  * @since 1.4
  */
-
+// 可读的字节通道
 public interface ReadableByteChannel extends Channel {
-
+    
     /**
      * Reads a sequence of bytes from this channel into the given buffer.
      *
@@ -78,31 +76,25 @@ public interface ReadableByteChannel extends Channel {
      * invocation of this method will block until the first operation is
      * complete. </p>
      *
-     * @param  dst
-     *         The buffer into which bytes are to be transferred
+     * @param dst The buffer into which bytes are to be transferred
      *
-     * @return  The number of bytes read, possibly zero, or {@code -1} if the
-     *          channel has reached end-of-stream
+     * @return The number of bytes read, possibly zero, or {@code -1} if the
+     * channel has reached end-of-stream
      *
-     * @throws  NonReadableChannelException
-     *          If this channel was not opened for reading
-     *
-     * @throws  ClosedChannelException
-     *          If this channel is closed
-     *
-     * @throws  AsynchronousCloseException
-     *          If another thread closes this channel
-     *          while the read operation is in progress
-     *
-     * @throws  ClosedByInterruptException
-     *          If another thread interrupts the current thread
-     *          while the read operation is in progress, thereby
-     *          closing the channel and setting the current thread's
-     *          interrupt status
-     *
-     * @throws  IOException
-     *          If some other I/O error occurs
+     * @throws NonReadableChannelException If this channel was not opened for reading
+     * @throws ClosedChannelException      If this channel is closed
+     * @throws AsynchronousCloseException  If another thread closes this channel
+     *                                     while the read operation is in progress
+     * @throws ClosedByInterruptException  If another thread interrupts the current thread
+     *                                     while the read operation is in progress, thereby
+     *                                     closing the channel and setting the current thread's
+     *                                     interrupt status
+     * @throws IOException                 If some other I/O error occurs
      */
-    public int read(ByteBuffer dst) throws IOException;
-
+    /*
+     * 从当前通道中读取数据，读到的内容写入dst
+     * 该方法是一次性地，即已经读完的流不可以重复读取
+     */
+    int read(ByteBuffer dst) throws IOException;
+    
 }
