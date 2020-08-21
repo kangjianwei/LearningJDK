@@ -34,38 +34,71 @@ import java.io.IOException;
  *
  * @since 1.4
  */
-
+// Select通道的扩展，主要增加了Java层监听事件与本地(native层)监听事件的翻译方法
 public interface SelChImpl extends Channel {
-
+    
+    // 返回通道在Java层的文件描述符
     FileDescriptor getFD();
-
+    
+    // 返回通道在本地(native层)的文件描述符
     int getFDVal();
-
-    /**
-     * Adds the specified ops if present in interestOps. The specified
-     * ops are turned on without affecting the other ops.
-     *
-     * @return  true iff the new value of sk.readyOps() set by this method
-     *          contains at least one bit that the previous value did not
-     *          contain
-     */
-    boolean translateAndUpdateReadyOps(int ops, SelectionKeyImpl ski);
-
-    /**
-     * Sets the specified ops if present in interestOps. The specified
-     * ops are turned on, and all other ops are turned off.
-     *
-     * @return  true iff the new value of sk.readyOps() set by this method
-     *          contains at least one bit that the previous value did not
-     *          contain
-     */
-    boolean translateAndSetReadyOps(int ops, SelectionKeyImpl ski);
-
+    
+    // 销毁当前通道，即释放对Socket文件描述符的引用
+    void kill() throws IOException;
+    
     /**
      * Translates an interest operation set into a native event set
      */
+    /*
+     * 翻译通道注册的监听事件，返回对ops的翻译结果
+     *
+     * 方向：Java层 --> native层
+     * 　　　SelectionKey.XXX --> Net.XXX
+     */
     int translateInterestOps(int ops);
-
-    void kill() throws IOException;
-
+    
+    /**
+     * Adds the specified ops if present in interestOps.
+     * The specified ops are turned on without affecting the other ops.
+     *
+     * @return true if the new value of sk.readyOps() set by this method contains at least one bit that the previous value did not contain
+     */
+    /*
+     *【增量更新】已就绪事件
+     *
+     * 将本地(native)反馈的就绪信号ops翻译并存储到Java层的就绪事件readyOps中，
+     * 返回值指示上一次反馈的事件与本次反馈的事件是否发生了改变。
+     *
+     * 通道收到有效的反馈事件后，会【增量更新】上次记录的已就绪事件，
+     * 如果本地(native)反馈了错误或挂起信号，则将已就绪事件直接设置为通道注册的监听事件。
+     *
+     * 方向：native层 --> Java层
+     * 　　　Net.XXX --> SelectionKey.XXX
+     *
+     * 参见：SelectionKeyImpl#readyOps
+     */
+    boolean translateAndUpdateReadyOps(int ops, SelectionKeyImpl selectionKey);
+    
+    /**
+     * Sets the specified ops if present in interestOps.
+     * The specified ops are turned on, and all other ops are turned off.
+     *
+     * @return true if the new value of sk.readyOps() set by this method contains at least one bit that the previous value did not contain
+     */
+    /*
+     *【覆盖更新】已就绪事件
+     *
+     * 将本地(native)反馈的就绪信号ops翻译并存储到Java层的就绪事件readyOps中，
+     * 返回值指示上一次反馈的事件与本次反馈的事件是否发生了改变。
+     *
+     * 通道收到有效的反馈事件后，会【覆盖】(selectionKey中)上次记录的已就绪事件，
+     * 如果本地(native)反馈了错误或挂起信号，则将已就绪事件直接设置为通道注册的监听事件。
+     *
+     * 方向：native层 --> Java层
+     * 　　　Net.XXX --> SelectionKey.XXX
+     *
+     * 参见：SelectionKeyImpl#readyOps
+     */
+    boolean translateAndSetReadyOps(int ops, SelectionKeyImpl selectionKey);
+    
 }
