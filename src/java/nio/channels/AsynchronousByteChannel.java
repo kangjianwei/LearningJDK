@@ -46,13 +46,40 @@ import java.util.concurrent.Future;
  *
  * @see Channels#newInputStream(AsynchronousByteChannel)
  * @see Channels#newOutputStream(AsynchronousByteChannel)
- *
  * @since 1.7
  */
-
-public interface AsynchronousByteChannel
-    extends AsynchronousChannel
-{
+// 异步IO通道，支持基础的读写操作
+public interface AsynchronousByteChannel extends AsynchronousChannel {
+    
+    /**
+     * Reads a sequence of bytes from this channel into the given buffer.
+     *
+     * <p> This method initiates an asynchronous read operation to read a
+     * sequence of bytes from this channel into the given buffer. The method
+     * behaves in exactly the same manner as the {@link
+     * #read(ByteBuffer, Object, CompletionHandler)
+     * read(ByteBuffer,Object,CompletionHandler)} method except that instead
+     * of specifying a completion handler, this method returns a {@code Future}
+     * representing the pending result. The {@code Future}'s {@link Future#get()
+     * get} method returns the number of bytes read or {@code -1} if no bytes
+     * could be read because the channel has reached end-of-stream.
+     *
+     * @param dst The buffer into which bytes are to be transferred
+     *
+     * @return A Future representing the result of the operation
+     *
+     * @throws IllegalArgumentException If the buffer is read-only
+     * @throws ReadPendingException     If the channel does not allow more than one read to be outstanding
+     *                                  and a previous read has not completed
+     */
+    /*
+     * 从当前通道读取数据并填充到缓冲区dst中（读取的字节数量最多填满缓冲区的剩余空间）
+     * 返回值是一个包含IO操作结果的Future，主线程轮询此Future以判断是否读取完成，以及获取实际读取到的字节数
+     *
+     * 注：此IO操作的结果是读取到的字节数。如果IO操作没成效，则执行结果可以是EOF或异常。
+     */
+    Future<Integer> read(ByteBuffer dst);
+    
     /**
      * Reads a sequence of bytes from this channel into the given buffer.
      *
@@ -87,54 +114,52 @@ public interface AsynchronousByteChannel
      * initiates a read operation before a previous read operation has
      * completed then a {@link ReadPendingException} will be thrown.
      *
-     * @param   <A>
-     *          The type of the attachment
-     * @param   dst
-     *          The buffer into which bytes are to be transferred
-     * @param   attachment
-     *          The object to attach to the I/O operation; can be {@code null}
-     * @param   handler
-     *          The completion handler
+     * @param <A>        The type of the attachment
+     * @param dst        The buffer into which bytes are to be transferred
+     * @param attachment The object to attach to the I/O operation; can be {@code null}
+     * @param handler    The completion handler
      *
-     * @throws  IllegalArgumentException
-     *          If the buffer is read-only
-     * @throws  ReadPendingException
-     *          If the channel does not allow more than one read to be outstanding
-     *          and a previous read has not completed
-     * @throws  ShutdownChannelGroupException
-     *          If the channel is associated with a {@link AsynchronousChannelGroup
-     *          group} that has terminated
+     * @throws IllegalArgumentException      If the buffer is read-only
+     * @throws ReadPendingException          If the channel does not allow more than one read to be outstanding
+     *                                       and a previous read has not completed
+     * @throws ShutdownChannelGroupException If the channel is associated with a {@link AsynchronousChannelGroup
+     *                                       group} that has terminated
      */
-    <A> void read(ByteBuffer dst,
-                  A attachment,
-                  CompletionHandler<Integer,? super A> handler);
-
-    /**
-     * Reads a sequence of bytes from this channel into the given buffer.
+    /*
+     * 从当前通道读取数据并填充到缓冲区dst中
+     * 最后一个参数是异步IO回调句柄，由工作线程执行完任务之后通过handler中的回调方法通知主线程，以便主线程获取实际读到的字节数
      *
-     * <p> This method initiates an asynchronous read operation to read a
-     * sequence of bytes from this channel into the given buffer. The method
+     * 注：此IO操作的结果是读取到的字节数。如果IO操作没成效，则执行结果可以是EOF或异常。
+     */
+    <A> void read(ByteBuffer dst, A attachment, CompletionHandler<Integer, ? super A> handler);
+    
+    /**
+     * Writes a sequence of bytes to this channel from the given buffer.
+     *
+     * <p> This method initiates an asynchronous write operation to write a
+     * sequence of bytes to this channel from the given buffer. The method
      * behaves in exactly the same manner as the {@link
-     * #read(ByteBuffer,Object,CompletionHandler)
-     * read(ByteBuffer,Object,CompletionHandler)} method except that instead
+     * #write(ByteBuffer, Object, CompletionHandler)
+     * write(ByteBuffer,Object,CompletionHandler)} method except that instead
      * of specifying a completion handler, this method returns a {@code Future}
      * representing the pending result. The {@code Future}'s {@link Future#get()
-     * get} method returns the number of bytes read or {@code -1} if no bytes
-     * could be read because the channel has reached end-of-stream.
+     * get} method returns the number of bytes written.
      *
-     * @param   dst
-     *          The buffer into which bytes are to be transferred
+     * @param src The buffer from which bytes are to be retrieved
      *
-     * @return  A Future representing the result of the operation
+     * @return A Future representing the result of the operation
      *
-     * @throws  IllegalArgumentException
-     *          If the buffer is read-only
-     * @throws  ReadPendingException
-     *          If the channel does not allow more than one read to be outstanding
-     *          and a previous read has not completed
+     * @throws WritePendingException If the channel does not allow more than one write to be outstanding
+     *                               and a previous write has not completed
      */
-    Future<Integer> read(ByteBuffer dst);
-
+    /*
+     * 从源缓冲区src中读取数据，并将读到的内容写入到当前通道中
+     * 返回值是一个包含IO操作结果的Future，主线程轮询此Future以判断是否写入完成，以及获取实际写入的字节数
+     *
+     * 注：此IO操作的结果是写入的字节数。如果IO操作没成效，则执行结果可以是异常。
+     */
+    Future<Integer> write(ByteBuffer src);
+    
     /**
      * Writes a sequence of bytes to this channel from the given buffer.
      *
@@ -168,46 +193,22 @@ public interface AsynchronousByteChannel
      * initiates a write operation before a previous write operation has
      * completed then a {@link WritePendingException} will be thrown.
      *
-     * @param   <A>
-     *          The type of the attachment
-     * @param   src
-     *          The buffer from which bytes are to be retrieved
-     * @param   attachment
-     *          The object to attach to the I/O operation; can be {@code null}
-     * @param   handler
-     *          The completion handler object
+     * @param <A>        The type of the attachment
+     * @param src        The buffer from which bytes are to be retrieved
+     * @param attachment The object to attach to the I/O operation; can be {@code null}
+     * @param handler    The completion handler object
      *
-     * @throws  WritePendingException
-     *          If the channel does not allow more than one write to be outstanding
-     *          and a previous write has not completed
-     * @throws  ShutdownChannelGroupException
-     *          If the channel is associated with a {@link AsynchronousChannelGroup
-     *          group} that has terminated
+     * @throws WritePendingException         If the channel does not allow more than one write to be outstanding
+     *                                       and a previous write has not completed
+     * @throws ShutdownChannelGroupException If the channel is associated with a {@link AsynchronousChannelGroup
+     *                                       group} that has terminated
      */
-    <A> void write(ByteBuffer src,
-                   A attachment,
-                   CompletionHandler<Integer,? super A> handler);
-
-    /**
-     * Writes a sequence of bytes to this channel from the given buffer.
+    /*
+     * 从源缓冲区src中读取数据，并将读到的内容写入到当前通道中
+     * 最后一个参数是异步IO回调句柄，由工作线程执行完任务之后通过handler中的回调方法通知主线程，以便主线程获取实际写入的字节数
      *
-     * <p> This method initiates an asynchronous write operation to write a
-     * sequence of bytes to this channel from the given buffer. The method
-     * behaves in exactly the same manner as the {@link
-     * #write(ByteBuffer,Object,CompletionHandler)
-     * write(ByteBuffer,Object,CompletionHandler)} method except that instead
-     * of specifying a completion handler, this method returns a {@code Future}
-     * representing the pending result. The {@code Future}'s {@link Future#get()
-     * get} method returns the number of bytes written.
-     *
-     * @param   src
-     *          The buffer from which bytes are to be retrieved
-     *
-     * @return A Future representing the result of the operation
-     *
-     * @throws  WritePendingException
-     *          If the channel does not allow more than one write to be outstanding
-     *          and a previous write has not completed
+     * 注：此IO操作的结果是写入的字节数。如果IO操作没成效，则执行结果可以是异常。
      */
-    Future<Integer> write(ByteBuffer src);
+    <A> void write(ByteBuffer src, A attachment, CompletionHandler<Integer, ? super A> handler);
+    
 }
