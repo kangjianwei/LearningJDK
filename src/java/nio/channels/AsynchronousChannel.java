@@ -26,11 +26,11 @@
 package java.nio.channels;
 
 import java.io.IOException;
-import java.util.concurrent.Future;  // javadoc
+import java.util.concurrent.Future;
 
 /**
- * A channel that supports asynchronous I/O operations. Asynchronous I/O
- * operations will usually take one of two forms:
+ * A channel that supports asynchronous I/O operations.
+ * Asynchronous I/O operations will usually take one of two forms:
  *
  * <ol>
  * <li><pre>{@link Future}&lt;V&gt; <em>operation</em>(<em>...</em>)</pre></li>
@@ -92,12 +92,11 @@ import java.util.concurrent.Future;  // javadoc
  * be discarded or care taken to ensure that the buffers are not accessed while
  * the channel remains open.
  *
- *  @since 1.7
+ * @since 1.7
  */
-
-public interface AsynchronousChannel
-    extends Channel
-{
+// 异步IO通道，可关闭
+public interface AsynchronousChannel extends Channel {
+    
     /**
      * Closes this channel.
      *
@@ -109,9 +108,10 @@ public interface AsynchronousChannel
      * <p>  This method otherwise behaves exactly as specified by the {@link
      * Channel} interface.
      *
-     * @throws  IOException
-     *          If an I/O error occurs
+     * @throws IOException If an I/O error occurs
      */
+    // 关闭异步通道
     @Override
     void close() throws IOException;
+    
 }
