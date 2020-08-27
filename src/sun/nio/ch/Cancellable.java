@@ -29,11 +29,13 @@ package sun.nio.ch;
  * Implemented by asynchronous channels that require notification when an I/O
  * operation is cancelled.
  */
-
+// 允许对某个异步IO操作进行取消的通道
 interface Cancellable {
+    
     /**
-     * Invoked to notify channel that cancel has been invoked while holding
-     * the Future's lock.
+     * Invoked to notify channel that cancel has been invoked while holding the Future's lock.
      */
-    void onCancel(PendingFuture<?,?> task);
+    // 取消异步IO操作时的回调
+    void onCancel(PendingFuture<?, ?> future);
+    
 }
