@@ -27,58 +27,74 @@ package sun.nio.ch;
 
 import java.lang.annotation.Native;
 
-// Constants for reporting I/O status
-
+/** Constants for reporting I/O status */
+// 底层IO操作返回的状态
 public final class IOStatus {
-
-    private IOStatus() { }
-
-    @Native public static final int EOF = -1;              // End of file
-    @Native public static final int UNAVAILABLE = -2;      // Nothing available (non-blocking)
-    @Native public static final int INTERRUPTED = -3;      // System call interrupted
-    @Native public static final int UNSUPPORTED = -4;      // Operation not supported
-    @Native public static final int THROWN = -5;           // Exception thrown in JNI code
-    @Native public static final int UNSUPPORTED_CASE = -6; // This case not supported
-
-    // The following two methods are for use in try/finally blocks where a
-    // status value needs to be normalized before being returned to the invoker
-    // but also checked for illegal negative values before the return
-    // completes, like so:
-    //
-    //     int n = 0;
-    //     try {
-    //         begin();
-    //         n = op(fd, buf, ...);
-    //         return IOStatus.normalize(n);    // Converts UNAVAILABLE to zero
-    //     } finally {
-    //         end(n > 0);
-    //         assert IOStatus.check(n);        // Checks other negative values
-    //     }
-    //
-
+    
+    @Native
+    public static final int EOF = -1;      // End of file
+    @Native
+    public static final int UNAVAILABLE = -2;      // Nothing available (non-blocking)
+    @Native
+    public static final int INTERRUPTED = -3;      // System call interrupted(这是系统中断标记，不是普通的线程中断标记)
+    @Native
+    public static final int UNSUPPORTED = -4;      // Operation not supported
+    @Native
+    public static final int THROWN = -5;      // Exception thrown in JNI code
+    @Native
+    public static final int UNSUPPORTED_CASE = -6; // This case not supported
+    
+    
+    private IOStatus() {
+    }
+    
+    /*
+     * The following two methods are for use in try/finally blocks where a
+     * status value needs to be normalized before being returned to the invoker
+     * but also checked for illegal negative values before the return
+     * completes, like so:
+     *
+     *     int n = 0;
+     *     try {
+     *         begin();
+     *         n = op(fd, buf, ...);
+     *         return IOStatus.normalize(n);    // Converts UNAVAILABLE to zero
+     *     } finally {
+     *         end(n > 0);
+     *         assert IOStatus.check(n);        // Checks other negative values
+     *     }
+     *
+     */
+    
+    // 将底层返回的状态标记规范化
     public static int normalize(int n) {
-        if (n == UNAVAILABLE)
+        if(n == UNAVAILABLE) {
             return 0;
+        }
         return n;
     }
-
+    
+    // 将底层返回的状态标记规范化
+    public static long normalize(long n) {
+        if(n == UNAVAILABLE) {
+            return 0;
+        }
+        return n;
+    }
+    
+    // 检查是否可以正常I/O（不存在异常、中断、不支持的情形）
     public static boolean check(int n) {
         return (n >= UNAVAILABLE);
     }
-
-    public static long normalize(long n) {
-        if (n == UNAVAILABLE)
-            return 0;
-        return n;
-    }
-
+    
+    // 检查是否可以正常I/O（不存在异常、中断、不支持的情形）
     public static boolean check(long n) {
         return (n >= UNAVAILABLE);
     }
-
-    // Return true iff n is not one of the IOStatus values
+    
+    // Return true if n is not one of the IOStatus values
     public static boolean checkAll(long n) {
-        return ((n > EOF) || (n < UNSUPPORTED_CASE));
+        return ((n>EOF) || (n<UNSUPPORTED_CASE));
     }
-
+    
 }
