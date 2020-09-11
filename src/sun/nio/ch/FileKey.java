@@ -31,45 +31,65 @@ import java.io.IOException;
 /*
  * Represents a key to a specific file on Windows
  */
+/*
+ * 文件键，用来记录文件在本地(native层)的引用信息
+ *
+ * 此处的实现对应于Windows平台，在Linux平台上会有别的实现
+ */
 public class FileKey {
-
-    private long dwVolumeSerialNumber;
+    
+    private long dwVolumeSerialNumber;  // 文件所在卷序列号
+    
+    /*
+     * 文件ID的高位和低位
+     *
+     * 使用卷序列号和文件ID可以唯一定位一个文件
+     * 但是该ID在系统重启或下次打开文件时可能会发生变化
+     */
     private long nFileIndexHigh;
     private long nFileIndexLow;
-
-    private FileKey() { }
-
+    
+    static {
+        // 触发IOUtil完成静态初始化（包括加载本地类库）
+        IOUtil.load();
+        
+        // 在底层获取文件定位信息
+        initIDs();
+    }
+    
+    private FileKey() {
+    }
+    
+    // 工厂方法，根据传入的文件描述符构造一个文件定位信息对象
     public static FileKey create(FileDescriptor fd) throws IOException {
         FileKey fk = new FileKey();
+        // 使用底层获取的文件定位信息初始化卷序列号与文件ID信息
         fk.init(fd);
         return fk;
     }
-
+    
     public int hashCode() {
-        return (int)(dwVolumeSerialNumber ^ (dwVolumeSerialNumber >>> 32)) +
-               (int)(nFileIndexHigh ^ (nFileIndexHigh >>> 32)) +
-               (int)(nFileIndexLow ^ (nFileIndexHigh >>> 32));
+        return (int) (dwVolumeSerialNumber ^ (dwVolumeSerialNumber >>> 32)) + (int) (nFileIndexHigh ^ (nFileIndexHigh >>> 32)) + (int) (nFileIndexLow ^ (nFileIndexHigh >>> 32));
     }
-
+    
     public boolean equals(Object obj) {
-        if (obj == this)
+        if(obj == this) {
             return true;
-        if (!(obj instanceof FileKey))
-            return false;
-        FileKey other = (FileKey)obj;
-        if ((this.dwVolumeSerialNumber != other.dwVolumeSerialNumber) ||
-            (this.nFileIndexHigh != other.nFileIndexHigh) ||
-            (this.nFileIndexLow != other.nFileIndexLow)) {
+        }
+        
+        if(!(obj instanceof FileKey)) {
             return false;
         }
-        return true;
+        
+        FileKey other = (FileKey) obj;
+        
+        return (this.dwVolumeSerialNumber == other.dwVolumeSerialNumber) && (this.nFileIndexHigh == other.nFileIndexHigh) && (this.nFileIndexLow == other.nFileIndexLow);
     }
-
-    private native void init(FileDescriptor fd) throws IOException;
+    
+    // 在底层获取文件定位信息
     private static native void initIDs();
-
-    static {
-        IOUtil.load();
-        initIDs();
-    }
+    
+    // 使用底层获取的文件定位信息初始化卷序列号与文件ID信息
+    private native void init(FileDescriptor fd) throws IOException;
+    
 }
