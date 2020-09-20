@@ -50,17 +50,17 @@ import java.io.IOException;
  * from particular source addresses.
  *
  * @see MulticastChannel
- *
  * @since 1.7
  */
+// 组播小组成员
 public abstract class MembershipKey {
-
+    
     /**
      * Initializes a new instance of this class.
      */
     protected MembershipKey() {
     }
-
+    
     /**
      * Tells whether or not this membership is valid.
      *
@@ -68,11 +68,12 @@ public abstract class MembershipKey {
      * valid until the membership is dropped by invoking the {@link #drop() drop}
      * method, or the channel is closed.
      *
-     * @return  {@code true} if this membership key is valid, {@code false}
-     *          otherwise
+     * @return {@code true} if this membership key is valid, {@code false}
+     * otherwise
      */
+    // 判断当前组播小组成员是否已经无效
     public abstract boolean isValid();
-
+    
     /**
      * Drop membership.
      *
@@ -93,8 +94,9 @@ public abstract class MembershipKey {
      * method has no effect. Once a multicast group membership is invalid,
      * it remains invalid forever.
      */
+    // 从通道的组播注册表中移除当前组播小组成员；实际操作是将目标组播Socket从所在的组播小组中移除
     public abstract void drop();
-
+    
     /**
      * Block multicast datagrams from the given source address.
      *
@@ -106,72 +108,72 @@ public abstract class MembershipKey {
      * datagrams from that source. This can arise when datagrams are waiting to
      * be received in the socket's receive buffer.
      *
-     * @param   source
-     *          The source address to block
+     * @param source The source address to block
      *
-     * @return  This membership key
+     * @return This membership key
      *
-     * @throws  IllegalArgumentException
-     *          If the {@code source} parameter is not a unicast address or
-     *          is not the same address type as the multicast group
-     * @throws  IllegalStateException
-     *          If this membership key is source-specific or is no longer valid
-     * @throws  UnsupportedOperationException
-     *          If the underlying operating system does not support source
-     *          filtering
-     * @throws  IOException
-     *          If an I/O error occurs
+     * @throws IllegalArgumentException      If the {@code source} parameter is not a unicast address or
+     *                                       is not the same address type as the multicast group
+     * @throws IllegalStateException         If this membership key is source-specific or is no longer valid
+     * @throws UnsupportedOperationException If the underlying operating system does not support source
+     *                                       filtering
+     * @throws IOException                   If an I/O error occurs
      */
+    // 屏蔽source处发来的消息，即禁止从source处接收消息；如果该组播小组已经设置了过滤，则抛异常
     public abstract MembershipKey block(InetAddress source) throws IOException;
-
+    
     /**
      * Unblock multicast datagrams from the given source address that was
      * previously blocked using the {@link #block(InetAddress) block} method.
      *
-     * @param   source
-     *          The source address to unblock
+     * @param source The source address to unblock
      *
-     * @return  This membership key
+     * @return This membership key
      *
-     * @throws  IllegalStateException
-     *          If the given source address is not currently blocked or the
-     *          membership key is no longer valid
+     * @throws IllegalStateException If the given source address is not currently blocked or the
+     *                               membership key is no longer valid
      */
+    // 解除对source地址的屏蔽，即允许接收source处的消息
     public abstract MembershipKey unblock(InetAddress source);
-
+    
     /**
      * Returns the channel for which this membership key was created. This
      * method will continue to return the channel even after the membership
      * becomes {@link #isValid invalid}.
      *
-     * @return  the channel
+     * @return the channel
      */
+    // 返回当前成员所属的通道
     public abstract MulticastChannel channel();
-
+    
     /**
      * Returns the multicast group for which this membership key was created.
      * This method will continue to return the group even after the membership
      * becomes {@link #isValid invalid}.
      *
-     * @return  the multicast group
+     * @return the multicast group
      */
+    // 返回组播小组地址
     public abstract InetAddress group();
-
+    
     /**
      * Returns the network interface for which this membership key was created.
      * This method will continue to return the network interface even after the
      * membership becomes {@link #isValid invalid}.
      *
-     * @return  the network interface
+     * @return the network interface
      */
+    // 返回接收消息的网络接口(网卡)
     public abstract NetworkInterface networkInterface();
-
+    
     /**
      * Returns the source address if this membership key is source-specific,
      * or {@code null} if this membership is not source-specific.
      *
-     * @return  The source address if this membership key is source-specific,
-     *          otherwise {@code null}
+     * @return The source address if this membership key is source-specific,
+     * otherwise {@code null}
      */
+    // 返回过滤消息的地址
     public abstract InetAddress sourceAddress();
+    
 }
