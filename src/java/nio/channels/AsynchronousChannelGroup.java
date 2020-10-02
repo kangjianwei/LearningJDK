@@ -25,8 +25,8 @@
 
 package java.nio.channels;
 
-import java.nio.channels.spi.AsynchronousChannelProvider;
 import java.io.IOException;
+import java.nio.channels.spi.AsynchronousChannelProvider;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -106,7 +106,7 @@ import java.util.concurrent.TimeUnit;
  * implementation may impose a limit as to the number of activations on the
  * thread stack. Some I/O operations may prohibit invoking the completion
  * handler directly by the initiating thread (see {@link
- * AsynchronousServerSocketChannel#accept(Object,CompletionHandler) accept}).
+ * AsynchronousServerSocketChannel#accept(Object, CompletionHandler) accept}).
  *
  * <a id="shutdown"></a><h2>Shutdown and Termination</h2>
  *
@@ -129,34 +129,50 @@ import java.util.concurrent.TimeUnit;
  * in the group as if by invoking the {@link AsynchronousChannel#close close}
  * method.
  *
- * @since 1.7
- *
  * @see AsynchronousSocketChannel#open(AsynchronousChannelGroup)
  * @see AsynchronousServerSocketChannel#open(AsynchronousChannelGroup)
+ * @since 1.7
  */
-
+// 异步IO通道组
 public abstract class AsynchronousChannelGroup {
-    private final AsynchronousChannelProvider provider;
-
+    
+    private final AsynchronousChannelProvider provider; // 异步通道组和异步Socket通道的工厂
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Initialize a new instance of this class.
      *
-     * @param   provider
-     *          The asynchronous channel provider for this group
+     * @param provider The asynchronous channel provider for this group
      */
     protected AsynchronousChannelGroup(AsynchronousChannelProvider provider) {
         this.provider = provider;
     }
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 工厂 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns the provider that created this channel group.
      *
-     * @return  The provider that created this channel group
+     * @return The provider that created this channel group
      */
+    // 返回异步通道组和异步Socket通道的工厂
     public final AsynchronousChannelProvider provider() {
         return provider;
     }
-
+    
+    /*▲ 工厂 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates an asynchronous channel group with a fixed thread pool.
      *
@@ -167,30 +183,23 @@ public abstract class AsynchronousChannelGroup {
      * the group.
      *
      * <p> The group is created by invoking the {@link
-     * AsynchronousChannelProvider#openAsynchronousChannelGroup(int,ThreadFactory)
+     * AsynchronousChannelProvider#openAsynchronousChannelGroup(int, ThreadFactory)
      * openAsynchronousChannelGroup(int,ThreadFactory)} method of the system-wide
      * default {@link AsynchronousChannelProvider} object.
      *
-     * @param   nThreads
-     *          The number of threads in the pool
-     * @param   threadFactory
-     *          The factory to use when creating new threads
+     * @param nThreads      The number of threads in the pool
+     * @param threadFactory The factory to use when creating new threads
      *
-     * @return  A new asynchronous channel group
+     * @return A new asynchronous channel group
      *
-     * @throws  IllegalArgumentException
-     *          If {@code nThreads <= 0}
-     * @throws  IOException
-     *          If an I/O error occurs
+     * @throws IllegalArgumentException If {@code nThreads <= 0}
+     * @throws IOException              If an I/O error occurs
      */
-    public static AsynchronousChannelGroup withFixedThreadPool(int nThreads,
-                                                               ThreadFactory threadFactory)
-        throws IOException
-    {
-        return AsynchronousChannelProvider.provider()
-            .openAsynchronousChannelGroup(nThreads, threadFactory);
+    // 返回一个带有固定容量线程池的异步通道组，线程池容量为nThreads
+    public static AsynchronousChannelGroup withFixedThreadPool(int nThreads, ThreadFactory threadFactory) throws IOException {
+        return AsynchronousChannelProvider.provider().openAsynchronousChannelGroup(nThreads, threadFactory);
     }
-
+    
     /**
      * Creates an asynchronous channel group with a given thread pool that
      * creates new threads as needed.
@@ -213,31 +222,24 @@ public abstract class AsynchronousChannelGroup {
      * unspecified behavior.
      *
      * <p> The group is created by invoking the {@link
-     * AsynchronousChannelProvider#openAsynchronousChannelGroup(ExecutorService,int)
+     * AsynchronousChannelProvider#openAsynchronousChannelGroup(ExecutorService, int)
      * openAsynchronousChannelGroup(ExecutorService,int)} method of the system-wide
      * default {@link AsynchronousChannelProvider} object.
      *
-     * @param   executor
-     *          The thread pool for the resulting group
-     * @param   initialSize
-     *          A value {@code >=0} or a negative value for implementation
-     *          specific default
+     * @param executor    The thread pool for the resulting group
+     * @param initialSize A value {@code >=0} or a negative value for implementation
+     *                    specific default
      *
-     * @return  A new asynchronous channel group
+     * @return A new asynchronous channel group
      *
-     * @throws  IOException
-     *          If an I/O error occurs
-     *
+     * @throws IOException If an I/O error occurs
      * @see java.util.concurrent.Executors#newCachedThreadPool
      */
-    public static AsynchronousChannelGroup withCachedThreadPool(ExecutorService executor,
-                                                                int initialSize)
-        throws IOException
-    {
-        return AsynchronousChannelProvider.provider()
-            .openAsynchronousChannelGroup(executor, initialSize);
+    // 返回一个包含指定线程池的异步通道组，线程池初始容量为initialSize(具体值还需要进一步计算)
+    public static AsynchronousChannelGroup withCachedThreadPool(ExecutorService executor, int initialSize) throws IOException {
+        return AsynchronousChannelProvider.provider().openAsynchronousChannelGroup(executor, initialSize);
     }
-
+    
     /**
      * Creates an asynchronous channel group with a given thread pool.
      *
@@ -258,44 +260,28 @@ public abstract class AsynchronousChannelGroup {
      * unspecified behavior.
      *
      * <p> The group is created by invoking the {@link
-     * AsynchronousChannelProvider#openAsynchronousChannelGroup(ExecutorService,int)
+     * AsynchronousChannelProvider#openAsynchronousChannelGroup(ExecutorService, int)
      * openAsynchronousChannelGroup(ExecutorService,int)} method of the system-wide
      * default {@link AsynchronousChannelProvider} object with an {@code
      * initialSize} of {@code 0}.
      *
-     * @param   executor
-     *          The thread pool for the resulting group
+     * @param executor The thread pool for the resulting group
      *
-     * @return  A new asynchronous channel group
+     * @return A new asynchronous channel group
      *
-     * @throws  IOException
-     *          If an I/O error occurs
+     * @throws IOException If an I/O error occurs
      */
-    public static AsynchronousChannelGroup withThreadPool(ExecutorService executor)
-        throws IOException
-    {
-        return AsynchronousChannelProvider.provider()
-            .openAsynchronousChannelGroup(executor, 0);
+    // 返回一个包含指定线程池的异步通道组，线程池初始容量为0
+    public static AsynchronousChannelGroup withThreadPool(ExecutorService executor) throws IOException {
+        return AsynchronousChannelProvider.provider().openAsynchronousChannelGroup(executor, 0);
     }
-
-    /**
-     * Tells whether or not this asynchronous channel group is shutdown.
-     *
-     * @return  {@code true} if this asynchronous channel group is shutdown or
-     *          has been marked for shutdown.
-     */
-    public abstract boolean isShutdown();
-
-    /**
-     * Tells whether or not this group has terminated.
-     *
-     * <p> Where this method returns {@code true}, then the associated thread
-     * pool has also {@link ExecutorService#isTerminated terminated}.
-     *
-     * @return  {@code true} if this group has terminated
-     */
-    public abstract boolean isTerminated();
-
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 关闭 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Initiates an orderly shutdown of the group.
      *
@@ -306,8 +292,9 @@ public abstract class AsynchronousChannelGroup {
      * and all resources have been released. This method has no effect if the
      * group is already shutdown.
      */
+    // 尝试关闭异步IO通道组；如果通道组内的通道未关闭，则只是将当前通道组标记为准备关闭状态
     public abstract void shutdown();
-
+    
     /**
      * Shuts down the group and closes all open channels in the group.
      *
@@ -321,28 +308,48 @@ public abstract class AsynchronousChannelGroup {
      * another invocation will block until the first invocation is complete,
      * after which it will return without effect.
      *
-     * @throws  IOException
-     *          If an I/O error occurs
+     * @throws IOException If an I/O error occurs
      */
+    // 立即关闭异步IO通道组，包括：关闭通道、关闭工作线程、关闭线程池
     public abstract void shutdownNow() throws IOException;
-
+    
+    /**
+     * Tells whether or not this asynchronous channel group is shutdown.
+     *
+     * @return {@code true} if this asynchronous channel group is shutdown or
+     * has been marked for shutdown.
+     */
+    // 判断异步IO通道组是否准备关闭
+    public abstract boolean isShutdown();
+    
+    /**
+     * Tells whether or not this group has terminated.
+     *
+     * <p> Where this method returns {@code true}, then the associated thread
+     * pool has also {@link ExecutorService#isTerminated terminated}.
+     *
+     * @return {@code true} if this group has terminated
+     */
+    // 判断通道组中的异步IO线程池是否已关闭(同时也指示通道组是否已经关闭)
+    public abstract boolean isTerminated();
+    
     /**
      * Awaits termination of the group.
-
+     *
      * <p> This method blocks until the group has terminated, or the timeout
      * occurs, or the current thread is interrupted, whichever happens first.
      *
-     * @param   timeout
-     *          The maximum time to wait, or zero or less to not wait
-     * @param   unit
-     *          The time unit of the timeout argument
+     * @param timeout The maximum time to wait, or zero or less to not wait
+     * @param unit    The time unit of the timeout argument
      *
-     * @return  {@code true} if the group has terminated; {@code false} if the
-     *          timeout elapsed before termination
+     * @return {@code true} if the group has terminated; {@code false} if the
+     * timeout elapsed before termination
      *
-     * @throws  InterruptedException
-     *          If interrupted while waiting
+     * @throws InterruptedException If interrupted while waiting
      */
-    public abstract boolean awaitTermination(long timeout, TimeUnit unit)
-        throws InterruptedException;
+    // 等待通道组中的异步IO线程池关闭；成功关闭后，返回true(同时也指示通道组是否已经关闭)
+    public abstract boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException;
+    
+    /*▲ 关闭  ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }
