@@ -30,9 +30,8 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.util.HashSet;
 import java.util.Set;
-import sun.nio.ch.Interruptible;
 import java.util.concurrent.atomic.AtomicBoolean;
-
+import sun.nio.ch.Interruptible;
 
 /**
  * Base implementation class for selectors.
@@ -65,34 +64,105 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author JSR-51 Expert Group
  * @since 1.4
  */
-
-public abstract class AbstractSelector
-    extends Selector
-{
-
-    private final AtomicBoolean selectorOpen = new AtomicBoolean(true);
-
-    // The provider that created this selector
+// 通道选择器的抽象实现
+public abstract class AbstractSelector extends Selector {
+    
+    /** The provider that created this selector */
+    // 构造当前选择器对象的选择器工厂
     private final SelectorProvider provider;
-
+    
+    // 标记选择器处于开启还是关闭状态
+    private final AtomicBoolean selectorOpen = new AtomicBoolean(true);
+    
+    // 线程中断回调标记，在中断选择器主线程时会被用到
+    private Interruptible interruptor = null;
+    
+    /*
+     * "已取消键临时集合"
+     *
+     * "临时"的含义是每一轮select()的前后，这里的"选择键"都会被移除
+     */
+    private final Set<SelectionKey> cancelledKeys = new HashSet<SelectionKey>();
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Initializes a new instance of this class.
      *
-     * @param  provider
-     *         The provider that created this selector
+     * @param provider The provider that created this selector
      */
     protected AbstractSelector(SelectorProvider provider) {
         this.provider = provider;
     }
-
-    private final Set<SelectionKey> cancelledKeys = new HashSet<SelectionKey>();
-
-    void cancel(SelectionKey k) {                       // package-private
-        synchronized (cancelledKeys) {
-            cancelledKeys.add(k);
-        }
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 注册/反注册 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Registers the given channel with this selector.
+     *
+     * <p> This method is invoked by a channel's {@link
+     * AbstractSelectableChannel#register register} method in order to perform
+     * the actual work of registering the channel with this selector.  </p>
+     *
+     * @param ch  The channel to be registered
+     * @param ops The initial interest set, which must be valid
+     * @param att The initial attachment for the resulting key
+     *
+     * @return A new key representing the registration of the given channel
+     * with this selector
+     */
+    /*
+     * 通道channel向当前选择器发起注册操作，返回生成的"选择键"
+     *
+     * 具体的注册行为是：
+     * 将通道(channel)、选择器(selector)、监听事件(ops)、附属对象(attachment)这四个属性打包成一个"选择键"对象，
+     * 并将该对象分别存储到各个相关的"选择键"集合/队列中，涉及到的"选择键"集合/队列包括：
+     *
+     * AbstractSelectableChannel -> keys           "选择键"集合
+     * SelectorImpl              -> keys           "新注册键集合"
+     * WindowsSelectorImpl       -> newKeys        "新注册键临时队列"
+     * WindowsSelectorImpl       -> updateKeys     "已更新键临时队列"
+     * AbstractSelector          -> cancelledKeys  "已取消键临时集合"
+     *
+     * 注：需要确保当前通道为非阻塞通道
+     */
+    protected abstract SelectionKey register(AbstractSelectableChannel channel, int ops, Object att);
+    
+    
+    /**
+     * Removes the given key from its channel's key set.
+     *
+     * This method must be invoked by the selector for each channel that it deregisters.
+     *
+     * @param key The selection key to be removed
+     */
+    /*
+     * 从key所属通道的"选择键"集合keys中移除key，并将key标记为无效
+     *
+     * 参见AbstractSelectableChannel中的keys
+     */
+    protected final void deregister(AbstractSelectionKey key) {
+        ((AbstractSelectableChannel) key.channel()).removeKey(key);
     }
-
+    
+    /*▲ 注册/反注册 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 打开/关闭 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 判断选择器是否处于开启状态
+    public final boolean isOpen() {
+        return selectorOpen.get();
+    }
+    
+    
     /**
      * Closes this selector.
      *
@@ -101,16 +171,20 @@ public abstract class AbstractSelector
      * the {@link #implCloseSelector implCloseSelector} method in order to
      * complete the close operation.  </p>
      *
-     * @throws  IOException
-     *          If an I/O error occurs
+     * @throws IOException If an I/O error occurs
      */
+    // 关闭选择器
     public final void close() throws IOException {
+        // 先标记选择器为关闭
         boolean open = selectorOpen.getAndSet(false);
-        if (!open)
+        if(!open) {
             return;
+        }
+    
+        // 完成关闭选择器的后续逻辑，主要是释放资源
         implCloseSelector();
     }
-
+    
     /**
      * Closes this selector.
      *
@@ -124,75 +198,42 @@ public abstract class AbstractSelector
      * immediately as if by invoking the {@link
      * java.nio.channels.Selector#wakeup wakeup} method. </p>
      *
-     * @throws  IOException
-     *          If an I/O error occurs while closing the selector
+     * @throws IOException If an I/O error occurs while closing the selector
      */
+    // 完成关闭选择器的后续逻辑，包括关闭通道、管道，结束辅助线程，释放分配的本地内存
     protected abstract void implCloseSelector() throws IOException;
-
-    public final boolean isOpen() {
-        return selectorOpen.get();
+    
+    /*▲ 打开/关闭 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 取消 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 取消指定的"选择键"，即将其加入到"已取消键临时集合"(cancelledKeys)中
+    void cancel(SelectionKey selectionKey) {
+        synchronized(cancelledKeys) {
+            cancelledKeys.add(selectionKey);
+        }
     }
-
-    /**
-     * Returns the provider that created this channel.
-     *
-     * @return  The provider that created this channel
-     */
-    public final SelectorProvider provider() {
-        return provider;
-    }
-
+    
     /**
      * Retrieves this selector's cancelled-key set.
      *
      * <p> This set should only be used while synchronized upon it.  </p>
      *
-     * @return  The cancelled-key set
+     * @return The cancelled-key set
      */
+    // 返回"已取消键临时集合"
     protected final Set<SelectionKey> cancelledKeys() {
         return cancelledKeys;
     }
-
-    /**
-     * Registers the given channel with this selector.
-     *
-     * <p> This method is invoked by a channel's {@link
-     * AbstractSelectableChannel#register register} method in order to perform
-     * the actual work of registering the channel with this selector.  </p>
-     *
-     * @param  ch
-     *         The channel to be registered
-     *
-     * @param  ops
-     *         The initial interest set, which must be valid
-     *
-     * @param  att
-     *         The initial attachment for the resulting key
-     *
-     * @return  A new key representing the registration of the given channel
-     *          with this selector
-     */
-    protected abstract SelectionKey register(AbstractSelectableChannel ch,
-                                             int ops, Object att);
-
-    /**
-     * Removes the given key from its channel's key set.
-     *
-     * <p> This method must be invoked by the selector for each channel that it
-     * deregisters.  </p>
-     *
-     * @param  key
-     *         The selection key to be removed
-     */
-    protected final void deregister(AbstractSelectionKey key) {
-        ((AbstractSelectableChannel)key.channel()).removeKey(key);
-    }
-
-
-    // -- Interruption machinery --
-
-    private Interruptible interruptor = null;
-
+    
+    /*▲ 取消 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 中断回调标记 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Marks the beginning of an I/O operation that might block indefinitely.
      *
@@ -206,19 +247,28 @@ public abstract class AbstractSelector
      * Thread#interrupt interrupt} method is invoked while the thread is
      * blocked in an I/O operation upon the selector.  </p>
      */
+    // 在一段可能阻塞的I/O操作开始之前，设置线程中断回调标记
     protected final void begin() {
-        if (interruptor == null) {
+        if(interruptor == null) {
             interruptor = new Interruptible() {
-                    public void interrupt(Thread ignore) {
-                        AbstractSelector.this.wakeup();
-                    }};
+                public void interrupt(Thread ignore) {
+                    // 通过哨兵元素唤醒阻塞的线程（选择器），并设置interruptTriggered = true
+                    AbstractSelector.this.wakeup();
+                }
+            };
         }
+    
+        // 为当前线程设置线程中断回调标记
         AbstractInterruptibleChannel.blockedOn(interruptor);
+    
         Thread me = Thread.currentThread();
-        if (me.isInterrupted())
+        // 测试线程是否已经中断，线程的中断状态不受影响
+        if(me.isInterrupted()) {
+            // 如果线程已经中断了，那么立即执行interruptor中的逻辑
             interruptor.interrupt(me);
+        }
     }
-
+    
     /**
      * Marks the end of an I/O operation that might block indefinitely.
      *
@@ -227,8 +277,22 @@ public abstract class AbstractSelector
      * shown <a href="#be">above</a>, in order to implement interruption for
      * this selector.  </p>
      */
+    // 移除之前设置的线程中断回调标记
     protected final void end() {
         AbstractInterruptibleChannel.blockedOn(null);
     }
-
+    
+    /*▲ 中断回调标记 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    /**
+     * Returns the provider that created this channel.
+     *
+     * @return The provider that created this channel
+     */
+    // 返回构造当前选择器的选择器工厂
+    public final SelectorProvider provider() {
+        return provider;
+    }
+    
 }
