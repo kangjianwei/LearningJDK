@@ -31,155 +31,221 @@ package sun.nio.ch;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.*;
-import java.nio.channels.*;
-import java.nio.channels.spi.*;
+import java.net.ServerSocket;
+import java.nio.ByteBuffer;
+import java.nio.channels.ClosedByInterruptException;
+import java.nio.channels.Pipe;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.nio.channels.spi.SelectorProvider;
 import java.security.AccessController;
-import java.security.PrivilegedExceptionAction;
 import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.security.SecureRandom;
 import java.util.Random;
-
 
 /**
  * A simple Pipe implementation based on a socket connection.
  */
-
-class PipeImpl
-    extends Pipe
-{
+/*
+ * 单向同步管道的实现类，由写通道SinkChannel和读通道SourceChannel组成，可以从写通道写入数据，从读通道读取数据。
+ * 读写管道实际上是通过Socket进行通信的。
+ */
+class PipeImpl extends Pipe {
+    
     // Number of bytes in the secret handshake.
     private static final int NUM_SECRET_BYTES = 16;
-
+    
     // Random object for handshake values
     private static final Random RANDOM_NUMBER_GENERATOR = new SecureRandom();
-
-    // Source and sink channels
+    
+    // 读通道，从这里读取数据
     private SourceChannel source;
+    
+    // 写通道，向这里写入数据
     private SinkChannel sink;
-
-    private class Initializer
-        implements PrivilegedExceptionAction<Void>
-    {
-
-        private final SelectorProvider sp;
-
-        private IOException ioe = null;
-
-        private Initializer(SelectorProvider sp) {
-            this.sp = sp;
-        }
-
-        @Override
-        public Void run() throws IOException {
-            LoopbackConnector connector = new LoopbackConnector();
-            connector.run();
-            if (ioe instanceof ClosedByInterruptException) {
-                ioe = null;
-                Thread connThread = new Thread(connector) {
-                    @Override
-                    public void interrupt() {}
-                };
-                connThread.start();
-                for (;;) {
-                    try {
-                        connThread.join();
-                        break;
-                    } catch (InterruptedException ex) {}
-                }
-                Thread.currentThread().interrupt();
-            }
-
-            if (ioe != null)
-                throw new IOException("Unable to establish loopback connection", ioe);
-
-            return null;
-        }
-
-        private class LoopbackConnector implements Runnable {
-
-            @Override
-            public void run() {
-                ServerSocketChannel ssc = null;
-                SocketChannel sc1 = null;
-                SocketChannel sc2 = null;
-
-                try {
-                    // Create secret with a backing array.
-                    ByteBuffer secret = ByteBuffer.allocate(NUM_SECRET_BYTES);
-                    ByteBuffer bb = ByteBuffer.allocate(NUM_SECRET_BYTES);
-
-                    // Loopback address
-                    InetAddress lb = InetAddress.getLoopbackAddress();
-                    assert(lb.isLoopbackAddress());
-                    InetSocketAddress sa = null;
-                    for(;;) {
-                        // Bind ServerSocketChannel to a port on the loopback
-                        // address
-                        if (ssc == null || !ssc.isOpen()) {
-                            ssc = ServerSocketChannel.open();
-                            ssc.socket().bind(new InetSocketAddress(lb, 0));
-                            sa = new InetSocketAddress(lb, ssc.socket().getLocalPort());
-                        }
-
-                        // Establish connection (assume connections are eagerly
-                        // accepted)
-                        sc1 = SocketChannel.open(sa);
-                        RANDOM_NUMBER_GENERATOR.nextBytes(secret.array());
-                        do {
-                            sc1.write(secret);
-                        } while (secret.hasRemaining());
-                        secret.rewind();
-
-                        // Get a connection and verify it is legitimate
-                        sc2 = ssc.accept();
-                        do {
-                            sc2.read(bb);
-                        } while (bb.hasRemaining());
-                        bb.rewind();
-
-                        if (bb.equals(secret))
-                            break;
-
-                        sc2.close();
-                        sc1.close();
-                    }
-
-                    // Create source and sink channels
-                    source = new SourceChannelImpl(sp, sc1);
-                    sink = new SinkChannelImpl(sp, sc2);
-                } catch (IOException e) {
-                    try {
-                        if (sc1 != null)
-                            sc1.close();
-                        if (sc2 != null)
-                            sc2.close();
-                    } catch (IOException e2) {}
-                    ioe = e;
-                } finally {
-                    try {
-                        if (ssc != null)
-                            ssc.close();
-                    } catch (IOException e2) {}
-                }
-            }
-        }
-    }
-
-    PipeImpl(final SelectorProvider sp) throws IOException {
+    
+    // 构造管道
+    PipeImpl(final SelectorProvider provider) throws IOException {
         try {
-            AccessController.doPrivileged(new Initializer(sp));
-        } catch (PrivilegedActionException x) {
-            throw (IOException)x.getCause();
+            // 这里会调用initializer的run方法，为管道建立读通道和写通道，并连通它们
+            AccessController.doPrivileged(new Initializer(provider));
+        } catch(PrivilegedActionException x) {
+            throw (IOException) x.getCause();
         }
     }
-
-    public SourceChannel source() {
-        return source;
-    }
-
+    
+    // 返回管道中的写通道，可以向这里写入数据
     public SinkChannel sink() {
         return sink;
     }
-
+    
+    // 返回管道中的读通道，可以从这里读取数据
+    public SourceChannel source() {
+        return source;
+    }
+    
+    // 管道初始化器，用于为管道建立读通道和写通道，并连通它们
+    private class Initializer implements PrivilegedExceptionAction<Void> {
+        // 构造了当前管道的选择器工厂
+        private final SelectorProvider provider;
+        
+        // 收集初始化管道中发生的异常
+        private IOException ioe = null;
+        
+        private Initializer(SelectorProvider provider) {
+            this.provider = provider;
+        }
+        
+        // 初始化管道
+        @Override
+        public Void run() throws IOException {
+            
+            // 构造本地环回连接器
+            LoopbackConnector connector = new LoopbackConnector();
+            
+            // 在管道内构造读通道和写通道，打通管道内部的通信
+            connector.run();
+            
+            if(ioe instanceof ClosedByInterruptException) {
+                ioe = null;
+                
+                Thread connThread = new Thread(connector) {
+                    @Override
+                    public void interrupt() {
+                    }
+                };
+                
+                connThread.start();
+                
+                for(; ; ) {
+                    try {
+                        connThread.join();
+                        break;
+                    } catch(InterruptedException ex) {
+                    }
+                }
+                
+                Thread.currentThread().interrupt();
+            }
+            
+            if(ioe != null) {
+                throw new IOException("Unable to establish loopback connection", ioe);
+            }
+            
+            return null;
+        }
+        
+        // 本地环回连接器，完成读写通道的连通操作
+        private class LoopbackConnector implements Runnable {
+            
+            // 在管道内构造读通道和写通道，打通管道内部的通信
+            @Override
+            public void run() {
+                ServerSocketChannel serverSocketChannel = null; // [服务端Socket(监听)]
+                SocketChannel socketClient = null;  // [客户端Socket]
+                SocketChannel socketServer = null;  // [服务端Socket(通信)]
+                
+                try {
+                    // 创建堆内存缓冲区HeapByteBuffer
+                    ByteBuffer secret = ByteBuffer.allocate(NUM_SECRET_BYTES);
+                    ByteBuffer buffer = ByteBuffer.allocate(NUM_SECRET_BYTES);
+                    
+                    // 获取本地回环地址
+                    InetAddress ip = InetAddress.getLoopbackAddress();
+                    assert (ip.isLoopbackAddress());
+                    
+                    // 服务端绑定的地址
+                    InetSocketAddress serverAddr = null;
+                    
+                    for(; ; ) {
+                        // Bind ServerSocketChannel to a port on the loopback address
+                        if(serverSocketChannel == null || !serverSocketChannel.isOpen()) {
+                            // 创建一个未绑定地址和端口的ServerSocket，并返回其关联的Socket通道
+                            serverSocketChannel = ServerSocketChannel.open();
+                            
+                            // 返回由当前ServerSocket通道适配而成的ServerSocket
+                            ServerSocket serverSocket = serverSocketChannel.socket();
+                            
+                            // 待绑定地址：环回IP+随机端口
+                            InetSocketAddress socketAddress = new InetSocketAddress(ip, 0);
+                            
+                            // 创建[服务端Socket(监听)]，并对其执行【bind】和【listen】操作，此处允许积压(排队)的待处理连接数为50
+                            serverSocket.bind(socketAddress);
+                            
+                            // 获取本地端口，即服务端的端口
+                            int localPort = serverSocket.getLocalPort();
+                            
+                            // 获取到服务端的绑定地址，此时端口号已被解析出来了
+                            serverAddr = new InetSocketAddress(ip, localPort);
+                        }
+                        
+                        /* Establish connection (assume connections are eagerly accepted) */
+                        // 构造一个[客户端Socket]，并将其连接到远端
+                        socketClient = SocketChannel.open(serverAddr);
+                        
+                        // 使用随机字节填充secret数组
+                        RANDOM_NUMBER_GENERATOR.nextBytes(secret.array());
+                        do {
+                            // 客户端通道开始写入数据，待写入数据存储在secret中
+                            socketClient.write(secret);
+                        } while(secret.hasRemaining());
+                        
+                        // 重置secret的游标与标记
+                        secret.rewind();
+                        
+                        /* Get a connection and verify it is legitimate */
+                        // [服务端Socket(监听)]等待客户端的连接请求；连接成功后，返回与[客户端Socket]建立连接的[服务端Socket(通信)]
+                        socketServer = serverSocketChannel.accept();
+                        
+                        do {
+                            // 服务端通道开始读取数据，读到的内容存入bb
+                            socketServer.read(buffer);
+                        } while(buffer.hasRemaining());
+                        
+                        // 重置buffer的游标与标记
+                        buffer.rewind();
+                        
+                        // 如果两端数据一致，说明两端是可以互相通信的
+                        if(buffer.equals(secret)) {
+                            break;
+                        }
+                        
+                        socketServer.close();
+                        socketClient.close();
+                    } // for(;;)
+                    
+                    // 创建读通道
+                    source = new SourceChannelImpl(provider, socketClient);
+                    
+                    // 创建写通道
+                    sink = new SinkChannelImpl(provider, socketServer);
+                    
+                    /* 至此，管道已经打通，内部可以通过读管道和写管道进行通信 */
+                    
+                } catch(IOException e) {
+                    try {
+                        if(socketClient != null) {
+                            socketClient.close();
+                        }
+                        
+                        if(socketServer != null) {
+                            socketServer.close();
+                        }
+                    } catch(IOException e2) {
+                    }
+                    
+                    ioe = e;
+                } finally {
+                    try {
+                        if(serverSocketChannel != null) {
+                            serverSocketChannel.close();
+                        }
+                    } catch(IOException e2) {
+                    }
+                }
+            }
+        }
+    }
+    
 }
