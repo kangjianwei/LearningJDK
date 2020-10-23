@@ -27,14 +27,17 @@ package java.nio.channels.spi;
 
 import java.io.IOException;
 import java.net.ProtocolFamily;
-import java.nio.channels.*;
+import java.nio.channels.Channel;
+import java.nio.channels.DatagramChannel;
+import java.nio.channels.Pipe;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Iterator;
-import java.util.ServiceLoader;
 import java.util.ServiceConfigurationError;
-import sun.security.action.GetPropertyAction;
-
+import java.util.ServiceLoader;
+import sun.nio.ch.DefaultSelectorProvider;
 
 /**
  * Service-provider class for selectors and selectable channels.
@@ -60,205 +63,170 @@ import sun.security.action.GetPropertyAction;
  * <p> All of the methods in this class are safe for use by multiple concurrent
  * threads.  </p>
  *
- *
  * @author Mark Reinhold
  * @author JSR-51 Expert Group
  * @since 1.4
  */
-
+// 选择器/通道/管道工厂，除了可以生产选择器工厂本身，还可以生产通道选择器、TCP/UDP-Socket通道、管道
 public abstract class SelectorProvider {
-
+    
     private static final Object lock = new Object();
+    
+    // 单例下的选择器工厂
     private static SelectorProvider provider = null;
-
-    private static Void checkPermission() {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null)
-            sm.checkPermission(new RuntimePermission("selectorProvider"));
-        return null;
-    }
-    private SelectorProvider(Void ignore) { }
-
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Initializes a new instance of this class.
      *
-     * @throws  SecurityException
-     *          If a security manager has been installed and it denies
-     *          {@link RuntimePermission}{@code ("selectorProvider")}
+     * @throws SecurityException If a security manager has been installed and it denies
+     *                           {@link RuntimePermission}{@code ("selectorProvider")}
      */
     protected SelectorProvider() {
         this(checkPermission());
     }
-
-    private static boolean loadProviderFromProperty() {
-        String cn = System.getProperty("java.nio.channels.spi.SelectorProvider");
-        if (cn == null)
-            return false;
-        try {
-            @SuppressWarnings("deprecation")
-            Object tmp = Class.forName(cn, true,
-                                       ClassLoader.getSystemClassLoader()).newInstance();
-            provider = (SelectorProvider)tmp;
-            return true;
-        } catch (ClassNotFoundException x) {
-            throw new ServiceConfigurationError(null, x);
-        } catch (IllegalAccessException x) {
-            throw new ServiceConfigurationError(null, x);
-        } catch (InstantiationException x) {
-            throw new ServiceConfigurationError(null, x);
-        } catch (SecurityException x) {
-            throw new ServiceConfigurationError(null, x);
-        }
+    
+    private SelectorProvider(Void ignore) {
     }
-
-    private static boolean loadProviderAsService() {
-
-        ServiceLoader<SelectorProvider> sl =
-            ServiceLoader.load(SelectorProvider.class,
-                               ClassLoader.getSystemClassLoader());
-        Iterator<SelectorProvider> i = sl.iterator();
-        for (;;) {
-            try {
-                if (!i.hasNext())
-                    return false;
-                provider = i.next();
-                return true;
-            } catch (ServiceConfigurationError sce) {
-                if (sce.getCause() instanceof SecurityException) {
-                    // Ignore the security exception, try the next provider
-                    continue;
-                }
-                throw sce;
-            }
-        }
-    }
-
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns the system-wide default selector provider for this invocation of
-     * the Java virtual machine.
+     * Returns the system-wide default selector provider for this invocation of the Java virtual machine.
      *
-     * <p> The first invocation of this method locates the default provider
-     * object as follows: </p>
+     * <p> The first invocation of this method locates the default provider object as follows: </p>
      *
      * <ol>
      *
-     *   <li><p> If the system property
-     *   {@code java.nio.channels.spi.SelectorProvider} is defined then it is
-     *   taken to be the fully-qualified name of a concrete provider class.
-     *   The class is loaded and instantiated; if this process fails then an
-     *   unspecified error is thrown.  </p></li>
+     * <li><p> If the system property
+     * {@code java.nio.channels.spi.SelectorProvider} is defined then it is
+     * taken to be the fully-qualified name of a concrete provider class.
+     * The class is loaded and instantiated; if this process fails then an
+     * unspecified error is thrown.  </p></li>
      *
-     *   <li><p> If a provider class has been installed in a jar file that is
-     *   visible to the system class loader, and that jar file contains a
-     *   provider-configuration file named
-     *   {@code java.nio.channels.spi.SelectorProvider} in the resource
-     *   directory {@code META-INF/services}, then the first class name
-     *   specified in that file is taken.  The class is loaded and
-     *   instantiated; if this process fails then an unspecified error is
-     *   thrown.  </p></li>
+     * <li><p> If a provider class has been installed in a jar file that is
+     * visible to the system class loader, and that jar file contains a
+     * provider-configuration file named
+     * {@code java.nio.channels.spi.SelectorProvider} in the resource
+     * directory {@code META-INF/services}, then the first class name
+     * specified in that file is taken.  The class is loaded and
+     * instantiated; if this process fails then an unspecified error is
+     * thrown.  </p></li>
      *
-     *   <li><p> Finally, if no provider has been specified by any of the above
-     *   means then the system-default provider class is instantiated and the
-     *   result is returned.  </p></li>
+     * <li><p> Finally, if no provider has been specified by any of the above
+     * means then the system-default provider class is instantiated and the
+     * result is returned.  </p></li>
      *
      * </ol>
      *
      * <p> Subsequent invocations of this method return the provider that was
      * returned by the first invocation.  </p>
      *
-     * @return  The system-wide default selector provider
+     * @return The system-wide default selector provider
      */
+    // 构造并返回默认的选择器工厂(接受用户的定义)
     public static SelectorProvider provider() {
-        synchronized (lock) {
-            if (provider != null)
+        synchronized(lock) {
+            if(provider != null) {
                 return provider;
-            return AccessController.doPrivileged(
-                new PrivilegedAction<>() {
-                    public SelectorProvider run() {
-                            if (loadProviderFromProperty())
-                                return provider;
-                            if (loadProviderAsService())
-                                return provider;
-                            provider = sun.nio.ch.DefaultSelectorProvider.create();
-                            return provider;
-                        }
-                    });
+            }
+        
+            return AccessController.doPrivileged(new PrivilegedAction<>() {
+                public SelectorProvider run() {
+                    // 1. 从系统属性"java.nio.channels.spi.SelectorProvider"中获取待加载的SelectorProvider的名称，并初始化其实例
+                    if(loadProviderFromProperty()) {
+                        return provider;
+                    }
+                
+                    // 2. 通过ServiceLoader加载预先配置的SelectorProvider
+                    if(loadProviderAsService()) {
+                        return provider;
+                    }
+                
+                    // 3. 加载系统默认的SelectorProvider
+                    provider = DefaultSelectorProvider.create();
+                
+                    return provider;
+                }
+            });
         }
     }
-
-    /**
-     * Opens a datagram channel.
-     *
-     * @return  The new channel
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     */
-    public abstract DatagramChannel openDatagramChannel()
-        throws IOException;
-
-    /**
-     * Opens a datagram channel.
-     *
-     * @param   family
-     *          The protocol family
-     *
-     * @return  A new datagram channel
-     *
-     * @throws  UnsupportedOperationException
-     *          If the specified protocol family is not supported
-     * @throws  IOException
-     *          If an I/O error occurs
-     *
-     * @since 1.7
-     */
-    public abstract DatagramChannel openDatagramChannel(ProtocolFamily family)
-        throws IOException;
-
-    /**
-     * Opens a pipe.
-     *
-     * @return  The new pipe
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     */
-    public abstract Pipe openPipe()
-        throws IOException;
-
+    
+    
     /**
      * Opens a selector.
      *
-     * @return  The new selector
+     * @return The new selector
      *
-     * @throws  IOException
-     *          If an I/O error occurs
+     * @throws IOException If an I/O error occurs
      */
-    public abstract AbstractSelector openSelector()
-        throws IOException;
-
-    /**
-     * Opens a server-socket channel.
-     *
-     * @return  The new channel
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     */
-    public abstract ServerSocketChannel openServerSocketChannel()
-        throws IOException;
-
+    // 生产Selector，由各平台自行实现
+    public abstract AbstractSelector openSelector() throws IOException;
+    
     /**
      * Opens a socket channel.
      *
-     * @return  The new channel
+     * @return The new channel
      *
-     * @throws  IOException
-     *          If an I/O error occurs
+     * @throws IOException If an I/O error occurs
      */
-    public abstract SocketChannel openSocketChannel()
-        throws IOException;
-
+    // 构造一个未绑定的[客户端Socket]，内部初始化了该Socket的文件描述符
+    public abstract SocketChannel openSocketChannel() throws IOException;
+    
+    /**
+     * Opens a server-socket channel.
+     *
+     * @return The new channel
+     *
+     * @throws IOException If an I/O error occurs
+     */
+    // 构造一个未绑定的ServerSocket，本质是创建了[服务端Socket(监听)]，内部初始化了该Socket的文件描述符
+    public abstract ServerSocketChannel openServerSocketChannel() throws IOException;
+    
+    /**
+     * Opens a datagram channel.
+     *
+     * @return The new channel
+     *
+     * @throws IOException If an I/O error occurs
+     */
+    // 构造DatagramSocket通道，内部初始化了该Socket的文件描述符
+    public abstract DatagramChannel openDatagramChannel() throws IOException;
+    
+    /**
+     * Opens a datagram channel.
+     *
+     * @param family The protocol family
+     *
+     * @return A new datagram channel
+     *
+     * @throws UnsupportedOperationException If the specified protocol family is not supported
+     * @throws IOException                   If an I/O error occurs
+     * @since 1.7
+     */
+    // 构造DatagramSocket通道，内部初始化了该Socket的文件描述符，其支持的协议族由参数family指定
+    public abstract DatagramChannel openDatagramChannel(ProtocolFamily family) throws IOException;
+    
+    /**
+     * Opens a pipe.
+     *
+     * @return The new pipe
+     *
+     * @throws IOException If an I/O error occurs
+     */
+    // 生产Pipe
+    public abstract Pipe openPipe() throws IOException;
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
     /**
      * Returns the channel inherited from the entity that created this
      * Java virtual machine.
@@ -279,23 +247,23 @@ public abstract class SelectorProvider {
      *
      * <ul>
      *
-     *  <li><p> If the inherited channel represents a stream-oriented connected
-     *  socket then a {@link java.nio.channels.SocketChannel SocketChannel} is
-     *  returned. The socket channel is, at least initially, in blocking
-     *  mode, bound to a socket address, and connected to a peer.
-     *  </p></li>
+     * <li><p> If the inherited channel represents a stream-oriented connected
+     * socket then a {@link java.nio.channels.SocketChannel SocketChannel} is
+     * returned. The socket channel is, at least initially, in blocking
+     * mode, bound to a socket address, and connected to a peer.
+     * </p></li>
      *
-     *  <li><p> If the inherited channel represents a stream-oriented listening
-     *  socket then a {@link java.nio.channels.ServerSocketChannel
-     *  ServerSocketChannel} is returned. The server-socket channel is, at
-     *  least initially, in blocking mode, and bound to a socket address.
-     *  </p></li>
+     * <li><p> If the inherited channel represents a stream-oriented listening
+     * socket then a {@link java.nio.channels.ServerSocketChannel
+     * ServerSocketChannel} is returned. The server-socket channel is, at
+     * least initially, in blocking mode, and bound to a socket address.
+     * </p></li>
      *
-     *  <li><p> If the inherited channel is a datagram-oriented socket
-     *  then a {@link java.nio.channels.DatagramChannel DatagramChannel} is
-     *  returned. The datagram channel is, at least initially, in blocking
-     *  mode, and bound to a socket address.
-     *  </p></li>
+     * <li><p> If the inherited channel is a datagram-oriented socket
+     * then a {@link java.nio.channels.DatagramChannel DatagramChannel} is
+     * returned. The datagram channel is, at least initially, in blocking
+     * mode, and bound to a socket address.
+     * </p></li>
      *
      * </ul>
      *
@@ -306,19 +274,65 @@ public abstract class SelectorProvider {
      * returned. Subsequent invocations of this method return the same
      * channel. </p>
      *
-     * @return  The inherited channel, if any, otherwise {@code null}.
+     * @return The inherited channel, if any, otherwise {@code null}.
      *
-     * @throws  IOException
-     *          If an I/O error occurs
-     *
-     * @throws  SecurityException
-     *          If a security manager has been installed and it denies
-     *          {@link RuntimePermission}{@code ("inheritedChannel")}
-     *
+     * @throws IOException       If an I/O error occurs
+     * @throws SecurityException If a security manager has been installed and it denies
+     *                           {@link RuntimePermission}{@code ("inheritedChannel")}
      * @since 1.5
      */
-   public Channel inheritedChannel() throws IOException {
+    public Channel inheritedChannel() throws IOException {
         return null;
-   }
-
+    }
+    
+    private static Void checkPermission() {
+        SecurityManager sm = System.getSecurityManager();
+        if(sm != null) {
+            sm.checkPermission(new RuntimePermission("selectorProvider"));
+        }
+        return null;
+    }
+    
+    // 1. 从系统属性"java.nio.channels.spi.SelectorProvider"中获取待加载的SelectorProvider的名称，并初始化其实例
+    private static boolean loadProviderFromProperty() {
+        String cn = System.getProperty("java.nio.channels.spi.SelectorProvider");
+        
+        if(cn == null) {
+            return false;
+        }
+        
+        try {
+            @SuppressWarnings("deprecation")
+            Object tmp = Class.forName(cn, true, ClassLoader.getSystemClassLoader()).newInstance();
+            provider = (SelectorProvider) tmp;
+            return true;
+        } catch(ClassNotFoundException | IllegalAccessException | InstantiationException | SecurityException x) {
+            throw new ServiceConfigurationError(null, x);
+        }
+    }
+    
+    // 2. 通过ServiceLoader加载预先配置的SelectorProvider服务
+    private static boolean loadProviderAsService() {
+        // 加载指定的服务，使用指定的类加载器
+        ServiceLoader<SelectorProvider> sl = ServiceLoader.load(SelectorProvider.class, ClassLoader.getSystemClassLoader());
+        
+        Iterator<SelectorProvider> iterator = sl.iterator();
+        
+        for(; ; ) {
+            try {
+                if(!iterator.hasNext()) {
+                    return false;
+                }
+                provider = iterator.next();
+                return true;
+            } catch(ServiceConfigurationError sce) {
+                if(sce.getCause() instanceof SecurityException) {
+                    // Ignore the security exception, try the next provider
+                    continue;
+                }
+                throw sce;
+            }
+        }
+    }
+    
 }
