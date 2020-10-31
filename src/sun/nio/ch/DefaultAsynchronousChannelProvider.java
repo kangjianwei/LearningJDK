@@ -30,14 +30,18 @@ import java.nio.channels.spi.AsynchronousChannelProvider;
 /**
  * Creates this platform's default asynchronous channel provider
  */
-
+// 系统默认的异步通道工厂
 public class DefaultAsynchronousChannelProvider {
-    private DefaultAsynchronousChannelProvider() { }
-
+    
+    private DefaultAsynchronousChannelProvider() {
+    }
+    
     /**
      * Returns the default AsynchronousChannelProvider.
      */
+    // 返回系统默认的异步通道工厂
     public static AsynchronousChannelProvider create() {
         return new WindowsAsynchronousChannelProvider();
     }
+    
 }

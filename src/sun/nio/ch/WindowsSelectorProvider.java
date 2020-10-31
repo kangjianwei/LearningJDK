@@ -31,15 +31,15 @@ package sun.nio.ch;
 import java.io.IOException;
 import java.nio.channels.spi.AbstractSelector;
 
-/*
+/**
  * SelectorProvider for sun.nio.ch.WindowsSelectorImpl.
  *
  * @author Konstantin Kladko
  * @since 1.4
  */
-
+// 平台相关的选择器工厂，用于生产依赖平台的选择器Selector
 public class WindowsSelectorProvider extends SelectorProviderImpl {
-
+    // 生产Selector
     public AbstractSelector openSelector() throws IOException {
         return new WindowsSelectorImpl(this);
     }

@@ -28,7 +28,6 @@ package java.nio.channels;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-
 /**
  * A channel that can write bytes.
  *
@@ -39,16 +38,13 @@ import java.nio.ByteBuffer;
  * I/O operations may proceed concurrently with a write operation depends upon
  * the type of the channel. </p>
  *
- *
  * @author Mark Reinhold
  * @author JSR-51 Expert Group
  * @since 1.4
  */
-
-public interface WritableByteChannel
-    extends Channel
-{
-
+// 可写的字节通道
+public interface WritableByteChannel extends Channel {
+    
     /**
      * Writes a sequence of bytes to this channel from the given buffer.
      *
@@ -76,30 +72,21 @@ public interface WritableByteChannel
      * invocation of this method will block until the first operation is
      * complete. </p>
      *
-     * @param  src
-     *         The buffer from which bytes are to be retrieved
+     * @param src The buffer from which bytes are to be retrieved
      *
      * @return The number of bytes written, possibly zero
      *
-     * @throws  NonWritableChannelException
-     *          If this channel was not opened for writing
-     *
-     * @throws  ClosedChannelException
-     *          If this channel is closed
-     *
-     * @throws  AsynchronousCloseException
-     *          If another thread closes this channel
-     *          while the write operation is in progress
-     *
-     * @throws  ClosedByInterruptException
-     *          If another thread interrupts the current thread
-     *          while the write operation is in progress, thereby
-     *          closing the channel and setting the current thread's
-     *          interrupt status
-     *
-     * @throws  IOException
-     *          If some other I/O error occurs
+     * @throws NonWritableChannelException If this channel was not opened for writing
+     * @throws ClosedChannelException      If this channel is closed
+     * @throws AsynchronousCloseException  If another thread closes this channel
+     *                                     while the write operation is in progress
+     * @throws ClosedByInterruptException  If another thread interrupts the current thread
+     *                                     while the write operation is in progress, thereby
+     *                                     closing the channel and setting the current thread's
+     *                                     interrupt status
+     * @throws IOException                 If some other I/O error occurs
      */
-    public int write(ByteBuffer src) throws IOException;
-
+    // 从src中读取数据，读到的内容向当前通道中写入
+    int write(ByteBuffer src) throws IOException;
+    
 }

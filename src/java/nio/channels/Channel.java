@@ -25,9 +25,8 @@
 
 package java.nio.channels;
 
-import java.io.IOException;
 import java.io.Closeable;
-
+import java.io.IOException;
 
 /**
  * A nexus for I/O operations.
@@ -47,21 +46,21 @@ import java.io.Closeable;
  * as described in the specifications of the interfaces and classes that extend
  * and implement this interface.
  *
- *
  * @author Mark Reinhold
  * @author JSR-51 Expert Group
  * @since 1.4
  */
-
+// 通道，必须支持开启和关闭操作
 public interface Channel extends Closeable {
-
+    
     /**
      * Tells whether or not this channel is open.
      *
      * @return {@code true} if, and only if, this channel is open
      */
-    public boolean isOpen();
-
+    // 判断通道是否处于开启状态
+    boolean isOpen();
+    
     /**
      * Closes this channel.
      *
@@ -77,8 +76,9 @@ public interface Channel extends Closeable {
      * the first invocation is complete, after which it will return without
      * effect. </p>
      *
-     * @throws  IOException  If an I/O error occurs
+     * @throws IOException If an I/O error occurs
      */
-    public void close() throws IOException;
-
+    // 关闭通道
+    void close() throws IOException;
+    
 }

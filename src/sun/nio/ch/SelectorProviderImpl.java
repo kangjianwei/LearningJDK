@@ -25,38 +25,44 @@
 
 package sun.nio.ch;
 
-import java.io.FileDescriptor;
 import java.io.IOException;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.net.ProtocolFamily;
-import java.nio.channels.*;
-import java.nio.channels.spi.*;
+import java.nio.channels.DatagramChannel;
+import java.nio.channels.Pipe;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.nio.channels.spi.AbstractSelector;
+import java.nio.channels.spi.SelectorProvider;
 
-
-public abstract class SelectorProviderImpl
-    extends SelectorProvider
-{
-
-    public DatagramChannel openDatagramChannel() throws IOException {
-        return new DatagramChannelImpl(this);
-    }
-
-    public DatagramChannel openDatagramChannel(ProtocolFamily family) throws IOException {
-        return new DatagramChannelImpl(this, family);
-    }
-
-    public Pipe openPipe() throws IOException {
-        return new PipeImpl(this);
-    }
-
+// 选择器工厂的抽象实现，实现了SelectorProvider的大部分特性（除了生成Selector没有实现）
+public abstract class SelectorProviderImpl extends SelectorProvider {
+    
+    // 生产Selector，由各平台自行实现
     public abstract AbstractSelector openSelector() throws IOException;
-
-    public ServerSocketChannel openServerSocketChannel() throws IOException {
-        return new ServerSocketChannelImpl(this);
-    }
-
+    
+    // 构造一个未绑定的[客户端Socket]，内部初始化了该Socket的文件描述符
     public SocketChannel openSocketChannel() throws IOException {
         return new SocketChannelImpl(this);
     }
+    
+    // 构造一个未绑定的ServerSocket，本质是创建了[服务端Socket(监听)]，内部初始化了该Socket的文件描述符
+    public ServerSocketChannel openServerSocketChannel() throws IOException {
+        return new ServerSocketChannelImpl(this);
+    }
+    
+    // 构造DatagramSocket通道，内部初始化了该Socket的文件描述符
+    public DatagramChannel openDatagramChannel() throws IOException {
+        return new DatagramChannelImpl(this);
+    }
+    
+    // 构造DatagramSocket通道，内部初始化了该Socket的文件描述符，其支持的协议族由参数family指定
+    public DatagramChannel openDatagramChannel(ProtocolFamily family) throws IOException {
+        return new DatagramChannelImpl(this, family);
+    }
+    
+    // 生产Pipe
+    public Pipe openPipe() throws IOException {
+        return new PipeImpl(this);
+    }
+    
 }

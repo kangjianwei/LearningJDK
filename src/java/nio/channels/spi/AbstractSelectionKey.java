@@ -25,8 +25,7 @@
 
 package java.nio.channels.spi;
 
-import java.nio.channels.*;
-
+import java.nio.channels.SelectionKey;
 
 /**
  * Base implementation class for selection keys.
@@ -37,41 +36,45 @@ import java.nio.channels.*;
  * @author JSR-51 Expert Group
  * @since 1.4
  */
-
-public abstract class AbstractSelectionKey
-    extends SelectionKey
-{
-
+// "选择键"SelectionKey的抽象实现
+public abstract class AbstractSelectionKey extends SelectionKey {
+    
+    // 标记当前"选择键"的状态是否有效
+    private volatile boolean valid = true;
+    
     /**
      * Initializes a new instance of this class.
      */
-    protected AbstractSelectionKey() { }
-
-    private volatile boolean valid = true;
-
+    protected AbstractSelectionKey() {
+    }
+    
+    // 判断当前"选择键"对象是否有效
     public final boolean isValid() {
         return valid;
     }
-
-    void invalidate() {                                 // package-private
+    
+    // 将当前"选择键"对象标记为无效
+    void invalidate() {
         valid = false;
     }
-
+    
     /**
      * Cancels this key.
      *
-     * <p> If this key has not yet been cancelled then it is added to its
-     * selector's cancelled-key set while synchronized on that set.  </p>
+     * If this key has not yet been cancelled then it is added to its selector's cancelled-key set while synchronized on that set.
      */
+    // 取消当前"选择键"对象，取消之后其状态变为无效
     public final void cancel() {
-        // Synchronizing "this" to prevent this key from getting canceled
-        // multiple times by different threads, which might cause race
-        // condition between selector's select() and channel's close().
-        synchronized (this) {
-            if (valid) {
+        /*
+         * Synchronizing "this" to prevent this key from getting canceled multiple times by different threads,
+         * which might cause race condition between selector's select() and channel's close().
+         */
+        synchronized(this) {
+            if(valid) {
                 valid = false;
-                ((AbstractSelector)selector()).cancel(this);
+                ((AbstractSelector) selector()).cancel(this);
             }
         }
     }
+    
 }

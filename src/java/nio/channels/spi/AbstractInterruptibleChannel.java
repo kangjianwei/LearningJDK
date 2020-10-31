@@ -29,10 +29,12 @@
 package java.nio.channels.spi;
 
 import java.io.IOException;
-import java.nio.channels.*;
+import java.nio.channels.AsynchronousCloseException;
+import java.nio.channels.Channel;
+import java.nio.channels.ClosedByInterruptException;
+import java.nio.channels.InterruptibleChannel;
 import jdk.internal.misc.SharedSecrets;
 import sun.nio.ch.Interruptible;
-
 
 /**
  * Base implementation class for interruptible channels.
@@ -80,19 +82,27 @@ import sun.nio.ch.Interruptible;
  * @author JSR-51 Expert Group
  * @since 1.4
  */
-
-public abstract class AbstractInterruptibleChannel
-    implements Channel, InterruptibleChannel
-{
-
-    private final Object closeLock = new Object();
-    private volatile boolean closed;
-
+// 可中断通道的抽象实现
+public abstract class AbstractInterruptibleChannel implements Channel, InterruptibleChannel {
+    
+    private final Object closeLock = new Object();  // 执行关闭操作使用的锁
+    
+    private volatile boolean closed;        // 标记通道是否已关闭
+    
+    private volatile Thread interrupted;    // 记录被中断的线程
+    private Interruptible interruptor;      // 线程中断回调标记
+    
     /**
      * Initializes a new instance of this class.
      */
-    protected AbstractInterruptibleChannel() { }
-
+    protected AbstractInterruptibleChannel() {
+    }
+    
+    // 判断通道是否处于开启状态
+    public final boolean isOpen() {
+        return !closed;
+    }
+    
     /**
      * Closes this channel.
      *
@@ -101,18 +111,23 @@ public abstract class AbstractInterruptibleChannel
      * the {@link #implCloseChannel implCloseChannel} method in order to
      * complete the close operation.  </p>
      *
-     * @throws  IOException
-     *          If an I/O error occurs
+     * @throws IOException If an I/O error occurs
      */
+    // 关闭当前通道
     public final void close() throws IOException {
-        synchronized (closeLock) {
-            if (closed)
+        synchronized(closeLock) {
+            if(closed) {
                 return;
+            }
+        
+            // 将通道标记为关闭状态
             closed = true;
+        
+            // 关闭"可中断"通道
             implCloseChannel();
         }
     }
-
+    
     /**
      * Closes this channel.
      *
@@ -126,21 +141,11 @@ public abstract class AbstractInterruptibleChannel
      * immediately, either by throwing an exception or by returning normally.
      * </p>
      *
-     * @throws  IOException
-     *          If an I/O error occurs while closing the channel
+     * @throws IOException If an I/O error occurs while closing the channel
      */
+    // 将通道标记为关闭状态后，再调用此方法执行资源清理操作
     protected abstract void implCloseChannel() throws IOException;
-
-    public final boolean isOpen() {
-        return !closed;
-    }
-
-
-    // -- Interruption machinery --
-
-    private Interruptible interruptor;
-    private volatile Thread interrupted;
-
+    
     /**
      * Marks the beginning of an I/O operation that might block indefinitely.
      *
@@ -149,27 +154,45 @@ public abstract class AbstractInterruptibleChannel
      * shown <a href="#be">above</a>, in order to implement asynchronous
      * closing and interruption for this channel.  </p>
      */
+    // 标记可能阻塞的IO操作的开始：需要为阻塞通道所在的线程设置中断回调，该回调在遇到线程中断时会关闭通道
     protected final void begin() {
-        if (interruptor == null) {
+        // 初始化线程中断回调标记
+        if(interruptor == null) {
             interruptor = new Interruptible() {
-                    public void interrupt(Thread target) {
-                        synchronized (closeLock) {
-                            if (closed)
-                                return;
-                            closed = true;
-                            interrupted = target;
-                            try {
-                                AbstractInterruptibleChannel.this.implCloseChannel();
-                            } catch (IOException x) { }
+                // 线程已被中断，关闭通道
+                public void interrupt(Thread target) {
+                    synchronized(closeLock) {
+                        if(closed) {
+                            return;
                         }
-                    }};
+                    
+                        // 标记通道关闭
+                        closed = true;
+                    
+                        // 记下被中断的线程
+                        interrupted = target;
+                    
+                        try {
+                            AbstractInterruptibleChannel.this.implCloseChannel();
+                        } catch(IOException x) {
+                        }
+                    }
+                }
+            };
         }
+    
+        // 在线程可能进入阻塞前，为当前线程设置一个线程中断回调标记interruptor，以便在线程被中断时调用该标记的回调方法
         blockedOn(interruptor);
+    
+        // 获取当前通道所在线程
         Thread me = Thread.currentThread();
-        if (me.isInterrupted())
+    
+        // 如果当前线程已经带有中断标记，则执行线程中断回调标记中的逻辑
+        if(me.isInterrupted()) {
             interruptor.interrupt(me);
+        }
     }
-
+    
     /**
      * Marks the end of an I/O operation that might block indefinitely.
      *
@@ -178,33 +201,36 @@ public abstract class AbstractInterruptibleChannel
      * as shown <a href="#be">above</a>, in order to implement asynchronous
      * closing and interruption for this channel.  </p>
      *
-     * @param  completed
-     *         {@code true} if, and only if, the I/O operation completed
-     *         successfully, that is, had some effect that would be visible to
-     *         the operation's invoker
+     * @param completed {@code true} if, and only if, the I/O operation completed
+     *                  successfully, that is, had some effect that would be visible to
+     *                  the operation's invoker
      *
-     * @throws  AsynchronousCloseException
-     *          If the channel was asynchronously closed
-     *
-     * @throws  ClosedByInterruptException
-     *          If the thread blocked in the I/O operation was interrupted
+     * @throws AsynchronousCloseException If the channel was asynchronously closed
+     * @throws ClosedByInterruptException If the thread blocked in the I/O operation was interrupted
      */
-    protected final void end(boolean completed)
-        throws AsynchronousCloseException
-    {
+    // 标记可能阻塞的IO操作的结束：需要移除为阻塞通道所在的线程设置的中断回调
+    protected final void end(boolean completed) throws AsynchronousCloseException {
+        // 清除之前设置的线程中断回调
         blockedOn(null);
+        
+        // 获取被中断的线程
         Thread interrupted = this.interrupted;
-        if (interrupted != null && interrupted == Thread.currentThread()) {
+        
+        // 如果是由于线程中断而关闭了通道，这里抛出异常
+        if(interrupted != null && interrupted == Thread.currentThread()) {
             this.interrupted = null;
             throw new ClosedByInterruptException();
         }
-        if (!completed && closed)
+        
+        // 如果IO任务还未完成，但通道已关闭，这里抛出异常
+        if(!completed && closed) {
             throw new AsynchronousCloseException();
+        }
     }
-
-
-    // -- jdk.internal.misc.SharedSecrets --
-    static void blockedOn(Interruptible intr) {         // package-private
-        SharedSecrets.getJavaLangAccess().blockedOn(intr);
+    
+    // 为当前线程设置/清除线程中断回调标记
+    static void blockedOn(Interruptible interruptor) {
+        SharedSecrets.getJavaLangAccess().blockedOn(interruptor);
     }
+    
 }

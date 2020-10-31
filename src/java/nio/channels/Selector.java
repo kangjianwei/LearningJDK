@@ -32,7 +32,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
-
 /**
  * A multiplexor of {@link SelectableChannel} objects.
  *
@@ -52,28 +51,28 @@ import java.util.function.Consumer;
  *
  * <ul>
  *
- *   <li><p> The <i>key set</i> contains the keys representing the current
- *   channel registrations of this selector.  This set is returned by the
- *   {@link #keys() keys} method. </p></li>
+ * <li><p> The <i>key set</i> contains the keys representing the current
+ * channel registrations of this selector.  This set is returned by the
+ * {@link #keys() keys} method. </p></li>
  *
- *   <li><p> The <i>selected-key set</i> is the set of keys such that each
- *   key's channel was detected to be ready for at least one of the operations
- *   identified in the key's interest set during a prior selection operation
- *   that adds keys or updates keys in the set.
- *   This set is returned by the {@link #selectedKeys() selectedKeys} method.
- *   The selected-key set is always a subset of the key set. </p></li>
+ * <li><p> The <i>selected-key set</i> is the set of keys such that each
+ * key's channel was detected to be ready for at least one of the operations
+ * identified in the key's interest set during a prior selection operation
+ * that adds keys or updates keys in the set.
+ * This set is returned by the {@link #selectedKeys() selectedKeys} method.
+ * The selected-key set is always a subset of the key set. </p></li>
  *
- *   <li><p> The <i>cancelled-key</i> set is the set of keys that have been
- *   cancelled but whose channels have not yet been deregistered.  This set is
- *   not directly accessible.  The cancelled-key set is always a subset of the
- *   key set. </p></li>
+ * <li><p> The <i>cancelled-key</i> set is the set of keys that have been
+ * cancelled but whose channels have not yet been deregistered.  This set is
+ * not directly accessible.  The cancelled-key set is always a subset of the
+ * key set. </p></li>
  *
  * </ul>
  *
  * <p> All three sets are empty in a newly-created selector.
  *
  * <p> A key is added to a selector's key set as a side effect of registering a
- * channel via the channel's {@link SelectableChannel#register(Selector,int)
+ * channel via the channel's {@link SelectableChannel#register(Selector, int)
  * register} method.  Cancelled keys are removed from the key set during
  * selection operations.  The key set itself is not directly modifiable.
  *
@@ -102,15 +101,15 @@ import java.util.function.Consumer;
  *
  * <ol>
  *
- *   <li><p> The {@link #select()}, {@link #select(long)}, and {@link #selectNow()}
- *   methods add the keys of channels ready to perform an operation to the
- *   selected-key set, or update the ready-operation set of keys already in the
- *   selected-key set. </p></li>
+ * <li><p> The {@link #select()}, {@link #select(long)}, and {@link #selectNow()}
+ * methods add the keys of channels ready to perform an operation to the
+ * selected-key set, or update the ready-operation set of keys already in the
+ * selected-key set. </p></li>
  *
- *   <li><p> The {@link #select(Consumer)}, {@link #select(Consumer, long)}, and
- *   {@link #selectNow(Consumer)} methods perform an <i>action</i> on the key
- *   of each channel that is ready to perform an operation.  These methods do
- *   not add to the selected-key set. </p></li>
+ * <li><p> The {@link #select(Consumer)}, {@link #select(Consumer, long)}, and
+ * {@link #selectNow(Consumer)} methods perform an <i>action</i> on the key
+ * of each channel that is ready to perform an operation.  These methods do
+ * not add to the selected-key set. </p></li>
  *
  * </ol>
  *
@@ -124,39 +123,39 @@ import java.util.function.Consumer;
  *
  * <ol>
  *
- *   <li><p> Each key in the cancelled-key set is removed from each key set of
- *   which it is a member, and its channel is deregistered.  This step leaves
- *   the cancelled-key set empty. </p></li>
+ * <li><p> Each key in the cancelled-key set is removed from each key set of
+ * which it is a member, and its channel is deregistered.  This step leaves
+ * the cancelled-key set empty. </p></li>
  *
- *   <li><p> The underlying operating system is queried for an update as to the
- *   readiness of each remaining channel to perform any of the operations
- *   identified by its key's interest set as of the moment that the selection
- *   operation began.  For a channel that is ready for at least one such
- *   operation, one of the following two actions is performed: </p>
+ * <li><p> The underlying operating system is queried for an update as to the
+ * readiness of each remaining channel to perform any of the operations
+ * identified by its key's interest set as of the moment that the selection
+ * operation began.  For a channel that is ready for at least one such
+ * operation, one of the following two actions is performed: </p>
  *
- *   <ol>
+ * <ol>
  *
- *     <li><p> If the channel's key is not already in the selected-key set then
- *     it is added to that set and its ready-operation set is modified to
- *     identify exactly those operations for which the channel is now reported
- *     to be ready.  Any readiness information previously recorded in the ready
- *     set is discarded.  </p></li>
+ * <li><p> If the channel's key is not already in the selected-key set then
+ * it is added to that set and its ready-operation set is modified to
+ * identify exactly those operations for which the channel is now reported
+ * to be ready.  Any readiness information previously recorded in the ready
+ * set is discarded.  </p></li>
  *
- *     <li><p> Otherwise the channel's key is already in the selected-key set,
- *     so its ready-operation set is modified to identify any new operations
- *     for which the channel is reported to be ready.  Any readiness
- *     information previously recorded in the ready set is preserved; in other
- *     words, the ready set returned by the underlying system is
- *     bitwise-disjoined into the key's current ready set. </p></li>
+ * <li><p> Otherwise the channel's key is already in the selected-key set,
+ * so its ready-operation set is modified to identify any new operations
+ * for which the channel is reported to be ready.  Any readiness
+ * information previously recorded in the ready set is preserved; in other
+ * words, the ready set returned by the underlying system is
+ * bitwise-disjoined into the key's current ready set. </p></li>
  *
- *   </ol>
+ * </ol>
  *
- *   If all of the keys in the key set at the start of this step have empty
- *   interest sets then neither the selected-key set nor any of the keys'
- *   ready-operation sets will be updated.
+ * If all of the keys in the key set at the start of this step have empty
+ * interest sets then neither the selected-key set nor any of the keys'
+ * ready-operation sets will be updated.
  *
- *   <li><p> If any keys were added to the cancelled-key set while step (2) was
- *   in progress then they are processed as in step (1). </p></li>
+ * <li><p> If any keys were added to the cancelled-key set while step (2) was
+ * in progress then they are processed as in step (1). </p></li>
  *
  * </ol>
  *
@@ -169,37 +168,37 @@ import java.util.function.Consumer;
  *
  * <p> During each selection operation, keys may be removed from the selector's
  * key, selected-key, and cancelled-key sets.  Selection is performed by the
- * {@link #select(Consumer)}, {@link #select(Consumer,long)}, and {@link
+ * {@link #select(Consumer)}, {@link #select(Consumer, long)}, and {@link
  * #selectNow(Consumer)} methods, and involves three steps:  </p>
  *
  * <ol>
  *
- *   <li><p> Each key in the cancelled-key set is removed from each key set of
- *   which it is a member, and its channel is deregistered.  This step leaves
- *   the cancelled-key set empty. </p></li>
+ * <li><p> Each key in the cancelled-key set is removed from each key set of
+ * which it is a member, and its channel is deregistered.  This step leaves
+ * the cancelled-key set empty. </p></li>
  *
- *   <li><p> The underlying operating system is queried for an update as to the
- *   readiness of each remaining channel to perform any of the operations
- *   identified by its key's interest set as of the moment that the selection
- *   operation began.
+ * <li><p> The underlying operating system is queried for an update as to the
+ * readiness of each remaining channel to perform any of the operations
+ * identified by its key's interest set as of the moment that the selection
+ * operation began.
  *
- *   <p> For a channel that is ready for at least one such operation, the
- *   ready-operation set of the channel's key is set to identify exactly the
- *   operations for which the channel is ready and the <i>action</i> specified
- *   to the {@code select} method is invoked to consume the channel's key.  Any
- *   readiness information previously recorded in the ready set is discarded
- *   prior to invoking the <i>action</i>.
+ * <p> For a channel that is ready for at least one such operation, the
+ * ready-operation set of the channel's key is set to identify exactly the
+ * operations for which the channel is ready and the <i>action</i> specified
+ * to the {@code select} method is invoked to consume the channel's key.  Any
+ * readiness information previously recorded in the ready set is discarded
+ * prior to invoking the <i>action</i>.
  *
- *   <p> Alternatively, where a channel is ready for more than one operation,
- *   the <i>action</i> may be invoked more than once with the channel's key and
- *   ready-operation set modified to a subset of the operations for which the
- *   channel is ready.  Where the <i>action</i> is invoked more than once for
- *   the same key then its ready-operation set never contains operation bits
- *   that were contained in the set at previous calls to the <i>action</i>
- *   in the same selection operation.  </p></li>
+ * <p> Alternatively, where a channel is ready for more than one operation,
+ * the <i>action</i> may be invoked more than once with the channel's key and
+ * ready-operation set modified to a subset of the operations for which the
+ * channel is ready.  Where the <i>action</i> is invoked more than once for
+ * the same key then its ready-operation set never contains operation bits
+ * that were contained in the set at previous calls to the <i>action</i>
+ * in the same selection operation.  </p></li>
  *
- *   <li><p> If any keys were added to the cancelled-key set while step (2) was
- *   in progress then they are processed as in step (1). </p></li>
+ * <li><p> If any keys were added to the cancelled-key set while step (2) was
+ * in progress then they are processed as in step (1). </p></li>
  *
  * </ol>
  *
@@ -228,16 +227,16 @@ import java.util.function.Consumer;
  *
  * <ul>
  *
- *   <li><p> By invoking the selector's {@link #wakeup wakeup} method,
- *   </p></li>
+ * <li><p> By invoking the selector's {@link #wakeup wakeup} method,
+ * </p></li>
  *
- *   <li><p> By invoking the selector's {@link #close close} method, or
- *   </p></li>
+ * <li><p> By invoking the selector's {@link #close close} method, or
+ * </p></li>
  *
- *   <li><p> By invoking the blocked thread's {@link
- *   java.lang.Thread#interrupt() interrupt} method, in which case its
- *   interrupt status will be set and the selector's {@link #wakeup wakeup}
- *   method will be invoked. </p></li>
+ * <li><p> By invoking the blocked thread's {@link
+ * java.lang.Thread#interrupt() interrupt} method, in which case its
+ * interrupt status will be set and the selector's {@link #wakeup wakeup}
+ * method will be invoked. </p></li>
  *
  * </ul>
  *
@@ -265,19 +264,27 @@ import java.util.function.Consumer;
  *
  * @author Mark Reinhold
  * @author JSR-51 Expert Group
- * @since 1.4
- *
  * @see SelectableChannel
  * @see SelectionKey
+ * @since 1.4
  */
-
+// 通道选择器，完成对通道的多路复用
 public abstract class Selector implements Closeable {
-
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Initializes a new instance of this class.
      */
-    protected Selector() { }
-
+    protected Selector() {
+    }
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Opens a selector.
      *
@@ -286,63 +293,45 @@ public abstract class Selector implements Closeable {
      * of the system-wide default {@link
      * java.nio.channels.spi.SelectorProvider} object.  </p>
      *
-     * @return  A new selector
+     * @return A new selector
      *
-     * @throws  IOException
-     *          If an I/O error occurs
+     * @throws IOException If an I/O error occurs
      */
+    // 构造一个选择器Selector
     public static Selector open() throws IOException {
         return SelectorProvider.provider().openSelector();
     }
-
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 选择就绪通道 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Tells whether or not this selector is open.
+     * Selects a set of keys whose corresponding channels are ready for I/O
+     * operations.
      *
-     * @return {@code true} if, and only if, this selector is open
+     * <p> This method performs a blocking <a href="#selop">selection
+     * operation</a>.  It returns only after at least one channel is selected,
+     * this selector's {@link #wakeup wakeup} method is invoked, or the current
+     * thread is interrupted, whichever comes first.  </p>
+     *
+     * @return The number of keys, possibly zero,
+     * whose ready-operation sets were updated
+     *
+     * @throws IOException             If an I/O error occurs
+     * @throws ClosedSelectorException If this selector is closed
      */
-    public abstract boolean isOpen();
-
-    /**
-     * Returns the provider that created this channel.
+    /*
+     * 选择可用的已就绪通道，返回本轮select()中找到的所有【可用的】"已就绪键"(已就绪通道)的数量
      *
-     * @return  The provider that created this channel
+     * 注：
+     * 1.会将可用的"已就绪键"存储到"已就绪键集合"中(参见SelectorImpl#selectedKeys)
+     * 2.本地(native层)没有相关的变动事件时，一直阻塞(参见SubSelector#poll())
      */
-    public abstract SelectorProvider provider();
-
-    /**
-     * Returns this selector's key set.
-     *
-     * <p> The key set is not directly modifiable.  A key is removed only after
-     * it has been cancelled and its channel has been deregistered.  Any
-     * attempt to modify the key set will cause an {@link
-     * UnsupportedOperationException} to be thrown.
-     *
-     * <p> The set is <a href="#ksc">safe</a> for use by multiple concurrent
-     * threads.  </p>
-     *
-     * @return  This selector's key set
-     *
-     * @throws  ClosedSelectorException
-     *          If this selector is closed
-     */
-    public abstract Set<SelectionKey> keys();
-
-    /**
-     * Returns this selector's selected-key set.
-     *
-     * <p> Keys may be removed from, but not directly added to, the
-     * selected-key set.  Any attempt to add an object to the key set will
-     * cause an {@link UnsupportedOperationException} to be thrown.
-     *
-     * <p> The selected-key set is <a href="#sksc">not thread-safe</a>.  </p>
-     *
-     * @return  This selector's selected-key set
-     *
-     * @throws  ClosedSelectorException
-     *          If this selector is closed
-     */
-    public abstract Set<SelectionKey> selectedKeys();
-
+    public abstract int select() throws IOException;
+    
     /**
      * Selects a set of keys whose corresponding channels are ready for I/O
      * operations.
@@ -354,17 +343,21 @@ public abstract class Selector implements Closeable {
      * <p> Invoking this method clears the effect of any previous invocations
      * of the {@link #wakeup wakeup} method.  </p>
      *
-     * @return  The number of keys, possibly zero, whose ready-operation sets
-     *          were updated by the selection operation
+     * @return The number of keys, possibly zero, whose ready-operation sets
+     * were updated by the selection operation
      *
-     * @throws  IOException
-     *          If an I/O error occurs
+     * @throws IOException             If an I/O error occurs
+     * @throws ClosedSelectorException If this selector is closed
+     */
+    /*
+     * 选择可用的已就绪通道，返回本轮select()中找到的所有【可用的】"已就绪键"(已就绪通道)的数量
      *
-     * @throws  ClosedSelectorException
-     *          If this selector is closed
+     * 注：
+     * 1.会将可用的"已就绪键"存储到"已就绪键集合"中(参见SelectorImpl#selectedKeys)
+     * 2.本地(native层)没有相关的变动事件时，立即返回(参见SubSelector#poll())
      */
     public abstract int selectNow() throws IOException;
-
+    
     /**
      * Selects a set of keys whose corresponding channels are ready for I/O
      * operations.
@@ -378,45 +371,103 @@ public abstract class Selector implements Closeable {
      * <p> This method does not offer real-time guarantees: It schedules the
      * timeout as if by invoking the {@link Object#wait(long)} method. </p>
      *
-     * @param  timeout  If positive, block for up to {@code timeout}
-     *                  milliseconds, more or less, while waiting for a
-     *                  channel to become ready; if zero, block indefinitely;
-     *                  must not be negative
+     * @param timeout If positive, block for up to {@code timeout}
+     *                milliseconds, more or less, while waiting for a
+     *                channel to become ready; if zero, block indefinitely;
+     *                must not be negative
      *
-     * @return  The number of keys, possibly zero,
-     *          whose ready-operation sets were updated
+     * @return The number of keys, possibly zero,
+     * whose ready-operation sets were updated
      *
-     * @throws  IOException
-     *          If an I/O error occurs
+     * @throws IOException              If an I/O error occurs
+     * @throws ClosedSelectorException  If this selector is closed
+     * @throws IllegalArgumentException If the value of the timeout argument is negative
+     */
+    /*
+     * 选择可用的已就绪通道，返回本轮select()中找到的所有【可用的】"已就绪键"(已就绪通道)的数量
      *
-     * @throws  ClosedSelectorException
-     *          If this selector is closed
+     * 注：会将可用的"已就绪键"存储到"已就绪键集合"中(参见SelectorImpl#selectedKeys)
      *
-     * @throws  IllegalArgumentException
-     *          If the value of the timeout argument is negative
+     * timeout: 监听等待中的超时设置(参见SubSelector#poll())：
+     *          timeout<=0表示一直阻塞，直到本地被新来的事件唤醒选择器线程，然后传导到Java层；
+     *          timeout为其他值表示阻塞timeout毫秒。
      */
     public abstract int select(long timeout) throws IOException;
-
+    
     /**
-     * Selects a set of keys whose corresponding channels are ready for I/O
-     * operations.
+     * Selects and performs an action on the keys whose corresponding channels
+     * are ready for I/O operations.
      *
      * <p> This method performs a blocking <a href="#selop">selection
-     * operation</a>.  It returns only after at least one channel is selected,
-     * this selector's {@link #wakeup wakeup} method is invoked, or the current
-     * thread is interrupted, whichever comes first.  </p>
+     * operation</a>.  It wakes up from querying the operating system only when
+     * at least one channel is selected, this selector's {@link #wakeup wakeup}
+     * method is invoked, or the current thread is interrupted, whichever comes
+     * first.
      *
-     * @return  The number of keys, possibly zero,
-     *          whose ready-operation sets were updated
+     * <p> This method is equivalent to invoking the 2-arg
+     * {@link #select(Consumer, long) select} method with a timeout of {@code 0}
+     * to block indefinitely.  </p>
      *
-     * @throws  IOException
-     *          If an I/O error occurs
+     * @param action The action to perform
      *
-     * @throws  ClosedSelectorException
-     *          If this selector is closed
+     * @return The number of unique keys consumed, possibly zero
+     *
+     * @throws IOException             If an I/O error occurs
+     * @throws ClosedSelectorException If this selector is closed or is closed by the action
+     * @implSpec The default implementation invokes the 2-arg {@code select}
+     * method with a timeout of {@code 0}.
+     * @since 11
      */
-    public abstract int select() throws IOException;
-
+    /*
+     * 选择可用的已就绪通道，返回本轮select()中找到的所有【可用的】"已就绪键"(已就绪通道)的数量
+     *
+     * action : 如果为null，则会将可用的"已就绪键"存储到"已就绪键集合"中(参见SelectorImpl#selectedKeys)；
+     *          如果不为null，则用来处理可用的"已就绪键"，即【不会】将其存储到"已就绪键集合"中(参见SelectorImpl#selectedKeys)。
+     *          这就意味着使用selectedKeys()时就无法获取到"已就绪键"了。
+     *
+     * 注：本地(native层)没有相关的变动事件时，一直阻塞(参见SubSelector#poll())
+     */
+    public int select(Consumer<SelectionKey> action) throws IOException {
+        return select(action, 0);
+    }
+    
+    /**
+     * Selects and performs an action on the keys whose corresponding channels
+     * are ready for I/O operations.
+     *
+     * <p> This method performs a non-blocking <a href="#selop">selection
+     * operation</a>.
+     *
+     * <p> Invoking this method clears the effect of any previous invocations
+     * of the {@link #wakeup wakeup} method.  </p>
+     *
+     * @param action The action to perform
+     *
+     * @return The number of unique keys consumed, possibly zero
+     *
+     * @throws IOException             If an I/O error occurs
+     * @throws ClosedSelectorException If this selector is closed or is closed by the action
+     * @implSpec The default implementation removes all keys from the
+     * selected-key set, invokes {@link #selectNow() selectNow()} and then
+     * performs the action for each key added to the selected-key set.  The
+     * default implementation does not detect the action performing a reentrant
+     * selection operation.  The selected-key set may or may not be empty on
+     * completion of the default implementation.
+     * @since 11
+     */
+    /*
+     * 选择可用的已就绪通道，返回本轮select()中找到的所有【可用的】"已就绪键"(已就绪通道)的数量
+     *
+     * action : 如果为null，则会将可用的"已就绪键"存储到"已就绪键集合"中(参见SelectorImpl#selectedKeys)；
+     *          如果不为null，则用来处理可用的"已就绪键"，即【不会】将其存储到"已就绪键集合"中(参见SelectorImpl#selectedKeys)。
+     *          这就意味着使用selectedKeys()时就无法获取到"已就绪键"了。
+     *
+     * 注：本地(native层)没有相关的变动事件时，立即返回(参见SubSelector#poll())
+     */
+    public int selectNow(Consumer<SelectionKey> action) throws IOException {
+        return doSelect(Objects.requireNonNull(action), -1);
+    }
+    
     /**
      * Selects and performs an action on the keys whose corresponding channels
      * are ready for I/O operations.
@@ -452,162 +503,99 @@ public abstract class Selector implements Closeable {
      * <p> This method does not offer real-time guarantees: It schedules the
      * timeout as if by invoking the {@link Object#wait(long)} method.
      *
+     * @param action  The action to perform
+     * @param timeout If positive, block for up to {@code timeout}
+     *                milliseconds, more or less, while waiting for a
+     *                channel to become ready; if zero, block indefinitely;
+     *                must not be negative
+     *
+     * @return The number of unique keys consumed, possibly zero
+     *
+     * @throws IOException              If an I/O error occurs
+     * @throws ClosedSelectorException  If this selector is closed or is closed by the action
+     * @throws IllegalArgumentException If the value of the timeout argument is negative
      * @implSpec The default implementation removes all keys from the
      * selected-key set, invokes {@link #select(long) select(long)} with the
      * given timeout and then performs the action for each key added to the
      * selected-key set.  The default implementation does not detect the action
      * performing a reentrant selection operation.  The selected-key set may
      * or may not be empty on completion of the default implementation.
-     *
-     * @param  action   The action to perform
-     *
-     * @param  timeout  If positive, block for up to {@code timeout}
-     *                  milliseconds, more or less, while waiting for a
-     *                  channel to become ready; if zero, block indefinitely;
-     *                  must not be negative
-     *
-     * @return  The number of unique keys consumed, possibly zero
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     *
-     * @throws  ClosedSelectorException
-     *          If this selector is closed or is closed by the action
-     *
-     * @throws  IllegalArgumentException
-     *          If the value of the timeout argument is negative
-     *
      * @since 11
      */
-    public int select(Consumer<SelectionKey> action, long timeout)
-        throws IOException
-    {
-        if (timeout < 0)
+    /*
+     * 选择可用的已就绪通道，返回本轮select()中找到的所有【可用的】"已就绪键"(已就绪通道)的数量
+     *
+     * action : 如果为null，则会将可用的"已就绪键"存储到"已就绪键集合"中(参见SelectorImpl#selectedKeys)；
+     *          如果不为null，则用来处理可用的"已就绪键"，即【不会】将其存储到"已就绪键集合"中(参见SelectorImpl#selectedKeys)。
+     *          这就意味着使用selectedKeys()时就无法获取到"已就绪键"了。
+     *
+     * timeout: 监听等待中的超时设置(参见SubSelector#poll())：
+     *          timeout<=0表示一直阻塞，直到本地被新来的事件唤醒选择器线程，然后传导到Java层；
+     *          timeout为其他值表示阻塞timeout毫秒。
+     */
+    public int select(Consumer<SelectionKey> action, long timeout) throws IOException {
+        if(timeout<0) {
             throw new IllegalArgumentException("Negative timeout");
+        }
+        
         return doSelect(Objects.requireNonNull(action), timeout);
     }
-
-    /**
-     * Selects and performs an action on the keys whose corresponding channels
-     * are ready for I/O operations.
-     *
-     * <p> This method performs a blocking <a href="#selop">selection
-     * operation</a>.  It wakes up from querying the operating system only when
-     * at least one channel is selected, this selector's {@link #wakeup wakeup}
-     * method is invoked, or the current thread is interrupted, whichever comes
-     * first.
-     *
-     * <p> This method is equivalent to invoking the 2-arg
-     * {@link #select(Consumer, long) select} method with a timeout of {@code 0}
-     * to block indefinitely.  </p>
-     *
-     * @implSpec The default implementation invokes the 2-arg {@code select}
-     * method with a timeout of {@code 0}.
-     *
-     * @param  action   The action to perform
-     *
-     * @return  The number of unique keys consumed, possibly zero
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     *
-     * @throws  ClosedSelectorException
-     *          If this selector is closed or is closed by the action
-     *
-     * @since 11
-     */
-    public int select(Consumer<SelectionKey> action) throws IOException {
-        return select(action, 0);
-    }
-
-    /**
-     * Selects and performs an action on the keys whose corresponding channels
-     * are ready for I/O operations.
-     *
-     * <p> This method performs a non-blocking <a href="#selop">selection
-     * operation</a>.
-     *
-     * <p> Invoking this method clears the effect of any previous invocations
-     * of the {@link #wakeup wakeup} method.  </p>
-     *
-     * @implSpec The default implementation removes all keys from the
-     * selected-key set, invokes {@link #selectNow() selectNow()} and then
-     * performs the action for each key added to the selected-key set.  The
-     * default implementation does not detect the action performing a reentrant
-     * selection operation.  The selected-key set may or may not be empty on
-     * completion of the default implementation.
-     *
-     * @param  action   The action to perform
-     *
-     * @return  The number of unique keys consumed, possibly zero
-     *
-     * @throws  IOException
-     *          If an I/O error occurs
-     *
-     * @throws  ClosedSelectorException
-     *          If this selector is closed or is closed by the action
-     *
-     * @since 11
-     */
-    public int selectNow(Consumer<SelectionKey> action) throws IOException {
-        return doSelect(Objects.requireNonNull(action), -1);
-    }
-
+    
     /**
      * Default implementation of select(Consumer) and selectNow(Consumer).
      */
-    private int doSelect(Consumer<SelectionKey> action, long timeout)
-        throws IOException
-    {
-        synchronized (this) {
+    /*
+     * 选择可用的已就绪通道，返回本轮select()中找到的所有【可用的】"已就绪键"(已就绪通道)的数量
+     * 注：与WindowsSelectorImpl中的实现不同
+     */
+    private int doSelect(Consumer<SelectionKey> action, long timeout) throws IOException {
+        synchronized(this) {
+            // 获取已就绪通道selectedKeys的视图，与selectedKeys共享元素，允许删除，但不允许增加
             Set<SelectionKey> selectedKeys = selectedKeys();
-            synchronized (selectedKeys) {
+            
+            synchronized(selectedKeys) {
                 selectedKeys.clear();
+                
                 int numKeySelected;
-                if (timeout < 0) {
+                if(timeout<0) {
                     numKeySelected = selectNow();
                 } else {
                     numKeySelected = select(timeout);
                 }
-
+                
                 // copy selected-key set as action may remove keys
                 Set<SelectionKey> keysToConsume = Set.copyOf(selectedKeys);
                 assert keysToConsume.size() == numKeySelected;
                 selectedKeys.clear();
-
+                
                 // invoke action for each selected key
                 keysToConsume.forEach(k -> {
                     action.accept(k);
-                    if (!isOpen())
+                    if(!isOpen()) {
                         throw new ClosedSelectorException();
+                    }
                 });
-
+                
                 return numKeySelected;
             }
         }
     }
-
-
+    
+    /*▲ 选择就绪通道 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 打开/关闭 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Causes the first selection operation that has not yet returned to return
-     * immediately.
+     * Tells whether or not this selector is open.
      *
-     * <p> If another thread is currently blocked in a selection operation then
-     * that invocation will return immediately.  If no selection operation is
-     * currently in progress then the next invocation of a selection operation
-     * will return immediately unless {@link #selectNow()} or {@link
-     * #selectNow(Consumer)} is invoked in the meantime.  In any case the value
-     * returned by that invocation may be non-zero.  Subsequent selection
-     * operations will block as usual unless this method is invoked again in the
-     * meantime.
-     *
-     * <p> Invoking this method more than once between two successive selection
-     * operations has the same effect as invoking it just once.  </p>
-     *
-     * @return  This selector
+     * @return {@code true} if, and only if, this selector is open
      */
-    public abstract Selector wakeup();
-
+    // 判断选择器是否处于开启状态
+    public abstract boolean isOpen();
+    
+    
     /**
      * Closes this selector.
      *
@@ -626,8 +614,86 @@ public abstract class Selector implements Closeable {
      * invoking this method or the {@link #wakeup wakeup} method, will cause a
      * {@link ClosedSelectorException} to be thrown. </p>
      *
-     * @throws  IOException
-     *          If an I/O error occurs
+     * @throws IOException If an I/O error occurs
      */
+    // 关闭选择器
     public abstract void close() throws IOException;
+    
+    /*▲ 打开/关闭 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 唤醒 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Causes the first selection operation that has not yet returned to return immediately.
+     *
+     * <p> If another thread is currently blocked in a selection operation then
+     * that invocation will return immediately.  If no selection operation is
+     * currently in progress then the next invocation of a selection operation
+     * will return immediately unless {@link #selectNow()} or {@link
+     * #selectNow(Consumer)} is invoked in the meantime.  In any case the value
+     * returned by that invocation may be non-zero.  Subsequent selection
+     * operations will block as usual unless this method is invoked again in the
+     * meantime.
+     *
+     * <p> Invoking this method more than once between two successive selection
+     * operations has the same effect as invoking it just once.  </p>
+     *
+     * @return This selector
+     */
+    // 通过"哨兵"元素唤醒所有阻塞的辅助线程，并设置interruptTriggered = true，后续这些辅助线程将会结束运行
+    public abstract Selector wakeup();
+    
+    /*▲ 唤醒 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 视图 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns this selector's key set.
+     *
+     * <p> The key set is not directly modifiable.  A key is removed only after
+     * it has been cancelled and its channel has been deregistered.  Any
+     * attempt to modify the key set will cause an {@link
+     * UnsupportedOperationException} to be thrown.
+     *
+     * <p> The set is <a href="#ksc">safe</a> for use by multiple concurrent
+     * threads.  </p>
+     *
+     * @return This selector's key set
+     *
+     * @throws ClosedSelectorException If this selector is closed
+     */
+    // 获取新注册通道keys的视图，与keys共享元素，但只读
+    public abstract Set<SelectionKey> keys();
+    
+    /**
+     * Returns this selector's selected-key set.
+     *
+     * <p> Keys may be removed from, but not directly added to, the
+     * selected-key set.  Any attempt to add an object to the key set will
+     * cause an {@link UnsupportedOperationException} to be thrown.
+     *
+     * <p> The selected-key set is <a href="#sksc">not thread-safe</a>.  </p>
+     *
+     * @return This selector's selected-key set
+     *
+     * @throws ClosedSelectorException If this selector is closed
+     */
+    // 获取已就绪通道selectedKeys的视图，与selectedKeys共享元素，允许删除，但不允许增加
+    public abstract Set<SelectionKey> selectedKeys();
+    
+    /*▲ 视图 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    /**
+     * Returns the provider that created this channel.
+     *
+     * @return The provider that created this channel
+     */
+    // 返回构造当前选择器的选择器工厂
+    public abstract SelectorProvider provider();
+    
 }

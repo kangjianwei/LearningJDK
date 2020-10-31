@@ -27,23 +27,24 @@ package sun.nio.ch;
 
 import java.nio.channels.spi.SelectorProvider;
 
-
 /**
  * Creates this platform's default SelectorProvider
  */
-
+// 构造系统默认的SelectorProvider(没有预设的SelectorProvider时，需要使用当前工厂去构造)
 public class DefaultSelectorProvider {
-
+    
     /**
      * Prevent instantiation.
      */
-    private DefaultSelectorProvider() { }
-
+    private DefaultSelectorProvider() {
+    }
+    
     /**
      * Returns the default SelectorProvider.
      */
+    // 返回系统默认的SelectorProvider
     public static SelectorProvider create() {
-        return new sun.nio.ch.WindowsSelectorProvider();
+        return new WindowsSelectorProvider();
     }
-
+    
 }

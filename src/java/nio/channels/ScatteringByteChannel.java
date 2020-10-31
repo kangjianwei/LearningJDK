@@ -28,7 +28,6 @@ package java.nio.channels;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-
 /**
  * A channel that can read bytes into a sequence of buffers.
  *
@@ -40,16 +39,13 @@ import java.nio.ByteBuffer;
  * <i>gathering</i> write operations are defined in the {@link
  * GatheringByteChannel} interface.  </p>
  *
- *
  * @author Mark Reinhold
  * @author JSR-51 Expert Group
  * @since 1.4
  */
-
-public interface ScatteringByteChannel
-    extends ReadableByteChannel
-{
-
+// 散射通道，可将单个通道的内容发送到多个缓存区。例如支持将文件中的内容批量读取到多个缓冲区
+public interface ScatteringByteChannel extends ReadableByteChannel {
+    
     /**
      * Reads a sequence of bytes from this channel into a subsequence of the
      * given buffers.
@@ -81,48 +77,35 @@ public interface ScatteringByteChannel
      * invocation of this method will block until the first operation is
      * complete. </p>
      *
-     * @param  dsts
-     *         The buffers into which bytes are to be transferred
-     *
-     * @param  offset
-     *         The offset within the buffer array of the first buffer into
-     *         which bytes are to be transferred; must be non-negative and no
-     *         larger than {@code dsts.length}
-     *
-     * @param  length
-     *         The maximum number of buffers to be accessed; must be
-     *         non-negative and no larger than
-     *         {@code dsts.length}&nbsp;-&nbsp;{@code offset}
+     * @param dsts   The buffers into which bytes are to be transferred
+     * @param offset The offset within the buffer array of the first buffer into
+     *               which bytes are to be transferred; must be non-negative and no
+     *               larger than {@code dsts.length}
+     * @param length The maximum number of buffers to be accessed; must be
+     *               non-negative and no larger than
+     *               {@code dsts.length}&nbsp;-&nbsp;{@code offset}
      *
      * @return The number of bytes read, possibly zero,
-     *         or {@code -1} if the channel has reached end-of-stream
+     * or {@code -1} if the channel has reached end-of-stream
      *
-     * @throws  IndexOutOfBoundsException
-     *          If the preconditions on the {@code offset} and {@code length}
-     *          parameters do not hold
-     *
-     * @throws  NonReadableChannelException
-     *          If this channel was not opened for reading
-     *
-     * @throws  ClosedChannelException
-     *          If this channel is closed
-     *
-     * @throws  AsynchronousCloseException
-     *          If another thread closes this channel
-     *          while the read operation is in progress
-     *
-     * @throws  ClosedByInterruptException
-     *          If another thread interrupts the current thread
-     *          while the read operation is in progress, thereby
-     *          closing the channel and setting the current thread's
-     *          interrupt status
-     *
-     * @throws  IOException
-     *          If some other I/O error occurs
+     * @throws IndexOutOfBoundsException   If the preconditions on the {@code offset} and {@code length}
+     *                                     parameters do not hold
+     * @throws NonReadableChannelException If this channel was not opened for reading
+     * @throws ClosedChannelException      If this channel is closed
+     * @throws AsynchronousCloseException  If another thread closes this channel
+     *                                     while the read operation is in progress
+     * @throws ClosedByInterruptException  If another thread interrupts the current thread
+     *                                     while the read operation is in progress, thereby
+     *                                     closing the channel and setting the current thread's
+     *                                     interrupt status
+     * @throws IOException                 If some other I/O error occurs
      */
-    public long read(ByteBuffer[] dsts, int offset, int length)
-        throws IOException;
-
+    /*
+     * 从当前通道中读取数据，读到的内容依次存入dsts中offset处起的length个缓冲区
+     * 该方法是一次性地，即已经读完的流不可以重复读取
+     */
+    long read(ByteBuffer[] dsts, int offset, int length) throws IOException;
+    
     /**
      * Reads a sequence of bytes from this channel into the given buffers.
      *
@@ -132,31 +115,25 @@ public interface ScatteringByteChannel
      * <blockquote><pre>
      * c.read(dsts, 0, dsts.length);</pre></blockquote>
      *
-     * @param  dsts
-     *         The buffers into which bytes are to be transferred
+     * @param dsts The buffers into which bytes are to be transferred
      *
      * @return The number of bytes read, possibly zero,
-     *         or {@code -1} if the channel has reached end-of-stream
+     * or {@code -1} if the channel has reached end-of-stream
      *
-     * @throws  NonReadableChannelException
-     *          If this channel was not opened for reading
-     *
-     * @throws  ClosedChannelException
-     *          If this channel is closed
-     *
-     * @throws  AsynchronousCloseException
-     *          If another thread closes this channel
-     *          while the read operation is in progress
-     *
-     * @throws  ClosedByInterruptException
-     *          If another thread interrupts the current thread
-     *          while the read operation is in progress, thereby
-     *          closing the channel and setting the current thread's
-     *          interrupt status
-     *
-     * @throws  IOException
-     *          If some other I/O error occurs
+     * @throws NonReadableChannelException If this channel was not opened for reading
+     * @throws ClosedChannelException      If this channel is closed
+     * @throws AsynchronousCloseException  If another thread closes this channel
+     *                                     while the read operation is in progress
+     * @throws ClosedByInterruptException  If another thread interrupts the current thread
+     *                                     while the read operation is in progress, thereby
+     *                                     closing the channel and setting the current thread's
+     *                                     interrupt status
+     * @throws IOException                 If some other I/O error occurs
      */
-    public long read(ByteBuffer[] dsts) throws IOException;
-
+    /*
+     * 从当前通道中读取数据，读到的内容依次存入dsts中的各个缓冲区
+     * 该方法是一次性地，即已经读完的流不可以重复读取
+     */
+    long read(ByteBuffer[] dsts) throws IOException;
+    
 }

@@ -25,8 +25,8 @@
 
 package java.nio.channels;
 
-import java.nio.ByteBuffer;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 /**
  * A byte channel that maintains a current <i>position</i> and allows the
@@ -46,13 +46,12 @@ import java.io.IOException;
  * chained. Implementations of this interface should specialize the return type
  * so that method invocations on the implementation class can be chained.
  *
- * @since 1.7
  * @see java.nio.file.Files#newByteChannel
+ * @since 1.7
  */
-
-public interface SeekableByteChannel
-    extends ByteChannel
-{
+// 支持随机读/写的字节通道（常用于file通道）
+public interface SeekableByteChannel extends ByteChannel {
+    
     /**
      * Reads a sequence of bytes from this channel into the given buffer.
      *
@@ -61,9 +60,13 @@ public interface SeekableByteChannel
      * Otherwise this method behaves exactly as specified in the {@link
      * ReadableByteChannel} interface.
      */
+    /*
+     * 从当前通道（关联的文件）中起始处读取，读到的内容存入dst后，返回读到的字节数量
+     * 该方法是一次性地，即已经读完的流不可以重复读取
+     */
     @Override
     int read(ByteBuffer dst) throws IOException;
-
+    
     /**
      * Writes a sequence of bytes to this channel from the given buffer.
      *
@@ -76,27 +79,29 @@ public interface SeekableByteChannel
      * actually written. Otherwise this method behaves exactly as specified by
      * the {@link WritableByteChannel} interface.
      */
+    /*
+     * 从缓冲区src读取，读到的内容向当前通道（关联的文件）中追加写入后，返回写入的字节数量
+     * 待写入内容从fd中上次position==-1时写完的末尾追加内容（不支持随机写入）
+     */
     @Override
     int write(ByteBuffer src) throws IOException;
-
+    
     /**
      * Returns this channel's position.
      *
-     * @return  This channel's position,
-     *          a non-negative integer counting the number of bytes
-     *          from the beginning of the entity to the current position
+     * @return This channel's position, a non-negative integer counting the number of bytes
+     * from the beginning of the entity to the current position
      *
-     * @throws  ClosedChannelException
-     *          If this channel is closed
-     * @throws  IOException
-     *          If some other I/O error occurs
+     * @throws ClosedChannelException If this channel is closed
+     * @throws IOException            If some other I/O error occurs
      */
+    // 返回此通道（文件）的游标位置
     long position() throws IOException;
-
+    
     /**
      * Sets this channel's position.
      *
-     * <p> Setting the position to a value that is greater than the current size
+     * Setting the position to a value that is greater than the current size
      * is legal but does not change the size of the entity.  A later attempt to
      * read bytes at such a position will immediately return an end-of-file
      * indication.  A later attempt to write bytes at such a position will cause
@@ -104,65 +109,57 @@ public interface SeekableByteChannel
      * between the previous end-of-file and the newly-written bytes are
      * unspecified.
      *
-     * <p> Setting the channel's position is not recommended when connected to
+     * Setting the channel's position is not recommended when connected to
      * an entity, typically a file, that is opened with the {@link
      * java.nio.file.StandardOpenOption#APPEND APPEND} option. When opened for
      * append, the position is first advanced to the end before writing.
      *
-     * @param  newPosition
-     *         The new position, a non-negative integer counting
-     *         the number of bytes from the beginning of the entity
+     * @param newPosition The new position, a non-negative integer counting
+     *                    the number of bytes from the beginning of the entity
      *
-     * @return  This channel
+     * @return This channel
      *
-     * @throws  ClosedChannelException
-     *          If this channel is closed
-     * @throws  IllegalArgumentException
-     *          If the new position is negative
-     * @throws  IOException
-     *          If some other I/O error occurs
+     * @throws ClosedChannelException   If this channel is closed
+     * @throws IllegalArgumentException If the new position is negative
+     * @throws IOException              If some other I/O error occurs
      */
+    // 设置此通道（文件）的游标位置
     SeekableByteChannel position(long newPosition) throws IOException;
-
+    
     /**
      * Returns the current size of entity to which this channel is connected.
      *
-     * @return  The current size, measured in bytes
+     * @return The current size, measured in bytes
      *
-     * @throws  ClosedChannelException
-     *          If this channel is closed
-     * @throws  IOException
-     *          If some other I/O error occurs
+     * @throws ClosedChannelException If this channel is closed
+     * @throws IOException            If some other I/O error occurs
      */
+    // 返回此通道（文件）的字节数量
     long size() throws IOException;
-
+    
     /**
-     * Truncates the entity, to which this channel is connected, to the given
-     * size.
+     * Truncates the entity, to which this channel is connected, to the given size.
      *
-     * <p> If the given size is less than the current size then the entity is
+     * If the given size is less than the current size then the entity is
      * truncated, discarding any bytes beyond the new end. If the given size is
      * greater than or equal to the current size then the entity is not modified.
      * In either case, if the current position is greater than the given size
      * then it is set to that size.
      *
-     * <p> An implementation of this interface may prohibit truncation when
+     * An implementation of this interface may prohibit truncation when
      * connected to an entity, typically a file, opened with the {@link
      * java.nio.file.StandardOpenOption#APPEND APPEND} option.
      *
-     * @param  size
-     *         The new size, a non-negative byte count
+     * @param size The new size, a non-negative byte count
      *
-     * @return  This channel
+     * @return This channel
      *
-     * @throws  NonWritableChannelException
-     *          If this channel was not opened for writing
-     * @throws  ClosedChannelException
-     *          If this channel is closed
-     * @throws  IllegalArgumentException
-     *          If the new size is negative
-     * @throws  IOException
-     *          If some other I/O error occurs
+     * @throws NonWritableChannelException If this channel was not opened for writing
+     * @throws ClosedChannelException      If this channel is closed
+     * @throws IllegalArgumentException    If the new size is negative
+     * @throws IOException                 If some other I/O error occurs
      */
+    // 用指定的新尺寸size截断通道（文件）
     SeekableByteChannel truncate(long size) throws IOException;
+    
 }

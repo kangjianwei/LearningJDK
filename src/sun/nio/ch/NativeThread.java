@@ -25,18 +25,31 @@
 
 package sun.nio.ch;
 
-
-// Signalling operations on native threads
-
-
+/*
+ * Socket通道本地线程操作
+ *
+ * 在一些系统平台上(如linux或mac)上，当某个可阻塞的Socket通道被阻塞时，其所在的native线程无法被另一个线程关闭。
+ * 比如A线程阻塞在Socket通道的读操作上，但是B线程却要关闭该Socket通道，此时必须先等A线程结束该阻塞操作。
+ * 等待A线程结束其阻塞操作后，会唤醒休眠的B线程，以完成后续的关闭过程。
+ */
 class NativeThread {
-
+    
+    /*
+     * 返回当前通道所在的native线程引用
+     *
+     * 在windows平台上总是返回0，表示可以随意关闭此线程
+     */
     static long current() {
-        // return 0 to ensure that async close of blocking sockets will close
-        // the underlying socket.
+        // return 0 to ensure that async close of blocking sockets will close the underlying socket.
         return 0;
     }
-
-    static void signal(long nt) { }
-
+    
+    /*
+     * 唤醒阻塞的nt线程
+     *
+     * 在windows平台上此方法无任何效果
+     */
+    static void signal(long nt) {
+    }
+    
 }
