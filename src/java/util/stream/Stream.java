@@ -46,6 +46,10 @@ import java.util.function.ToDoubleFunction;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
+import java.util.stream.StreamSpliterators.InfiniteSupplyingSpliterator.OfRef;
+import java.util.stream.Streams.StreamBuilderImpl;
+import java.util.stream.WhileOps.UnorderedWhileSpliterator.OfRef.Dropping;
+import java.util.stream.WhileOps.UnorderedWhileSpliterator.OfRef.Taking;
 
 /**
  * A sequence of elements supporting sequential and parallel aggregate
@@ -166,21 +170,83 @@ import java.util.function.UnaryOperator;
  * @since 1.8
  */
 /*
- * 流水线接口，封装用来操作流的各个阶段（源头阶段、中间阶段、终端阶段）的方法
+ * 流接口，这是完成数据流式操作的基本骨架。
  *
- * 流水线的执行过程：
- * 1.从前到后生成流的各个阶段
- * 2.从后往前包装Sink
- * 3.从前到后激活流（Sink#begin()）
- * 4.从前到后择取数据（Sink#accept()）
- * 5.从前到后关闭流（Sink#end()）
+ * Stream可直译作流，即数据像流一样从Stream上经过，并经过sink的择取。
  *
- * 待处理数据开始时将打包在Spliterator内，然后传给流的源头阶段
- * 输出结果最后打包到某个容器（比如Node）内，以方便顺序或并行处理
+ * 一个完整的流通常包含三个阶段：源头阶段、中间阶段、终端阶段。
+ * 源头阶段的流和中间阶段的流都需要实现Stream接口，而终端阶段不需要实现Stream接口。
+ * 因此，我们可以认为源头阶段的流和中间阶段的流都是物理上存在的，而终端阶段的流只是一个模拟概念。
+ *
+ * Stream封装了三大类操作：创建流、中间操作、终端操作。
+ * 创建源头阶段的流的操作是显式定义的，而创建中间阶段的流的操作通常在匿名类中完成。
+ * 对于源头阶段和中间阶段的流，它们都可以调用中间操作和终端操作。
+ * 但是对于终端阶段的流，由于其实一个概念上的存在，并没有真实地去创建一个Stream，所以不能显式调用中间操作和终端操作。
+ *
+ * 在每个流的源头阶段，必须包含一个Spliterator作为数据源，
+ * 而在非源头阶段，必须包含Sink来决定如何择取元素。
+ *
+ * 注：流式操作包含三个要素：Stream、Spliterator、Sink
  */
 public interface Stream<T> extends BaseStream<T, Stream<T>> {
     
     /*▼ 创建流的源头阶段 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns an empty sequential {@code Stream}.
+     *
+     * @param <T> the type of stream elements
+     *
+     * @return an empty sequential stream
+     */
+    // 构造处于源头阶段的流，该流不包含任何待处理元素
+    static <T> Stream<T> empty() {
+        // 构造"空"Spliterator(引用类型版本)
+        Spliterator<T> spliterator = Spliterators.emptySpliterator();
+        return StreamSupport.stream(spliterator, false);
+    }
+    
+    /**
+     * Returns a sequential {@code Stream} containing a single element.
+     *
+     * @param e   the single element
+     * @param <T> the type of stream elements
+     *
+     * @return a singleton sequential stream
+     */
+    // 构造处于源头阶段的流，该流仅包含一个元素。当然，该元素可能是多维度的，比如数组或其他容器
+    static <T> Stream<T> of(T e) {
+        // 构造单元素流迭代器，流构建器处于[已完成]状态
+        Spliterator<T> spliterator = new StreamBuilderImpl<>(e);
+        return StreamSupport.stream(spliterator, false);
+    }
+    
+    /**
+     * Returns a sequential {@code Stream} containing a single element, if
+     * non-null, otherwise returns an empty {@code Stream}.
+     *
+     * @param e   the single element
+     * @param <T> the type of stream elements
+     *
+     * @return a stream with a single element if the specified element
+     * is non-null, otherwise an empty stream
+     *
+     * @since 9
+     */
+    /*
+     * 构造处于源头阶段的流，该流最多仅包含一个元素。
+     *
+     * 如果e为null，则执行empty()操作。
+     * 如果e不为null，则执行of(T)操作。
+     */
+    static <T> Stream<T> ofNullable(T e) {
+        if(e == null) {
+            return Stream.empty();
+        }
+        
+        Spliterator<T> spliterator = new Streams.StreamBuilderImpl<>(e);
+        return StreamSupport.stream(spliterator, false);
+    }
     
     /**
      * Creating a stream from an array is safe
@@ -192,55 +258,12 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
      *
      * @return the new stream
      */
-    // 从数组（或类似数组）中创建一个Stream（使用Spliterators.ArraySpliterator）
+    // 构造处于源头阶段的流，该流包含了指定数组(或类似数组的序列)中的元素
     @SafeVarargs
     @SuppressWarnings("varargs")
     static <T> Stream<T> of(T... values) {
+        // 内部使用了"数组"Spliterator(引用类型版本)
         return Arrays.stream(values);
-    }
-    
-    /**
-     * Returns an empty sequential {@code Stream}.
-     *
-     * @param <T> the type of stream elements
-     *
-     * @return an empty sequential stream
-     */
-    // 返回空的流水线，不包含任何待处理元素
-    static <T> Stream<T> empty() {
-        return StreamSupport.stream(Spliterators.emptySpliterator(), false);
-    }
-    
-    /**
-     * Returns a sequential {@code Stream} containing a single element.
-     *
-     * @param t   the single element
-     * @param <T> the type of stream elements
-     *
-     * @return a singleton sequential stream
-     */
-    // 返回只包含一个元素的流水线。当然，该元素可能是多维度的，比如数组。
-    static <T> Stream<T> of(T t) {
-        return StreamSupport.stream(new Streams.StreamBuilderImpl<>(t), false);
-    }
-    
-    /**
-     * Returns a sequential {@code Stream} containing a single element, if
-     * non-null, otherwise returns an empty {@code Stream}.
-     *
-     * @param t   the single element
-     * @param <T> the type of stream elements
-     *
-     * @return a stream with a single element if the specified element
-     * is non-null, otherwise an empty stream
-     *
-     * @since 9
-     */
-    // 结合了empty()和of(t)的特性
-    static <T> Stream<T> ofNullable(T t) {
-        return t == null
-            ? Stream.empty()
-            : StreamSupport.stream(new Streams.StreamBuilderImpl<>(t), false);
     }
     
     /**
@@ -262,39 +285,66 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
      *
      * @param <T>  the type of stream elements
      * @param seed the initial element
-     * @param f    a function to be applied to the previous element to produce
-     *             a new element
+     * @param next a function to be applied to the previous element to produce a new element
      *
      * @return a new sequential {@code Stream}
      */
-    // 包装了第5类Spliterator，参见Spliterators类
-    static <T> Stream<T> iterate(final T seed, final UnaryOperator<T> f) {
-        Objects.requireNonNull(f);
+    /*
+     * 构造一个包含无限元素的流，仅支持单元素访问(如果遍历，则停不下来)
+     *
+     * 该流中的元素特征为：
+     * 第一个元素是seed，
+     * 第二个元素是由next处理第一个元素后返回的新元素，
+     * 第三个元素是由next处理第二个元素后返回的新元素，
+     * 以此类推...
+     */
+    static <T> Stream<T> iterate(final T seed, final UnaryOperator<T> next) {
+        Objects.requireNonNull(next);
         
-        // 没有重写forEachRemaining，tryAdvance也不会返回false，所以调用forEachRemaining的话将陷入死循环
+        /*
+         * 构造Spliterator供Stream使用
+         *
+         * 注：没有重写forEachRemaining，tryAdvance也不会返回false，
+         * 　　因此，在调用forEachRemaining时将陷入死循环。
+         */
         Spliterator<T> spliterator = new Spliterators.AbstractSpliterator<>(Long.MAX_VALUE, Spliterator.ORDERED | Spliterator.IMMUTABLE) {
-            T prev;
-            boolean started;
+            boolean started; // 是否已经开启了访问
+            T prev;          // 记录上一次访问过的元素
             
-            /**
-             * 第一次调用后，让prev=seed，并将started置为true，代表进入启动状态。
-             * 之后每次调用tryAdvance，都会借助f生成新的prev值并缓存起来。
+            /*
+             * 尝试用action消费当前流迭代器中下一个元素。
+             * 此处总是返回true，表示总是"存在"下一个元素。
+             *
+             * 注1：该操作可能会引起内部游标的变化
+             * 注2：该操作可能会顺着sink链向下游传播
              */
             @Override
             public boolean tryAdvance(Consumer<? super T> action) {
                 Objects.requireNonNull(action);
+                
                 T t;
-                if(started) {
-                    t = f.apply(prev);
-                } else {
+                
+                // 如果是首次访问，则需要访问seed
+                if(!started) {
                     t = seed;
-                    started = true;
+                    started = true; // 标记访问已开启
+                    
+                    // 如果不是首次访问，则使用fun处理上一次访问过的元素，并返回一个新元素
+                } else {
+                    t = next.apply(prev);
                 }
-                action.accept(prev = t);
+                
+                // 记录新元素
+                prev = t;
+                
+                // 消费新元素
+                action.accept(t);
+                
                 return true;
             }
         };
         
+        // 构造处于源头(head)阶段的流(引用类型版本)
         return StreamSupport.stream(spliterator, false);
     }
     
@@ -338,51 +388,112 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
      *
      * @since 9
      */
-    // 包装了第5类Spliterator，参见Spliterators类
+    /*
+     * 构造一个包含有限元素的流，既支持单元素访问，也支持批量访问(可以遍历)
+     *
+     * 该流中的元素特征为：
+     * 第一个元素是seed，
+     * 第二个元素是由next处理第一个元素后返回的新元素，
+     * 第三个元素是由next处理第二个元素后返回的新元素，
+     * 以此类推...
+     *
+     * 如果由next处理生成的新元素被hasNext识别为终止元素，则需要关闭访问
+     */
     static <T> Stream<T> iterate(T seed, Predicate<? super T> hasNext, UnaryOperator<T> next) {
         Objects.requireNonNull(next);
         Objects.requireNonNull(hasNext);
-        
+    
         Spliterator<T> spliterator = new Spliterators.AbstractSpliterator<>(Long.MAX_VALUE, Spliterator.ORDERED | Spliterator.IMMUTABLE) {
-            T prev;
-            boolean started, finished;
-            
+            boolean started;   // 是否已经开启了访问
+            boolean finished;  // 是否已经关闭了访问
+            T prev;            // 记录上一次访问过的元素
+        
+            /*
+             * 尝试用action消费当前流迭代器中下一个元素。
+             * 返回值指示是否找到了下一个元素。
+             *
+             * 注1：该操作可能会引起内部游标的变化
+             * 注2：该操作可能会顺着sink链向下游传播
+             */
             @Override
             public boolean tryAdvance(Consumer<? super T> action) {
                 Objects.requireNonNull(action);
-                if(finished)
+            
+                // 如果已经关闭了访问，直接返回false
+                if(finished) {
                     return false;
-                T t;
-                if(started)
-                    t = next.apply(prev);
-                else {
-                    t = seed;
-                    started = true;
                 }
+            
+                T t;
+            
+                // 如果是首次访问，则需要访问seed
+                if(!started) {
+                    t = seed;
+                    started = true; // 标记访问已开启
+                
+                    // 如果不是首次访问，则使用fun处理上一次访问过的元素，并返回一个新元素
+                } else {
+                    t = next.apply(prev);
+                }
+            
+                // 如果遇到了终止元素，则关闭访问
                 if(!hasNext.test(t)) {
                     prev = null;
-                    finished = true;
+                    finished = true; // 标记访问已关闭
                     return false;
                 }
-                action.accept(prev = t);
+            
+                // 记录新元素
+                prev = t;
+            
+                // 消费新元素
+                action.accept(t);
+            
                 return true;
             }
-            
+        
+            /*
+             * 尝试用action逐个消费当前流迭代器中所有剩余元素。
+             *
+             * 注1：该操作可能会引起内部游标的变化
+             * 注2：该操作可能会顺着sink链向下游传播
+             */
             @Override
             public void forEachRemaining(Consumer<? super T> action) {
                 Objects.requireNonNull(action);
-                if(finished)
+            
+                // 如果已经关闭了访问，直接返回false
+                if(finished) {
                     return;
+                }
+            
                 finished = true;
-                T t = started ? next.apply(prev) : seed;
+            
+                T t;
+            
+                // 如果是首次访问，则需要访问seed
+                if(!started) {
+                    t = seed;
+                
+                    // 如果不是首次访问，则使用fun处理上一次访问过的元素，并返回一个新元素
+                } else {
+                    t = next.apply(prev);
+                }
+            
                 prev = null;
+            
+                // 遍历剩余的所有元素
                 while(hasNext.test(t)) {
+                    // 消费新元素
                     action.accept(t);
+                
+                    // 生成新元素
                     t = next.apply(t);
                 }
             }
         };
-        
+    
+        // 构造处于源头(head)阶段的流(引用类型版本)
         return StreamSupport.stream(spliterator, false);
     }
     
@@ -391,15 +502,20 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
      * generated by the provided {@code Supplier}.  This is suitable for
      * generating constant streams, streams of random elements, etc.
      *
-     * @param <T> the type of stream elements
-     * @param s   the {@code Supplier} of generated elements
+     * @param <T>      the type of stream elements
+     * @param supplier the {@code Supplier} of generated elements
      *
      * @return a new infinite sequential unordered {@code Stream}
      */
-    static <T> Stream<T> generate(Supplier<? extends T> s) {
-        Objects.requireNonNull(s);
+    // 构造一个包含无限元素的流，元素由supplier提供
+    static <T> Stream<T> generate(Supplier<? extends T> supplier) {
+        Objects.requireNonNull(supplier);
         
-        return StreamSupport.stream(new StreamSpliterators.InfiniteSupplyingSpliterator.OfRef<>(Long.MAX_VALUE, s), false);
+        // "无限"流迭代器(引用类型版本)
+        Spliterator<T> spliterator = new OfRef<>(Long.MAX_VALUE, supplier);
+        
+        // 构造处于源头(head)阶段的流(引用类型版本)
+        return StreamSupport.stream(spliterator, false);
     }
     
     /**
@@ -415,8 +531,8 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
      * source may not be reflected in the concatenated stream result.
      *
      * @param <T> The type of stream elements
-     * @param a   the first stream
-     * @param b   the second stream
+     * @param s1  the first stream
+     * @param s2  the second stream
      *
      * @return the concatenation of the two input streams
      *
@@ -437,143 +553,26 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
      *     Stream<T> concat = Stream.of(s1, s2, s3, s4).flatMap(s -> s);
      * }</pre>
      */
-    static <T> Stream<T> concat(Stream<? extends T> a, Stream<? extends T> b) {
-        Objects.requireNonNull(a);
-        Objects.requireNonNull(b);
-        
+    // 构造一个由s1和s2拼接而成的流
+    static <T> Stream<T> concat(Stream<? extends T> s1, Stream<? extends T> s2) {
+        Objects.requireNonNull(s1);
+        Objects.requireNonNull(s2);
+    
+        // "拼接"流迭代器(引用类型版本)
         @SuppressWarnings("unchecked")
-        Spliterator<T> split = new Streams.ConcatSpliterator.OfRef<>((Spliterator<T>) a.spliterator(), (Spliterator<T>) b.spliterator());
-        
-        Stream<T> stream = StreamSupport.stream(split, a.isParallel() || b.isParallel());
-        
-        return stream.onClose(Streams.composedClose(a, b));
-    }
+        Spliterator<T> spliterator = new Streams.ConcatSpliterator.OfRef<>((Spliterator<T>) s1.spliterator(), (Spliterator<T>) s2.spliterator());
     
-    /**
-     * Returns, if this stream is ordered, a stream consisting of the longest
-     * prefix of elements taken from this stream that match the given predicate.
-     * Otherwise returns, if this stream is unordered, a stream consisting of a
-     * subset of elements taken from this stream that match the given predicate.
-     *
-     * <p>If this stream is ordered then the longest prefix is a contiguous
-     * sequence of elements of this stream that match the given predicate.  The
-     * first element of the sequence is the first element of this stream, and
-     * the element immediately following the last element of the sequence does
-     * not match the given predicate.
-     *
-     * <p>If this stream is unordered, and some (but not all) elements of this
-     * stream match the given predicate, then the behavior of this operation is
-     * nondeterministic; it is free to take any subset of matching elements
-     * (which includes the empty set).
-     *
-     * <p>Independent of whether this stream is ordered or unordered if all
-     * elements of this stream match the given predicate then this operation
-     * takes all elements (the result is the same as the input), or if no
-     * elements of the stream match the given predicate then no elements are
-     * taken (the result is an empty stream).
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
-     * stateful intermediate operation</a>.
-     *
-     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *                  <a href="package-summary.html#Statelessness">stateless</a>
-     *                  predicate to apply to elements to determine the longest
-     *                  prefix of elements.
-     *
-     * @return the new stream
-     *
-     * @implSpec The default implementation obtains the {@link #spliterator() spliterator}
-     * of this stream, wraps that spliterator so as to support the semantics
-     * of this operation on traversal, and returns a new stream associated with
-     * the wrapped spliterator.  The returned stream preserves the execution
-     * characteristics of this stream (namely parallel or sequential execution
-     * as per {@link #isParallel()}) but the wrapped spliterator may choose to
-     * not support splitting.  When the returned stream is closed, the close
-     * handlers for both the returned and this stream are invoked.
-     * @apiNote While {@code takeWhile()} is generally a cheap operation on sequential
-     * stream pipelines, it can be quite expensive on ordered parallel
-     * pipelines, since the operation is constrained to return not just any
-     * valid prefix, but the longest prefix of elements in the encounter order.
-     * Using an unordered stream source (such as {@link #generate(Supplier)}) or
-     * removing the ordering constraint with {@link #unordered()} may result in
-     * significant speedups of {@code takeWhile()} in parallel pipelines, if the
-     * semantics of your situation permit.  If consistency with encounter order
-     * is required, and you are experiencing poor performance or memory
-     * utilization with {@code takeWhile()} in parallel pipelines, switching to
-     * sequential execution with {@link #sequential()} may improve performance.
-     * @since 9
-     */
-    default Stream<T> takeWhile(Predicate<? super T> predicate) {
-        Objects.requireNonNull(predicate);
-        
-        // Reuses the unordered spliterator, which, when encounter is present, is safe to use as long as it configured not to split
-        return StreamSupport.stream(new WhileOps.UnorderedWhileSpliterator.OfRef.Taking<>(spliterator(), true, predicate), isParallel()).onClose(this::close);
-    }
+        // 组合流
+        Stream<T> stream = StreamSupport.stream(spliterator, s1.isParallel() || s2.isParallel());
     
-    /**
-     * Returns, if this stream is ordered, a stream consisting of the remaining
-     * elements of this stream after dropping the longest prefix of elements
-     * that match the given predicate.  Otherwise returns, if this stream is
-     * unordered, a stream consisting of the remaining elements of this stream
-     * after dropping a subset of elements that match the given predicate.
-     *
-     * <p>If this stream is ordered then the longest prefix is a contiguous
-     * sequence of elements of this stream that match the given predicate.  The
-     * first element of the sequence is the first element of this stream, and
-     * the element immediately following the last element of the sequence does
-     * not match the given predicate.
-     *
-     * <p>If this stream is unordered, and some (but not all) elements of this
-     * stream match the given predicate, then the behavior of this operation is
-     * nondeterministic; it is free to drop any subset of matching elements
-     * (which includes the empty set).
-     *
-     * <p>Independent of whether this stream is ordered or unordered if all
-     * elements of this stream match the given predicate then this operation
-     * drops all elements (the result is an empty stream), or if no elements of
-     * the stream match the given predicate then no elements are dropped (the
-     * result is the same as the input).
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">stateful
-     * intermediate operation</a>.
-     *
-     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *                  <a href="package-summary.html#Statelessness">stateless</a>
-     *                  predicate to apply to elements to determine the longest
-     *                  prefix of elements.
-     *
-     * @return the new stream
-     *
-     * @implSpec The default implementation obtains the {@link #spliterator() spliterator}
-     * of this stream, wraps that spliterator so as to support the semantics
-     * of this operation on traversal, and returns a new stream associated with
-     * the wrapped spliterator.  The returned stream preserves the execution
-     * characteristics of this stream (namely parallel or sequential execution
-     * as per {@link #isParallel()}) but the wrapped spliterator may choose to
-     * not support splitting.  When the returned stream is closed, the close
-     * handlers for both the returned and this stream are invoked.
-     * @apiNote While {@code dropWhile()} is generally a cheap operation on sequential
-     * stream pipelines, it can be quite expensive on ordered parallel
-     * pipelines, since the operation is constrained to return not just any
-     * valid prefix, but the longest prefix of elements in the encounter order.
-     * Using an unordered stream source (such as {@link #generate(Supplier)}) or
-     * removing the ordering constraint with {@link #unordered()} may result in
-     * significant speedups of {@code dropWhile()} in parallel pipelines, if the
-     * semantics of your situation permit.  If consistency with encounter order
-     * is required, and you are experiencing poor performance or memory
-     * utilization with {@code dropWhile()} in parallel pipelines, switching to
-     * sequential execution with {@link #sequential()} may improve performance.
-     * @since 9
-     */
-    default Stream<T> dropWhile(Predicate<? super T> predicate) {
-        Objects.requireNonNull(predicate);
-        
-        // Reuses the unordered spliterator, which, when encounter is present, is safe to use as long as it configured not to split
-        return StreamSupport.stream(new WhileOps.UnorderedWhileSpliterator.OfRef.Dropping<>(spliterator(), true, predicate), isParallel()).onClose(this::close);
+        // 将两个流的关闭动作串联
+        Runnable s = Streams.composedClose(s1, s2);
+    
+        // 为stream注册关闭回调：当stream关闭时，同时将s1和s2也关闭
+        return stream.onClose(s);
     }
     
     /*▲ 创建流的源头阶段 ████████████████████████████████████████████████████████████████████████████████┛ */
-    
     
     
     
@@ -705,8 +704,12 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
      */
     /*
      * 数据降维。参数举例：l->l.stream()。
+     *
      * 比如int[][] a = new int[]{new int[]{1,2,3}, new int[]{4,5}. new int[]{6}};，降维成一维数组：[1,2,3,4,5,6]
      * 注：一次只能降低一个维度，比如遇到三维数组，那么如果想要得到一维的数据，需要连续调用两次。
+     *
+     * mapper的作用就是将上游的高维容器中的元素提取出来放到流中，并在后续将该元素依次传递到下游，
+     * 这就相当于把原来的元素从高维容器中提取出来了。
      */
     <R> Stream<R> flatMap(Function<? super T, ? extends Stream<? extends R>> mapper);
     
@@ -815,9 +818,7 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
      * {@link #count}), the action will not be invoked for those elements.
      */
     /*
-     * 用于查看流的内部结构，不会对流的结构产生影响
-     *
-     * peek的实现跟map类似，但区别在于map会把当前处理结果传给下一个Sink，但peek不会传递处理结果。
+     * 用于查看流的内部结构，不会对流的结构产生影响。
      * peek常用来查看当前流的结构，比如输出其中的元素。
      */
     Stream<T> peek(Consumer<? super T> action);
@@ -890,7 +891,7 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
      *
      * @return the new stream
      */
-    // 排序（使用Comparator改变排序规则）
+    // 排序（使用comparator制定排序规则）
     Stream<T> sorted(Comparator<? super T> comparator);
     
     /**
@@ -951,121 +952,152 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     // 跳过前n个元素
     Stream<T> skip(long n);
     
+    /**
+     * Returns, if this stream is ordered, a stream consisting of the longest
+     * prefix of elements taken from this stream that match the given predicate.
+     * Otherwise returns, if this stream is unordered, a stream consisting of a
+     * subset of elements taken from this stream that match the given predicate.
+     *
+     * <p>If this stream is ordered then the longest prefix is a contiguous
+     * sequence of elements of this stream that match the given predicate.  The
+     * first element of the sequence is the first element of this stream, and
+     * the element immediately following the last element of the sequence does
+     * not match the given predicate.
+     *
+     * <p>If this stream is unordered, and some (but not all) elements of this
+     * stream match the given predicate, then the behavior of this operation is
+     * nondeterministic; it is free to take any subset of matching elements
+     * (which includes the empty set).
+     *
+     * <p>Independent of whether this stream is ordered or unordered if all
+     * elements of this stream match the given predicate then this operation
+     * takes all elements (the result is the same as the input), or if no
+     * elements of the stream match the given predicate then no elements are
+     * taken (the result is an empty stream).
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
+     * stateful intermediate operation</a>.
+     *
+     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *                  <a href="package-summary.html#Statelessness">stateless</a>
+     *                  predicate to apply to elements to determine the longest
+     *                  prefix of elements.
+     *
+     * @return the new stream
+     *
+     * @implSpec The default implementation obtains the {@link #spliterator() spliterator}
+     * of this stream, wraps that spliterator so as to support the semantics
+     * of this operation on traversal, and returns a new stream associated with
+     * the wrapped spliterator.  The returned stream preserves the execution
+     * characteristics of this stream (namely parallel or sequential execution
+     * as per {@link #isParallel()}) but the wrapped spliterator may choose to
+     * not support splitting.  When the returned stream is closed, the close
+     * handlers for both the returned and this stream are invoked.
+     * @apiNote While {@code takeWhile()} is generally a cheap operation on sequential
+     * stream pipelines, it can be quite expensive on ordered parallel
+     * pipelines, since the operation is constrained to return not just any
+     * valid prefix, but the longest prefix of elements in the encounter order.
+     * Using an unordered stream source (such as {@link #generate(Supplier)}) or
+     * removing the ordering constraint with {@link #unordered()} may result in
+     * significant speedups of {@code takeWhile()} in parallel pipelines, if the
+     * semantics of your situation permit.  If consistency with encounter order
+     * is required, and you are experiencing poor performance or memory
+     * utilization with {@code takeWhile()} in parallel pipelines, switching to
+     * sequential execution with {@link #sequential()} may improve performance.
+     * @since 9
+     */
+    // "保存前缀"：保存起初遇到的满足predicate条件的元素；只要遇到首个不满足条件的元素，就结束后续的保存动作
+    default Stream<T> takeWhile(Predicate<? super T> predicate) {
+        Objects.requireNonNull(predicate);
+        
+        // 返回当前阶段的流的流迭代器
+        Spliterator<T> spliterator = spliterator();
+        
+        // 返回"保存前缀"流迭代器，这是"无序前缀"流迭代器的一种
+        Spliterator<T> takeSpliterator = new Taking<>(spliterator, true, predicate);
+        
+        // 构造处于源头(head)阶段的流(引用类型版本)
+        Stream<T> stream = StreamSupport.stream(takeSpliterator, isParallel());
+        
+        /* Reuses the unordered spliterator, which, when encounter is present, is safe to use as long as it configured not to split */
+        // 为stream注册关闭回调：如果stream关闭了，也顺便将当前流关闭
+        return stream.onClose(this::close);
+    }
+    
+    /**
+     * Returns, if this stream is ordered, a stream consisting of the remaining
+     * elements of this stream after dropping the longest prefix of elements
+     * that match the given predicate.  Otherwise returns, if this stream is
+     * unordered, a stream consisting of the remaining elements of this stream
+     * after dropping a subset of elements that match the given predicate.
+     *
+     * <p>If this stream is ordered then the longest prefix is a contiguous
+     * sequence of elements of this stream that match the given predicate.  The
+     * first element of the sequence is the first element of this stream, and
+     * the element immediately following the last element of the sequence does
+     * not match the given predicate.
+     *
+     * <p>If this stream is unordered, and some (but not all) elements of this
+     * stream match the given predicate, then the behavior of this operation is
+     * nondeterministic; it is free to drop any subset of matching elements
+     * (which includes the empty set).
+     *
+     * <p>Independent of whether this stream is ordered or unordered if all
+     * elements of this stream match the given predicate then this operation
+     * drops all elements (the result is an empty stream), or if no elements of
+     * the stream match the given predicate then no elements are dropped (the
+     * result is the same as the input).
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">stateful
+     * intermediate operation</a>.
+     *
+     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *                  <a href="package-summary.html#Statelessness">stateless</a>
+     *                  predicate to apply to elements to determine the longest
+     *                  prefix of elements.
+     *
+     * @return the new stream
+     *
+     * @implSpec The default implementation obtains the {@link #spliterator() spliterator}
+     * of this stream, wraps that spliterator so as to support the semantics
+     * of this operation on traversal, and returns a new stream associated with
+     * the wrapped spliterator.  The returned stream preserves the execution
+     * characteristics of this stream (namely parallel or sequential execution
+     * as per {@link #isParallel()}) but the wrapped spliterator may choose to
+     * not support splitting.  When the returned stream is closed, the close
+     * handlers for both the returned and this stream are invoked.
+     * @apiNote While {@code dropWhile()} is generally a cheap operation on sequential
+     * stream pipelines, it can be quite expensive on ordered parallel
+     * pipelines, since the operation is constrained to return not just any
+     * valid prefix, but the longest prefix of elements in the encounter order.
+     * Using an unordered stream source (such as {@link #generate(Supplier)}) or
+     * removing the ordering constraint with {@link #unordered()} may result in
+     * significant speedups of {@code dropWhile()} in parallel pipelines, if the
+     * semantics of your situation permit.  If consistency with encounter order
+     * is required, and you are experiencing poor performance or memory
+     * utilization with {@code dropWhile()} in parallel pipelines, switching to
+     * sequential execution with {@link #sequential()} may improve performance.
+     * @since 9
+     */
+    // "丢弃前缀"：丢弃起初遇到的满足predicate条件的元素；只要遇到首个不满足条件的元素，就开始保存它后及其后面的元素
+    default Stream<T> dropWhile(Predicate<? super T> predicate) {
+        Objects.requireNonNull(predicate);
+        
+        // 返回当前阶段的流的流迭代器
+        Spliterator<T> spliterator = spliterator();
+        
+        // 返回"丢弃前缀"流迭代器，这是"无序前缀"流迭代器的一种
+        Spliterator<T> dropSpliterator = new Dropping<>(spliterator, true, predicate);
+        
+        // 构造处于源头(head)阶段的流(引用类型版本)
+        Stream<T> stream = StreamSupport.stream(dropSpliterator, isParallel());
+        
+        /* Reuses the unordered spliterator, which, when encounter is present, is safe to use as long as it configured not to split */
+        // 为stream注册关闭回调：如果stream关闭了，也顺便将当前流关闭
+        return stream.onClose(this::close);
+    }
+    
     /*▲ 中间操作-有状态 ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
-    /*▼ 终端操作-短路操作 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Returns whether any elements of this stream match the provided
-     * predicate.  May not evaluate the predicate on all elements if not
-     * necessary for determining the result.  If the stream is empty then
-     * {@code false} is returned and the predicate is not evaluated.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
-     * terminal operation</a>.
-     *
-     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *                  <a href="package-summary.html#Statelessness">stateless</a>
-     *                  predicate to apply to elements of this stream
-     *
-     * @return {@code true} if any elements of the stream match the provided
-     * predicate, otherwise {@code false}
-     *
-     * @apiNote This method evaluates the <em>existential quantification</em> of the
-     * predicate over the elements of the stream (for some x P(x)).
-     */
-    // 存在元素满足predicate条件
-    boolean anyMatch(Predicate<? super T> predicate);
-    
-    /**
-     * Returns whether all elements of this stream match the provided predicate.
-     * May not evaluate the predicate on all elements if not necessary for
-     * determining the result.  If the stream is empty then {@code true} is
-     * returned and the predicate is not evaluated.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
-     * terminal operation</a>.
-     *
-     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *                  <a href="package-summary.html#Statelessness">stateless</a>
-     *                  predicate to apply to elements of this stream
-     *
-     * @return {@code true} if either all elements of the stream match the
-     * provided predicate or the stream is empty, otherwise {@code false}
-     *
-     * @apiNote This method evaluates the <em>universal quantification</em> of the
-     * predicate over the elements of the stream (for all x P(x)).  If the
-     * stream is empty, the quantification is said to be <em>vacuously
-     * satisfied</em> and is always {@code true} (regardless of P(x)).
-     */
-    // 所有元素满足predicate条件
-    boolean allMatch(Predicate<? super T> predicate);
-    
-    /**
-     * Returns whether no elements of this stream match the provided predicate.
-     * May not evaluate the predicate on all elements if not necessary for
-     * determining the result.  If the stream is empty then {@code true} is
-     * returned and the predicate is not evaluated.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
-     * terminal operation</a>.
-     *
-     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *                  <a href="package-summary.html#Statelessness">stateless</a>
-     *                  predicate to apply to elements of this stream
-     *
-     * @return {@code true} if either no elements of the stream match the
-     * provided predicate or the stream is empty, otherwise {@code false}
-     *
-     * @apiNote This method evaluates the <em>universal quantification</em> of the
-     * negated predicate over the elements of the stream (for all x ~P(x)).  If
-     * the stream is empty, the quantification is said to be vacuously satisfied
-     * and is always {@code true}, regardless of P(x).
-     */
-    // 没有元素满足predicate条件
-    boolean noneMatch(Predicate<? super T> predicate);
-    
-    /**
-     * Returns an {@link Optional} describing the first element of this stream,
-     * or an empty {@code Optional} if the stream is empty.  If the stream has
-     * no encounter order, then any element may be returned.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
-     * terminal operation</a>.
-     *
-     * @return an {@code Optional} describing the first element of this stream,
-     * or an empty {@code Optional} if the stream is empty
-     *
-     * @throws NullPointerException if the element selected is null
-     */
-    // 找出第一个元素，返回一个可选的操作
-    Optional<T> findFirst();
-    
-    /**
-     * Returns an {@link Optional} describing some element of the stream, or an
-     * empty {@code Optional} if the stream is empty.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
-     * terminal operation</a>.
-     *
-     * <p>The behavior of this operation is explicitly nondeterministic; it is
-     * free to select any element in the stream.  This is to allow for maximal
-     * performance in parallel operations; the cost is that multiple invocations
-     * on the same source may not return the same result.  (If a stable result
-     * is desired, use {@link #findFirst()} instead.)
-     *
-     * @return an {@code Optional} describing some element of this stream, or an
-     * empty {@code Optional} if the stream is empty
-     *
-     * @throws NullPointerException if the element selected is null
-     * @see #findFirst()
-     */
-    // 找到一个元素就返回，往往是第一个元素
-    Optional<T> findAny();
-    
-    /*▲ 终端操作-短路操作 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -1155,6 +1187,45 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     void forEachOrdered(Consumer<? super T> action);
     
     /**
+     * Returns the minimum element of this stream according to the provided
+     * {@code Comparator}.  This is a special case of a
+     * <a href="package-summary.html#Reduction">reduction</a>.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">terminal operation</a>.
+     *
+     * @param comparator a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *                   <a href="package-summary.html#Statelessness">stateless</a>
+     *                   {@code Comparator} to compare elements of this stream
+     *
+     * @return an {@code Optional} describing the minimum element of this stream,
+     * or an empty {@code Optional} if the stream is empty
+     *
+     * @throws NullPointerException if the minimum element is null
+     */
+    // 求最小值，元素的排序规则取决于comparator
+    Optional<T> min(Comparator<? super T> comparator);
+    
+    /**
+     * Returns the maximum element of this stream according to the provided
+     * {@code Comparator}.  This is a special case of a
+     * <a href="package-summary.html#Reduction">reduction</a>.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">terminal
+     * operation</a>.
+     *
+     * @param comparator a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *                   <a href="package-summary.html#Statelessness">stateless</a>
+     *                   {@code Comparator} to compare elements of this stream
+     *
+     * @return an {@code Optional} describing the maximum element of this stream,
+     * or an empty {@code Optional} if the stream is empty
+     *
+     * @throws NullPointerException if the maximum element is null
+     */
+    // 求最大值，元素的排序规则取决于comparator
+    Optional<T> max(Comparator<? super T> comparator);
+    
+    /**
      * Performs a <a href="package-summary.html#Reduction">reduction</a> on the
      * elements of this stream, using an
      * <a href="package-summary.html#Associativity">associative</a> accumulation
@@ -1194,7 +1265,20 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
      * @see #min(Comparator)
      * @see #max(Comparator)
      */
-    // 收纳汇总，两两比对，完成指定动作
+    /*
+     * 无初始状态的汇总操作(引用类型版本)
+     *
+     * 尝试将遇到的每个数据与上一个状态做accumulator操作后，将汇总结果保存到上一次的状态值中。
+     * 未设置初始状态，所以每个(子)任务只是专注处理它自身遇到的数据源。
+     *
+     * 例如：
+     * Stream.of(1, 2, 3, 4, 5).reduce((a, b) -> a + b)
+     * 这会将1、2、3、4、5累加起来。
+     *
+     * accumulator: 两种用途：
+     *              1.用于择取操作，如果是并行流，则用在每个子任务中
+     *              2.用于并行流的合并操作
+     */
     Optional<T> reduce(BinaryOperator<T> accumulator);
     
     /**
@@ -1247,7 +1331,27 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
      * operations parallelize more gracefully, without needing additional
      * synchronization and with greatly reduced risk of data races.
      */
-    // 收纳汇总，两两比对，完成accumulator动作。identity是初值，accumulator中的输入类型应当一致。
+    /*
+     * 有初始状态的汇总操作(引用类型版本)
+     *
+     * 尝试将遇到的每个数据与上一个状态做汇总操作后，将汇总结果保存到上一次的状态值中。
+     * 这里提供了两个操作：reducer用于在单个任务中择取数据，而combiner用于在并行流中合并多个子任务。
+     * 这里需要设定一个初始状态seed，所以每个(子)任务在处理它自身遇到的数据源之前，首先要与该初始状态进行汇总。
+     *
+     * 例如：
+     * Stream.of(1, 2, 3, 4, 5).reduce(-1, (a, b) -> a + b)
+     * 这是顺序流，操作结果是将-1、1、2、3、4、5累加起来，结果是14。
+     *
+     * Stream.of(1, 2, 3, 4, 5).parallel().reduce(-1, (a, b) -> a + b)
+     * 这是并行流，虽然使用的择取方法与顺序流相同，但不同的是这里需要先将数据源拆分到各个子任务中。
+     * 根据默认的二分法拆分规则，上面的数据会被拆分为(1)、(2)、(3)、(4)、(5)这五组，
+     * 由于这五组数据位于五个子任务中，那么每个子任务择取数据之时都会先与那个初始值-1去做汇总，
+     * 即五个子任务的执行结果分别是：0、1、2、3、4，
+     * 最后，将这5个子任务用accumulator再合并起来，那就是0+1+2+3+4 = 10
+     *
+     * identity   : 每个(子)任务需要使用的初始状态
+     * accumulator: 既用于择取操作，如果是并行流，则用在每个叶子任务中，也用于并行流的合并子任务操作
+     */
     T reduce(T identity, BinaryOperator<T> accumulator);
     
     /**
@@ -1298,7 +1402,30 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
      * @see #reduce(BinaryOperator)
      * @see #reduce(Object, BinaryOperator)
      */
-    // 收纳汇总，两两比对，完成combiner动作。identity是初值，accumulator中的输入类型可以不一致。combiner用在并行操作。
+    /*
+     * 有初始状态的汇总操作(引用类型版本)
+     *
+     * 尝试将遇到的每个数据与上一个状态做汇总操作后，将汇总结果保存到上一次的状态值中。
+     * 这里提供了两个操作：accumulator用于在单个任务中择取数据，而combiner用于在并行流中合并多个子任务。
+     * 这里需要设定一个初始状态identity，所以每个(子)任务在处理它自身遇到的数据源之前，首先要与该初始状态进行汇总。
+     *
+     * 例如：
+     * Stream.of(1, 2, 3, 4, 5).reduce(-1, (a, b) -> a + b, (a, b) -> a + b)
+     * 这是顺序流，操作结果是将-1、1、2、3、4、5累加起来，结果是14。
+     *
+     * Stream.of(1, 2, 3, 4, 5).parallel().reduce(-1, (a, b) -> a + b, (a, b) -> a + b)
+     * 这是并行流，虽然使用的择取方法与顺序流相同，但不同的是这里需要先将数据源拆分到各个子任务中。
+     * 根据默认的二分法拆分规则，上面的数据会被拆分为(1)、(2)、(3)、(4)、(5)这五组，
+     * 由于这五组数据位于五个子任务中，那么每个子任务择取数据之时都会先与那个初始值-1去做汇总，
+     * 即五个子任务的执行结果分别是：0、1、2、3、4，
+     * 最后，将这5个子任务用combiner合并起来，那就是0+1+2+3+4 = 10
+     *
+     * identity   : 每个(子)任务需要使用的初始状态
+     * accumulator: 用于择取操作，如果是并行流，则用在每个叶子任务中
+     * combiner   : 用于并行流的合并子任务操作
+     *
+     * 注：通常来讲，要求accumulator和combiner相呼应
+     */
     <U> U reduce(U identity, BiFunction<U, ? super T, U> accumulator, BinaryOperator<U> combiner);
     
     /**
@@ -1358,10 +1485,48 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
      * }</pre>
      */
     /*
-     * 收集输出的元素到某个容器
-     * supplier用于构造容器
-     * accumulator用于向容器添加元素
-     * combiner用于拼接容器（用在并行处理中）
+     * 有初始状态的消费操作(引用类型版本)
+     *
+     * 注：这里的消费通常是将遇到的元素存储到某个容器中。
+     *
+     * 尝试将遇到的每个数据与上一个状态做汇总操作后，汇总过程是一个消费过程，在消费中如何处理状态值，由该方法的入参决定。
+     * 通常来说，我们会让supplier生成一个代表容器的"初始状态"，然后在消费过程中，把遇到的元素收纳到该容器当中。
+     * 这里提供了两个操作：accumulator用于在单个任务中择取数据，而combiner用于在并行流中合并多个子任务。
+     * 这里需要设定一个初始状态的工厂supplier，所以每个(子)任务在处理它自身遇到的数据源之前，首先要与该初始状态进行汇总。
+     *
+     * 例如：
+     *
+     * 假设有如下两个操作：
+     * BiConsumer<ArrayList<Integer>, Integer> accumulator = (list, e) -> list.add(e);
+     *
+     * BiConsumer<ArrayList<Integer>, ArrayList<Integer>> combiner = (list1, list2) -> {
+     *     for(Integer e : list2) {
+     *         if(!list1.contains(e)) {
+     *             list1.add(e);
+     *         }
+     *     }
+     * };
+     *
+     *
+     * Stream<Integer> stream = Stream.of(3, 2, 3, 1, 2);
+     * ArrayList<Integer> list = stream.collect(() -> new ArrayList<Integer>(), accumulator, combiner);
+     * 这是顺序流，操作结果是将3、2、3、1、2全部收集到list中。
+     *
+     * Stream<Integer> stream = Stream.of(3, 2, 3, 1, 2).parallel();
+     * ArrayList<Integer> list = stream.collect(() -> new ArrayList<Integer>(), accumulator, combiner);
+     * 这是并行流，虽然使用的择取方法与顺序流相同，但不同的是这里需要先将数据源拆分到各个子任务中
+     * 根据默认的二分法拆分规则，上面的数据会被拆分为(1)、(2)、(3)、(4)、(5)这五组
+     * 由于这五组数据位于五个子任务中，那么每个子任务择取数据之时都会先与那个初始状态做汇总。
+     * 此处给出的初始状态就是一个list，操作目标就是将遇到的元素添加到该list中。
+     * 因此在每个叶子任务完成后，其对应的元素就被添加到了list中。
+     * 接下来，使用combiner对子任务汇总。这里的操作是遍历list2中的元素，找出那些不在list1中的元素，并将其添加到list1中。
+     * 因此最终的汇总结果中只有3、2、1。
+     *
+     * supplier   : 初始状态工厂
+     * accumulator: 用于择取操作，如果是并行流，则用在每个叶子任务中
+     * combiner   : 用于并行流的合并子任务操作
+     *
+     * 注：通常来讲，要求accumulator和combiner相呼应
      */
     <R> R collect(Supplier<R> supplier, BiConsumer<R, ? super T> accumulator, BiConsumer<R, R> combiner);
     
@@ -1417,7 +1582,7 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
      * @see #collect(Supplier, BiConsumer, BiConsumer)
      * @see Collectors
      */
-    // 收纳汇总，具体行为取决于Collector
+    // 依赖于收集器的收集操作
     <R, A> R collect(Collector<? super T, A, R> collector);
     
     /**
@@ -1453,46 +1618,121 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     // 计数
     long count();
     
-    /**
-     * Returns the minimum element of this stream according to the provided
-     * {@code Comparator}.  This is a special case of a
-     * <a href="package-summary.html#Reduction">reduction</a>.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">terminal operation</a>.
-     *
-     * @param comparator a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *                   <a href="package-summary.html#Statelessness">stateless</a>
-     *                   {@code Comparator} to compare elements of this stream
-     *
-     * @return an {@code Optional} describing the minimum element of this stream,
-     * or an empty {@code Optional} if the stream is empty
-     *
-     * @throws NullPointerException if the minimum element is null
-     */
-    // 求最小值，元素的“大小”判断取决于comparator
-    Optional<T> min(Comparator<? super T> comparator);
-    
-    /**
-     * Returns the maximum element of this stream according to the provided
-     * {@code Comparator}.  This is a special case of a
-     * <a href="package-summary.html#Reduction">reduction</a>.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">terminal
-     * operation</a>.
-     *
-     * @param comparator a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *                   <a href="package-summary.html#Statelessness">stateless</a>
-     *                   {@code Comparator} to compare elements of this stream
-     *
-     * @return an {@code Optional} describing the maximum element of this stream,
-     * or an empty {@code Optional} if the stream is empty
-     *
-     * @throws NullPointerException if the maximum element is null
-     */
-    // 求最大值，元素的“大小”判断取决于comparator
-    Optional<T> max(Comparator<? super T> comparator);
-    
     /*▲ 终端操作-非短路操作 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 终端操作-短路操作 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns an {@link Optional} describing the first element of this stream,
+     * or an empty {@code Optional} if the stream is empty.  If the stream has
+     * no encounter order, then any element may be returned.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
+     * terminal operation</a>.
+     *
+     * @return an {@code Optional} describing the first element of this stream,
+     * or an empty {@code Optional} if the stream is empty
+     *
+     * @throws NullPointerException if the element selected is null
+     */
+    // 找出第一个元素
+    Optional<T> findFirst();
+    
+    /**
+     * Returns an {@link Optional} describing some element of the stream, or an
+     * empty {@code Optional} if the stream is empty.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
+     * terminal operation</a>.
+     *
+     * <p>The behavior of this operation is explicitly nondeterministic; it is
+     * free to select any element in the stream.  This is to allow for maximal
+     * performance in parallel operations; the cost is that multiple invocations
+     * on the same source may not return the same result.  (If a stable result
+     * is desired, use {@link #findFirst()} instead.)
+     *
+     * @return an {@code Optional} describing some element of this stream, or an
+     * empty {@code Optional} if the stream is empty
+     *
+     * @throws NullPointerException if the element selected is null
+     * @see #findFirst()
+     */
+    // 找到一个元素就返回，不管是不是第一个元素
+    Optional<T> findAny();
+    
+    /**
+     * Returns whether any elements of this stream match the provided
+     * predicate.  May not evaluate the predicate on all elements if not
+     * necessary for determining the result.  If the stream is empty then
+     * {@code false} is returned and the predicate is not evaluated.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
+     * terminal operation</a>.
+     *
+     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *                  <a href="package-summary.html#Statelessness">stateless</a>
+     *                  predicate to apply to elements of this stream
+     *
+     * @return {@code true} if any elements of the stream match the provided
+     * predicate, otherwise {@code false}
+     *
+     * @apiNote This method evaluates the <em>existential quantification</em> of the
+     * predicate over the elements of the stream (for some x P(x)).
+     */
+    // 判断是否存在元素满足predicate条件
+    boolean anyMatch(Predicate<? super T> predicate);
+    
+    /**
+     * Returns whether all elements of this stream match the provided predicate.
+     * May not evaluate the predicate on all elements if not necessary for
+     * determining the result.  If the stream is empty then {@code true} is
+     * returned and the predicate is not evaluated.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
+     * terminal operation</a>.
+     *
+     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *                  <a href="package-summary.html#Statelessness">stateless</a>
+     *                  predicate to apply to elements of this stream
+     *
+     * @return {@code true} if either all elements of the stream match the
+     * provided predicate or the stream is empty, otherwise {@code false}
+     *
+     * @apiNote This method evaluates the <em>universal quantification</em> of the
+     * predicate over the elements of the stream (for all x P(x)).  If the
+     * stream is empty, the quantification is said to be <em>vacuously
+     * satisfied</em> and is always {@code true} (regardless of P(x)).
+     */
+    // 判断是否所有元素满足predicate条件
+    boolean allMatch(Predicate<? super T> predicate);
+    
+    /**
+     * Returns whether no elements of this stream match the provided predicate.
+     * May not evaluate the predicate on all elements if not necessary for
+     * determining the result.  If the stream is empty then {@code true} is
+     * returned and the predicate is not evaluated.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
+     * terminal operation</a>.
+     *
+     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *                  <a href="package-summary.html#Statelessness">stateless</a>
+     *                  predicate to apply to elements of this stream
+     *
+     * @return {@code true} if either no elements of the stream match the
+     * provided predicate or the stream is empty, otherwise {@code false}
+     *
+     * @apiNote This method evaluates the <em>universal quantification</em> of the
+     * negated predicate over the elements of the stream (for all x ~P(x)).  If
+     * the stream is empty, the quantification is said to be vacuously satisfied
+     * and is always {@code true}, regardless of P(x).
+     */
+    // 判断是否没有元素满足predicate条件
+    boolean noneMatch(Predicate<? super T> predicate);
+    
+    /*▲ 终端操作-短路操作 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     /**
@@ -1506,6 +1746,7 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     static <T> Builder<T> builder() {
         return new Streams.StreamBuilderImpl<>();
     }
+    
     
     /**
      * A mutable builder for a {@code Stream}.  This allows the creation of a
@@ -1525,15 +1766,7 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
      * @see Stream#builder()
      * @since 1.8
      */
-    /*
-     * Stream构建器接口，允许创建单元素流或多元素流。
-     *
-     * 该构建器允许通过单独生成元素并将它们添加到Builder来创建Stream（避开使用ArrayList作为临时缓冲区的复制开销）。
-     * 流构建器具有生命周期，该生命周期从【构建】阶段开始，在此期间可以添加元素，然后转换为【已构建】阶段，之后可能不会添加元素。
-     * 【已构建】阶段从调用build()方法开始，该方法创建一个有序的Stream，其元素是按照添加顺序添加到流构建器的元素。
-     *
-     * 具体行为参见StreamBuilderImpl实现类
-     */
+    // Stream构建器接口，允许创建单元素流或多元素流
     interface Builder<T> extends Consumer<T> {
         
         /**
@@ -1546,17 +1779,8 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
          * @throws IllegalStateException if the builder has already transitioned to
          *                               the built state
          */
-        // 使用模式一创建构建器后，可以调用此方法构建一个新的流
+        // 构建单元素流或多元素流
         Stream<T> build();
-        
-        /**
-         * Adds an element to the stream being built.
-         *
-         * @throws IllegalStateException if the builder has already transitioned to
-         *                               the built state
-         */
-        @Override
-        void accept(T t);
         
         /**
          * Adds an element to the stream being built.
@@ -1573,10 +1797,22 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
          *     return this;
          * }</pre>
          */
-        // 使用模式一创建构建器后，可以调用此方法添加元素
+        // 如果当前流构建器处于[待完成]状态，则可以向其中添加元素
         default Builder<T> add(T t) {
             accept(t);
             return this;
         }
+        
+        /**
+         * Adds an element to the stream being built.
+         *
+         * @throws IllegalStateException if the builder has already transitioned to
+         *                               the built state
+         */
+        // 添加元素
+        @Override
+        void accept(T t);
+        
     }
+    
 }
