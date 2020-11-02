@@ -43,8 +43,14 @@ import java.util.function.LongConsumer;
  *
  * @since 1.8
  */
-
-// 定义了一个Stream构建器和几个专用的Spliterator
+/*
+ * 流迭代器工厂，提供一些复杂的流迭代器的实现。
+ *
+ * 主要包含以下3类流迭代器：
+ * [1] "单元素"流迭代器，子类会实现流构建器接口
+ * [2] "拼接"流迭代器
+ * [3] "区间"流迭代器
+ */
 final class Streams {
     
     private Streams() {
@@ -52,82 +58,61 @@ final class Streams {
     }
     
     
-    /*▼ Stream构建器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /*▼ "单元素"流迭代器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /*
-     * Stream构建器的抽象基类，用来构建单元素或多元素的流。
+     * "单元素"流迭代器的抽象实现
      *
-     * 当元素个数为0个1个时，创建单元素流
-     * 当元素个数>=2时，创建多元素流
-     *
-     * 具体行为参见实现类StreamBuilderImpl
+     * 在子类实现实现中，还会扩展流构建器接口，
+     * 这使得子类中不仅能构造单元素流，还能构造多元素流。
      */
-    private abstract static class AbstractStreamBuilderImpl<T, S extends Spliterator<T>>
-        implements Spliterator<T> {
-        // >= 0 when building, < 0 when built
-        // -1 == no elements
-        // -2 == one element, held by first
-        // -3 == two or more elements, held by buffer
-        int count;
+    private abstract static class AbstractStreamBuilderImpl<T, S extends Spliterator<T>> implements Spliterator<T> {
         
-        // Spliterator implementation for 0 or 1 element
-        // count == -1 for no elements
-        // count == -2 for one element held by first
+        /*
+         * >= 0 when building, < 0 when built
+         * -1 == no elements
+         * -2 == one element, held by first
+         * -3 == two or more elements, held by buffer
+         */
+        /*
+         * >=0 [待完成]状态
+         * <0  [已完成]状态
+         * -n  包含n-1个元素
+         */ int count;
         
+        // 禁止对单元素流迭代器分割
         @Override
         public S trySplit() {
             return null;
         }
         
+        // 返回当前流迭代器内的元素，也适用于多元素流
         @Override
         public long estimateSize() {
             return -count - 1;
         }
         
+        // 返回流迭代器的参数
         @Override
         public int characteristics() {
             return Spliterator.SIZED | Spliterator.SUBSIZED | Spliterator.ORDERED | Spliterator.IMMUTABLE;
         }
     }
     
-    /*
-     *                              ⑴                   ⑵
-     *       模式一              first  = ×  add t1  first  = t1  add t2  first  = t1     add t3  first  = t1
-     * StreamBuilderImpl() ---▶ count  = 0 -------▷ count  = 1  -------▷ count  = 2     -------▷ count  = 3
-     *                          buffer = ×          buffer = ×           buffer = t1|t2          buffer = t1|t2|t3
-     *                              ▼▼                  ▼▼
-     *                              ▼▼                  ▼▼
-     *                          first =  ×   消费   first = t1             模式二
-     *                          count = -1 ◁------- count = -2 ◀--- StreamBuilderImpl(t1)
-     *                              ⑵                   ⑴
-     *
-     * Stream构建器，兼具Spliterator属性，是个多面手
-     * Stream构建器对象有两种创建模式，参见上图。
-     *
-     * Stream构建器可能构建出两种形态的流：
-     * 第一种：构建器内没有元素或只有一个元素，此时存储元素的容器是first。
-     *        (1) 构建器采用模式一创建。
-     *            需要通过build()方法将构建器从模式一切换到模式二，而且，将返回以构建器自身做Spliterator的流。
-     *        (2) 构建器采用模式二创建。
-     *            需要通过Stream.of或Stream.ofNullable方法创建以构建器自身做Spliterator的流。
-     * 第二种：构建器内存在>=2个元素，此时存储元素的容器是buffer。
-     *        该构建器必定使用模式一创建。
-     *        返回的流以SpinedBuffer内部的Spliterator做Spliterator。
-     */
-    static final class StreamBuilderImpl<T>
-        extends AbstractStreamBuilderImpl<T, Spliterator<T>>
-        implements Stream.Builder<T> {
-        // The first element in the stream
-        // valid if count == 1
+    // "单元素"流迭代器(引用类型版本)
+    static final class StreamBuilderImpl<T> extends AbstractStreamBuilderImpl<T, Spliterator<T>> implements Stream.Builder<T> {
+        
+        // 如果仅有一个元素，则存储该元素的值
         T first;
         
-        // The first and subsequent elements in the stream
-        // non-null if count == 2
-        SpinedBuffer<T> buffer; // 容量可变的缓冲区
+        // 如果有多个元素，则使用弹性缓冲区存储元素
+        SpinedBuffer<T> buffer;
         
         /**
          * Constructor for building a stream of 0 or more elements.
          */
+        // 构造一个空的流迭代器，流构建器处于[待完成]状态
         StreamBuilderImpl() {
         }
         
@@ -136,39 +121,62 @@ final class Streams {
          *
          * @param t the single element
          */
+        // 构造单元素流迭代器，流构建器处于[已完成]状态
         StreamBuilderImpl(T t) {
             first = t;
             count = -2;
         }
         
-        // StreamBuilder implementation
-        
-        // 使用模式一创建构建器后，可以调用此方法构建一个新的流
+        // 构建单元素流或多元素流，它们使用的流迭代器不一样
         @Override
         public Stream<T> build() {
             int c = count;
             
-            if(c >= 0) {
-                // Switch count to negative value signalling the builder is built
-                count = -count - 1; // 元素个数为0或1，则完成模式一到模式二的切换
-                // Use this spliterator if 0 or 1 elements, otherwise use the spliterator of the spined buffer
-                return (c < 2)
-                    ? StreamSupport.stream(this, false) // 只有0或1个元素，创建单元素流，自身做Spliterator
-                    : StreamSupport.stream(buffer.spliterator(), false); // 元素个数>=2时，创建多元素流
+            // 如果流构建器处于[已完成]状态，则抛出异常
+            if(c<0) {
+                throw new IllegalStateException();
             }
             
-            throw new IllegalStateException();
+            // 将流构建器从[待完成]状态切换到[已完成]状态
+            count = -count - 1;
+            
+            /* Use this spliterator if 0 or 1 elements, otherwise use the spliterator of the spined buffer */
+            // 元素数量<2时，创建一个单元素流
+            if(c<2) {
+                return StreamSupport.stream(this, false);
+            }
+            
+            // 使用弹性缓冲区的流迭代器
+            Spliterator<T> spliterator = buffer.spliterator();
+            
+            // 元素数量>=2时，创建多元素流
+            return StreamSupport.stream(spliterator, false);
         }
         
-        // 使用模式一创建构建器后，可以调用此方法添加元素
+        // 如果当前流构建器处于[待完成]状态，则可以向其中添加元素
+        public Stream.Builder<T> add(T t) {
+            accept(t);
+            return this;
+        }
+        
+        // 添加元素
         @Override
         public void accept(T t) {
-            // 处于模式一的⑴阶段
+            
+            // 如果流构建器处于[已完成]状态，则抛出异常
+            if(count<0) {
+                throw new IllegalStateException();
+            }
+            
+            // 如果流迭代器为空，则添加一个元素
             if(count == 0) {
                 first = t;
                 count++;
-            } else if(count > 0) {  // 处于模式一⑵阶段（含）以后
-                // 如果添加2个以上的元素，需要启用buffer
+                return;
+            }
+            
+            // 如果向流迭代器中添加2个以上的元素，需要使用弹性换城区
+            if(count>0) {
                 if(buffer == null) {
                     buffer = new SpinedBuffer<>();
                     buffer.accept(first);   // 别忘了把第一个元素添加进来
@@ -176,22 +184,10 @@ final class Streams {
                 }
                 
                 buffer.accept(t);
-            } else {
-                throw new IllegalStateException();
             }
         }
         
-        // 使用模式一创建构建器后，可以调用此方法添加元素
-        public Stream.Builder<T> add(T t) {
-            accept(t);
-            return this;
-        }
-        
-        // Spliterator implementation for 0 or 1 element
-        // count == -1 for no elements
-        // count == -2 for one element held by first
-        
-        // 使用模式二创建构建器后，可以调用此方法消费元素
+        // 消费单元素流迭代器中的元素，仅允许消费一次
         @Override
         public boolean tryAdvance(Consumer<? super T> action) {
             Objects.requireNonNull(action);
@@ -200,17 +196,16 @@ final class Streams {
                 action.accept(first);
                 count = -1;
                 return true;
-            } else {
-                return false;
             }
+            
+            return false;
         }
         
-        // 使用模式二创建构建器后，可以调用此方法消费元素
+        // 消费单元素流迭代器中的元素，仅允许消费一次
         @Override
         public void forEachRemaining(Consumer<? super T> action) {
             Objects.requireNonNull(action);
             
-            // 行为与tryAdvance一致，因为此时最多只有一个元素可供消费
             if(count == -2) {
                 action.accept(first);
                 count = -1;
@@ -218,20 +213,19 @@ final class Streams {
         }
     }
     
-    static final class IntStreamBuilderImpl
-        extends AbstractStreamBuilderImpl<Integer, Spliterator.OfInt>
-        implements IntStream.Builder, Spliterator.OfInt {
-        // The first element in the stream
-        // valid if count == 1
+    // "单元素"流迭代器(int类型版本)
+    static final class IntStreamBuilderImpl extends AbstractStreamBuilderImpl<Integer, Spliterator.OfInt> implements IntStream.Builder, Spliterator.OfInt {
+        
+        // 如果仅有一个元素，则存储该元素的值
         int first;
         
-        // The first and subsequent elements in the stream
-        // non-null if count == 2
+        // 如果有多个元素，则使用弹性缓冲区存储元素
         SpinedBuffer.OfInt buffer;
         
         /**
          * Constructor for building a stream of 0 or more elements.
          */
+        // 构造一个空的流迭代器，流构建器处于[待完成]状态
         IntStreamBuilderImpl() {
         }
         
@@ -240,49 +234,66 @@ final class Streams {
          *
          * @param t the single element
          */
+        // 构造单元素流迭代器，流构建器处于[已完成]状态
         IntStreamBuilderImpl(int t) {
             first = t;
             count = -2;
         }
         
-        // StreamBuilder implementation
+        // 构建单元素流或多元素流，它们使用的流迭代器不一样
+        @Override
+        public IntStream build() {
+            int c = count;
+            
+            // 如果流构建器处于[已完成]状态，则抛出异常
+            if(c<0) {
+                throw new IllegalStateException();
+            }
+            
+            // 将流构建器从[待完成]状态切换到[已完成]状态
+            count = -count - 1;
+            
+            // 元素数量<2时，创建一个单元素流
+            if(c<2) {
+                return StreamSupport.intStream(this, false);
+            }
+            
+            // 使用弹性缓冲区的流迭代器
+            Spliterator.OfInt spliterator = buffer.spliterator();
+            
+            // 元素数量>=2时，创建多元素流
+            return StreamSupport.intStream(spliterator, false);
+        }
         
+        // 添加元素
         @Override
         public void accept(int t) {
+            
+            // 如果流构建器处于[已完成]状态，则抛出异常
+            if(count<0) {
+                throw new IllegalStateException();
+            }
+            
+            // 如果流迭代器为空，则添加一个元素
             if(count == 0) {
                 first = t;
                 count++;
-            } else if(count > 0) {
+                return;
+            }
+            
+            // 如果向流迭代器中添加2个以上的元素，需要使用弹性换城区
+            if(count>0) {
                 if(buffer == null) {
                     buffer = new SpinedBuffer.OfInt();
-                    buffer.accept(first);
+                    buffer.accept(first);  // 别忘了把第一个元素添加进来
                     count++;
                 }
                 
                 buffer.accept(t);
-            } else {
-                throw new IllegalStateException();
             }
         }
         
-        @Override
-        public IntStream build() {
-            int c = count;
-            if(c >= 0) {
-                // Switch count to negative value signalling the builder is built
-                count = -count - 1;
-                // Use this spliterator if 0 or 1 elements, otherwise use
-                // the spliterator of the spined buffer
-                return (c < 2) ? StreamSupport.intStream(this, false) : StreamSupport.intStream(buffer.spliterator(), false);
-            }
-            
-            throw new IllegalStateException();
-        }
-        
-        // Spliterator implementation for 0 or 1 element
-        // count == -1 for no elements
-        // count == -2 for one element held by first
-        
+        // 消费单元素流迭代器中的元素，仅允许消费一次
         @Override
         public boolean tryAdvance(IntConsumer action) {
             Objects.requireNonNull(action);
@@ -291,11 +302,12 @@ final class Streams {
                 action.accept(first);
                 count = -1;
                 return true;
-            } else {
-                return false;
             }
+            
+            return false;
         }
         
+        // 消费单元素流迭代器中的元素，仅允许消费一次
         @Override
         public void forEachRemaining(IntConsumer action) {
             Objects.requireNonNull(action);
@@ -307,20 +319,19 @@ final class Streams {
         }
     }
     
-    static final class LongStreamBuilderImpl
-        extends AbstractStreamBuilderImpl<Long, Spliterator.OfLong>
-        implements LongStream.Builder, Spliterator.OfLong {
-        // The first element in the stream
-        // valid if count == 1
+    // "单元素"流迭代器(long类型版本)
+    static final class LongStreamBuilderImpl extends AbstractStreamBuilderImpl<Long, Spliterator.OfLong> implements LongStream.Builder, Spliterator.OfLong {
+        
+        // 如果仅有一个元素，则存储该元素的值
         long first;
         
-        // The first and subsequent elements in the stream
-        // non-null if count == 2
+        // 如果有多个元素，则使用弹性缓冲区存储元素
         SpinedBuffer.OfLong buffer;
         
         /**
          * Constructor for building a stream of 0 or more elements.
          */
+        // 构造一个空的流迭代器，流构建器处于[待完成]状态
         LongStreamBuilderImpl() {
         }
         
@@ -329,49 +340,66 @@ final class Streams {
          *
          * @param t the single element
          */
+        // 构造单元素流迭代器，流构建器处于[已完成]状态
         LongStreamBuilderImpl(long t) {
             first = t;
             count = -2;
         }
         
-        // StreamBuilder implementation
+        // 构建单元素流或多元素流，它们使用的流迭代器不一样
+        @Override
+        public LongStream build() {
+            int c = count;
+            
+            // 如果流构建器处于[已完成]状态，则抛出异常
+            if(c<0) {
+                throw new IllegalStateException();
+            }
+            
+            // 将流构建器从[待完成]状态切换到[已完成]状态
+            count = -count - 1;
+            
+            // 元素数量<2时，创建一个单元素流
+            if(c<2) {
+                return StreamSupport.longStream(this, false);
+            }
+            
+            // 使用弹性缓冲区的流迭代器
+            Spliterator.OfLong spliterator = buffer.spliterator();
+            
+            // 元素数量>=2时，创建多元素流
+            return StreamSupport.longStream(spliterator, false);
+        }
         
+        // 添加元素
         @Override
         public void accept(long t) {
+            
+            // 如果流构建器处于[已完成]状态，则抛出异常
+            if(count<0) {
+                throw new IllegalStateException();
+            }
+            
+            // 如果流迭代器为空，则添加一个元素
             if(count == 0) {
                 first = t;
                 count++;
-            } else if(count > 0) {
+                return;
+            }
+            
+            // 如果向流迭代器中添加2个以上的元素，需要使用弹性换城区
+            if(count>0) {
                 if(buffer == null) {
                     buffer = new SpinedBuffer.OfLong();
-                    buffer.accept(first);
+                    buffer.accept(first);  // 别忘了把第一个元素添加进来
                     count++;
                 }
                 
                 buffer.accept(t);
-            } else {
-                throw new IllegalStateException();
             }
         }
         
-        @Override
-        public LongStream build() {
-            int c = count;
-            if(c >= 0) {
-                // Switch count to negative value signalling the builder is built
-                count = -count - 1;
-                // Use this spliterator if 0 or 1 elements, otherwise use
-                // the spliterator of the spined buffer
-                return (c < 2) ? StreamSupport.longStream(this, false) : StreamSupport.longStream(buffer.spliterator(), false);
-            }
-            
-            throw new IllegalStateException();
-        }
-        
-        // Spliterator implementation for 0 or 1 element
-        // count == -1 for no elements
-        // count == -2 for one element held by first
-        
+        // 消费单元素流迭代器中的元素，仅允许消费一次
         @Override
         public boolean tryAdvance(LongConsumer action) {
             Objects.requireNonNull(action);
@@ -380,11 +408,12 @@ final class Streams {
                 action.accept(first);
                 count = -1;
                 return true;
-            } else {
-                return false;
             }
+            
+            return false;
         }
         
+        // 消费单元素流迭代器中的元素，仅允许消费一次
         @Override
         public void forEachRemaining(LongConsumer action) {
             Objects.requireNonNull(action);
@@ -396,20 +425,19 @@ final class Streams {
         }
     }
     
-    static final class DoubleStreamBuilderImpl
-        extends AbstractStreamBuilderImpl<Double, Spliterator.OfDouble>
-        implements DoubleStream.Builder, Spliterator.OfDouble {
-        // The first element in the stream
-        // valid if count == 1
+    // "单元素"流迭代器(double类型版本)
+    static final class DoubleStreamBuilderImpl extends AbstractStreamBuilderImpl<Double, Spliterator.OfDouble> implements DoubleStream.Builder, Spliterator.OfDouble {
+        
+        // 如果仅有一个元素，则存储该元素的值
         double first;
         
-        // The first and subsequent elements in the stream
-        // non-null if count == 2
+        // 如果有多个元素，则使用弹性缓冲区存储元素
         SpinedBuffer.OfDouble buffer;
         
         /**
          * Constructor for building a stream of 0 or more elements.
          */
+        // 构造一个空的流迭代器，流构建器处于[待完成]状态
         DoubleStreamBuilderImpl() {
         }
         
@@ -418,49 +446,66 @@ final class Streams {
          *
          * @param t the single element
          */
+        // 构造单元素流迭代器，流构建器处于[已完成]状态
         DoubleStreamBuilderImpl(double t) {
             first = t;
             count = -2;
         }
         
-        // StreamBuilder implementation
+        // 构建单元素流或多元素流，它们使用的流迭代器不一样
+        @Override
+        public DoubleStream build() {
+            int c = count;
+            
+            // 如果流构建器处于[已完成]状态，则抛出异常
+            if(c<0) {
+                throw new IllegalStateException();
+            }
+            
+            // 将流构建器从[待完成]状态切换到[已完成]状态
+            count = -count - 1;
+            
+            // 元素数量<2时，创建一个单元素流
+            if(c<2) {
+                return StreamSupport.doubleStream(this, false);
+            }
+            
+            // 使用弹性缓冲区的流迭代器
+            Spliterator.OfDouble spliterator = buffer.spliterator();
+            
+            // 元素数量>=2时，创建多元素流
+            return StreamSupport.doubleStream(spliterator, false);
+        }
         
+        // 添加元素
         @Override
         public void accept(double t) {
+            
+            // 如果流构建器处于[已完成]状态，则抛出异常
+            if(count<0) {
+                throw new IllegalStateException();
+            }
+            
+            // 如果流迭代器为空，则添加一个元素
             if(count == 0) {
                 first = t;
                 count++;
-            } else if(count > 0) {
+                return;
+            }
+            
+            // 如果向流迭代器中添加2个以上的元素，需要使用弹性换城区
+            if(count>0) {
                 if(buffer == null) {
                     buffer = new SpinedBuffer.OfDouble();
-                    buffer.accept(first);
+                    buffer.accept(first);   // 别忘了把第一个元素添加进来
                     count++;
                 }
                 
                 buffer.accept(t);
-            } else {
-                throw new IllegalStateException();
             }
         }
         
-        @Override
-        public DoubleStream build() {
-            int c = count;
-            if(c >= 0) {
-                // Switch count to negative value signalling the builder is built
-                count = -count - 1;
-                // Use this spliterator if 0 or 1 elements, otherwise use
-                // the spliterator of the spined buffer
-                return (c < 2) ? StreamSupport.doubleStream(this, false) : StreamSupport.doubleStream(buffer.spliterator(), false);
-            }
-            
-            throw new IllegalStateException();
-        }
-        
-        // Spliterator implementation for 0 or 1 element
-        // count == -1 for no elements
-        // count == -2 for one element held by first
-        
+        // 消费单元素流迭代器中的元素，仅允许消费一次
         @Override
         public boolean tryAdvance(DoubleConsumer action) {
             Objects.requireNonNull(action);
@@ -469,11 +514,12 @@ final class Streams {
                 action.accept(first);
                 count = -1;
                 return true;
-            } else {
-                return false;
             }
+            
+            return false;
         }
         
+        // 消费单元素流迭代器中的元素，仅允许消费一次
         @Override
         public void forEachRemaining(DoubleConsumer action) {
             Objects.requireNonNull(action);
@@ -485,60 +531,92 @@ final class Streams {
         }
     }
     
-    /*▲ Stream构建器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ "单元素"流迭代器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
-    /*▼ 专用Spliterator，参见Stream#concat ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ "拼接"流迭代器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
-    abstract static class ConcatSpliterator<T, T_SPLITR extends Spliterator<T>>
-        implements Spliterator<T> {
+    // "拼接"流迭代器的抽象实现
+    abstract static class ConcatSpliterator<T, T_SPLITR extends Spliterator<T>> implements Spliterator<T> {
         
         protected final T_SPLITR aSpliterator;
         protected final T_SPLITR bSpliterator;
-        // Never read after splitting
-        final boolean unsized;
+        
         // True when no split has occurred, otherwise false
-        boolean beforeSplit;
+        boolean beforeSplit;    // 是否还未发生分割：trySplit()
+        
+        // Never read after splitting
+        final boolean unsized;  // 容量是否未知
         
         public ConcatSpliterator(T_SPLITR aSpliterator, T_SPLITR bSpliterator) {
             this.aSpliterator = aSpliterator;
             this.bSpliterator = bSpliterator;
-            beforeSplit = true;
-            // The spliterator is known to be unsized before splitting if the
-            // sum of the estimates overflows.
-            unsized = aSpliterator.estimateSize() + bSpliterator.estimateSize() < 0;
+            this.beforeSplit = true;
+            // The spliterator is known to be unsized before splitting if the sum of the estimates overflows.
+            this.unsized = aSpliterator.estimateSize() + bSpliterator.estimateSize()<0;
         }
         
+        // 返回子Spliterator，该子Spliterator内持有原Spliterator的部分数据
         @Override
         public T_SPLITR trySplit() {
+            // 如果还未分割，则直接返回aSpliterator；否则，在bSpliterator的基础上分割
             @SuppressWarnings("unchecked")
             T_SPLITR ret = beforeSplit ? aSpliterator : (T_SPLITR) bSpliterator.trySplit();
+            // 标记已经进行了分割
             beforeSplit = false;
             return ret;
         }
         
+        /*
+         * 尝试用consumer消费当前流迭代器中下一个元素。
+         * 返回值指示是否找到了下一个元素。
+         *
+         * 注1：该操作可能会引起内部游标的变化
+         * 注2：该操作可能会顺着sink链向下游传播
+         */
         @Override
         public boolean tryAdvance(Consumer<? super T> consumer) {
             boolean hasNext;
+            
+            // 如果还未分割，则在aSpliterator和bSpliterator上查找下一个元素
             if(beforeSplit) {
                 hasNext = aSpliterator.tryAdvance(consumer);
                 if(!hasNext) {
                     beforeSplit = false;
                     hasNext = bSpliterator.tryAdvance(consumer);
                 }
-            } else
+                
+                // 如果已经进行过分割，则只在bSpliterator上查找下一个元素
+            } else {
                 hasNext = bSpliterator.tryAdvance(consumer);
+            }
+            
             return hasNext;
         }
         
+        /*
+         * 尝试用consumer逐个消费当前流迭代器中所有剩余元素。
+         *
+         * 注1：该操作可能会引起内部游标的变化
+         * 注2：该操作可能会顺着sink链向下游传播
+         */
         @Override
         public void forEachRemaining(Consumer<? super T> consumer) {
-            if(beforeSplit)
+            // 如果还未分割，则需要先遍历aSpliterator
+            if(beforeSplit) {
                 aSpliterator.forEachRemaining(consumer);
+            }
+            
+            // 如果已经进行过分割，则只需遍历bSpliterator
             bSpliterator.forEachRemaining(consumer);
         }
         
+        /*
+         * 初始时，返回流迭代器中的元素总量(可能不精确)。
+         * 如果数据量无限、未知、计算成本过高，则可以返回Long.MAX_VALUE。
+         * 当访问过流迭代器中的元素后，此处的返回值可能是元素总量，也可能是剩余未访问的元素数量，依实现而定。
+         */
         @Override
         public long estimateSize() {
             if(beforeSplit) {
@@ -546,100 +624,125 @@ final class Streams {
                 // will either be Long.MAX_VALUE or overflow to a negative value
                 long size = aSpliterator.estimateSize() + bSpliterator.estimateSize();
                 return (size >= 0) ? size : Long.MAX_VALUE;
-            } else {
-                return bSpliterator.estimateSize();
             }
+            
+            return bSpliterator.estimateSize();
         }
         
+        // 返回流迭代器的参数
         @Override
         public int characteristics() {
             if(beforeSplit) {
                 // Concatenation loses DISTINCT and SORTED characteristics
                 return aSpliterator.characteristics() & bSpliterator.characteristics() & ~(Spliterator.DISTINCT | Spliterator.SORTED | (unsized ? Spliterator.SIZED | Spliterator.SUBSIZED : 0));
-            } else {
-                return bSpliterator.characteristics();
             }
+            
+            return bSpliterator.characteristics();
         }
         
+        /*
+         * 对于具有SORTED特征值的容器来说，
+         * 如果该容器使用Comparator排序，则返回其Comparator；
+         * 如果该容器使用Comparable实现自然排序，则返回null；
+         *
+         * 对于不具有SORTED特征值的容器来说，抛出异常。
+         */
         @Override
         public Comparator<? super T> getComparator() {
-            if(beforeSplit)
+            if(beforeSplit) {
                 throw new IllegalStateException();
+            }
+            
             return bSpliterator.getComparator();
         }
         
         
+        // "拼接"流迭代器(引用类型版本)
         static class OfRef<T> extends ConcatSpliterator<T, Spliterator<T>> {
             OfRef(Spliterator<T> aSpliterator, Spliterator<T> bSpliterator) {
                 super(aSpliterator, bSpliterator);
             }
         }
         
-        private abstract static class OfPrimitive<T, T_CONS, T_SPLITR extends Spliterator.OfPrimitive<T, T_CONS, T_SPLITR>>
-            extends ConcatSpliterator<T, T_SPLITR>
-            implements Spliterator.OfPrimitive<T, T_CONS, T_SPLITR> {
+        // "拼接"流迭代器(基本数值类型版本)
+        private abstract static class OfPrimitive<T, T_CONS, T_SPLITR extends Spliterator.OfPrimitive<T, T_CONS, T_SPLITR>> extends ConcatSpliterator<T, T_SPLITR> implements Spliterator.OfPrimitive<T, T_CONS, T_SPLITR> {
             private OfPrimitive(T_SPLITR aSpliterator, T_SPLITR bSpliterator) {
                 super(aSpliterator, bSpliterator);
             }
             
+            /*
+             * 尝试用action消费当前流迭代器中下一个元素。
+             * 返回值指示是否找到了下一个元素。
+             *
+             * 注1：该操作可能会引起内部游标的变化
+             * 注2：该操作可能会顺着sink链向下游传播
+             */
             @Override
             public boolean tryAdvance(T_CONS action) {
                 boolean hasNext;
+                
                 if(beforeSplit) {
                     hasNext = aSpliterator.tryAdvance(action);
                     if(!hasNext) {
                         beforeSplit = false;
                         hasNext = bSpliterator.tryAdvance(action);
                     }
-                } else
+                } else {
                     hasNext = bSpliterator.tryAdvance(action);
+                }
+                
                 return hasNext;
             }
             
+            /*
+             * 尝试用action逐个消费当前流迭代器中所有剩余元素。
+             *
+             * 注1：该操作可能会引起内部游标的变化
+             * 注2：该操作可能会顺着sink链向下游传播
+             */
             @Override
             public void forEachRemaining(T_CONS action) {
-                if(beforeSplit)
+                if(beforeSplit) {
                     aSpliterator.forEachRemaining(action);
+                }
                 bSpliterator.forEachRemaining(action);
             }
         }
         
-        static class OfInt
-            extends ConcatSpliterator.OfPrimitive<Integer, IntConsumer, Spliterator.OfInt>
-            implements Spliterator.OfInt {
+        // "拼接"流迭代器(int类型版本)
+        static class OfInt extends ConcatSpliterator.OfPrimitive<Integer, IntConsumer, Spliterator.OfInt> implements Spliterator.OfInt {
             OfInt(Spliterator.OfInt aSpliterator, Spliterator.OfInt bSpliterator) {
                 super(aSpliterator, bSpliterator);
             }
         }
         
-        static class OfLong
-            extends ConcatSpliterator.OfPrimitive<Long, LongConsumer, Spliterator.OfLong>
-            implements Spliterator.OfLong {
+        // "拼接"流迭代器(long类型版本)
+        static class OfLong extends ConcatSpliterator.OfPrimitive<Long, LongConsumer, Spliterator.OfLong> implements Spliterator.OfLong {
             OfLong(Spliterator.OfLong aSpliterator, Spliterator.OfLong bSpliterator) {
                 super(aSpliterator, bSpliterator);
             }
         }
         
-        static class OfDouble
-            extends ConcatSpliterator.OfPrimitive<Double, DoubleConsumer, Spliterator.OfDouble>
-            implements Spliterator.OfDouble {
+        // "拼接"流迭代器(double类型版本)
+        static class OfDouble extends ConcatSpliterator.OfPrimitive<Double, DoubleConsumer, Spliterator.OfDouble> implements Spliterator.OfDouble {
             OfDouble(Spliterator.OfDouble aSpliterator, Spliterator.OfDouble bSpliterator) {
                 super(aSpliterator, bSpliterator);
             }
         }
     }
     
-    /*▲ 专用Spliterator，参见Stream#concat ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ "拼接"流迭代器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
-    /*▼ 专用Spliterator，参见IntStream#range ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ "区间"流迭代器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * An {@code int} range spliterator.
      */
-    static final class RangeIntSpliterator
-        implements Spliterator.OfInt {
+    // "区间"流迭代器(int类型版本)
+    static final class RangeIntSpliterator implements Spliterator.OfInt {
+        
         /**
          * The spliterator size below which the spliterator will be split
          * at the mid-point to produce balanced splits. Above this size the
@@ -662,14 +765,24 @@ final class Streams {
          * size is above BALANCED_SPLIT_THRESHOLD.
          */
         private static final int RIGHT_BALANCED_SPLIT_RATIO = 1 << 3;
-        private final int upTo;
-        // Can never be greater that upTo, this avoids overflow if upper bound
-        // is Integer.MAX_VALUE
-        // All elements are traversed if from == upTo & last == 0
+        
+        /**
+         * Can never be greater that upTo, this avoids overflow if upper bound
+         * is Long.MAX_VALUE
+         * All elements are traversed if from == upTo & last == 0
+         */
+        // 游标起点
         private int from;
-        // 1 if the range is closed and the last element has not been traversed
-        // Otherwise, 0 if the range is open, or is a closed range and all
-        // elements have been traversed
+        
+        // 游标终点
+        private final int upTo;
+        
+        /**
+         * 1 if the range is closed and the last element has not been traversed
+         * Otherwise, 0 if the range is open, or is a closed range and all
+         * elements have been traversed
+         */
+        // 是否包含游标终点(即右侧是否为闭区间)，大于0表示包含，否则表示不包含
         private int last;
         
         RangeIntSpliterator(int from, int upTo, boolean closed) {
@@ -682,42 +795,71 @@ final class Streams {
             this.last = last;
         }
         
+        /*
+         * 返回子Spliterator，该子Spliterator内持有原Spliterator的部分数据。
+         * 注：从这里分割出的子Spliterator，其右区间是开区间，即last==0。
+         */
+        @Override
+        public Spliterator.OfInt trySplit() {
+            long size = estimateSize();
+            if(size<=1) {
+                return null;
+            }
+            
+            // Left split always has a half-open range
+            return new RangeIntSpliterator(from, from = from + splitPoint(size), 0);
+        }
+        
+        /*
+         * 尝试用consumer消费当前流迭代器中下一个元素。
+         * 返回值指示是否找到了下一个元素。
+         *
+         * 注1：该操作可能会引起内部游标的变化
+         * 注2：该操作可能会顺着sink链向下游传播
+         */
         @Override
         public boolean tryAdvance(IntConsumer consumer) {
             Objects.requireNonNull(consumer);
             
-            final int i = from;
-            if(i < upTo) {
-                from++;
-                consumer.accept(i);
-                return true;
-            } else if(last > 0) {
-                last = 0;
-                consumer.accept(i);
+            if(from<upTo) {
+                consumer.accept(from++);
                 return true;
             }
+            
+            // from==upTo
+            if(last>0) {
+                last = 0;
+                consumer.accept(from);
+                return true;
+            }
+            
             return false;
         }
         
+        /*
+         * 尝试用action逐个消费当前流迭代器中所有剩余元素。
+         *
+         * 注1：该操作可能会引起内部游标的变化
+         * 注2：该操作可能会顺着sink链向下游传播
+         */
         @Override
         @HotSpotIntrinsicCandidate
         public void forEachRemaining(IntConsumer consumer) {
             Objects.requireNonNull(consumer);
             
-            int i = from;
-            final int hUpTo = upTo;
-            int hLast = last;
-            from = upTo;
-            last = 0;
-            while(i < hUpTo) {
-                consumer.accept(i++);
+            while(from<upTo) {
+                consumer.accept(from++);
             }
-            if(hLast > 0) {
+            
+            // from==upTo
+            if(last>0) {
+                last = 0;
                 // Last element of closed range
-                consumer.accept(i);
+                consumer.accept(from);
             }
         }
         
+        // 返回当前流迭代器中包含的元素数量
         @Override
         public long estimateSize() {
             // Ensure ranges of size > Integer.MAX_VALUE report the correct size
@@ -729,21 +871,22 @@ final class Streams {
             return Spliterator.ORDERED | Spliterator.SIZED | Spliterator.SUBSIZED | Spliterator.IMMUTABLE | Spliterator.NONNULL | Spliterator.DISTINCT | Spliterator.SORTED;
         }
         
+        /*
+         * 对于具有SORTED特征值的容器来说，
+         * 如果该容器使用Comparator排序，则返回其Comparator；
+         * 如果该容器使用Comparable实现自然排序，则返回null；
+         *
+         * 对于不具有SORTED特征值的容器来说，抛出异常。
+         */
         @Override
         public Comparator<? super Integer> getComparator() {
             return null;
         }
         
-        @Override
-        public Spliterator.OfInt trySplit() {
-            long size = estimateSize();
-            return size <= 1 ? null
-                // Left split always has a half-open range
-                : new RangeIntSpliterator(from, from = from + splitPoint(size), 0);
-        }
-        
+        // 计算子Spliterator应当包含的元素数量
         private int splitPoint(long size) {
-            int d = (size < BALANCED_SPLIT_THRESHOLD) ? 2 : RIGHT_BALANCED_SPLIT_RATIO;
+            int d = (size<BALANCED_SPLIT_THRESHOLD) ? 2 : RIGHT_BALANCED_SPLIT_RATIO;
+            
             // Cast to int is safe since:
             //   2 <= size < 2^32
             //   2 <= d <= 8
@@ -751,20 +894,15 @@ final class Streams {
         }
     }
     
-    /*▲ 专用Spliterator，参见IntStream#range ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
-    /*▼ 专用Spliterator，参见LongStream#range ████████████████████████████████████████████████████████████████████████████████┓ */
-    
     /**
      * A {@code long} range spliterator.
      *
      * This implementation cannot be used for ranges whose size is greater
      * than Long.MAX_VALUE
      */
-    static final class RangeLongSpliterator
-        implements Spliterator.OfLong {
+    // "区间"流迭代器(long类型版本)
+    static final class RangeLongSpliterator implements Spliterator.OfLong {
+        
         /**
          * The spliterator size below which the spliterator will be split
          * at the mid-point to produce balanced splits. Above this size the
@@ -787,14 +925,24 @@ final class Streams {
          * size is above BALANCED_SPLIT_THRESHOLD.
          */
         private static final long RIGHT_BALANCED_SPLIT_RATIO = 1 << 3;
-        private final long upTo;
-        // Can never be greater that upTo, this avoids overflow if upper bound
-        // is Long.MAX_VALUE
-        // All elements are traversed if from == upTo & last == 0
+        
+        /**
+         * Can never be greater that upTo, this avoids overflow if upper bound
+         * is Long.MAX_VALUE
+         * All elements are traversed if from == upTo & last == 0
+         */
+        // 游标起点
         private long from;
-        // 1 if the range is closed and the last element has not been traversed
-        // Otherwise, 0 if the range is open, or is a closed range and all
-        // elements have been traversed
+        
+        // 游标终点
+        private final long upTo;
+        
+        /**
+         * 1 if the range is closed and the last element has not been traversed
+         * Otherwise, 0 if the range is open, or is a closed range and all
+         * elements have been traversed
+         */
+        // 是否包含游标终点，大于0表示包含，否则表示不包含
         private int last;
         
         RangeLongSpliterator(long from, long upTo, boolean closed) {
@@ -802,47 +950,76 @@ final class Streams {
         }
         
         private RangeLongSpliterator(long from, long upTo, int last) {
-            assert upTo - from + last > 0;
+            assert upTo - from + last>0;
+            
             this.from = from;
             this.upTo = upTo;
             this.last = last;
         }
         
+        /*
+         * 返回子Spliterator，该子Spliterator内持有原Spliterator的部分数据。
+         * 注：从这里分割出的子Spliterator，其右区间是开区间，即last==0。
+         */
+        @Override
+        public Spliterator.OfLong trySplit() {
+            long size = estimateSize();
+            if(size<=1) {
+                return null;
+            }
+            
+            // Left split always has a half-open range
+            return new RangeLongSpliterator(from, from = from + splitPoint(size), 0);
+        }
+        
+        /*
+         * 尝试用consumer消费当前流迭代器中下一个元素。
+         * 返回值指示是否找到了下一个元素。
+         *
+         * 注1：该操作可能会引起内部游标的变化
+         * 注2：该操作可能会顺着sink链向下游传播
+         */
         @Override
         public boolean tryAdvance(LongConsumer consumer) {
             Objects.requireNonNull(consumer);
             
-            final long i = from;
-            if(i < upTo) {
-                from++;
-                consumer.accept(i);
-                return true;
-            } else if(last > 0) {
-                last = 0;
-                consumer.accept(i);
+            if(from<upTo) {
+                consumer.accept(from++);
                 return true;
             }
+            
+            if(last>0) {
+                last = 0;
+                consumer.accept(from);
+                return true;
+            }
+            
             return false;
         }
         
+        /*
+         * 尝试用action逐个消费当前流迭代器中所有剩余元素。
+         *
+         * 注1：该操作可能会引起内部游标的变化
+         * 注2：该操作可能会顺着sink链向下游传播
+         */
         @Override
         public void forEachRemaining(LongConsumer consumer) {
             Objects.requireNonNull(consumer);
             
-            long i = from;
-            final long hUpTo = upTo;
-            int hLast = last;
-            from = upTo;
-            last = 0;
-            while(i < hUpTo) {
-                consumer.accept(i++);
+            while(from<upTo) {
+                consumer.accept(from++);
             }
-            if(hLast > 0) {
+            
+            // from==upTo
+            if(last>0) {
+                last = 0;
                 // Last element of closed range
-                consumer.accept(i);
+                consumer.accept(from);
             }
         }
         
+        // 返回当前流迭代器中包含的元素数量
         @Override
         public long estimateSize() {
             return upTo - from + last;
@@ -853,27 +1030,28 @@ final class Streams {
             return Spliterator.ORDERED | Spliterator.SIZED | Spliterator.SUBSIZED | Spliterator.IMMUTABLE | Spliterator.NONNULL | Spliterator.DISTINCT | Spliterator.SORTED;
         }
         
+        /*
+         * 对于具有SORTED特征值的容器来说，
+         * 如果该容器使用Comparator排序，则返回其Comparator；
+         * 如果该容器使用Comparable实现自然排序，则返回null；
+         *
+         * 对于不具有SORTED特征值的容器来说，抛出异常。
+         */
         @Override
         public Comparator<? super Long> getComparator() {
             return null;
         }
         
-        @Override
-        public Spliterator.OfLong trySplit() {
-            long size = estimateSize();
-            return size <= 1 ? null
-                // Left split always has a half-open range
-                : new RangeLongSpliterator(from, from = from + splitPoint(size), 0);
-        }
-        
+        // 计算子Spliterator应当包含的元素数量
         private long splitPoint(long size) {
-            long d = (size < BALANCED_SPLIT_THRESHOLD) ? 2 : RIGHT_BALANCED_SPLIT_RATIO;
+            long d = (size<BALANCED_SPLIT_THRESHOLD) ? 2 : RIGHT_BALANCED_SPLIT_RATIO;
+            
             // 2 <= size <= Long.MAX_VALUE
             return size / d;
         }
     }
     
-    /*▲ 专用Spliterator，参见LongStream#range ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ "区间"流迭代器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -882,6 +1060,7 @@ final class Streams {
      * even if the first throws an exception, and if both throw exceptions, add
      * any exceptions thrown by the second as suppressed exceptions of the first.
      */
+    // 组合两个Runnable以顺序执行
     static Runnable composeWithExceptions(Runnable a, Runnable b) {
         return () -> {
             try {
@@ -891,12 +1070,19 @@ final class Streams {
                     b.run();
                 } catch(Throwable e2) {
                     try {
+                        /*
+                         * 为当前异常添加一个抑制(次要)异常
+                         *
+                         * 注：这种机制弥补了"Cause"的缺陷，当存在多个待抛异常时，可以用此种方式来区分主次
+                         */
                         e1.addSuppressed(e2);
                     } catch(Throwable ignore) {
                     }
                 }
+    
                 throw e1;
             }
+    
             b.run();
         };
     }
@@ -907,6 +1093,7 @@ final class Streams {
      * even if the first throws an exception, and if both throw exceptions, add
      * any exceptions thrown by the second as suppressed exceptions of the first.
      */
+    // 组合两个流以顺序关闭
     static Runnable composedClose(BaseStream<?, ?> a, BaseStream<?, ?> b) {
         return () -> {
             try {
@@ -922,6 +1109,7 @@ final class Streams {
                 }
                 throw e1;
             }
+    
             b.close();
         };
     }
