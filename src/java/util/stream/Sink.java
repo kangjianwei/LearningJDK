@@ -114,45 +114,47 @@ import java.util.function.LongConsumer;
  * {@code int} and passes the resulting value to the downstream {@code Sink}.
  * @since 1.8
  */
-
 /*
- * Sink定义了开启(begin)、关闭(end)流水线的方式，并完成对数据的择取(accept)操作
+ * Sink水槽接口(引用类型版本)
  *
- * 在流水线的非源头阶段都包含各自的Sink，这些Sink往往形成一个单链表，以便从头到尾择取元素。
+ * Sink直译作水槽，类如其名，Sink就是用接收上个Sink发来的数据的容器。
  *
- * Sink是Consumer的子类，可译作水槽（带滤网的水槽，择取数据）。
- * Sink可以看做一个特殊的函数，使用此函数来择取出自己想要的数据
+ * 对于每个从上游发来的元素，都需要经过accept()方法的择取，以决定保留还是丢弃，或者做其他修改操作。
  *
- * 在第一次调用Sink上的accept()方法之前，必须首先调用begin()方法以通知它数据即将到来（可选地通知Sink将要传输多少数据），以及发送完所有数据后，必须调用end()方法。
- * 在调用end()之后，如果不再调用begin()，则不应调用accept()。
+ * 通常只有流的中间阶段和终端阶段需要使用Sink。
  *
- * Sink还提供了一种机制，通过该机制，Sink可以协作地发信号通知它不希望再接收任何数据（cancellationRequested()方法），源可以在向Sink发送更多数据之前进行轮询。
- *
- * Sink可以处于两种状态之一：初始状态和活动状态。
- * begin()方法将其从初始状态转换为活动状态，end()方法将其转换回初始状态，可以重新使用它。
- * 数据择取方法（例如accept()）仅在活动状态下有效。
- *
- * 流水线由源头阶段，零个或多个中间阶段（例如filter或map）以及终端阶段（例如reduction或foreach）组成。
+ * 注：流式操作包含三个要素：Stream、Spliterator、Sink
  */
 interface Sink<T> extends Consumer<T> {
     
     /**
-     * Resets the sink state to receive a fresh data set.  This must be called
-     * before sending any data to the sink.  After calling {@link #end()},
-     * you may call this method to reset the sink for another calculation.
+     * Resets the sink state to receive a fresh data set.
+     * This must be called before sending any data to the sink.
+     * After calling {@link #end()}, you may call this method to reset the sink for another calculation.
      *
      * @param size The exact size of the data to be pushed downstream, if known or {@code -1} if unknown or infinite.
      *             Prior to this call, the sink must be in the initial state, and after this call it is in the active state.
      */
     /*
-     * 重置Sink的状态以接收新数据集，必须在将任何数据发送到Sink之前调用。
-     * 在调用end()之后，可以调用此方法重置Sink以进行另一次计算。
-     * size代表向下游发送的数据量。如果数据量未知或无限，则设size==-1
+     * 激活sink链上所有sink，完成一些初始化工作，准备接收数据。
+     *
+     * 对于终端阶段的sink，通常在begin()里初始化接收数据的容器。
+     * 对于有状态的中间阶段的sink，通常在begin()里初始化相关的状态信息。
+     *
+     * 该方法应当在处理所有数据之前被调用。
+     *
+     * size: 上游发来的元素数量；如果数据量未知或无限，该值通常是-1
      */
     default void begin(long size) {
     }
     
-    /* 在父类Consumer中，有接收对象值的接口方法 */
+    /*
+     * // 对上游发来的引用类型的值进行择取。
+     * // 如果上游存在多个元素，该方法通常会被反复调用。
+     * void accept(T value);
+     *
+     * 该方法存在于父接口Consumer中
+     */
     
     /**
      * Accepts an int value.
@@ -160,7 +162,10 @@ interface Sink<T> extends Consumer<T> {
      * @throws IllegalStateException if this sink does not accept int values
      * @implSpec The default implementation throws IllegalStateException.
      */
-    // 接收int值，并进行相应的择取操作
+    /*
+     * 对上游发来的int类型的值进行择取。
+     * 如果上游存在多个元素，该方法通常会被反复调用。
+     */
     default void accept(int value) {
         throw new IllegalStateException("called wrong accept method");
     }
@@ -171,7 +176,10 @@ interface Sink<T> extends Consumer<T> {
      * @throws IllegalStateException if this sink does not accept long values
      * @implSpec The default implementation throws IllegalStateException.
      */
-    // 接收long值，并进行相应的择取操作
+    /*
+     * 对上游发来的long类型的值进行择取。
+     * 如果上游存在多个元素，该方法通常会被反复调用。
+     */
     default void accept(long value) {
         throw new IllegalStateException("called wrong accept method");
     }
@@ -182,7 +190,10 @@ interface Sink<T> extends Consumer<T> {
      * @throws IllegalStateException if this sink does not accept double values
      * @implSpec The default implementation throws IllegalStateException.
      */
-    // 接收double值，并进行相应的择取操作
+    /*
+     * 对上游发来的double类型的值进行择取。
+     * 如果上游存在多个元素，该方法通常会被反复调用。
+     */
     default void accept(double value) {
         throw new IllegalStateException("called wrong accept method");
     }
@@ -196,8 +207,12 @@ interface Sink<T> extends Consumer<T> {
      * this call it is returned to the initial state.
      */
     /*
-     * 表示已推送所有元素。如果Sink是有状态的，它应该在此时向下游发送任何存储状态，并且应该清除任何累积状态（和相关资源）。
-     * 在此调用之前，接收器必须处于活动状态，并且在此调用之后它将返回到初始状态。
+     * 关闭sink链，结束本轮计算。
+     *
+     * 如果所有目标元素已经处理完了(不一定要处理全部元素)，则需要调用此方法，
+     * 在当前方法中，通常需要清除一些有状态中间操作的状态信息，或者释放终端阶段的一些相关资源。
+     *
+     * 该方法应当在已经得到目标数据之后被调用。
      */
     default void end() {
     }
@@ -209,26 +224,33 @@ interface Sink<T> extends Consumer<T> {
      *
      * @implSpec The default implementation always returns false.
      */
-    // 返回true表示此Sink不希望再接收任何数据。默认实现始终返回false。
+    /*
+     * 判断是否应当停止接收数据。
+     * 在一些短路操作中，可以在达到某个目标后取消后续的操作。
+     */
     default boolean cancellationRequested() {
         return false;
     }
+    
     
     /**
      * {@code Sink} that implements {@code Sink<Integer>}, re-abstracts
      * {@code accept(int)}, and wires {@code accept(Integer)} to bridge to
      * {@code accept(int)}.
      */
-    // 为基本类型int特化的Sink，可以处理int和Integer
+    // Sink水槽接口(int类型版本)
     interface OfInt extends Sink<Integer>, IntConsumer {
+        
         @Override
         void accept(int value);
         
         // 默认实现中经过了拆箱操作
         @Override
         default void accept(Integer i) {
-            if(Tripwire.ENABLED)
+            if(Tripwire.ENABLED) {
                 Tripwire.trip(getClass(), "{0} calling Sink.OfInt.accept(Integer)");
+            }
+    
             accept(i.intValue());
         }
     }
@@ -238,16 +260,19 @@ interface Sink<T> extends Consumer<T> {
      * {@code accept(long)}, and wires {@code accept(Long)} to bridge to
      * {@code accept(long)}.
      */
-    // 为基本类型long特化的Sink，可以处理long和Long
+    // Sink水槽接口(long类型版本)
     interface OfLong extends Sink<Long>, LongConsumer {
+    
         @Override
         void accept(long value);
         
         // 默认实现中经过了拆箱操作
         @Override
         default void accept(Long i) {
-            if(Tripwire.ENABLED)
+            if(Tripwire.ENABLED) {
                 Tripwire.trip(getClass(), "{0} calling Sink.OfLong.accept(Long)");
+            }
+    
             accept(i.longValue());
         }
     }
@@ -257,19 +282,29 @@ interface Sink<T> extends Consumer<T> {
      * {@code accept(double)}, and wires {@code accept(Double)} to bridge to
      * {@code accept(double)}.
      */
-    // 为基本类型double特化的Sink，可以处理double和Double
+    // Sink水槽接口(double类型版本)
     interface OfDouble extends Sink<Double>, DoubleConsumer {
+    
         @Override
         void accept(double value);
         
         // 默认实现中经过了拆箱操作
         @Override
         default void accept(Double i) {
-            if(Tripwire.ENABLED)
+            if(Tripwire.ENABLED) {
                 Tripwire.trip(getClass(), "{0} calling Sink.OfDouble.accept(Double)");
+            }
+    
             accept(i.doubleValue());
         }
     }
+    
+    
+    
+    
+    
+    
+    /*▼ 链式Sink ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Abstract {@code Sink} implementation for creating chains of
@@ -280,31 +315,48 @@ interface Sink<T> extends Consumer<T> {
      * implementation of the {@code accept()} method must call the correct
      * {@code accept()} method on the downstream {@code Sink}.
      */
-    // 为链式操作特化的Sink
+    // 链式Sink的抽象实现(引用类型版本)
     abstract class ChainedReference<T, E_OUT> implements Sink<T> {
+        
         // 保存了下游的Sink，以方便链式调用
         protected final Sink<? super E_OUT> downstream;
         
-        public ChainedReference(Sink<? super E_OUT> downstream) {
-            this.downstream = Objects.requireNonNull(downstream);
+        public ChainedReference(Sink<? super E_OUT> downSink) {
+            this.downstream = Objects.requireNonNull(downSink);
         }
         
-        // 逐个激活下游的Sink，参数代表传给下一个Sink的元素个数
+        /*
+         * 激活sink链上所有sink，完成一些初始化工作，准备接收数据。
+         *
+         * 对于终端阶段的sink，通常在begin()里初始化接收数据的容器。
+         * 对于有状态的中间阶段的sink，通常在begin()里初始化相关的状态信息。
+         *
+         * 该方法应当在处理所有数据之前被调用。
+         *
+         * size: 上游发来的元素数量；如果数据量未知或无限，该值通常是-1
+         */
         @Override
         public void begin(long size) {
             downstream.begin(size);
         }
         
-        // 逐个关闭下游的Sink，这里可用容器接收最终的值
+        /*
+         * 关闭sink链，结束本轮计算
+         *
+         * 待处理完所有目标元素后(不一定要处理全部元素)，需要调用此方法。
+         * 如果Sink是有状态的，则需要在此处清除之前存储的状态，并释放相关的资源。
+         */
         @Override
         public void end() {
             downstream.end();
         }
         
-        // 返回true表示此Sink不希望再接收任何数据。默认实现始终返回false。
+        /*
+         * 判断是否应当停止接收数据。
+         * 在一些短路操作中，可以在达到某个目标后取消后续的操作。
+         */
         @Override
         public boolean cancellationRequested() {
-            // 这里需要判断整个sink链条
             return downstream.cancellationRequested();
         }
     }
@@ -318,28 +370,46 @@ interface Sink<T> extends Consumer<T> {
      * The implementation of the {@code accept()} method must call the correct
      * {@code accept()} method on the downstream {@code Sink}.
      */
-    // 为IntStream链式操作特化的Sink
+    // 链式Sink的抽象实现(int类型版本)
     abstract class ChainedInt<E_OUT> implements Sink.OfInt {
+    
         // 保存了下游的Sink，以方便链式调用
         protected final Sink<? super E_OUT> downstream;
-        
-        public ChainedInt(Sink<? super E_OUT> downstream) {
-            this.downstream = Objects.requireNonNull(downstream);
+    
+        public ChainedInt(Sink<? super E_OUT> downSink) {
+            this.downstream = Objects.requireNonNull(downSink);
         }
-        
-        // 逐个激活下游的Sink，这里可初始化容器
+    
+        /*
+         * 激活sink链上所有sink，完成一些初始化工作，准备接收数据。
+         *
+         * 对于终端阶段的sink，通常在begin()里初始化接收数据的容器。
+         * 对于有状态的中间阶段的sink，通常在begin()里初始化相关的状态信息。
+         *
+         * 该方法应当在处理所有数据之前被调用。
+         *
+         * size: 上游发来的元素数量；如果数据量未知或无限，该值通常是-1
+         */
         @Override
         public void begin(long size) {
             downstream.begin(size);
         }
-        
-        // 逐个关闭下游的Sink，这里可用容器接收最终的值
+    
+        /*
+         * 关闭sink链，结束本轮计算
+         *
+         * 待处理完所有目标元素后(不一定要处理全部元素)，需要调用此方法。
+         * 如果Sink是有状态的，则需要在此处清除之前存储的状态，并释放相关的资源。
+         */
         @Override
         public void end() {
             downstream.end();
         }
-        
-        // 逐个通知下游Sink取消接收数据
+    
+        /*
+         * 判断是否应当停止接收数据。
+         * 在一些短路操作中，可以在达到某个目标后取消后续的操作。
+         */
         @Override
         public boolean cancellationRequested() {
             return downstream.cancellationRequested();
@@ -355,28 +425,46 @@ interface Sink<T> extends Consumer<T> {
      * The implementation of the {@code accept()} method must call the correct
      * {@code accept()} method on the downstream {@code Sink}.
      */
-    // 为LongStream链式操作特化的Sink
+    // 链式Sink的抽象实现(long类型版本)
     abstract class ChainedLong<E_OUT> implements Sink.OfLong {
+    
         // 保存了下游的Sink，以方便链式调用
         protected final Sink<? super E_OUT> downstream;
-        
-        public ChainedLong(Sink<? super E_OUT> downstream) {
-            this.downstream = Objects.requireNonNull(downstream);
+    
+        public ChainedLong(Sink<? super E_OUT> downSink) {
+            this.downstream = Objects.requireNonNull(downSink);
         }
-        
-        // 逐个激活下游的Sink，这里可初始化容器
+    
+        /*
+         * 激活sink链上所有sink，完成一些初始化工作，准备接收数据。
+         *
+         * 对于终端阶段的sink，通常在begin()里初始化接收数据的容器。
+         * 对于有状态的中间阶段的sink，通常在begin()里初始化相关的状态信息。
+         *
+         * 该方法应当在处理所有数据之前被调用。
+         *
+         * size: 上游发来的元素数量；如果数据量未知或无限，该值通常是-1
+         */
         @Override
         public void begin(long size) {
             downstream.begin(size);
         }
-        
-        // 逐个关闭下游的Sink，这里可用容器接收最终的值
+    
+        /*
+         * 关闭sink链，结束本轮计算
+         *
+         * 待处理完所有目标元素后(不一定要处理全部元素)，需要调用此方法。
+         * 如果Sink是有状态的，则需要在此处清除之前存储的状态，并释放相关的资源。
+         */
         @Override
         public void end() {
             downstream.end();
         }
-        
-        // 逐个通知下游Sink取消接收数据
+    
+        /*
+         * 判断是否应当停止接收数据。
+         * 在一些短路操作中，可以在达到某个目标后取消后续的操作。
+         */
         @Override
         public boolean cancellationRequested() {
             return downstream.cancellationRequested();
@@ -392,31 +480,52 @@ interface Sink<T> extends Consumer<T> {
      * The implementation of the {@code accept()} method must call the correct
      * {@code accept()} method on the downstream {@code Sink}.
      */
-    // 为DoubleStream链式操作特化的Sink
+    // 链式Sink的抽象实现(double类型版本)
     abstract class ChainedDouble<E_OUT> implements Sink.OfDouble {
+    
         // 保存了下游的Sink，以方便链式调用
         protected final Sink<? super E_OUT> downstream;
-        
-        public ChainedDouble(Sink<? super E_OUT> downstream) {
-            this.downstream = Objects.requireNonNull(downstream);
+    
+        public ChainedDouble(Sink<? super E_OUT> downSink) {
+            this.downstream = Objects.requireNonNull(downSink);
         }
-        
-        // 逐个激活下游的Sink，这里可初始化容器
+    
+        /*
+         * 激活sink链上所有sink，完成一些初始化工作，准备接收数据。
+         *
+         * 对于终端阶段的sink，通常在begin()里初始化接收数据的容器。
+         * 对于有状态的中间阶段的sink，通常在begin()里初始化相关的状态信息。
+         *
+         * 该方法应当在处理所有数据之前被调用。
+         *
+         * size: 上游发来的元素数量；如果数据量未知或无限，该值通常是-1
+         */
         @Override
         public void begin(long size) {
             downstream.begin(size);
         }
-        
-        // 逐个关闭下游的Sink，这里可用容器接收最终的值
+    
+        /*
+         * 关闭sink链，结束本轮计算
+         *
+         * 待处理完所有目标元素后(不一定要处理全部元素)，需要调用此方法。
+         * 如果Sink是有状态的，则需要在此处清除之前存储的状态，并释放相关的资源。
+         */
         @Override
         public void end() {
             downstream.end();
         }
-        
-        // 逐个通知下游Sink取消接收数据
+    
+        /*
+         * 判断是否应当停止接收数据。
+         * 在一些短路操作中，可以在达到某个目标后取消后续的操作。
+         */
         @Override
         public boolean cancellationRequested() {
             return downstream.cancellationRequested();
         }
     }
+    
+    /*▲ 链式Sink ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }
