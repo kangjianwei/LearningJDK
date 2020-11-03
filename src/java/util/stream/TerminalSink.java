@@ -35,4 +35,6 @@ import java.util.function.Supplier;
  *
  * @since 1.8
  */
-interface TerminalSink<T, R> extends Sink<T>, Supplier<R> { }
+// 用于终端操作的Sink
+interface TerminalSink<T, R> extends Sink<T>, Supplier<R> {
+}
