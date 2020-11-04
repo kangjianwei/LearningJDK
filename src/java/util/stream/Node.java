@@ -55,19 +55,10 @@ import java.util.function.LongConsumer;
  * operations.
  * @since 1.8
  */
-
 /*
- * 一个不可变的容器，用于描述某种类型{T}的有序元素序列
+ * Node容器接口(引用类型版本)
  *
- * {Node}包含固定数量的元素，可以通过{#count}，{#spliterator}，{#forEach}，{#asArray}或{#copyInto}方法访问这些元素。
- * {Node}可以有零个或多个子节点；
- * 如果它没有子节点（通过{#getChildCount}和{#getChild(int)}访问，则它被认为是平面或叶子;
- * 如果它有子节点，则它被认为是内部节点。
- * 内部节点的大小是总和其子女的大小。
- *
- * {Node}通常不直接存储元素，而是对一个或多个现有数据结构的访问，例如{Collection}，数组或一组其他{Node} 。
- *
- * 在流框架中使用{Node}主要是为了避免在并行操作期间不必要地复制数据。
+ * Node用来收集流式操作中择取出的元素。
  */
 interface Node<T> {
     
@@ -78,7 +69,7 @@ interface Node<T> {
      * @return a {@code Spliterator} describing the elements contained in this
      * {@code Node}
      */
-    // 返回描述此Node中元素的Spliterator
+    // 返回当前Node的流迭代器
     Spliterator<T> spliterator();
     
     /**
@@ -89,7 +80,7 @@ interface Node<T> {
      * @param consumer a {@code Consumer} that is to be invoked with each
      *                 element in this {@code Node}
      */
-    // 遍历Node中的元素，并在其上执行Consumer操作
+    // 尝试用consumer逐个消费当前Node中所有剩余元素
     void forEach(Consumer<? super T> consumer);
     
     /**
@@ -107,7 +98,7 @@ interface Node<T> {
      *
      * @return an array containing the contents of this {@code Node}
      */
-    // 返回Node内部数据的数组视图
+    // 将Node中的元素复制到使用generator构造的数组中后返回
     T[] asArray(IntFunction<T[]> generator);
     
     /**
@@ -125,7 +116,7 @@ interface Node<T> {
      *                                   outside array bounds
      * @throws NullPointerException      if {@code array} is {@code null}
      */
-    // 将Node的内容复制到数组array中offset偏移处
+    // 将Node中的元素复制到数组array的offset索引处
     void copyInto(T[] array, int offset);
     
     /**
@@ -143,7 +134,7 @@ interface Node<T> {
      *
      * @implSpec The default implementation returns zero.
      */
-    // 返回子Node数量
+    // 返回子Node数量(通常用于树状Node)
     default int getChildCount() {
         return 0;
     }
@@ -160,8 +151,8 @@ interface Node<T> {
      * @implSpec The default implementation always throws
      * {@code IndexOutOfBoundsException}.
      */
-    // 返回指定索引处的子Node
-    default Node<T> getChild(int i) {
+    // 返回指定索引处的子Node(通常用于树状Node)
+    default Node<T> getChild(int index) {
         throw new IndexOutOfBoundsException();
     }
     
@@ -178,36 +169,46 @@ interface Node<T> {
      *
      * @return the truncated node
      */
-    // 从当前Node生成一个子Node返回
+    /*
+     * 将Node中[from, to)范围内的元素打包到新建的子Node中返回
+     * 注：打包过程可能伴随着进一步的择取
+     */
     default Node<T> truncate(long from, long to, IntFunction<T[]> generator) {
-        if(from == 0 && to == count())
+        if(from == 0 && to == count()) {
             return this;
-        
-        // 获取描述此Node中元素的Spliterator
-        Spliterator<T> spliterator = spliterator();
-        
-        long size = to - from;
-        
-        // 生成FixedNodeBuilder/SpinedNodeBuilder
-        Node.Builder<T> nodeBuilder = Nodes.builder(size, generator);
-        nodeBuilder.begin(size);
-        
-        // 对容器中的所有元素执行一个空操作
-        for(int i = 0; i < from && spliterator.tryAdvance(e -> { }); i++) {
         }
-        
-        // 需要对所有元素进行操作
+    
+        // 获取当前Node的流迭代器
+        Spliterator<T> spliterator = spliterator();
+    
+        long size = to - from;
+    
+        // 构造增强"数组"Node或"弹性缓冲区"Node(引用类型版本)
+        Node.Builder<T> nodeBuilderSink = Nodes.builder(size, generator);
+    
+        // 激活sink链上所有sink，完成一些初始化工作，准备接收数据
+        nodeBuilderSink.begin(size);
+    
+        // 跳过from之前的元素
+        for(int i = 0; i<from && spliterator.tryAdvance(e -> {}); i++) {
+        }
+    
+        // 如果需要对所有剩余元素进行择取
         if(to == count()) {
-            // 遍历Node内每个元素，在其上执行相应的择取操作
-            spliterator.forEachRemaining(nodeBuilder);
-        } else {    // 对部分元素执行择取操作
-            for(int i = 0; i < size && spliterator.tryAdvance(nodeBuilder); i++) {
+            // 尝试用nodeBuilderSink逐个消费当前流迭代器中所有剩余元素
+            spliterator.forEachRemaining(nodeBuilderSink);
+        
+            // 只对剩余的部分元素进行择取
+        } else {
+            for(int i = 0; i<size && spliterator.tryAdvance(nodeBuilderSink); i++) {
             }
         }
-        nodeBuilder.end();
-        
-        // 返回FixedNodeBuilder/SpinedNodeBuilder
-        return nodeBuilder.build();
+    
+        // 关闭sink链，结束本轮计算
+        nodeBuilderSink.end();
+    
+        // 返回构造的Node
+        return nodeBuilderSink.build();
     }
     
     /**
@@ -218,73 +219,14 @@ interface Node<T> {
      * @implSpec The default in {@code Node} returns
      * {@code StreamShape.REFERENCE}
      */
-    // 返回流的形状：引用类型
+    // 返回流的形状
     default StreamShape getShape() {
         return StreamShape.REFERENCE;
     }
     
     
-    
-    /*▼ 专用Sink，这里称作：【Builder->Sink接口】 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * A mutable builder for a {@code Node} that implements {@link Sink}, which builds a flat node containing the elements that have been pushed to it.
-     */
-    // 专用Sink，用来创建各种类型的Node
-    interface Builder<T> extends Sink<T> {
-        
-        /**
-         * Builds the node.  Should be called after all elements have been
-         * pushed and signalled with an invocation of {@link Sink#end()}.
-         *
-         * @return the resulting {@code Node}
-         */
-        // 构建Node
-        Node<T> build();
-        
-        /**
-         * Specialized {@code Node.Builder} for int elements
-         */
-        // 构建为int类型特化的【Builder->Sink接口】
-        interface OfInt
-            extends Node.Builder<Integer>, Sink.OfInt {
-            // 构建Node
-            @Override
-            Node.OfInt build();
-        }
-        
-        /**
-         * Specialized {@code Node.Builder} for long elements
-         */
-        // 构建为long类型特化的【Builder->Sink接口】
-        interface OfLong
-            extends Node.Builder<Long>, Sink.OfLong {
-            // 构建Node
-            @Override
-            Node.OfLong build();
-        }
-        
-        /**
-         * Specialized {@code Node.Builder} for double elements
-         */
-        // 构建为double类型特化的【Builder->Sink接口】
-        interface OfDouble
-            extends Node.Builder<Double>, Sink.OfDouble {
-            // 构建Node
-            @Override
-            Node.OfDouble build();
-        }
-    }
-    
-    /*▲ 专用Sink，这里称作：【Builder->Sink接口】 ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
-    /*▼ 为基本类型特化的【Node子接口】 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    // 为基本类型特化的【Node子接口】
-    interface OfPrimitive<T, T_CONS, T_ARR, T_SPLITR extends Spliterator.OfPrimitive<T, T_CONS, T_SPLITR>, T_NODE extends OfPrimitive<T, T_CONS, T_ARR, T_SPLITR, T_NODE>>
-        extends Node<T> {
+    // Node容器接口(基本数值类型版本)
+    interface OfPrimitive<T, T_CONS, T_ARR, T_SPLITR extends Spliterator.OfPrimitive<T, T_CONS, T_SPLITR>, T_NODE extends OfPrimitive<T, T_CONS, T_ARR, T_SPLITR, T_NODE>> extends Node<T> {
         
         /**
          * {@inheritDoc}
@@ -292,7 +234,7 @@ interface Node<T> {
          * @return a {@link Spliterator.OfPrimitive} describing the elements of
          * this node
          */
-        // 返回描述此Node中元素的Spliterator
+        // 返回当前Node的流迭代器
         @Override
         T_SPLITR spliterator();
         
@@ -303,9 +245,36 @@ interface Node<T> {
          * @param action a consumer that is to be invoked with each
          *               element in this {@code Node.OfPrimitive}
          */
-        // 遍历Node中的元素，并在其上执行action操作
+        // 尝试用action逐个消费当前Node中所有剩余元素
         @SuppressWarnings("overloads")
         void forEach(T_CONS action);
+        
+        /**
+         * {@inheritDoc}
+         *
+         * @implSpec the default implementation invokes the generator to create
+         * an instance of a boxed primitive array with a length of
+         * {@link #count()} and then invokes {@link #copyInto(T[], int)} with
+         * that array at an offset of 0.
+         */
+        // 将Node中的元素复制到使用generator构造的数组中后返回
+        @Override
+        default T[] asArray(IntFunction<T[]> generator) {
+            if(Tripwire.ENABLED) {
+                Tripwire.trip(getClass(), "{0} calling Node.OfPrimitive.asArray");
+            }
+            
+            long size = count();
+            if(size >= Nodes.MAX_ARRAY_SIZE) {
+                throw new IllegalArgumentException(Nodes.BAD_SIZE);
+            }
+            
+            T[] boxed = generator.apply((int) count());
+            
+            copyInto(boxed, 0);
+            
+            return boxed;
+        }
         
         /**
          * Copies the content of this {@code Node} into a primitive array,
@@ -320,10 +289,19 @@ interface Node<T> {
          *                                   data outside array bounds
          * @throws NullPointerException      if {@code array} is {@code null}
          */
-        // 将Node的内容复制到数组array中
+        // 将Node中的元素复制到数组array的offset索引处
         void copyInto(T_ARR array, int offset);
         
-        // 从当前Node生成一个子Node返回
+        // 返回指定索引处的子Node(通常用于树状Node)
+        @Override
+        default T_NODE getChild(int index) {
+            throw new IndexOutOfBoundsException();
+        }
+        
+        /*
+         * 将Node中[from, to)范围内的元素打包到新建的子Node中返回
+         * 注：打包过程可能伴随着进一步的择取
+         */
         T_NODE truncate(long from, long to, IntFunction<T[]> generator);
         
         /**
@@ -346,44 +324,16 @@ interface Node<T> {
          *
          * @return the new primitive array.
          */
-        // 创建基本类型数组
-        T_ARR newArray(int count);
+        // 创建size容量的基本数值类型数组
+        T_ARR newArray(int size);
         
-        // 返回指定索引处的子Node
-        @Override
-        default T_NODE getChild(int i) {
-            throw new IndexOutOfBoundsException();
-        }
-        
-        /**
-         * {@inheritDoc}
-         *
-         * @implSpec the default implementation invokes the generator to create
-         * an instance of a boxed primitive array with a length of
-         * {@link #count()} and then invokes {@link #copyInto(T[], int)} with
-         * that array at an offset of 0.
-         */
-        // 返回Node内部数据的数组视图
-        @Override
-        default T[] asArray(IntFunction<T[]> generator) {
-            if(java.util.stream.Tripwire.ENABLED)
-                java.util.stream.Tripwire.trip(getClass(), "{0} calling Node.OfPrimitive.asArray");
-            
-            long size = count();
-            if(size >= Nodes.MAX_ARRAY_SIZE)
-                throw new IllegalArgumentException(Nodes.BAD_SIZE);
-            T[] boxed = generator.apply((int) count());
-            copyInto(boxed, 0);
-            return boxed;
-        }
     }
     
     /**
      * Specialized {@code Node} for int elements
      */
-    // 为int类型特化的【Node子接口】
-    interface OfInt
-        extends OfPrimitive<Integer, IntConsumer, int[], Spliterator.OfInt, OfInt> {
+    // Node容器接口(int类型版本)
+    interface OfInt extends OfPrimitive<Integer, IntConsumer, int[], Spliterator.OfInt, OfInt> {
         
         /**
          * {@inheritDoc}
@@ -393,16 +343,19 @@ interface Node<T> {
          *                 {@code IntConsumer}, it is cast to {@code IntConsumer} so the
          *                 elements may be processed without boxing.
          */
-        // 遍历Node中的元素，并在其上执行Consumer操作
+        // 尝试用consumer逐个消费当前Node中所有剩余元素
         @Override
         default void forEach(Consumer<? super Integer> consumer) {
             if(consumer instanceof IntConsumer) {
                 forEach((IntConsumer) consumer);
-            } else {
-                if(Tripwire.ENABLED)
-                    Tripwire.trip(getClass(), "{0} calling Node.OfInt.forEachRemaining(Consumer)");
-                spliterator().forEachRemaining(consumer);
+                return;
             }
+    
+            if(Tripwire.ENABLED) {
+                Tripwire.trip(getClass(), "{0} calling Node.OfInt.forEachRemaining(Consumer)");
+            }
+    
+            spliterator().forEachRemaining(consumer);
         }
         
         /**
@@ -413,43 +366,61 @@ interface Node<T> {
          * array into the boxed Integer[] array.  This is not efficient and it
          * is recommended to invoke {@link #copyInto(Object, int)}.
          */
-        // 将Node的内容复制到数组boxed中
+        // 将Node中的元素复制到数组boxed的offset索引处
         @Override
         default void copyInto(Integer[] boxed, int offset) {
-            if(Tripwire.ENABLED)
+            if(Tripwire.ENABLED) {
                 Tripwire.trip(getClass(), "{0} calling Node.OfInt.copyInto(Integer[], int)");
-            
+            }
+    
             int[] array = asPrimitiveArray();
-            for(int i = 0; i < array.length; i++) {
+    
+            for(int i = 0; i<array.length; i++) {
                 boxed[offset + i] = array[i];
             }
         }
         
-        // 从当前Node生成一个子Node返回
+        /*
+         * 将Node中[from, to)范围内的元素打包到新建的子Node中返回
+         * 注：打包过程可能伴随着进一步的择取
+         */
         @Override
         default Node.OfInt truncate(long from, long to, IntFunction<Integer[]> generator) {
-            if(from == 0 && to == count())
+            if(from == 0 && to == count()) {
                 return this;
-            long size = to - from;
-            Spliterator.OfInt spliterator = spliterator();
-            Node.Builder.OfInt nodeBuilder = Nodes.intBuilder(size);
-            nodeBuilder.begin(size);
-            for(int i = 0; i < from && spliterator.tryAdvance((IntConsumer) e -> { }); i++) {
             }
+            
+            long size = to - from;
+            
+            // 获取当前Node的流迭代器
+            Spliterator.OfInt spliterator = spliterator();
+            
+            // 构造增强"数组"Node或"弹性缓冲区"Node(引用类型版本)
+            Node.Builder.OfInt nodeBuilderSink = Nodes.intBuilder(size);
+            
+            // 激活sink链上所有sink，完成一些初始化工作，准备接收数据
+            nodeBuilderSink.begin(size);
+            
+            // 跳过from之前的元素
+            for(int i = 0; i<from && spliterator.tryAdvance((IntConsumer) e -> { }); i++) {
+            }
+            
+            // 如果需要对所有剩余元素进行择取
             if(to == count()) {
-                spliterator.forEachRemaining((IntConsumer) nodeBuilder);
+                // 尝试用nodeBuilderSink逐个消费当前流迭代器中所有剩余元素
+                spliterator.forEachRemaining((IntConsumer) nodeBuilderSink);
+                
+                // 只对剩余的部分元素进行择取
             } else {
-                for(int i = 0; i < size && spliterator.tryAdvance((IntConsumer) nodeBuilder); i++) {
+                for(int i = 0; i<size && spliterator.tryAdvance((IntConsumer) nodeBuilderSink); i++) {
                 }
             }
-            nodeBuilder.end();
-            return nodeBuilder.build();
-        }
-        
-        // 创建int类型数组
-        @Override
-        default int[] newArray(int count) {
-            return new int[count];
+            
+            // 关闭sink链，结束本轮计算
+            nodeBuilderSink.end();
+            
+            // 返回构造的Node
+            return nodeBuilderSink.build();
         }
         
         /**
@@ -458,18 +429,24 @@ interface Node<T> {
          * @implSpec The default in {@code Node.OfInt} returns
          * {@code StreamShape.INT_VALUE}
          */
-        // 返回流的形状：int类型
+        // 返回流的形状
         default StreamShape getShape() {
             return StreamShape.INT_VALUE;
         }
+        
+        // 创建size容量的int类型数组
+        @Override
+        default int[] newArray(int size) {
+            return new int[size];
+        }
+        
     }
     
     /**
      * Specialized {@code Node} for long elements
      */
-    // 为long类型特化的【Node子接口】
-    interface OfLong
-        extends OfPrimitive<Long, LongConsumer, long[], Spliterator.OfLong, OfLong> {
+    // Node容器接口(long类型版本)
+    interface OfLong extends OfPrimitive<Long, LongConsumer, long[], Spliterator.OfLong, OfLong> {
         
         /**
          * {@inheritDoc}
@@ -479,16 +456,19 @@ interface Node<T> {
          *                 {@code LongConsumer}, it is cast to {@code LongConsumer} so
          *                 the elements may be processed without boxing.
          */
-        // 遍历Node中的元素，并在其上执行Consumer操作
+        // 尝试用consumer逐个消费当前Node中所有剩余元素
         @Override
         default void forEach(Consumer<? super Long> consumer) {
             if(consumer instanceof LongConsumer) {
                 forEach((LongConsumer) consumer);
-            } else {
-                if(Tripwire.ENABLED)
-                    Tripwire.trip(getClass(), "{0} calling Node.OfLong.forEachRemaining(Consumer)");
-                spliterator().forEachRemaining(consumer);
+                return;
             }
+    
+            if(Tripwire.ENABLED) {
+                Tripwire.trip(getClass(), "{0} calling Node.OfLong.forEachRemaining(Consumer)");
+            }
+    
+            spliterator().forEachRemaining(consumer);
         }
         
         /**
@@ -499,43 +479,60 @@ interface Node<T> {
          * long[] array into the boxed Long[] array.  This is not efficient and
          * it is recommended to invoke {@link #copyInto(Object, int)}.
          */
-        // 将Node的内容复制到数组boxed中
+        // 将Node中的元素复制到数组boxed的offset索引处
         @Override
         default void copyInto(Long[] boxed, int offset) {
-            if(Tripwire.ENABLED)
+            if(Tripwire.ENABLED) {
                 Tripwire.trip(getClass(), "{0} calling Node.OfInt.copyInto(Long[], int)");
-            
+            }
+    
             long[] array = asPrimitiveArray();
-            for(int i = 0; i < array.length; i++) {
+    
+            for(int i = 0; i<array.length; i++) {
                 boxed[offset + i] = array[i];
             }
         }
         
-        // 从当前Node生成一个子Node返回
+        /*
+         * 将Node中[from, to)范围内的元素打包到新建的子Node中返回
+         * 注：打包过程可能伴随着进一步的择取
+         */
         @Override
         default Node.OfLong truncate(long from, long to, IntFunction<Long[]> generator) {
-            if(from == 0 && to == count())
+            if(from == 0 && to == count()) {
                 return this;
-            long size = to - from;
-            Spliterator.OfLong spliterator = spliterator();
-            Node.Builder.OfLong nodeBuilder = Nodes.longBuilder(size);
-            nodeBuilder.begin(size);
-            for(int i = 0; i < from && spliterator.tryAdvance((LongConsumer) e -> { }); i++) {
             }
+            
+            long size = to - from;
+            
+            // 获取当前Node的流迭代器
+            Spliterator.OfLong spliterator = spliterator();
+            
+            // 构造增强"数组"Node或"弹性缓冲区"Node(引用类型版本)
+            Node.Builder.OfLong nodeBuilderSink = Nodes.longBuilder(size);
+            
+            // 激活sink链上所有sink，完成一些初始化工作，准备接收数据
+            nodeBuilderSink.begin(size);
+            
+            // 跳过from之前的元素
+            for(int i = 0; i<from && spliterator.tryAdvance((LongConsumer) e -> { }); i++) {
+            }
+            
+            // 如果需要对所有剩余元素进行择取
             if(to == count()) {
-                spliterator.forEachRemaining((LongConsumer) nodeBuilder);
+                spliterator.forEachRemaining((LongConsumer) nodeBuilderSink);
+                
+                // 只对剩余的部分元素进行择取
             } else {
-                for(int i = 0; i < size && spliterator.tryAdvance((LongConsumer) nodeBuilder); i++) {
+                for(int i = 0; i<size && spliterator.tryAdvance((LongConsumer) nodeBuilderSink); i++) {
                 }
             }
-            nodeBuilder.end();
-            return nodeBuilder.build();
-        }
-        
-        // 创建long类型数组
-        @Override
-        default long[] newArray(int count) {
-            return new long[count];
+            
+            // 关闭sink链，结束本轮计算
+            nodeBuilderSink.end();
+            
+            // 返回构造的Node
+            return nodeBuilderSink.build();
         }
         
         /**
@@ -544,18 +541,24 @@ interface Node<T> {
          * @implSpec The default in {@code Node.OfLong} returns
          * {@code StreamShape.LONG_VALUE}
          */
-        // 返回流的形状：long类型
+        // 返回流的形状
         default StreamShape getShape() {
             return StreamShape.LONG_VALUE;
         }
+        
+        // 创建size容量的long类型数组
+        @Override
+        default long[] newArray(int size) {
+            return new long[size];
+        }
+        
     }
     
     /**
      * Specialized {@code Node} for double elements
      */
-    // 为double类型特化的【Node子接口】
-    interface OfDouble
-        extends OfPrimitive<Double, DoubleConsumer, double[], Spliterator.OfDouble, OfDouble> {
+    // Node容器接口(double类型版本)
+    interface OfDouble extends OfPrimitive<Double, DoubleConsumer, double[], Spliterator.OfDouble, OfDouble> {
         
         /**
          * {@inheritDoc}
@@ -565,16 +568,19 @@ interface Node<T> {
          *                 {@code DoubleConsumer}, it is cast to {@code DoubleConsumer}
          *                 so the elements may be processed without boxing.
          */
-        // 遍历Node中的元素，并在其上执行Consumer操作
+        // 尝试用consumer逐个消费当前Node中所有剩余元素
         @Override
         default void forEach(Consumer<? super Double> consumer) {
             if(consumer instanceof DoubleConsumer) {
                 forEach((DoubleConsumer) consumer);
-            } else {
-                if(Tripwire.ENABLED)
-                    Tripwire.trip(getClass(), "{0} calling Node.OfLong.forEachRemaining(Consumer)");
-                spliterator().forEachRemaining(consumer);
+                return;
             }
+    
+            if(Tripwire.ENABLED) {
+                Tripwire.trip(getClass(), "{0} calling Node.OfLong.forEachRemaining(Consumer)");
+            }
+    
+            spliterator().forEachRemaining(consumer);
         }
         
         /**
@@ -585,43 +591,61 @@ interface Node<T> {
          * double[] array into the boxed Double[] array.  This is not efficient
          * and it is recommended to invoke {@link #copyInto(Object, int)}.
          */
-        // 将Node的内容复制到数组boxed中
+        // 将Node中的元素复制到数组boxed的offset索引处
         @Override
         default void copyInto(Double[] boxed, int offset) {
-            if(Tripwire.ENABLED)
+            if(Tripwire.ENABLED) {
                 Tripwire.trip(getClass(), "{0} calling Node.OfDouble.copyInto(Double[], int)");
-            
+            }
+    
             double[] array = asPrimitiveArray();
-            for(int i = 0; i < array.length; i++) {
+    
+            for(int i = 0; i<array.length; i++) {
                 boxed[offset + i] = array[i];
             }
         }
         
-        // 从当前Node生成一个子Node返回
+        /*
+         * 将Node中[from, to)范围内的元素打包到新建的子Node中返回
+         * 注：打包过程可能伴随着进一步的择取
+         */
         @Override
         default Node.OfDouble truncate(long from, long to, IntFunction<Double[]> generator) {
-            if(from == 0 && to == count())
+            if(from == 0 && to == count()) {
                 return this;
-            long size = to - from;
-            Spliterator.OfDouble spliterator = spliterator();
-            Node.Builder.OfDouble nodeBuilder = Nodes.doubleBuilder(size);
-            nodeBuilder.begin(size);
-            for(int i = 0; i < from && spliterator.tryAdvance((DoubleConsumer) e -> { }); i++) {
             }
+            
+            long size = to - from;
+            
+            // 获取当前Node的流迭代器
+            Spliterator.OfDouble spliterator = spliterator();
+            
+            // 构造增强"数组"Node或"弹性缓冲区"Node(引用类型版本)
+            Node.Builder.OfDouble nodeBuilderSink = Nodes.doubleBuilder(size);
+            
+            // 激活sink链上所有sink，完成一些初始化工作，准备接收数据
+            nodeBuilderSink.begin(size);
+            
+            // 跳过from之前的元素
+            for(int i = 0; i<from && spliterator.tryAdvance((DoubleConsumer) e -> { }); i++) {
+            }
+            
+            // 如果需要对所有剩余元素进行择取
             if(to == count()) {
-                spliterator.forEachRemaining((DoubleConsumer) nodeBuilder);
+                // 尝试用nodeBuilderSink逐个消费当前流迭代器中所有剩余元素
+                spliterator.forEachRemaining((DoubleConsumer) nodeBuilderSink);
+                
+                // 只对剩余的部分元素进行择取
             } else {
-                for(int i = 0; i < size && spliterator.tryAdvance((DoubleConsumer) nodeBuilder); i++) {
+                for(int i = 0; i<size && spliterator.tryAdvance((DoubleConsumer) nodeBuilderSink); i++) {
                 }
             }
-            nodeBuilder.end();
-            return nodeBuilder.build();
-        }
-        
-        // 创建double类型数组
-        @Override
-        default double[] newArray(int count) {
-            return new double[count];
+            
+            // 关闭sink链，结束本轮计算
+            nodeBuilderSink.end();
+            
+            // 返回构造的Node
+            return nodeBuilderSink.build();
         }
         
         /**
@@ -630,11 +654,80 @@ interface Node<T> {
          * @implSpec The default in {@code Node.OfDouble} returns
          * {@code StreamShape.DOUBLE_VALUE}
          */
-        // 返回流的形状：double类型
+        // 返回流的形状
         default StreamShape getShape() {
             return StreamShape.DOUBLE_VALUE;
         }
+        
+        // 创建size容量的double类型数组
+        @Override
+        default double[] newArray(int size) {
+            return new double[size];
+        }
+        
     }
     
-    /*▲ 为基本类型特化的【Node子接口】 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    
+    
+    /*▼ Node构建器-Sink ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * A mutable builder for a {@code Node} that implements {@link Sink}, which builds a flat node containing the elements that have been pushed to it.
+     */
+    /*
+     * Node构建器接口(引用类型版本)
+     *
+     * 实现了该接口的Node意味着：
+     * 1.构造Node需要使用工厂方法build();
+     * 2.Node兼具Sink的功能，即支持对上游发来的元素直接做出进一步的择取。
+     */
+    interface Builder<T> extends Sink<T> {
+        
+        /**
+         * Builds the node.  Should be called after all elements have been
+         * pushed and signalled with an invocation of {@link Sink#end()}.
+         *
+         * @return the resulting {@code Node}
+         */
+        // 构建Node的工厂方法
+        Node<T> build();
+        
+        
+        /**
+         * Specialized {@code Node.Builder} for int elements
+         */
+        // Node构建器接口(int类型版本)
+        interface OfInt extends Node.Builder<Integer>, Sink.OfInt {
+            // 构建Node的工厂方法
+            @Override
+            Node.OfInt build();
+        }
+        
+        /**
+         * Specialized {@code Node.Builder} for long elements
+         */
+        // Node构建器接口(long类型版本)
+        interface OfLong extends Node.Builder<Long>, Sink.OfLong {
+            // 构建Node的工厂方法
+            @Override
+            Node.OfLong build();
+        }
+        
+        /**
+         * Specialized {@code Node.Builder} for double elements
+         */
+        // Node构建器接口(double类型版本)
+        interface OfDouble extends Node.Builder<Double>, Sink.OfDouble {
+            // 构建Node的工厂方法
+            @Override
+            Node.OfDouble build();
+        }
+        
+    }
+    
+    /*▲ Node构建器-Sink ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }
