@@ -192,15 +192,15 @@ import java.util.function.Supplier;
  * @see Collectors
  * @since 1.8
  */
-
-// 收集器的抽象接口，用来收纳流的归约（Reduce）操作中输出的结果
+// 收集器的抽象接口，用来指示收集操作需要经过哪些工作流程
 public interface Collector<T, A, R> {
+    
     /**
      * A function that creates and returns a new mutable result container.
      *
      * @return a function which returns a new, mutable result container
      */
-    // 1. 构造容器（通过get()返回收纳容器）
+    // 1. 容器工厂（该工厂用来构造收纳元素的容器）
     Supplier<A> supplier();
     
     /**
@@ -208,7 +208,7 @@ public interface Collector<T, A, R> {
      *
      * @return a function which folds a value into a mutable result container
      */
-    // 2. 收纳元素（将元素添加到新容器）
+    // 2. 择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）
     BiConsumer<A, T> accumulator();
     
     /**
@@ -219,7 +219,7 @@ public interface Collector<T, A, R> {
      * @return a function which combines two partial results into a combined
      * result
      */
-    // 3. 合并容器（常用于并行操作）
+    // 3. 合并容器（这是合并操作，通常用于在并行流中合并子任务）
     BinaryOperator<A> combiner();
     
     /**
@@ -233,7 +233,7 @@ public interface Collector<T, A, R> {
      * @return a function which transforms the intermediate result to the final
      * result
      */
-    // 4. 整理操作（可选，最后执行）
+    // 4. 收尾操作（可选，最后执行）
     Function<A, R> finisher();
     
     /**
@@ -242,7 +242,7 @@ public interface Collector<T, A, R> {
      *
      * @return an immutable set of collector characteristics
      */
-    // 5. 返回容器的特征值，指示容器的特征
+    // 5. 返回容器的参数，指示容器的特征
     Set<Characteristics> characteristics();
     
     /**
@@ -264,15 +264,21 @@ public interface Collector<T, A, R> {
      *
      * @throws NullPointerException if any argument is null
      */
-    // 返回由指定参数构造的Collector，新容器具有IDENTITY_FINISH特征值
+    // 返回由指定参数构造的Collector，新容器具有IDENTITY_FINISH参数
     static <T, R> Collector<T, R, R> of(Supplier<R> supplier, BiConsumer<R, T> accumulator, BinaryOperator<R> combiner, Characteristics... characteristics) {
         Objects.requireNonNull(supplier);
         Objects.requireNonNull(accumulator);
         Objects.requireNonNull(combiner);
         Objects.requireNonNull(characteristics);
-        Set<Characteristics> cs = (characteristics.length == 0)
-            ? Collectors.CH_ID
-            : Collections.unmodifiableSet(EnumSet.of(Collector.Characteristics.IDENTITY_FINISH, characteristics));
+    
+        Set<Characteristics> cs;
+    
+        if(characteristics.length == 0) {
+            cs = Collectors.CH_ID;
+        } else {
+            cs = Collections.unmodifiableSet(EnumSet.of(Characteristics.IDENTITY_FINISH, characteristics));
+        }
+    
         return new Collectors.CollectorImpl<>(supplier, accumulator, combiner, cs);
     }
     
@@ -301,12 +307,15 @@ public interface Collector<T, A, R> {
         Objects.requireNonNull(combiner);
         Objects.requireNonNull(finisher);
         Objects.requireNonNull(characteristics);
+    
         Set<Characteristics> cs = Collectors.CH_NOID;
+    
         if(characteristics.length > 0) {
             cs = EnumSet.noneOf(Characteristics.class);
             Collections.addAll(cs, characteristics);
             cs = Collections.unmodifiableSet(cs);
         }
+    
         return new Collectors.CollectorImpl<>(supplier, accumulator, combiner, finisher, cs);
     }
     
@@ -326,7 +335,7 @@ public interface Collector<T, A, R> {
          * then it should only be evaluated concurrently if applied to an
          * unordered data source.
          */
-        // 表示此收集器是并发的，这意味着可以并发地汇总结果
+        // 表示此收集器(的容器)是并发的，这意味着可以并发地汇总结果
         CONCURRENT,
         
         /**
@@ -334,7 +343,7 @@ public interface Collector<T, A, R> {
          * the encounter order of input elements.  (This might be true if the
          * result container has no intrinsic order, such as a {@link Set}.)
          */
-        // 表示收集操作不保证确定的遭遇顺序（如收集到Set中）
+        // 表示收集操作不会保证确定的遭遇顺序（如收集到Set中）
         UNORDERED,
         
         /**
@@ -345,4 +354,5 @@ public interface Collector<T, A, R> {
         // 表示最终的整理操作是标识转换，即可以省略
         IDENTITY_FINISH
     }
+    
 }
