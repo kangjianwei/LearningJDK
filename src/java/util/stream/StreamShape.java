@@ -44,27 +44,31 @@ package java.util.stream;
  * primitive type.
  * @since 1.8
  */
-
-// 描述流的形状（存储的元素类型）：引用类型、int类型、long类型、double类型
+// 流的形状，即该流中处理的元素类型，包括引用类型、int类型、long类型、double类型
 enum StreamShape {
+    
     /**
      * The shape specialization corresponding to {@code Stream} and elements
      * that are object references.
      */
-    REFERENCE,
+    REFERENCE,    // 引用类型
+    
     /**
      * The shape specialization corresponding to {@code IntStream} and elements
      * that are {@code int} values.
      */
-    INT_VALUE,
+    INT_VALUE,    // int类型
+    
     /**
      * The shape specialization corresponding to {@code LongStream} and elements
      * that are {@code long} values.
      */
-    LONG_VALUE,
+    LONG_VALUE,   // long类型
+    
     /**
      * The shape specialization corresponding to {@code DoubleStream} and
      * elements that are {@code double} values.
      */
-    DOUBLE_VALUE
+    DOUBLE_VALUE  // double类型
+    
 }
