@@ -52,8 +52,12 @@ import java.util.stream.IntStream;
  * to an {@code OptionalInt} instance.
  * @since 1.8
  */
-
-// 可选的操作。用于在终端阶段收集完int类型的数据后进行一些扫尾工作
+/*
+ * 单元素容器(int类型版本)
+ *
+ * 通常用于在流的终端阶段收集完数据后进行一些收尾工作。
+ * 当然，还可以用在一些非空判断中，用于简化非空判断的逻辑以及将非空判断与其他逻辑进行整合。
+ */
 public final class OptionalInt {
     
     /**
@@ -64,9 +68,12 @@ public final class OptionalInt {
     /**
      * If true then the value is present, otherwise indicates no value is present
      */
-    private final boolean isPresent;
-    private final int value;
+    private final boolean isPresent;  // 元素是否有效/存在
+    private final int value;          // 封装的元素
     
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Construct an empty instance.
@@ -89,29 +96,8 @@ public final class OptionalInt {
         this.value = value;
     }
     
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
-    /**
-     * If a value is present, returns a sequential {@link IntStream} containing
-     * only that value, otherwise returns an empty {@code IntStream}.
-     *
-     * @return the optional value as an {@code IntStream}
-     *
-     * @apiNote This method can be used to transform a {@code Stream} of optional
-     * integers to an {@code IntStream} of present integers:
-     * <pre>{@code
-     *     Stream<OptionalInt> os = ..
-     *     IntStream s = os.flatMapToInt(OptionalInt::stream)
-     * }</pre>
-     * @since 9
-     */
-    // 创建单元素流
-    public IntStream stream() {
-        if(isPresent) {
-            return IntStream.of(value);
-        } else {
-            return IntStream.empty();
-        }
-    }
     
     
     /*▼ 静态工厂，创建OptionalInt ████████████████████████████████████████████████████████████████████████████████┓ */
@@ -146,7 +132,7 @@ public final class OptionalInt {
     
     
     
-    /*▼  ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 获取元素 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * If a value is present, returns the value, otherwise throws
@@ -238,11 +224,11 @@ public final class OptionalInt {
         }
     }
     
-    /*▲  ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 获取元素 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
-    /*▼  ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 存在性判断 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * If a value is present, returns {@code true}, otherwise {@code false}.
@@ -305,8 +291,36 @@ public final class OptionalInt {
         }
     }
     
-    /*▲  ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 存在性判断 ████████████████████████████████████████████████████████████████████████████████┛ */
     
+    
+    
+    /*▼ 流式操作 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * If a value is present, returns a sequential {@link IntStream} containing
+     * only that value, otherwise returns an empty {@code IntStream}.
+     *
+     * @return the optional value as an {@code IntStream}
+     *
+     * @apiNote This method can be used to transform a {@code Stream} of optional
+     * integers to an {@code IntStream} of present integers:
+     * <pre>{@code
+     *     Stream<OptionalInt> os = ..
+     *     IntStream s = os.flatMapToInt(OptionalInt::stream)
+     * }</pre>
+     * @since 9
+     */
+    // 创建单元素流
+    public IntStream stream() {
+        if(isPresent) {
+            return IntStream.of(value);
+        } else {
+            return IntStream.empty();
+        }
+    }
+    
+    /*▲ 流式操作 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     /**
@@ -364,4 +378,5 @@ public final class OptionalInt {
     public String toString() {
         return isPresent ? String.format("OptionalInt[%s]", value) : "OptionalInt.empty";
     }
+    
 }
