@@ -56,8 +56,12 @@ import java.util.stream.Stream;
  * instance.
  * @since 1.8
  */
-
-// 可选的操作。用于在终端阶段收集完引用类型的数据后进行一些扫尾工作
+/*
+ * 单元素容器(引用类型版本)
+ *
+ * 通常用于在流的终端阶段收集完数据后进行一些收尾工作。
+ * 当然，还可以用在一些非空判断中，用于简化非空判断的逻辑以及将非空判断与其他逻辑进行整合。
+ */
 public final class Optional<T> {
     
     /**
@@ -68,10 +72,11 @@ public final class Optional<T> {
     /**
      * If non-null, the value; if null, indicates no value is present
      */
-    private final T value;
+    private final T value;  // 封装的元素
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Constructs an empty instance.
@@ -94,7 +99,7 @@ public final class Optional<T> {
         this.value = Objects.requireNonNull(value);
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -152,36 +157,7 @@ public final class Optional<T> {
     
     
     
-    /*▼  ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * If a value is present, returns a sequential {@link Stream} containing
-     * only that value, otherwise returns an empty {@code Stream}.
-     *
-     * @return the optional value as a {@code Stream}
-     *
-     * @apiNote This method can be used to transform a {@code Stream} of optional
-     * elements to a {@code Stream} of present value elements:
-     * <pre>{@code
-     *     Stream<Optional<T>> os = ..
-     *     Stream<T> s = os.flatMap(Optional::stream)
-     * }</pre>
-     * @since 9
-     */
-    // 创建单元素流
-    public Stream<T> stream() {
-        if(!isPresent()) {
-            return Stream.empty();
-        } else {
-            return Stream.of(value);
-        }
-    }
-    
-    /*▲  ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
-    /*▼  ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 获取元素 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * If a value is present, returns the value, otherwise throws
@@ -301,11 +277,11 @@ public final class Optional<T> {
         }
     }
     
-    /*▲  ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 获取元素 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
-    /*▼  ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 存在性判断 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * If a value is present, returns {@code true}, otherwise {@code false}.
@@ -368,11 +344,34 @@ public final class Optional<T> {
         }
     }
     
-    /*▲  ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 存在性判断 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
-    /*▼  ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 流式操作 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * If a value is present, returns a sequential {@link Stream} containing
+     * only that value, otherwise returns an empty {@code Stream}.
+     *
+     * @return the optional value as a {@code Stream}
+     *
+     * @apiNote This method can be used to transform a {@code Stream} of optional
+     * elements to a {@code Stream} of present value elements:
+     * <pre>{@code
+     *     Stream<Optional<T>> os = ..
+     *     Stream<T> s = os.flatMap(Optional::stream)
+     * }</pre>
+     * @since 9
+     */
+    // 创建单元素流
+    public Stream<T> stream() {
+        if(!isPresent()) {
+            return Stream.empty();
+        } else {
+            return Stream.of(value);
+        }
+    }
     
     /**
      * If a value is present, and the value matches the given predicate,
@@ -473,7 +472,7 @@ public final class Optional<T> {
         }
     }
     
-    /*▲  ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 流式操作 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -532,4 +531,5 @@ public final class Optional<T> {
     public String toString() {
         return value != null ? String.format("Optional[%s]", value) : "Optional.empty";
     }
+    
 }
