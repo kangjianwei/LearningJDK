@@ -54,8 +54,11 @@ import java.util.function.LongConsumer;
  *
  * @since 1.8
  */
-
-// 为基本类型特化的Iterator
+/*
+ * 元素类型是基本数值类型的Iterator，用于将Spliterator适配为Iterator
+ *
+ * 参见：Spliterators
+ */
 public interface PrimitiveIterator<T, T_CONS> extends Iterator<T> {
     
     /**
@@ -68,7 +71,7 @@ public interface PrimitiveIterator<T, T_CONS> extends Iterator<T> {
      *
      * @throws NullPointerException if the specified action is null
      */
-    // 对每个剩余元素执行给定的择取操作，择取操作封装在action函数中。
+    // 尝试用action消费当前迭代器中所有元素
     @SuppressWarnings("overloads")
     void forEachRemaining(T_CONS action);
     
@@ -77,7 +80,7 @@ public interface PrimitiveIterator<T, T_CONS> extends Iterator<T> {
      *
      * @since 1.8
      */
-    // 为int类型(包括byte,short,char)特化的Iterator
+    // 元素类型是int类型(包括byte,short,char)的Iterator
     interface OfInt extends PrimitiveIterator<Integer, IntConsumer> {
         
         /**
@@ -87,7 +90,7 @@ public interface PrimitiveIterator<T, T_CONS> extends Iterator<T> {
          *
          * @throws NoSuchElementException if the iteration has no more elements
          */
-        // 从迭代器返回下一个元素[基本类型版本]
+        // 返回下一个元素
         int nextInt();
         
         /**
@@ -96,14 +99,16 @@ public interface PrimitiveIterator<T, T_CONS> extends Iterator<T> {
          * @implSpec The default implementation boxes the result of calling
          * {@link #nextInt()}, and returns that boxed result.
          */
-        // 从迭代器返回下一个元素，默认的实现是将元素装箱后再返回[包装类型版本]
+        // 返回下一个元素
         @Override
         default Integer next() {
-            if(Tripwire.ENABLED)
+            if(Tripwire.ENABLED) {
                 Tripwire.trip(getClass(), "{0} calling PrimitiveIterator.OfInt.nextInt()");
+            }
+    
             return nextInt();
         }
-        
+    
         /**
          * Performs the given action for each remaining element until all elements
          * have been processed or the action throws an exception.  Actions are
@@ -119,9 +124,10 @@ public interface PrimitiveIterator<T, T_CONS> extends Iterator<T> {
          *         action.accept(nextInt());
          * }</pre>
          */
-        // 对每个剩余元素执行给定的择取操作，择取操作封装在action函数中[基本类型版本]
+        // 尝试用action消费当前Spliterator中所有元素
         default void forEachRemaining(IntConsumer action) {
             Objects.requireNonNull(action);
+    
             while(hasNext()) {
                 action.accept(nextInt());
             }
@@ -136,25 +142,22 @@ public interface PrimitiveIterator<T, T_CONS> extends Iterator<T> {
          * {@code IntConsumer}, by boxing the argument of {@code IntConsumer},
          * and then passed to {@link #forEachRemaining}.
          */
-        /*
-         * 对每个剩余元素执行给定的择取操作，择取操作封装在action函数中[包装类型版本]
-         *
-         * 如果操作是{IntConsumer}的实例，那么它将被强制转换为{IntConsumer}并传递给{#forEachRemaining};
-         * 否则，通过装箱{IntConsumer}的参数，将其适配为{IntConsumer}的实例，然后传递给{#forEachRemaining}。
-         */
+        // 尝试用action消费当前迭代器中所有元素
         @Override
         default void forEachRemaining(Consumer<? super Integer> action) {
-            // 适用于函数式接口
             if(action instanceof IntConsumer) {
                 forEachRemaining((IntConsumer) action);
-            } else {
-                // The method reference action::accept is never null
-                Objects.requireNonNull(action);
-                if(Tripwire.ENABLED)
-                    Tripwire.trip(getClass(), "{0} calling PrimitiveIterator.OfInt.forEachRemainingInt(action::accept)");
-                // 适用于非函数式接口（如子实现类），但功能一样的情形
-                forEachRemaining((IntConsumer) action::accept);
+                return;
             }
+    
+            // The method reference action::accept is never null
+            Objects.requireNonNull(action);
+    
+            if(Tripwire.ENABLED) {
+                Tripwire.trip(getClass(), "{0} calling PrimitiveIterator.OfInt.forEachRemainingInt(action::accept)");
+            }
+    
+            forEachRemaining((IntConsumer) action::accept);
         }
         
     }
@@ -164,7 +167,7 @@ public interface PrimitiveIterator<T, T_CONS> extends Iterator<T> {
      *
      * @since 1.8
      */
-    // 为long类型特化的Iterator
+    // 元素类型是long类型的Iterator
     interface OfLong extends PrimitiveIterator<Long, LongConsumer> {
         
         /**
@@ -174,7 +177,7 @@ public interface PrimitiveIterator<T, T_CONS> extends Iterator<T> {
          *
          * @throws NoSuchElementException if the iteration has no more elements
          */
-        // 从迭代器返回下一个元素[基本类型版本]
+        // 返回下一个元素
         long nextLong();
         
         /**
@@ -183,14 +186,16 @@ public interface PrimitiveIterator<T, T_CONS> extends Iterator<T> {
          * @implSpec The default implementation boxes the result of calling
          * {@link #nextLong()}, and returns that boxed result.
          */
-        // 从迭代器返回下一个元素，默认的实现是将元素装箱后再返回[包装类型版本]
+        // 返回下一个元素
         @Override
         default Long next() {
-            if(Tripwire.ENABLED)
+            if(Tripwire.ENABLED) {
                 Tripwire.trip(getClass(), "{0} calling PrimitiveIterator.OfLong.nextLong()");
+            }
+    
             return nextLong();
         }
-        
+    
         /**
          * Performs the given action for each remaining element until all elements
          * have been processed or the action throws an exception.  Actions are
@@ -206,14 +211,15 @@ public interface PrimitiveIterator<T, T_CONS> extends Iterator<T> {
          *         action.accept(nextLong());
          * }</pre>
          */
-        // 对每个剩余元素执行给定的择取操作，择取操作封装在action函数中[基本类型版本]
+        // 尝试用action消费当前Spliterator中所有元素
         default void forEachRemaining(LongConsumer action) {
             Objects.requireNonNull(action);
+    
             while(hasNext()) {
                 action.accept(nextLong());
             }
         }
-        
+    
         /**
          * {@inheritDoc}
          *
@@ -223,25 +229,22 @@ public interface PrimitiveIterator<T, T_CONS> extends Iterator<T> {
          * {@code LongConsumer}, by boxing the argument of {@code LongConsumer},
          * and then passed to {@link #forEachRemaining}.
          */
-        /*
-         * 对每个剩余元素执行给定的择取操作，择取操作封装在action函数中[包装类型版本]
-         *
-         * 如果操作是{LongConsumer}的实例，那么它将被强制转换为{LongConsumer}并传递给{#forEachRemaining};
-         * 否则，通过装箱{LongConsumer}的参数，将其适配为{LongConsumer}的实例，然后传递给{#forEachRemaining}。
-         */
+        // 尝试用action消费当前Spliterator中所有元素
         @Override
         default void forEachRemaining(Consumer<? super Long> action) {
-            // 适用于函数式接口
             if(action instanceof LongConsumer) {
                 forEachRemaining((LongConsumer) action);
-            } else {
-                // The method reference action::accept is never null
-                Objects.requireNonNull(action);
-                if(Tripwire.ENABLED)
-                    Tripwire.trip(getClass(), "{0} calling PrimitiveIterator.OfLong.forEachRemainingLong(action::accept)");
-                // 适用于非函数式接口（如子实现类），但功能一样的情形
-                forEachRemaining((LongConsumer) action::accept);
+                return;
             }
+    
+            // The method reference action::accept is never null
+            Objects.requireNonNull(action);
+    
+            if(Tripwire.ENABLED) {
+                Tripwire.trip(getClass(), "{0} calling PrimitiveIterator.OfLong.forEachRemainingLong(action::accept)");
+            }
+    
+            forEachRemaining((LongConsumer) action::accept);
         }
     }
     
@@ -250,7 +253,7 @@ public interface PrimitiveIterator<T, T_CONS> extends Iterator<T> {
      *
      * @since 1.8
      */
-    // 为double类型(包括float)特化的Iterator
+    // 元素类型是double类型(包括float)的Iterator
     interface OfDouble extends PrimitiveIterator<Double, DoubleConsumer> {
         
         /**
@@ -260,7 +263,7 @@ public interface PrimitiveIterator<T, T_CONS> extends Iterator<T> {
          *
          * @throws NoSuchElementException if the iteration has no more elements
          */
-        // 从迭代器返回下一个元素[基本类型版本]
+        // 返回下一个元素
         double nextDouble();
         
         /**
@@ -269,14 +272,16 @@ public interface PrimitiveIterator<T, T_CONS> extends Iterator<T> {
          * @implSpec The default implementation boxes the result of calling
          * {@link #nextDouble()}, and returns that boxed result.
          */
-        // 从迭代器返回下一个元素，默认的实现是将元素装箱后再返回[包装类型版本]
+        // 返回下一个元素
         @Override
         default Double next() {
-            if(Tripwire.ENABLED)
+            if(Tripwire.ENABLED) {
                 Tripwire.trip(getClass(), "{0} calling PrimitiveIterator.OfDouble.nextLong()");
+            }
+    
             return nextDouble();
         }
-        
+    
         /**
          * Performs the given action for each remaining element until all elements
          * have been processed or the action throws an exception.  Actions are
@@ -292,14 +297,15 @@ public interface PrimitiveIterator<T, T_CONS> extends Iterator<T> {
          *         action.accept(nextDouble());
          * }</pre>
          */
-        // 对每个剩余元素执行给定的择取操作，择取操作封装在action函数中[基本类型版本]
+        // 尝试用action消费当前Spliterator中所有元素
         default void forEachRemaining(DoubleConsumer action) {
             Objects.requireNonNull(action);
+    
             while(hasNext()) {
                 action.accept(nextDouble());
             }
         }
-        
+    
         /**
          * {@inheritDoc}
          *
@@ -310,25 +316,22 @@ public interface PrimitiveIterator<T, T_CONS> extends Iterator<T> {
          * {@code DoubleConsumer}, and then passed to
          * {@link #forEachRemaining}.
          */
-        /*
-         * 对每个剩余元素执行给定的择取操作，择取操作封装在action函数中[包装类型版本]
-         *
-         * 如果操作是{DoubleConsumer}的实例，那么它将被强制转换为{DoubleConsumer}并传递给{#forEachRemaining};
-         * 否则，通过装箱{DoubleConsumer}的参数，将其适配为{DoubleConsumer}的实例，然后传递给{#forEachRemaining}。
-         */
+        // 尝试用action消费当前Spliterator中所有元素
         @Override
         default void forEachRemaining(Consumer<? super Double> action) {
-            // 适用于函数式接口
             if(action instanceof DoubleConsumer) {
                 forEachRemaining((DoubleConsumer) action);
-            } else {
-                // The method reference action::accept is never null
-                Objects.requireNonNull(action);
-                if(Tripwire.ENABLED)
-                    Tripwire.trip(getClass(), "{0} calling PrimitiveIterator.OfDouble.forEachRemainingDouble(action::accept)");
-                // 适用于非函数式接口（如子实现类），但功能一样的情形
-                forEachRemaining((DoubleConsumer) action::accept);
+                return;
             }
+    
+            // The method reference action::accept is never null
+            Objects.requireNonNull(action);
+    
+            if(Tripwire.ENABLED) {
+                Tripwire.trip(getClass(), "{0} calling PrimitiveIterator.OfDouble.forEachRemainingDouble(action::accept)");
+            }
+    
+            forEachRemaining((DoubleConsumer) action::accept);
         }
     }
 }
