@@ -63,7 +63,7 @@ import java.util.function.Consumer;
  * reader.  Once traversing commences no further splitting can be performed and
  * the reference to the mapped byte buffer will be set to null.
  */
-// 基于文件行的迭代器
+// 基于文件行的流迭代器
 final class FileChannelLinesSpliterator implements Spliterator<String> {
     
     private final FileChannel fileChannel;  // 文件通道
@@ -100,30 +100,6 @@ final class FileChannelLinesSpliterator implements Spliterator<String> {
         this.charset = charset;
         this.index = index;
         this.fence = fence;
-    }
-    
-    // 对文件中的下一行进行择取(由于是基于行的迭代器，所以每个元素都代表文件的一行)
-    @Override
-    public boolean tryAdvance(Consumer<? super String> action) {
-        // 获取一行内容
-        String line = readLine();
-        
-        // 处理该行内容
-        if(line != null) {
-            action.accept(line);
-            return true;
-        } else {
-            return false;
-        }
-    }
-    
-    // 遍历文件的每一行，并对其进行择取操作
-    @Override
-    public void forEachRemaining(Consumer<? super String> action) {
-        String line;
-        while((line = readLine()) != null) {
-            action.accept(line);
-        }
     }
     
     // 分割文件内容，返回的迭代器包含了文件的前半部分
@@ -180,9 +156,33 @@ final class FileChannelLinesSpliterator implements Spliterator<String> {
                 }
             }
         }
-        
+    
         // The left spliterator will have the line-separator at the end
         return (mid>lo && mid<hi) ? new FileChannelLinesSpliterator(fileChannel, charset, lo, index = mid, buf) : null;
+    }
+    
+    // 尝试用action消费目标通道的下一行
+    @Override
+    public boolean tryAdvance(Consumer<? super String> action) {
+        // 获取一行内容
+        String line = readLine();
+        
+        // 处理该行内容
+        if(line != null) {
+            action.accept(line);
+            return true;
+        } else {
+            return false;
+        }
+    }
+    
+    // 尝试用action消费目标通道的每一行
+    @Override
+    public void forEachRemaining(Consumer<? super String> action) {
+        String line;
+        while((line = readLine()) != null) {
+            action.accept(line);
+        }
     }
     
     // 返回剩余可读的字节数量（可能是估算值）
@@ -201,7 +201,7 @@ final class FileChannelLinesSpliterator implements Spliterator<String> {
         return -1;
     }
     
-    // 返回容器的特征值
+    // 返回当前流迭代器的参数
     @Override
     public int characteristics() {
         return Spliterator.ORDERED | Spliterator.NONNULL;
@@ -263,13 +263,13 @@ final class FileChannelLinesSpliterator implements Spliterator<String> {
                 fileChannel.close();
             }
         };
-        
+    
         // 字节解码器。字节进来，字符出去，完成对字节序列的解码操作
         CharsetDecoder charsetDecoder = charset.newDecoder();
         
         // 构造一个输入流解码器(继承了Reader)
         Reader reader = Channels.newReader(channel, charsetDecoder, -1);
-        
+    
         return new BufferedReader(reader);
     }
     

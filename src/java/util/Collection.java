@@ -496,6 +496,7 @@ public interface Collection<E> extends Iterable<E> {
      * array, or use {@link #toArray(IntFunction)} to control the runtime type
      * of the array.
      */
+    // 以数组形式返回当前容器中的元素
     Object[] toArray();
     
     /**
@@ -549,6 +550,7 @@ public interface Collection<E> extends Iterable<E> {
      * <p>Note that {@code toArray(new Object[0])} is identical in function to
      * {@code toArray()}.
      */
+    // 将当前容器中的元素存入数组a后返回，需要将容器中的元素转换为T类型
     <T> T[] toArray(T[] a);
     
     /**
@@ -584,6 +586,7 @@ public interface Collection<E> extends Iterable<E> {
      * and then passes the resulting array to {@link #toArray(Object[]) toArray(T[])}.
      * @since 11
      */
+    // 返回一个包含了当前容器中所有元素的数组
     default <T> T[] toArray(IntFunction<T[]> generator) {
         return toArray(generator.apply(0));
     }

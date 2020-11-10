@@ -241,7 +241,7 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      * This is sometimes hard to see because this file orders exported
      * methods in a way that flows well in javadocs.
      */
-    
+
     /**
      * The status field holds run control status bits packed into a
      * single int to ensure atomicity.  Status is initially zero, and
@@ -259,7 +259,7 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      */
     // 任务状态信息，包含DONE|ABNORMAL|THROWN|SIGNAL
     volatile int status; // accessed directly by pool and workers
-    
+
     private static final int DONE     = 1 << 31; // [已完成]，must be negative
     private static final int ABNORMAL = 1 << 18; // [非正常完成]，set atomically with DONE
     private static final int THROWN   = 1 << 17; // [有异常]，set atomically with ABNORMAL
@@ -355,7 +355,9 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      * @return {@code this}, to simplify usage
      */
     /*
-     * 分发任务。分发任务去排队，并创建/唤醒【工作线程】
+     * 分发/提交任务。
+     *
+     * 分发任务去排队，并创建/唤醒【工作线程】
      *
      * 将当前任务放入当前线程所辖【队列】的top处排队，
      * 如果在【工作线程】fork任务，该任务会放入【工作队列】top处
@@ -434,28 +436,30 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      */
     // 执行任务，并返回任务执行后的状态。任务具体的执行逻辑由子类实现
     final int doExec() {
-        int s = status;
-        
-        boolean completed;
-        
-        // 如果任务没有执行完，则执行任务
-        if (s >= 0) {
-            try {
-                // 执行任务，执行细节由子类实现
-                completed = exec();
-            } catch (Throwable rex) {
-                completed = false;
-                // 如果执行期间出现了异常，需要添加异常标记
-                s = setExceptionalCompletion(rex);
-            }
-            
-            // 如果任务已经执行完了
-            if (completed) {
-                // 将当前任务标记为已完成状态
-                s = setDone();
-            }
+        // 如果任务当前任务已经完成了，直接返回任务状态
+        if(status<0) {
+            return status;
         }
-        
+    
+        int s = status;
+    
+        boolean completed;
+    
+        try {
+            // 如果任务还未完成，则需要执行任务，执行细节由子类实现
+            completed = exec();
+        } catch(Throwable rex) {
+            completed = false;
+            // 如果执行期间出现了异常，需要添加异常标记
+            s = setExceptionalCompletion(rex);
+        }
+    
+        // 如果任务已经执行完了
+        if(completed) {
+            // 将当前任务标记为已完成状态
+            s = setDone();
+        }
+    
         return s;
     }
     
@@ -610,10 +614,11 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      */
     // 同时执行两个任务。task1选择doInvoke()，而task2选择fork()/doJoin()
     public static void invokeAll(ForkJoinTask<?> task1, ForkJoinTask<?> task2) {
-        
+    
+        // 先把task2交给其他线程去完成
         task2.fork();
-        
-        // 直接执行任务，最后返回任务状态。必要时，需要等待其他任务的完成
+    
+        // 当前线程直接执行task1，最后返回任务状态。必要时，需要等待其他任务的完成
         int s1 = task1.doInvoke();
         
         // 如果任务带有[非正常完成]的标记，则需要报告异常
@@ -621,8 +626,8 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
             // 报告异常信息
             task1.reportException(s1);
         }
-        
-        // 从【工作队列】的top处取出当前任务并执行，最后返回任务状态。必要时，需要等待其他任务的完成
+    
+        // 当前线程处理完task1后，需要从【工作队列】的top处取出task2并执行，最后返回任务状态。必要时，需要等待其他任务的完成
         int s2 = task2.doJoin();
         
         // 如果任务带有[非正常完成]的标记，则需要报告异常
@@ -1588,7 +1593,7 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
     public final V get()
         throws InterruptedException, ExecutionException {
         int s;
-        
+    
         // 【工作线程】从【工作队列】的top处取出当前任务并执行，最后返回任务状态。必要时，需要等待其他任务的完成
         if(Thread.currentThread() instanceof ForkJoinWorkerThread) {
             s = doJoin();
@@ -1645,7 +1650,7 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
             
             if(t instanceof ForkJoinWorkerThread) {
                 ForkJoinWorkerThread wt = (ForkJoinWorkerThread) t;
-                
+    
                 // 【工作线程】尝试加速task的完成，如果无法加速，则当前的【工作线程】考虑进入wait状态，直到task完成后被唤醒
                 s = wt.pool.awaitJoin(wt.workQueue, this, deadline);
             } else {
@@ -1975,13 +1980,13 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
         public final void setRawResult(T v) {
             result = v;
         }
-        
+    
         // 通过继承的方式兼容Runnable，间接执行组合的Runnable中的任务（动作）
         public final void run() {
             // 并行执行任务
             invoke();
         }
-        
+    
         /*
          * 通过组合的方式兼容Runnable，直接执行组合的Runnable中的任务（动作）
          * 该方法总是true，代表任务执行完成
@@ -1990,7 +1995,7 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
             runnable.run();
             return true;
         }
-        
+    
         public String toString() {
             return super.toString() + "[Wrapped task = " + runnable + "]";
         }
@@ -2021,12 +2026,12 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
         
         public final void setRawResult(Void v) {
         }
-        
+    
         // 通过继承的方式兼容Runnable，间接执行组合的Runnable中的任务（动作）
         public final void run() {
             invoke();
         }
-        
+    
         /*
          * 通过组合的方式兼容Runnable，直接执行组合的Runnable中的任务（动作）
          * 该方法总是true，代表任务执行完成
@@ -2035,7 +2040,7 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
             runnable.run();
             return true;
         }
-        
+    
         public String toString() {
             return super.toString() + "[Wrapped task = " + runnable + "]";
         }
@@ -2063,7 +2068,7 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
         
         public final void setRawResult(Void v) {
         }
-        
+    
         /*
          * 通过组合的方式兼容Runnable，直接执行组合的Runnable中的任务（动作）
          * 该方法总是true，代表任务执行完成
@@ -2107,12 +2112,12 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
         public final void setRawResult(T v) {
             result = v;
         }
-        
+    
         // 通过继承的方式兼容Runnable，间接执行组合的Callable中的任务（动作）
         public final void run() {
             invoke();
         }
-        
+    
         /*
          * 通过组合的方式兼容Callable，直接执行组合的Callable中的任务（动作）
          * 该方法总是true，代表任务执行完成

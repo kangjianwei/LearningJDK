@@ -48,10 +48,11 @@ import java.util.function.Consumer;
  * 一个类如果实现了Iterable接口，就意味着“该类本身支持遍历”，并可以通过for-each这种循环语法来直接遍历
  * 当然，一个类如果没有实现Iterable接口，也可以通过挂载外部迭代器Iterator进行遍历
  *
- * 此外，内部迭代器还可转换为可分割迭代器Spliterator，以便用于流式操作
+ * 此外，内部迭代器还
  *
- * 注：区别于外部迭代器Iterator
- * 注：区别于枚举器Enumeration
+ * 注1：区别于外部迭代器Iterator
+ * 注2：区别于枚举器Enumeration
+ * 注3：区别于流迭代器Spliterator
  */
 public interface Iterable<T> {
     /**
@@ -113,4 +114,5 @@ public interface Iterable<T> {
     default Spliterator<T> spliterator() {
         return Spliterators.spliteratorUnknownSize(iterator(), 0);
     }
+    
 }

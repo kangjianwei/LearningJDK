@@ -341,6 +341,7 @@ public interface Set<E> extends Collection<E> {
      *
      * @return an array containing all the elements in this set
      */
+    // 以数组形式返回当前Set中的元素
     Object[] toArray();
     
     /**
@@ -387,6 +388,7 @@ public interface Set<E> extends Collection<E> {
      *                              set
      * @throws NullPointerException if the specified array is null
      */
+    // 将当前Set中的元素存入数组a后返回，需要将Set中的元素转换为T类型
     <T> T[] toArray(T[] a);
     
     /*▲ 视图 ████████████████████████████████████████████████████████████████████████████████┛ */

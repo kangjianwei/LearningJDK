@@ -33,12 +33,11 @@ import java.util.function.IntConsumer;
  *
  * @implNote The implementation is based on the code for the Array-based spliterators.
  */
-
-// 专用Spliterator，应用于字符序列的流中
+// 字符序列的流迭代器
 class CharBufferSpliterator implements Spliterator.OfInt {
     private final CharBuffer buffer;    // 字符缓冲区
-    private final int limit;
-    private int index;                  // 当前元素索引，会被advance/split改变
+    private int index;                  // 当前元素的游标，会被advance/split改变
+    private final int limit;            // 游标上限
     
     CharBufferSpliterator(CharBuffer buffer) {
         this(buffer, buffer.position(), buffer.limit());
@@ -47,24 +46,60 @@ class CharBufferSpliterator implements Spliterator.OfInt {
     CharBufferSpliterator(CharBuffer buffer, int origin, int limit) {
         assert origin<=limit;
         this.buffer = buffer;
-        this.index = (origin<=limit) ? origin : limit;
+        this.index = Math.min(origin, limit);
         this.limit = limit;
     }
     
-    // 采用折半分割
+    /*
+     * 返回子Spliterator，该子Spliterator内持有原Spliterator的部分数据。
+     *
+     * 注1：该操作可能会引起内部游标的变化
+     * 注2：子Spliterator的参数可能发生改变
+     */
     @Override
     public OfInt trySplit() {
         int lo = index, mid = (lo + limit) >>> 1;
-        return (lo >= mid)
-            ? null
-            : new CharBufferSpliterator(buffer, lo, index = mid);
+        if(lo >= mid) {
+            return null;
+        }
+        
+        return new CharBufferSpliterator(buffer, lo, index = mid);
     }
     
-    // 遍历元素，执行择取操作
+    /*
+     * 尝试用action消费当前流迭代器中下一个元素。
+     * 返回值指示是否找到了下一个元素。
+     *
+     * 注1：该操作可能会引起内部游标的变化
+     * 注2：该操作可能会顺着sink链向下游传播
+     */
+    @Override
+    public boolean tryAdvance(IntConsumer action) {
+        if(action == null) {
+            throw new NullPointerException();
+        }
+        
+        if(index<0 || index >= limit) {
+            return false;
+        }
+        
+        action.accept(buffer.getUnchecked(index++));
+        
+        return true;
+    }
+    
+    /*
+     * 尝试用action逐个消费当前流迭代器中所有剩余元素。
+     *
+     * 注1：该操作可能会引起内部游标的变化
+     * 注2：该操作可能会顺着sink链向下游传播
+     */
     @Override
     public void forEachRemaining(IntConsumer action) {
-        if(action == null)
+        if(action == null) {
             throw new NullPointerException();
+        }
+        
         CharBuffer cb = buffer;
         int i = index;
         int hi = limit;
@@ -74,27 +109,16 @@ class CharBufferSpliterator implements Spliterator.OfInt {
         }
     }
     
-    // 对当前元素执行择取操作
-    @Override
-    public boolean tryAdvance(IntConsumer action) {
-        if(action == null)
-            throw new NullPointerException();
-        if(index >= 0 && index<limit) {
-            action.accept(buffer.getUnchecked(index++));
-            return true;
-        }
-        return false;
-    }
-    
     // 返回元素数量
     @Override
     public long estimateSize() {
         return (long) (limit - index);
     }
     
-    // 返回该Buffer的特征值
+    // 返回流迭代器的参数
     @Override
     public int characteristics() {
         return Buffer.SPLITERATOR_CHARACTERISTICS;
     }
+    
 }

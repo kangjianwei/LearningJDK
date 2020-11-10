@@ -210,7 +210,11 @@ public interface Comparator<T> {
      * @see Comparable
      * @since 1.8
      */
-    // 返回“自然顺序”比较器，用于比较实现了Comparable的对象
+    /*
+     * 返回“自然顺序”比较器，用于比较实现了Comparable的对象
+     *
+     * 注：所谓自然顺序是指顺应对象内部的Comparable排序规则
+     */
     @SuppressWarnings("unchecked")
     static <T extends Comparable<? super T>> Comparator<T> naturalOrder() {
         return (Comparator<T>) Comparators.NaturalOrderComparator.INSTANCE;
@@ -230,7 +234,11 @@ public interface Comparator<T> {
      * @see Comparable
      * @since 1.8
      */
-    // 返回“逆自然顺序”比较器，用于比较实现了Comparable的对象
+    /*
+     * 返回“逆自然顺序”比较器，用于比较实现了Comparable的对象
+     *
+     * 注：所谓自然顺序是指顺应对象内部的Comparable排序规则
+     */
     static <T extends Comparable<? super T>> Comparator<T> reverseOrder() {
         return Collections.reverseOrder();
     }
@@ -243,7 +251,7 @@ public interface Comparator<T> {
      *
      * @since 1.8
      */
-    // 返回一个比较器，它强制执行与该比较器相反的顺序。
+    // 返回一个比较器，它强制执行与当前比较器相反的顺序。
     default Comparator<T> reversed() {
         return Collections.reverseOrder(this);
     }

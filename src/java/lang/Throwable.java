@@ -523,7 +523,7 @@ public class Throwable implements Serializable {
      * @throws NullPointerException     if {@code exception} is {@code null}
      * @since 1.7
      */
-    /**
+    /*
      * 为当前异常添加一个抑制(次要)异常
      *
      * 注：这种机制弥补了"Cause"的缺陷，当存在多个待抛异常时，可以用此种方式来区分主次
@@ -667,20 +667,20 @@ public class Throwable implements Serializable {
     public void setStackTrace(StackTraceElement[] stackTrace) {
         // 获取异常堆栈信息
         StackTraceElement[] defensiveCopy = stackTrace.clone();
-        
+    
         // 遍历异常堆栈，确保其中没有null值
         for(int i = 0; i<defensiveCopy.length; i++) {
             if(defensiveCopy[i] == null) {
                 throw new NullPointerException("stackTrace[" + i + "]");
             }
         }
-        
+    
         synchronized(this) {
             if(this.stackTrace == null  // Immutable stack
                 && backtrace == null) { // Test for out of protocol state
                 return;
             }
-            
+        
             // 更新异常堆栈
             this.stackTrace = defensiveCopy;
         }
