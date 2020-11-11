@@ -115,7 +115,7 @@ public abstract class CharBuffer extends Buffer implements Comparable<CharBuffer
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     // Creates a new buffer with the given mark, position, limit, capacity, backing array, and array offset
     CharBuffer(int mark, int pos, int lim, int cap, char[] hb, int offset) {
@@ -129,7 +129,143 @@ public abstract class CharBuffer extends Buffer implements Comparable<CharBuffer
         this(mark, pos, lim, cap, null, 0);
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Allocates a new char buffer.
+     *
+     * <p> The new buffer's position will be zero, its limit will be its capacity, its mark will be undefined, each of its elements will be
+     * initialized to zero, and its byte order will be the {@link ByteOrder#nativeOrder native order} of the underlying hardware.
+     *
+     * It will have a {@link #array backing array}, and its {@link #arrayOffset array offset} will be zero.
+     *
+     * @param capacity The new buffer's capacity, in chars
+     *
+     * @return The new char buffer
+     *
+     * @throws IllegalArgumentException If the {@code capacity} is a negative integer
+     */
+    // 分配非直接缓冲区HeapCharBuffer：将缓冲区建立在JVM的内存中
+    public static CharBuffer allocate(int capacity) {
+        if(capacity<0)
+            throw createCapacityException(capacity);
+        return new HeapCharBuffer(capacity, capacity);
+    }
+    
+    /**
+     * Wraps a char array into a buffer.
+     *
+     * <p> The new buffer will be backed by the given char array;
+     * that is, modifications to the buffer will cause the array to be modified
+     * and vice versa.  The new buffer's capacity will be
+     * {@code array.length}, its position will be {@code offset}, its limit
+     * will be {@code offset + length}, its mark will be undefined, and its
+     * byte order will be the {@link ByteOrder#nativeOrder native order} of the underlying
+     * hardware.
+     *
+     * Its {@link #array backing array} will be the given array, and
+     * its {@link #arrayOffset array offset} will be zero.  </p>
+     *
+     * @param array  The array that will back the new buffer
+     * @param offset The offset of the subarray to be used; must be non-negative and
+     *               no larger than {@code array.length}.  The new buffer's position
+     *               will be set to this value.
+     * @param length The length of the subarray to be used;
+     *               must be non-negative and no larger than
+     *               {@code array.length - offset}.
+     *               The new buffer's limit will be set to {@code offset + length}.
+     *
+     * @return The new char buffer
+     *
+     * @throws IndexOutOfBoundsException If the preconditions on the {@code offset} and {@code length}
+     *                                   parameters do not hold
+     */
+    // 包装一个字符数组到buffer（包装一部分）
+    public static CharBuffer wrap(char[] array, int offset, int length) {
+        try {
+            return new HeapCharBuffer(array, offset, length);
+        } catch(IllegalArgumentException x) {
+            throw new IndexOutOfBoundsException();
+        }
+    }
+    
+    /**
+     * Wraps a char array into a buffer.
+     *
+     * <p> The new buffer will be backed by the given char array;
+     * that is, modifications to the buffer will cause the array to be modified
+     * and vice versa.  The new buffer's capacity and limit will be
+     * {@code array.length}, its position will be zero, its mark will be
+     * undefined, and its byte order will be the {@link ByteOrder#nativeOrder native order} of the underlying
+     * hardware.
+     *
+     * Its {@link #array backing array} will be the given array, and its
+     * {@link #arrayOffset array offset} will be zero.  </p>
+     *
+     * @param array The array that will back this buffer
+     *
+     * @return The new char buffer
+     */
+    // 包装一个字符数组到buffer（包装一部分）
+    public static CharBuffer wrap(char[] array) {
+        return wrap(array, 0, array.length);
+    }
+    
+    /**
+     * Wraps a character sequence into a buffer.
+     *
+     * <p> The content of the new, read-only buffer will be the content of the
+     * given character sequence.  The buffer's capacity will be
+     * {@code csq.length()}, its position will be {@code start}, its limit
+     * will be {@code end}, and its mark will be undefined.  </p>
+     *
+     * @param csq   The character sequence from which the new character buffer is to
+     *              be created
+     * @param start The index of the first character to be used;
+     *              must be non-negative and no larger than {@code csq.length()}.
+     *              The new buffer's position will be set to this value.
+     * @param end   The index of the character following the last character to be
+     *              used; must be no smaller than {@code start} and no larger
+     *              than {@code csq.length()}.
+     *              The new buffer's limit will be set to this value.
+     *
+     * @return The new character buffer
+     *
+     * @throws IndexOutOfBoundsException If the preconditions on the {@code start} and {@code end}
+     *                                   parameters do not hold
+     */
+    // 包装一个CharSequence到buffer（包装一部分）
+    public static CharBuffer wrap(CharSequence csq, int start, int end) {
+        try {
+            return new StringCharBuffer(csq, start, end);
+        } catch(IllegalArgumentException x) {
+            throw new IndexOutOfBoundsException();
+        }
+    }
+    
+    /**
+     * Wraps a character sequence into a buffer.
+     *
+     * <p> The content of the new, read-only buffer will be the content of the
+     * given character sequence.  The new buffer's capacity and limit will be
+     * {@code csq.length()}, its position will be zero, and its mark will be
+     * undefined.  </p>
+     *
+     * @param csq The character sequence from which the new character buffer is to
+     *            be created
+     *
+     * @return The new character buffer
+     */
+    // 包装一个CharSequence到buffer（包装全部）
+    public static CharBuffer wrap(CharSequence csq) {
+        return wrap(csq, 0, csq.length());
+    }
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -140,7 +276,7 @@ public abstract class CharBuffer extends Buffer implements Comparable<CharBuffer
      *
      * @return {@code true} if, and only if, this buffer is direct
      */
-    // true：该缓冲区是直接缓冲区
+    // 直接缓冲区/非直接缓冲区
     public abstract boolean isDirect();
     
     /*▲ 缓冲区属性 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -319,7 +455,7 @@ public abstract class CharBuffer extends Buffer implements Comparable<CharBuffer
      * @throws IndexOutOfBoundsException If the preconditions on {@code start} and {@code end}
      *                                   do not hold
      */
-    // 副本，新缓冲区的【活跃区域】取自旧缓冲区【活跃区域】的[start，end)部分
+    // 子副本，新缓冲区的【活跃区域】取自旧缓冲区【活跃区域】的[start，end)部分
     public abstract CharBuffer subSequence(int start, int end);
     
     /*▲ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -352,17 +488,6 @@ public abstract class CharBuffer extends Buffer implements Comparable<CharBuffer
      */
     // 读取index处（可能需要加offset）的char（有越界检查）
     public abstract char get(int index);
-    
-    /**
-     * Absolute <i>get</i> method.  Reads the char at the given
-     * index without any validation of the index.
-     *
-     * @param index The index from which the char will be read
-     *
-     * @return The char at the given index
-     */
-    // 返回index处的字符，不经过越界检查
-    abstract char getUnchecked(int index);
     
     /**
      * Relative bulk <i>get</i> method.
@@ -439,6 +564,17 @@ public abstract class CharBuffer extends Buffer implements Comparable<CharBuffer
         return get(dst, 0, dst.length);
     }
     
+    /**
+     * Absolute <i>get</i> method.  Reads the char at the given
+     * index without any validation of the index.
+     *
+     * @param index The index from which the char will be read
+     *
+     * @return The char at the given index
+     */
+    // 返回index处的字符，不经过越界检查
+    abstract char getUnchecked(int index);
+    
     /*▲ get ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
@@ -478,100 +614,6 @@ public abstract class CharBuffer extends Buffer implements Comparable<CharBuffer
      */
     // 向index处（可能需要加offset）写入char
     public abstract CharBuffer put(int index, char c);
-    
-    /**
-     * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
-     *
-     * <p> This method transfers the chars remaining in the given source
-     * buffer into this buffer.  If there are more chars remaining in the
-     * source buffer than in this buffer, that is, if
-     * {@code src.remaining()}&nbsp;{@code >}&nbsp;{@code remaining()},
-     * then no chars are transferred and a {@link
-     * BufferOverflowException} is thrown.
-     *
-     * <p> Otherwise, this method copies
-     * <i>n</i>&nbsp;=&nbsp;{@code src.remaining()} chars from the given
-     * buffer into this buffer, starting at each buffer's current position.
-     * The positions of both buffers are then incremented by <i>n</i>.
-     *
-     * <p> In other words, an invocation of this method of the form
-     * {@code dst.put(src)} has exactly the same effect as the loop
-     *
-     * <pre>
-     *     while (src.hasRemaining())
-     *         dst.put(src.get()); </pre>
-     *
-     * except that it first checks that there is sufficient space in this
-     * buffer and it is potentially much more efficient.
-     *
-     * @param src The source buffer from which chars are to be read;
-     *            must not be this buffer
-     *
-     * @return This buffer
-     *
-     * @throws BufferOverflowException  If there is insufficient space in this buffer
-     *                                  for the remaining chars in the source buffer
-     * @throws IllegalArgumentException If the source buffer is this buffer
-     * @throws ReadOnlyBufferException  If this buffer is read-only
-     */
-    // 将源缓冲区src的内容全部写入到当前缓冲区
-    public CharBuffer put(CharBuffer src) {
-        if(src == this)
-            throw createSameBufferException();
-        if(isReadOnly())
-            throw new ReadOnlyBufferException();
-        int n = src.remaining();
-        if(n > remaining())
-            throw new BufferOverflowException();
-        for(int i = 0; i < n; i++)
-            put(src.get());
-        return this;
-    }
-    
-    /**
-     * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
-     *
-     * <p> This method transfers the entire content of the given source
-     * char array into this buffer.  An invocation of this method of the
-     * form {@code dst.put(a)} behaves in exactly the same way as the
-     * invocation
-     *
-     * <pre>
-     *     dst.put(a, 0, a.length) </pre>
-     *
-     * @param src The source array
-     *
-     * @return This buffer
-     *
-     * @throws BufferOverflowException If there is insufficient space in this buffer
-     * @throws ReadOnlyBufferException If this buffer is read-only
-     */
-    // 将字符数组src的全部内容写入此缓冲区
-    public final CharBuffer put(char[] src) {
-        return put(src, 0, src.length);
-    }
-    
-    /**
-     * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
-     *
-     * <p> This method transfers the entire content of the given source string
-     * into this buffer.  An invocation of this method of the form
-     * {@code dst.put(s)} behaves in exactly the same way as the invocation
-     *
-     * <pre>
-     *     dst.put(s, 0, s.length()) </pre>
-     *
-     * @param src The source string
-     *
-     * @return This buffer
-     *
-     * @throws BufferOverflowException If there is insufficient space in this buffer
-     * @throws ReadOnlyBufferException If this buffer is read-only
-     */
-    // 将字符串src的全部内容写入此缓冲区
-    public final CharBuffer put(String src) {
-        return put(src, 0, src.length());
-    }
     
     /**
      * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
@@ -617,12 +659,35 @@ public abstract class CharBuffer extends Buffer implements Comparable<CharBuffer
     // 从源字符数组src的offset处开始，复制length个元素，写入到当前缓冲区（具体行为由子类实现）
     public CharBuffer put(char[] src, int offset, int length) {
         checkBounds(offset, length, src.length);
-        if(length > remaining())
+        if(length>remaining())
             throw new BufferOverflowException();
         int end = offset + length;
-        for(int i = offset; i < end; i++)
+        for(int i = offset; i<end; i++)
             this.put(src[i]);
         return this;
+    }
+    
+    /**
+     * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
+     *
+     * <p> This method transfers the entire content of the given source
+     * char array into this buffer.  An invocation of this method of the
+     * form {@code dst.put(a)} behaves in exactly the same way as the
+     * invocation
+     *
+     * <pre>
+     *     dst.put(a, 0, a.length) </pre>
+     *
+     * @param src The source array
+     *
+     * @return This buffer
+     *
+     * @throws BufferOverflowException If there is insufficient space in this buffer
+     * @throws ReadOnlyBufferException If this buffer is read-only
+     */
+    // 将字符数组src的全部内容写入此缓冲区
+    public final CharBuffer put(char[] src) {
+        return put(src, 0, src.length);
     }
     
     /**
@@ -673,129 +738,85 @@ public abstract class CharBuffer extends Buffer implements Comparable<CharBuffer
         checkBounds(start, end - start, src.length());
         if(isReadOnly())
             throw new ReadOnlyBufferException();
-        if(end - start > remaining())
+        if(end - start>remaining())
             throw new BufferOverflowException();
-        for(int i = start; i < end; i++)
+        for(int i = start; i<end; i++)
             this.put(src.charAt(i));
         return this;
     }
     
+    /**
+     * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
+     *
+     * <p> This method transfers the chars remaining in the given source
+     * buffer into this buffer.  If there are more chars remaining in the
+     * source buffer than in this buffer, that is, if
+     * {@code src.remaining()}&nbsp;{@code >}&nbsp;{@code remaining()},
+     * then no chars are transferred and a {@link
+     * BufferOverflowException} is thrown.
+     *
+     * <p> Otherwise, this method copies
+     * <i>n</i>&nbsp;=&nbsp;{@code src.remaining()} chars from the given
+     * buffer into this buffer, starting at each buffer's current position.
+     * The positions of both buffers are then incremented by <i>n</i>.
+     *
+     * <p> In other words, an invocation of this method of the form
+     * {@code dst.put(src)} has exactly the same effect as the loop
+     *
+     * <pre>
+     *     while (src.hasRemaining())
+     *         dst.put(src.get()); </pre>
+     *
+     * except that it first checks that there is sufficient space in this
+     * buffer and it is potentially much more efficient.
+     *
+     * @param src The source buffer from which chars are to be read;
+     *            must not be this buffer
+     *
+     * @return This buffer
+     *
+     * @throws BufferOverflowException  If there is insufficient space in this buffer
+     *                                  for the remaining chars in the source buffer
+     * @throws IllegalArgumentException If the source buffer is this buffer
+     * @throws ReadOnlyBufferException  If this buffer is read-only
+     */
+    // 将源缓冲区src的内容全部写入到当前缓冲区
+    public CharBuffer put(CharBuffer src) {
+        if(src == this)
+            throw createSameBufferException();
+        if(isReadOnly())
+            throw new ReadOnlyBufferException();
+        int n = src.remaining();
+        if(n>remaining())
+            throw new BufferOverflowException();
+        for(int i = 0; i<n; i++)
+            put(src.get());
+        return this;
+    }
+    
+    /**
+     * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
+     *
+     * <p> This method transfers the entire content of the given source string
+     * into this buffer.  An invocation of this method of the form
+     * {@code dst.put(s)} behaves in exactly the same way as the invocation
+     *
+     * <pre>
+     *     dst.put(s, 0, s.length()) </pre>
+     *
+     * @param src The source string
+     *
+     * @return This buffer
+     *
+     * @throws BufferOverflowException If there is insufficient space in this buffer
+     * @throws ReadOnlyBufferException If this buffer is read-only
+     */
+    // 将字符串src的全部内容写入此缓冲区
+    public final CharBuffer put(String src) {
+        return put(src, 0, src.length());
+    }
+    
     /*▲ put ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
-    /*▼ wrap/非直接缓冲区 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Wraps a char array into a buffer.
-     *
-     * <p> The new buffer will be backed by the given char array;
-     * that is, modifications to the buffer will cause the array to be modified
-     * and vice versa.  The new buffer's capacity will be
-     * {@code array.length}, its position will be {@code offset}, its limit
-     * will be {@code offset + length}, its mark will be undefined, and its
-     * byte order will be the {@link ByteOrder#nativeOrder native order} of the underlying
-     * hardware.
-     *
-     * Its {@link #array backing array} will be the given array, and
-     * its {@link #arrayOffset array offset} will be zero.  </p>
-     *
-     * @param array  The array that will back the new buffer
-     * @param offset The offset of the subarray to be used; must be non-negative and
-     *               no larger than {@code array.length}.  The new buffer's position
-     *               will be set to this value.
-     * @param length The length of the subarray to be used;
-     *               must be non-negative and no larger than
-     *               {@code array.length - offset}.
-     *               The new buffer's limit will be set to {@code offset + length}.
-     *
-     * @return The new char buffer
-     *
-     * @throws IndexOutOfBoundsException If the preconditions on the {@code offset} and {@code length}
-     *                                   parameters do not hold
-     */
-    // 包装一个字符数组到buffer（包装一部分）
-    public static CharBuffer wrap(char[] array, int offset, int length) {
-        try {
-            return new HeapCharBuffer(array, offset, length);
-        } catch(IllegalArgumentException x) {
-            throw new IndexOutOfBoundsException();
-        }
-    }
-    
-    /**
-     * Wraps a char array into a buffer.
-     *
-     * <p> The new buffer will be backed by the given char array;
-     * that is, modifications to the buffer will cause the array to be modified
-     * and vice versa.  The new buffer's capacity and limit will be
-     * {@code array.length}, its position will be zero, its mark will be
-     * undefined, and its byte order will be the {@link ByteOrder#nativeOrder native order} of the underlying
-     * hardware.
-     *
-     * Its {@link #array backing array} will be the given array, and its
-     * {@link #arrayOffset array offset} will be zero.  </p>
-     *
-     * @param array The array that will back this buffer
-     *
-     * @return The new char buffer
-     */
-    // 包装一个字符数组到buffer（包装一部分）
-    public static CharBuffer wrap(char[] array) {
-        return wrap(array, 0, array.length);
-    }
-    
-    /**
-     * Wraps a character sequence into a buffer.
-     *
-     * <p> The content of the new, read-only buffer will be the content of the
-     * given character sequence.  The buffer's capacity will be
-     * {@code csq.length()}, its position will be {@code start}, its limit
-     * will be {@code end}, and its mark will be undefined.  </p>
-     *
-     * @param csq   The character sequence from which the new character buffer is to
-     *              be created
-     * @param start The index of the first character to be used;
-     *              must be non-negative and no larger than {@code csq.length()}.
-     *              The new buffer's position will be set to this value.
-     * @param end   The index of the character following the last character to be
-     *              used; must be no smaller than {@code start} and no larger
-     *              than {@code csq.length()}.
-     *              The new buffer's limit will be set to this value.
-     *
-     * @return The new character buffer
-     *
-     * @throws IndexOutOfBoundsException If the preconditions on the {@code start} and {@code end}
-     *                                   parameters do not hold
-     */
-    // 包装一个CharSequence到buffer（包装一部分）
-    public static CharBuffer wrap(CharSequence csq, int start, int end) {
-        try {
-            return new StringCharBuffer(csq, start, end);
-        } catch(IllegalArgumentException x) {
-            throw new IndexOutOfBoundsException();
-        }
-    }
-    
-    /**
-     * Wraps a character sequence into a buffer.
-     *
-     * <p> The content of the new, read-only buffer will be the content of the
-     * given character sequence.  The new buffer's capacity and limit will be
-     * {@code csq.length()}, its position will be zero, and its mark will be
-     * undefined.  </p>
-     *
-     * @param csq The character sequence from which the new character buffer is to
-     *            be created
-     *
-     * @return The new character buffer
-     */
-    // 包装一个CharSequence到buffer（包装全部）
-    public static CharBuffer wrap(CharSequence csq) {
-        return wrap(csq, 0, csq.length());
-    }
-    
-    /*▲ wrap/非直接缓冲区 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -951,37 +972,6 @@ public abstract class CharBuffer extends Buffer implements Comparable<CharBuffer
     
     /*▼ 比较 ████████████████████████████████████████████████████████████████████████████████┓ */
     
-    /**
-     * Tells whether or not this buffer is equal to another object.
-     *
-     * <p> Two char buffers are equal if, and only if,
-     * <ol>
-     * <li><p> They have the same element type,  </p></li>
-     * <li><p> They have the same number of remaining elements, and
-     * </p></li>
-     * <li><p> The two sequences of remaining elements, considered
-     * independently of their starting positions, are pointwise equal.
-     * </p></li>
-     * </ol>
-     *
-     * <p> A char buffer is not equal to any other type of object.  </p>
-     *
-     * @param ob The object to which this buffer is to be compared
-     *
-     * @return {@code true} if, and only if, this buffer is equal to the
-     * given object
-     */
-    public boolean equals(Object ob) {
-        if(this == ob)
-            return true;
-        if(!(ob instanceof CharBuffer))
-            return false;
-        CharBuffer that = (CharBuffer) ob;
-        if(this.remaining() != that.remaining())
-            return false;
-        return BufferMismatch.mismatch(this, this.position(), that, that.position(), this.remaining()) < 0;
-    }
-    
     // 比较字符x和字符y，返回x-y的结果
     private static int compare(char x, char y) {
         return Character.compare(x, y);
@@ -1083,20 +1073,8 @@ public abstract class CharBuffer extends Buffer implements Comparable<CharBuffer
         return StreamSupport.intStream(() -> new CharBufferSpliterator(this), Buffer.SPLITERATOR_CHARACTERISTICS, false);
     }
     
-    /**
-     * Returns a string containing the characters in this buffer.
-     *
-     * <p> The first character of the resulting string will be the character at
-     * this buffer's position, while the last character will be the character
-     * at index {@code limit()}&nbsp;-&nbsp;1.  Invoking this method does not
-     * change the buffer's position. </p>
-     *
-     * @return The specified string
-     */
-    // 将当前字符序列转为字符串输出
-    public String toString() {
-        return toString(position(), limit());
-    }
+    // 将缓冲区子串转换为字符串返回
+    abstract String toString(int start, int end);
     
     /*▲ CharSequence ████████████████████████████████████████████████████████████████████████████████┛ */
     
@@ -1217,30 +1195,51 @@ public abstract class CharBuffer extends Buffer implements Comparable<CharBuffer
     /*▲ Buffer ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
-    
     /**
-     * Allocates a new char buffer.
+     * Returns a string containing the characters in this buffer.
      *
-     * <p> The new buffer's position will be zero, its limit will be its capacity, its mark will be undefined, each of its elements will be
-     * initialized to zero, and its byte order will be the {@link ByteOrder#nativeOrder native order} of the underlying hardware.
+     * <p> The first character of the resulting string will be the character at
+     * this buffer's position, while the last character will be the character
+     * at index {@code limit()}&nbsp;-&nbsp;1.  Invoking this method does not
+     * change the buffer's position. </p>
      *
-     * It will have a {@link #array backing array}, and its {@link #arrayOffset array offset} will be zero.
-     *
-     * @param capacity The new buffer's capacity, in chars
-     *
-     * @return The new char buffer
-     *
-     * @throws IllegalArgumentException If the {@code capacity} is a negative integer
+     * @return The specified string
      */
-    // 分配非直接缓冲区HeapCharBuffer：将缓冲区建立在JVM的内存中
-    public static CharBuffer allocate(int capacity) {
-        if(capacity < 0)
-            throw createCapacityException(capacity);
-        return new HeapCharBuffer(capacity, capacity);
+    // 将当前字符序列转为字符串输出
+    public String toString() {
+        return toString(position(), limit());
     }
     
-    // 将缓冲区子串转换为字符串返回
-    abstract String toString(int start, int end);
+    /**
+     * Tells whether or not this buffer is equal to another object.
+     *
+     * <p> Two char buffers are equal if, and only if,
+     * <ol>
+     * <li><p> They have the same element type,  </p></li>
+     * <li><p> They have the same number of remaining elements, and
+     * </p></li>
+     * <li><p> The two sequences of remaining elements, considered
+     * independently of their starting positions, are pointwise equal.
+     * </p></li>
+     * </ol>
+     *
+     * <p> A char buffer is not equal to any other type of object.  </p>
+     *
+     * @param ob The object to which this buffer is to be compared
+     *
+     * @return {@code true} if, and only if, this buffer is equal to the
+     * given object
+     */
+    public boolean equals(Object ob) {
+        if(this == ob)
+            return true;
+        if(!(ob instanceof CharBuffer))
+            return false;
+        CharBuffer that = (CharBuffer) ob;
+        if(this.remaining() != that.remaining())
+            return false;
+        return BufferMismatch.mismatch(this, this.position(), that, that.position(), this.remaining())<0;
+    }
     
     /**
      * Returns the current hash code of this buffer.
@@ -1262,4 +1261,5 @@ public abstract class CharBuffer extends Buffer implements Comparable<CharBuffer
             h = 31 * h + (int) get(i);
         return h;
     }
+    
 }

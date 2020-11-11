@@ -47,7 +47,7 @@ class DirectDoubleBufferS extends DoubleBuffer implements DirectBuffer {
     private final Object att;
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     // For duplicates and slices
     DirectDoubleBufferS(DirectBuffer db, int mark, int pos, int lim, int cap, int off) {
@@ -56,18 +56,20 @@ class DirectDoubleBufferS extends DoubleBuffer implements DirectBuffer {
         att = db;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 可读写/直接 ████████████████████████████████████████████████████████████████████████████████┓ */
     
-    public boolean isDirect() {
-        return true;
-    }
-    
+    // 只读/可读写
     public boolean isReadOnly() {
         return false;
+    }
+    
+    // 直接缓冲区/非直接缓冲区
+    public boolean isDirect() {
+        return true;
     }
     
     /*▲ 可读写/直接 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -76,6 +78,7 @@ class DirectDoubleBufferS extends DoubleBuffer implements DirectBuffer {
     
     /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 切片，截取旧缓冲区的【活跃区域】，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     public DoubleBuffer slice() {
         int pos = this.position();
         int lim = this.limit();
@@ -86,10 +89,12 @@ class DirectDoubleBufferS extends DoubleBuffer implements DirectBuffer {
         return new DirectDoubleBufferS(this, -1, 0, rem, rem, off);
     }
     
+    // 副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public DoubleBuffer duplicate() {
         return new DirectDoubleBufferS(this, this.markValue(), this.position(), this.limit(), this.capacity(), 0);
     }
     
+    // 只读副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public DoubleBuffer asReadOnlyBuffer() {
         return new DirectDoubleBufferRS(this, this.markValue(), this.position(), this.limit(), this.capacity(), 0);
     }
@@ -100,6 +105,7 @@ class DirectDoubleBufferS extends DoubleBuffer implements DirectBuffer {
     
     /*▼ get/读取 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 读取position处（可能需要加offset）的double，然后递增position。
     public double get() {
         try {
             return Double.longBitsToDouble(Bits.swap(UNSAFE.getLong(ix(nextGetIndex()))));
@@ -108,6 +114,7 @@ class DirectDoubleBufferS extends DoubleBuffer implements DirectBuffer {
         }
     }
     
+    // 读取i处（可能需要加offset）的double（有越界检查）
     public double get(int i) {
         try {
             return Double.longBitsToDouble(Bits.swap(UNSAFE.getLong(ix(checkIndex(i)))));
@@ -116,6 +123,7 @@ class DirectDoubleBufferS extends DoubleBuffer implements DirectBuffer {
         }
     }
     
+    // 复制源缓存区的length个元素到dst数组offset索引处
     public DoubleBuffer get(double[] dst, int offset, int length) {
         if(((long) length << 3)>Bits.JNI_COPY_TO_ARRAY_THRESHOLD) {
             checkBounds(offset, length, dst.length);
@@ -132,7 +140,6 @@ class DirectDoubleBufferS extends DoubleBuffer implements DirectBuffer {
                 if(order() != ByteOrder.nativeOrder())
                     UNSAFE.copySwapMemory(null, ix(pos), dst, dstOffset, (long) length << 3, (long) 1 << 3);
                 else
-                    
                     UNSAFE.copyMemory(null, ix(pos), dst, dstOffset, (long) length << 3);
             } finally {
                 Reference.reachabilityFence(this);
@@ -150,6 +157,7 @@ class DirectDoubleBufferS extends DoubleBuffer implements DirectBuffer {
     
     /*▼ put/写入 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 向position处（可能需要加offset）写入double，并将position递增
     public DoubleBuffer put(double x) {
         try {
             UNSAFE.putLong(ix(nextPutIndex()), Bits.swap(Double.doubleToRawLongBits(x)));
@@ -159,6 +167,7 @@ class DirectDoubleBufferS extends DoubleBuffer implements DirectBuffer {
         return this;
     }
     
+    // 向i处（可能需要加offset）写入double
     public DoubleBuffer put(int i, double x) {
         try {
             UNSAFE.putLong(ix(checkIndex(i)), Bits.swap(Double.doubleToRawLongBits(x)));
@@ -168,6 +177,7 @@ class DirectDoubleBufferS extends DoubleBuffer implements DirectBuffer {
         return this;
     }
     
+    // 将double数组src的全部内容写入此缓冲区
     public DoubleBuffer put(DoubleBuffer src) {
         if(src instanceof DirectDoubleBufferS) {
             if(src == this)
@@ -210,6 +220,7 @@ class DirectDoubleBufferS extends DoubleBuffer implements DirectBuffer {
         return this;
     }
     
+    // 将源缓冲区src的内容全部写入到当前缓冲区
     public DoubleBuffer put(double[] src, int offset, int length) {
         if(((long) length << 3)>Bits.JNI_COPY_FROM_ARRAY_THRESHOLD) {
             checkBounds(offset, length, src.length);
@@ -235,6 +246,7 @@ class DirectDoubleBufferS extends DoubleBuffer implements DirectBuffer {
         } else {
             super.put(src, offset, length);
         }
+        
         return this;
     }
     
@@ -244,6 +256,7 @@ class DirectDoubleBufferS extends DoubleBuffer implements DirectBuffer {
     
     /*▼ 压缩 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 压缩缓冲区，将当前未读完的数据挪到容器起始处，可用于读模式到写模式的切换，但又不丢失之前读入的数据。
     public DoubleBuffer compact() {
         int pos = position();
         int lim = limit();
@@ -266,6 +279,7 @@ class DirectDoubleBufferS extends DoubleBuffer implements DirectBuffer {
     
     /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 返回该缓冲区的字节序（大端还是小端）
     public ByteOrder order() {
         return ((ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN) ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
     }
@@ -273,7 +287,7 @@ class DirectDoubleBufferS extends DoubleBuffer implements DirectBuffer {
     /*▲ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
-    
+    // 返回内部存储结构的引用（一般用于非直接缓存区）
     @Override
     Object base() {
         return null;
@@ -287,14 +301,17 @@ class DirectDoubleBufferS extends DoubleBuffer implements DirectBuffer {
     
     /*▼ 实现DirectBuffer接口 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 返回直接缓冲区的【绝对】起始<地址>
     public long address() {
         return address;
     }
     
+    // 返回附件，一般是指母体缓冲区的引用
     public Object attachment() {
         return att;
     }
     
+    // 返回该缓冲区的清理器
     public Cleaner cleaner() {
         return null;
     }

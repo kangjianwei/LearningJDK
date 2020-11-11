@@ -114,16 +114,19 @@ package java.nio;
  */
 public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuffer> {
     
-    // These fields are declared here rather than in Heap-X-Buffer in order to reduce the number of virtual method invocations needed to access these values,
-    // which is especially costly when coding small buffers.
+    /**
+     * These fields are declared here rather than in Heap-X-Buffer in order to
+     * reduce the number of virtual method invocations needed to access these
+     * values, which is especially costly when coding small buffers.
+     */
     final short[] hb;                  // Non-null only for heap buffers
     
-    final int offset;
-    boolean isReadOnly;
+    final int offset;    // 寻址偏移量
+    boolean isReadOnly;  // 该缓冲区是否只读
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     // Creates a new buffer with the given mark, position, limit, capacity, backing array, and array offset
     ShortBuffer(int mark, int pos, int lim, int cap, short[] hb, int offset) {
@@ -137,7 +140,108 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
         this(mark, pos, lim, cap, null, 0);
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Allocates a new short buffer.
+     *
+     * <p> The new buffer's position will be zero, its limit will be its
+     * capacity, its mark will be undefined, each of its elements will be
+     * initialized to zero, and its byte order will be
+     *
+     *
+     *
+     * the {@link ByteOrder#nativeOrder native order} of the underlying
+     * hardware.
+     *
+     * It will have a {@link #array backing array}, and its
+     * {@link #arrayOffset array offset} will be zero.
+     *
+     * @param capacity The new buffer's capacity, in shorts
+     *
+     * @return The new short buffer
+     *
+     * @throws IllegalArgumentException If the {@code capacity} is a negative integer
+     */
+    // 创建堆内存缓冲区HeapShortBuffer
+    public static ShortBuffer allocate(int capacity) {
+        if(capacity<0)
+            throw createCapacityException(capacity);
+        return new HeapShortBuffer(capacity, capacity);
+    }
+    
+    /**
+     * Wraps a short array into a buffer.
+     *
+     * <p> The new buffer will be backed by the given short array;
+     * that is, modifications to the buffer will cause the array to be modified
+     * and vice versa.  The new buffer's capacity will be
+     * {@code array.length}, its position will be {@code offset}, its limit
+     * will be {@code offset + length}, its mark will be undefined, and its
+     * byte order will be
+     *
+     *
+     *
+     * the {@link ByteOrder#nativeOrder native order} of the underlying
+     * hardware.
+     *
+     * Its {@link #array backing array} will be the given array, and
+     * its {@link #arrayOffset array offset} will be zero.  </p>
+     *
+     * @param array  The array that will back the new buffer
+     * @param offset The offset of the subarray to be used; must be non-negative and
+     *               no larger than {@code array.length}.  The new buffer's position
+     *               will be set to this value.
+     * @param length The length of the subarray to be used;
+     *               must be non-negative and no larger than
+     *               {@code array.length - offset}.
+     *               The new buffer's limit will be set to {@code offset + length}.
+     *
+     * @return The new short buffer
+     *
+     * @throws IndexOutOfBoundsException If the preconditions on the {@code offset} and {@code length}
+     *                                   parameters do not hold
+     */
+    // 包装一个short数组到buffer（包装一部分）
+    public static ShortBuffer wrap(short[] array, int offset, int length) {
+        try {
+            return new HeapShortBuffer(array, offset, length);
+        } catch(IllegalArgumentException x) {
+            throw new IndexOutOfBoundsException();
+        }
+    }
+    
+    /**
+     * Wraps a short array into a buffer.
+     *
+     * <p> The new buffer will be backed by the given short array;
+     * that is, modifications to the buffer will cause the array to be modified
+     * and vice versa.  The new buffer's capacity and limit will be
+     * {@code array.length}, its position will be zero, its mark will be
+     * undefined, and its byte order will be
+     *
+     *
+     *
+     * the {@link ByteOrder#nativeOrder native order} of the underlying
+     * hardware.
+     *
+     * Its {@link #array backing array} will be the given array, and its
+     * {@link #arrayOffset array offset} will be zero.  </p>
+     *
+     * @param array The array that will back this buffer
+     *
+     * @return The new short buffer
+     */
+    // 包装一个short数组到buffer
+    public static ShortBuffer wrap(short[] array) {
+        return wrap(array, 0, array.length);
+    }
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -148,6 +252,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
      *
      * @return {@code true} if, and only if, this buffer is direct
      */
+    // 直接缓冲区/非直接缓冲区
     public abstract boolean isDirect();
     
     /*▲ 缓冲区属性 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -159,6 +264,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
     /**
      * {@inheritDoc}
      */
+    // 在当前游标position处设置新的mark（备忘）
     @Override
     public final ShortBuffer mark() {
         super.mark();
@@ -168,6 +274,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
     /**
      * {@inheritDoc}
      */
+    // 设置新的游标position
     @Override
     public final ShortBuffer position(int newPosition) {
         super.position(newPosition);
@@ -177,6 +284,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
     /**
      * {@inheritDoc}
      */
+    // 设置新的上界limit
     @Override
     public final ShortBuffer limit(int newLimit) {
         super.limit(newLimit);
@@ -186,6 +294,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
     /**
      * {@inheritDoc}
      */
+    // 将当前游标position回退到mark（备忘）位置
     @Override
     public final ShortBuffer reset() {
         super.reset();
@@ -195,6 +304,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
     /**
      * {@inheritDoc}
      */
+    // 清理缓冲区，重置标记
     @Override
     public final ShortBuffer clear() {
         super.clear();
@@ -204,6 +314,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
     /**
      * {@inheritDoc}
      */
+    // 修改标记，可以切换缓冲区读/写模式
     @Override
     public final ShortBuffer flip() {
         super.flip();
@@ -213,6 +324,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
     /**
      * {@inheritDoc}
      */
+    // 丢弃备忘，游标归零
     @Override
     public final ShortBuffer rewind() {
         super.rewind();
@@ -245,6 +357,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
      *
      * @return The new short buffer
      */
+    // 切片，截取旧缓冲区的【活跃区域】，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     @Override
     public abstract ShortBuffer slice();
     
@@ -268,6 +381,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
      *
      * @return The new short buffer
      */
+    // 副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     @Override
     public abstract ShortBuffer duplicate();
     
@@ -294,6 +408,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
      *
      * @return The new, read-only short buffer
      */
+    // 只读副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public abstract ShortBuffer asReadOnlyBuffer();
     
     /*▲ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -310,6 +425,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
      *
      * @throws BufferUnderflowException If the buffer's current position is not smaller than its limit
      */
+    // 读取position处（可能需要加offset）的short，然后递增position。
     public abstract short get();
     
     /**
@@ -323,6 +439,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
      * @throws IndexOutOfBoundsException If {@code index} is negative
      *                                   or not smaller than the buffer's limit
      */
+    // 读取index处（可能需要加offset）的short（有越界检查）
     public abstract short get(int index);
     
     /**
@@ -367,6 +484,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
      * @throws IndexOutOfBoundsException If the preconditions on the {@code offset} and {@code length}
      *                                   parameters do not hold
      */
+    // 复制源缓存区的length个元素到dst数组offset索引处
     public ShortBuffer get(short[] dst, int offset, int length) {
         checkBounds(offset, length, dst.length);
         if(length > remaining())
@@ -394,6 +512,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
      * @throws BufferUnderflowException If there are fewer than {@code length} shorts
      *                                  remaining in this buffer
      */
+    // 复制源缓存区的内容到dst数组，尽量填满dst
     public ShortBuffer get(short[] dst) {
         return get(dst, 0, dst.length);
     }
@@ -417,6 +536,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
      * @throws BufferOverflowException If this buffer's current position is not smaller than its limit
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
+    // 向position处（可能需要加offset）写入short，并将position递增
     public abstract ShortBuffer put(short s);
     
     /**
@@ -434,6 +554,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
      *                                   or not smaller than the buffer's limit
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
+    // 向index处（可能需要加offset）写入short
     public abstract ShortBuffer put(int index, short s);
     
     /**
@@ -477,6 +598,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
      *                                   parameters do not hold
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
+    // 从源short数组src的offset处开始，复制length个元素，写入到当前缓冲区（具体行为由子类实现）
     public ShortBuffer put(short[] src, int offset, int length) {
         checkBounds(offset, length, src.length);
         if(length > remaining())
@@ -505,6 +627,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
      * @throws BufferOverflowException If there is insufficient space in this buffer
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
+    // 将short数组src的全部内容写入此缓冲区
     public final ShortBuffer put(short[] src) {
         return put(src, 0, src.length);
     }
@@ -544,6 +667,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
      * @throws IllegalArgumentException If the source buffer is this buffer
      * @throws ReadOnlyBufferException  If this buffer is read-only
      */
+    // 将源缓冲区src的内容全部写入到当前缓冲区
     public ShortBuffer put(ShortBuffer src) {
         if(src == this)
             throw createSameBufferException();
@@ -558,77 +682,6 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
     }
     
     /*▲ put ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
-    /*▼ wrap/非直接缓冲区 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Wraps a short array into a buffer.
-     *
-     * <p> The new buffer will be backed by the given short array;
-     * that is, modifications to the buffer will cause the array to be modified
-     * and vice versa.  The new buffer's capacity will be
-     * {@code array.length}, its position will be {@code offset}, its limit
-     * will be {@code offset + length}, its mark will be undefined, and its
-     * byte order will be
-     *
-     *
-     *
-     * the {@link ByteOrder#nativeOrder native order} of the underlying
-     * hardware.
-     *
-     * Its {@link #array backing array} will be the given array, and
-     * its {@link #arrayOffset array offset} will be zero.  </p>
-     *
-     * @param array  The array that will back the new buffer
-     * @param offset The offset of the subarray to be used; must be non-negative and
-     *               no larger than {@code array.length}.  The new buffer's position
-     *               will be set to this value.
-     * @param length The length of the subarray to be used;
-     *               must be non-negative and no larger than
-     *               {@code array.length - offset}.
-     *               The new buffer's limit will be set to {@code offset + length}.
-     *
-     * @return The new short buffer
-     *
-     * @throws IndexOutOfBoundsException If the preconditions on the {@code offset} and {@code length}
-     *                                   parameters do not hold
-     */
-    public static ShortBuffer wrap(short[] array, int offset, int length) {
-        try {
-            return new HeapShortBuffer(array, offset, length);
-        } catch(IllegalArgumentException x) {
-            throw new IndexOutOfBoundsException();
-        }
-    }
-    
-    /**
-     * Wraps a short array into a buffer.
-     *
-     * <p> The new buffer will be backed by the given short array;
-     * that is, modifications to the buffer will cause the array to be modified
-     * and vice versa.  The new buffer's capacity and limit will be
-     * {@code array.length}, its position will be zero, its mark will be
-     * undefined, and its byte order will be
-     *
-     *
-     *
-     * the {@link ByteOrder#nativeOrder native order} of the underlying
-     * hardware.
-     *
-     * Its {@link #array backing array} will be the given array, and its
-     * {@link #arrayOffset array offset} will be zero.  </p>
-     *
-     * @param array The array that will back this buffer
-     *
-     * @return The new short buffer
-     */
-    public static ShortBuffer wrap(short[] array) {
-        return wrap(array, 0, array.length);
-    }
-    
-    /*▲ wrap/非直接缓冲区 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -656,6 +709,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
      *
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
+    // 压缩缓冲区，将当前未读完的数据挪到容器起始处，可用于读模式到写模式的切换，但又不丢失之前读入的数据。
     public abstract ShortBuffer compact();
     
     /*▲ 压缩 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -676,6 +730,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
      *
      * @return This buffer's byte order
      */
+    // 返回该缓冲区的字节序（大端还是小端）
     public abstract ByteOrder order();
     
     /*▲ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -683,49 +738,6 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
     
     
     /*▼ 比较 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Tells whether or not this buffer is equal to another object.
-     *
-     * <p> Two short buffers are equal if, and only if,
-     *
-     * <ol>
-     *
-     * <li><p> They have the same element type,  </p></li>
-     *
-     * <li><p> They have the same number of remaining elements, and
-     * </p></li>
-     *
-     * <li><p> The two sequences of remaining elements, considered
-     * independently of their starting positions, are pointwise equal.
-     *
-     *
-     *
-     *
-     *
-     *
-     *
-     * </p></li>
-     *
-     * </ol>
-     *
-     * <p> A short buffer is not equal to any other type of object.  </p>
-     *
-     * @param ob The object to which this buffer is to be compared
-     *
-     * @return {@code true} if, and only if, this buffer is equal to the
-     * given object
-     */
-    public boolean equals(Object ob) {
-        if(this == ob)
-            return true;
-        if(!(ob instanceof ShortBuffer))
-            return false;
-        ShortBuffer that = (ShortBuffer) ob;
-        if(this.remaining() != that.remaining())
-            return false;
-        return BufferMismatch.mismatch(this, this.position(), that, that.position(), this.remaining()) < 0;
-    }
     
     private static int compare(short x, short y) {
         return Short.compare(x, y);
@@ -785,6 +797,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
      *
      * @since 11
      */
+    // 快速比较两个缓冲区内容，并返回失配元素的索引。返回-1代表缓冲区内容相同。
     public int mismatch(ShortBuffer that) {
         int length = Math.min(this.remaining(), that.remaining());
         int r = BufferMismatch.mismatch(this, this.position(), that, that.position(), length);
@@ -808,6 +821,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
      * @return {@code true} if, and only if, this buffer
      * is backed by an array and is not read-only
      */
+    // true：此buffer由可访问的数组实现
     public final boolean hasArray() {
         return (hb != null) && !isReadOnly;
     }
@@ -828,6 +842,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
      * @throws ReadOnlyBufferException       If this buffer is backed by an array but is read-only
      * @throws UnsupportedOperationException If this buffer is not backed by an accessible array
      */
+    // 返回该buffer内部的非只读数组
     public final short[] array() {
         if(hb == null)
             throw new UnsupportedOperationException();
@@ -836,6 +851,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
         return hb;
     }
     
+    // 返回内部存储结构的引用（一般用于非直接缓存区）
     @Override
     Object base() {
         return hb;
@@ -858,6 +874,7 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
      * @throws ReadOnlyBufferException       If this buffer is backed by an array but is read-only
      * @throws UnsupportedOperationException If this buffer is not backed by an accessible array
      */
+    // 返回此缓冲区中的第一个元素在缓冲区的底层实现数组中的偏移量（可选操作）
     public final int arrayOffset() {
         if(hb == null)
             throw new UnsupportedOperationException();
@@ -869,32 +886,65 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
     /*▲ Buffer ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
+    /**
+     * Returns a string summarizing the state of this buffer.
+     *
+     * @return A summary string
+     */
+    public String toString() {
+        StringBuffer sb = new StringBuffer();
+        sb.append(getClass().getName());
+        sb.append("[pos=");
+        sb.append(position());
+        sb.append(" lim=");
+        sb.append(limit());
+        sb.append(" cap=");
+        sb.append(capacity());
+        sb.append("]");
+        return sb.toString();
+    }
     
     /**
-     * Allocates a new short buffer.
+     * Tells whether or not this buffer is equal to another object.
      *
-     * <p> The new buffer's position will be zero, its limit will be its
-     * capacity, its mark will be undefined, each of its elements will be
-     * initialized to zero, and its byte order will be
+     * <p> Two short buffers are equal if, and only if,
+     *
+     * <ol>
+     *
+     * <li><p> They have the same element type,  </p></li>
+     *
+     * <li><p> They have the same number of remaining elements, and
+     * </p></li>
+     *
+     * <li><p> The two sequences of remaining elements, considered
+     * independently of their starting positions, are pointwise equal.
      *
      *
      *
-     * the {@link ByteOrder#nativeOrder native order} of the underlying
-     * hardware.
      *
-     * It will have a {@link #array backing array}, and its
-     * {@link #arrayOffset array offset} will be zero.
      *
-     * @param capacity The new buffer's capacity, in shorts
      *
-     * @return The new short buffer
      *
-     * @throws IllegalArgumentException If the {@code capacity} is a negative integer
+     * </p></li>
+     *
+     * </ol>
+     *
+     * <p> A short buffer is not equal to any other type of object.  </p>
+     *
+     * @param ob The object to which this buffer is to be compared
+     *
+     * @return {@code true} if, and only if, this buffer is equal to the
+     * given object
      */
-    public static ShortBuffer allocate(int capacity) {
-        if(capacity < 0)
-            throw createCapacityException(capacity);
-        return new HeapShortBuffer(capacity, capacity);
+    public boolean equals(Object ob) {
+        if(this == ob)
+            return true;
+        if(!(ob instanceof ShortBuffer))
+            return false;
+        ShortBuffer that = (ShortBuffer) ob;
+        if(this.remaining() != that.remaining())
+            return false;
+        return BufferMismatch.mismatch(this, this.position(), that, that.position(), this.remaining())<0;
     }
     
     /**
@@ -921,21 +971,4 @@ public abstract class ShortBuffer extends Buffer implements Comparable<ShortBuff
         return h;
     }
     
-    /**
-     * Returns a string summarizing the state of this buffer.
-     *
-     * @return A summary string
-     */
-    public String toString() {
-        StringBuffer sb = new StringBuffer();
-        sb.append(getClass().getName());
-        sb.append("[pos=");
-        sb.append(position());
-        sb.append(" lim=");
-        sb.append(limit());
-        sb.append(" cap=");
-        sb.append(capacity());
-        sb.append("]");
-        return sb.toString();
-    }
 }

@@ -62,9 +62,9 @@ import java.lang.ref.Reference;
  * @author JSR-51 Expert Group
  * @since 1.4
  */
-
 // 基于内存的直接字节缓冲区，该对象的数据元素是存储在磁盘上的文件
 public abstract class MappedByteBuffer extends ByteBuffer {
+    
     /*
      * This is a little bit backwards: By rights MappedByteBuffer should be a subclass of DirectByteBuffer,
      * but to keep the spec clear and simple, and for optimization purposes, it's easier to do it the other way around.
@@ -305,9 +305,10 @@ public abstract class MappedByteBuffer extends ByteBuffer {
     /*▲ 标记操作 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
-    
-    // Returns the distance (in bytes) of the buffer from the page aligned address of the mapping.
-    // Computed each time to avoid storing in every direct buffer.
+    /**
+     * Returns the distance (in bytes) of the buffer from the page aligned address of the mapping.
+     * Computed each time to avoid storing in every direct buffer.
+     */
     private long mappingOffset() {
         int ps = Bits.pageSize();
         long offset = address % ps;
@@ -327,4 +328,5 @@ public abstract class MappedByteBuffer extends ByteBuffer {
     private native void load0(long address, long length);
     
     private native void force0(FileDescriptor fd, long address, long length);
+    
 }

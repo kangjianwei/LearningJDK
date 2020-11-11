@@ -28,7 +28,7 @@ package java.nio;
 // ByteBuffer转为ShortBuffer，使用只读缓冲区，是ByteBufferAsShortBufferL的只读版本
 class ByteBufferAsShortBufferRL extends ByteBufferAsShortBufferL {
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     ByteBufferAsShortBufferRL(ByteBuffer bb) {   // package-private
         super(bb);
@@ -38,16 +38,18 @@ class ByteBufferAsShortBufferRL extends ByteBufferAsShortBufferL {
         super(bb, mark, pos, lim, cap, addr);
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 只读缓冲区 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 只读/可读写
     public boolean isReadOnly() {
         return true;
     }
     
+    // 直接缓冲区/非直接缓冲区
     public boolean isDirect() {
         return bb.isDirect();
     }
@@ -58,6 +60,7 @@ class ByteBufferAsShortBufferRL extends ByteBufferAsShortBufferL {
     
     /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 切片，截取旧缓冲区的【活跃区域】，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     public ShortBuffer slice() {
         int pos = this.position();
         int lim = this.limit();
@@ -67,10 +70,12 @@ class ByteBufferAsShortBufferRL extends ByteBufferAsShortBufferL {
         return new ByteBufferAsShortBufferRL(bb, -1, 0, rem, rem, addr);
     }
     
+    // 副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立
     public ShortBuffer duplicate() {
         return new ByteBufferAsShortBufferRL(bb, this.markValue(), this.position(), this.limit(), this.capacity(), address);
     }
     
+    // 只读副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立
     public ShortBuffer asReadOnlyBuffer() {
         return duplicate();
     }
@@ -81,11 +86,13 @@ class ByteBufferAsShortBufferRL extends ByteBufferAsShortBufferL {
     
     /*▼ 只读缓冲区，禁止写入 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 向position处（可能需要加offset）写入short，并将position递增
     public ShortBuffer put(short x) {
         throw new ReadOnlyBufferException();
     }
     
-    public ShortBuffer put(int i, short x) {
+    // 向index处（可能需要加offset）写入short
+    public ShortBuffer put(int index, short x) {
         throw new ReadOnlyBufferException();
     }
     
@@ -95,6 +102,7 @@ class ByteBufferAsShortBufferRL extends ByteBufferAsShortBufferL {
     
     /*▼ 禁止压缩，因为禁止写入，压缩没意义 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 压缩缓冲区，将当前未读完的数据挪到容器起始处，可用于读模式到写模式的切换，但又不丢失之前读入的数据。
     public ShortBuffer compact() {
         throw new ReadOnlyBufferException();
     }
@@ -105,6 +113,7 @@ class ByteBufferAsShortBufferRL extends ByteBufferAsShortBufferL {
     
     /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 返回该缓冲区的字节序（大端还是小端）
     public ByteOrder order() {
         return ByteOrder.LITTLE_ENDIAN;
     }
@@ -112,7 +121,7 @@ class ByteBufferAsShortBufferRL extends ByteBufferAsShortBufferL {
     /*▲ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
-    
+    // 返回内部存储结构的引用（一般用于非直接缓存区）
     @Override
     Object base() {
         return bb.hb;

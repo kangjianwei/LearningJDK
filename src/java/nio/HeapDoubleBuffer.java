@@ -28,7 +28,6 @@ package java.nio;
 /**
  * A read/write HeapDoubleBuffer.
  */
-
 // 可读写、非直接缓冲区，内部存储结构实现为double[]
 class HeapDoubleBuffer extends DoubleBuffer {
     
@@ -39,7 +38,7 @@ class HeapDoubleBuffer extends DoubleBuffer {
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     protected HeapDoubleBuffer(double[] buf, int mark, int pos, int lim, int cap, int off) {
         super(mark, pos, lim, cap, buf, off);
@@ -56,16 +55,18 @@ class HeapDoubleBuffer extends DoubleBuffer {
         this.address = ARRAY_BASE_OFFSET;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 可读写/非直接 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 只读/可读写
     public boolean isReadOnly() {
         return false;
     }
     
+    // 直接缓冲区/非直接缓冲区
     public boolean isDirect() {
         return false;
     }
@@ -76,14 +77,17 @@ class HeapDoubleBuffer extends DoubleBuffer {
     
     /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 切片，截取旧缓冲区的【活跃区域】，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     public DoubleBuffer slice() {
         return new HeapDoubleBuffer(hb, -1, 0, this.remaining(), this.remaining(), this.position() + offset);
     }
     
+    // 副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public DoubleBuffer duplicate() {
         return new HeapDoubleBuffer(hb, this.markValue(), this.position(), this.limit(), this.capacity(), offset);
     }
     
+    // 只读副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public DoubleBuffer asReadOnlyBuffer() {
         return new HeapDoubleBufferR(hb, this.markValue(), this.position(), this.limit(), this.capacity(), offset);
     }
@@ -94,14 +98,17 @@ class HeapDoubleBuffer extends DoubleBuffer {
     
     /*▼ get/读取 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 读取position处（可能需要加offset）的double，然后递增position。
     public double get() {
         return hb[ix(nextGetIndex())];
     }
     
+    // 读取i处（可能需要加offset）的double（有越界检查）
     public double get(int i) {
         return hb[ix(checkIndex(i))];
     }
     
+    // 复制源缓存区的length个元素到dst数组offset索引处
     public DoubleBuffer get(double[] dst, int offset, int length) {
         checkBounds(offset, length, dst.length);
         if(length>remaining())
@@ -117,16 +124,19 @@ class HeapDoubleBuffer extends DoubleBuffer {
     
     /*▼ put/写入 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 向position处（可能需要加offset）写入double，并将position递增
     public DoubleBuffer put(double x) {
         hb[ix(nextPutIndex())] = x;
         return this;
     }
     
+    // 向i处（可能需要加offset）写入double
     public DoubleBuffer put(int i, double x) {
         hb[ix(checkIndex(i))] = x;
         return this;
     }
     
+    // 将源缓冲区src的内容全部写入到当前缓冲区
     public DoubleBuffer put(double[] src, int offset, int length) {
         checkBounds(offset, length, src.length);
         if(length>remaining())
@@ -136,6 +146,7 @@ class HeapDoubleBuffer extends DoubleBuffer {
         return this;
     }
     
+    // 将double数组src的全部内容写入此缓冲区
     public DoubleBuffer put(DoubleBuffer src) {
         if(src instanceof HeapDoubleBuffer) {
             if(src == this)
@@ -165,6 +176,7 @@ class HeapDoubleBuffer extends DoubleBuffer {
     
     /*▼ 压缩 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 压缩缓冲区，将当前未读完的数据挪到容器起始处，可用于读模式到写模式的切换，但又不丢失之前读入的数据。
     public DoubleBuffer compact() {
         System.arraycopy(hb, ix(position()), hb, ix(0), remaining());
         position(remaining());
@@ -179,6 +191,7 @@ class HeapDoubleBuffer extends DoubleBuffer {
     
     /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 返回该缓冲区的字节序（大端还是小端）
     public ByteOrder order() {
         return ByteOrder.nativeOrder();
     }

@@ -181,7 +181,6 @@ import java.util.Spliterator;
  * @author JSR-51 Expert Group
  * @since 1.4
  */
-
 /*
  * 缓冲区的抽象基类，其内部实现为一个数组或一个直接缓冲区。
  *
@@ -189,8 +188,8 @@ import java.util.Spliterator;
  * 不管处于读模式还是处于写模式，【活跃区域】总是：[position, limit)。
  * 要特别区分【读模式】和【写模式】下各方法及参数的含义。
  *
- * 缓冲区有四个标记，它们的关系是: mark <= position <= limit <= capacity
- * 注意，这些标记表示的是相对于当前缓存区的位置（相对位置），而不是相对于内部存储结构的位置（绝对位置）。
+ * 缓冲区有四个关键属性(标记)，它们的关系是: mark <= position <= limit <= capacity
+ * 注意，这些属性表示的是相对于当前缓存区的位置（相对位置），而不是相对于内部存储结构的位置（绝对位置）。
  * 比如postion=1，代表的是当前缓冲区中索引为1的元素，而不是内部存储结构中索引为1的元素。
  * 当前缓冲区脱胎于其内部存储结构，该内部存储结构是共享的，可被多个缓冲区共享。
  * 区分每个缓冲区的【绝对起点】靠的是address字段和offset字段。
@@ -201,34 +200,36 @@ import java.util.Spliterator;
  *     通过allocateDirect()分配直接缓冲区，将缓冲区建立在物理内存中，可以提高效率。通过Unsafe存取元素。
  */
 public abstract class Buffer {
-    /**
-     * The characteristics of Spliterators that traverse and split elements maintained in Buffers.
-     */
-    // 流标记
+    
+    /** The characteristics of Spliterators that traverse and split elements maintained in Buffers. */
+    // 流参数
     static final int SPLITERATOR_CHARACTERISTICS = Spliterator.SIZED | Spliterator.SUBSIZED | Spliterator.ORDERED;
     
-    // Cached unsafe-access object
+    /** Cached unsafe-access object */
     static final Unsafe UNSAFE = Unsafe.getUnsafe();
     
-    // Used by heap byte buffers or direct buffers with Unsafe access
-    // For heap byte buffers this field will be the address relative to the array base address and offset into that array.
-    // The address might not align on a word boundary for slices, nor align at a long word (8 byte) boundary for byte[] allocations on 32-bit systems.
-    // For direct buffers it is the start address of the memory region.
-    // The address might not align on a word boundary for slices, nor when created using JNI, see NewDirectByteBuffer(void*, long).
-    // Should ideally be declared final
-    // NOTE: hoisted here for speed in JNI GetDirectBufferAddress
+    /**
+     * Used by heap byte buffers or direct buffers with Unsafe access
+     * For heap byte buffers this field will be the address relative to the array base address and offset into that array.
+     * The address might not align on a word boundary for slices, nor align at a long word (8 byte) boundary for byte[] allocations on 32-bit systems.
+     * For direct buffers it is the start address of the memory region.
+     * The address might not align on a word boundary for slices, nor when created using JNI, see NewDirectByteBuffer(void*, long).
+     * Should ideally be declared final
+     * NOTE: hoisted here for speed in JNI GetDirectBufferAddress
+     */
     long address;   // 缓冲区【绝对】起始地址，用于Unsafe类访问堆缓冲区或访问直接缓冲区
     
     /*
      * 关系: mark <= position <= limit <= capacity
      * 这里约定一些术语：：
      * 【活跃区域】：[position, limit)范围的区域，这个区域是不断变化的
-     * 【原始区域】：position和limit的初始值限定的区域，这个区域一般不变
+     * 【原始区域】：position的初始值和limit的初始值限定的区域，这个区域一般不变
      */
     private int mark = -1;      // 标记。一个备忘位置。调用mark()来设定mark = postion。调用reset()设定position = mark。标记在设定前是未定义的(undefined)。
     private int position = 0;   // 游标。下一个要被读或写的元素的索引。位置会自动由相应的get()和put()函数更新。
     private int limit;          // 上界。缓冲区的第一个不能被读或写的元素。或者说，缓冲区中现存元素的计数。
     private int capacity;       // 容量。缓冲区能够容纳的数据元素的最大数量。这一容量在缓冲区创建时被设定，并且永远不能被改变。
+    
     
     static {
         // setup access to this package in SharedSecrets
@@ -242,7 +243,7 @@ public abstract class Buffer {
             public ByteBuffer newDirectByteBuffer(long addr, int cap, Object ob) {
                 return new DirectByteBuffer(addr, cap, ob);
             }
-            
+    
             @Override
             public void truncate(Buffer buf) {
                 buf.truncate();
@@ -251,24 +252,26 @@ public abstract class Buffer {
     }
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
     
-    /* Creates a new buffer with the given mark, position, limit, and capacity, after checking invariants. */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /** Creates a new buffer with the given mark, position, limit, and capacity, after checking invariants. */
     // 初始化一个Buffer
     Buffer(int mark, int pos, int lim, int cap) {       // package-private
-        if(cap < 0)
+        if(cap<0) {
             throw createCapacityException(cap);
+        }
         this.capacity = cap;
         limit(lim);
         position(pos);
         if(mark >= 0) {
-            if(mark > pos)
+            if(mark>pos)
                 throw new IllegalArgumentException("mark > position: (" + mark + " > " + pos + ")");
             this.mark = mark;
         }
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -345,14 +348,16 @@ public abstract class Buffer {
      */
     // 设置新的上界limit
     public Buffer limit(int newLimit) {
-        if(newLimit > capacity | newLimit < 0)
+        if(newLimit>capacity | newLimit<0)
             throw createLimitException(newLimit);
-        
+    
         limit = newLimit;
-        if(position > limit)
+        if(position>limit) {
             position = limit;
-        if(mark > limit)
+        }
+        if(mark>limit) {
             mark = -1;
+        }
         return this;
     }
     
@@ -369,8 +374,9 @@ public abstract class Buffer {
     // 将当前游标position回退到mark（备忘）位置
     public Buffer reset() {
         int m = mark;
-        if(m < 0)
+        if(m<0) {
             throw new InvalidMarkException();
+        }
         position = m;
         return this;
     }
@@ -524,6 +530,7 @@ public abstract class Buffer {
      *
      * @since 9
      */
+    // 切片，截取旧缓冲区的【活跃区域】，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     public abstract Buffer slice();
     
     /**
@@ -543,6 +550,7 @@ public abstract class Buffer {
      *
      * @since 9
      */
+    // 副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public abstract Buffer duplicate();
     
     /*▲ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -689,22 +697,25 @@ public abstract class Buffer {
     // 保证  0 <= i < limit
     @HotSpotIntrinsicCandidate
     final int checkIndex(int i) {
-        if((i < 0) || (i >= limit))
+        if((i<0) || (i >= limit)) {
             throw new IndexOutOfBoundsException();
+        }
         return i;
     }
     
     // 保证 i>=0 且 nb+i<=limit
     final int checkIndex(int i, int nb) {
-        if((i < 0) || (nb > limit - i))
+        if((i<0) || (nb>limit - i)) {
             throw new IndexOutOfBoundsException();
+        }
         return i;
     }
     
     // 保证 off+len <= size
     static void checkBounds(int off, int len, int size) { // package-private
-        if((off | len | (off + len) | (size - (off + len))) < 0)
+        if((off | len | (off + len) | (size - (off + len)))<0) {
             throw new IndexOutOfBoundsException();
+        }
     }
     
     
@@ -773,4 +784,5 @@ public abstract class Buffer {
         
         return new IllegalArgumentException(msg);
     }
+    
 }

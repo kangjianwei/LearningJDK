@@ -35,24 +35,26 @@ import java.lang.ref.Reference;
 // 可读写、直接缓冲区，内部存储结构为本地内存块
 class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
     
-    // Cached unaligned-access capability
+    /** Cached unaligned-access capability */
     protected static final boolean UNALIGNED = Bits.unaligned();
-    // Cached array base offset
+    /** Cached array base offset */
     private static final long ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
     
-    // Base address, used in all indexing calculations
-    // NOTE: moved up to Buffer.java for speed in JNI GetDirectBufferAddress
-    //    protected long address;
-    // An object attached to this buffer. If this buffer is a view of another
-    // buffer then we use this field to keep a reference to that buffer to
-    // ensure that its memory isn't freed before we are done with it.
+    /**
+     * Base address, used in all indexing calculations
+     * NOTE: moved up to Buffer.java for speed in JNI GetDirectBufferAddress
+     * protected long address;
+     * An object attached to this buffer. If this buffer is a view of another
+     * buffer then we use this field to keep a reference to that buffer to
+     * ensure that its memory isn't freed before we are done with it.
+     */
     private final Object att;
     
     // 该缓冲区的清理器
     private final Cleaner cleaner;
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     // For memory-mapped buffers -- invoked by FileChannelImpl via reflection
     protected DirectByteBuffer(int cap, long addr, FileDescriptor fd, Runnable unmapper) {
@@ -62,7 +64,7 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         att = null;
     }
     
-    // 分配直接内存的构造方法
+    // 分配直接内存的构造器
     DirectByteBuffer(int cap) {
         super(-1, 0, cap, cap);
         
@@ -127,18 +129,20 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         att = null;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 可读写/直接 ████████████████████████████████████████████████████████████████████████████████┓ */
     
-    public boolean isDirect() {
-        return true;
-    }
-    
+    // 只读/可读写
     public boolean isReadOnly() {
         return false;
+    }
+    
+    // 直接缓冲区/非直接缓冲区
+    public boolean isDirect() {
+        return true;
     }
     
     /*▲ 可读写/直接 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -147,6 +151,7 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
     
     /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 切片，截取旧缓冲区的【活跃区域】，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     public ByteBuffer slice() {
         int pos = this.position();
         int lim = this.limit();
@@ -157,6 +162,7 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         return new DirectByteBuffer(this, -1, 0, rem, rem, off);
     }
     
+    // 切片，截取旧缓冲区【活跃区域】中pos~lim中的一段，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     public ByteBuffer slice(int pos, int lim) {
         assert (pos >= 0);
         assert (pos <= lim);
@@ -164,10 +170,12 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         return new DirectByteBuffer(this, -1, 0, rem, rem, pos);
     }
     
+    // 副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public ByteBuffer duplicate() {
         return new DirectByteBuffer(this, this.markValue(), this.position(), this.limit(), this.capacity(), 0);
     }
     
+    // 只读副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public ByteBuffer asReadOnlyBuffer() {
         return new DirectByteBufferR(this, this.markValue(), this.position(), this.limit(), this.capacity(), 0);
     }
@@ -178,6 +186,7 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
     
     /*▼ get ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 读取position处（可能需要加offset）的byte，然后递增position。
     public byte get() {
         try {
             return ((UNSAFE.getByte(ix(nextGetIndex()))));
@@ -186,6 +195,7 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         }
     }
     
+    // 读取i处（可能需要加offset）的byte（有越界检查）
     public byte get(int i) {
         try {
             return ((UNSAFE.getByte(ix(checkIndex(i)))));
@@ -194,6 +204,7 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         }
     }
     
+    // 复制源缓存区的length个元素到dst数组offset索引处
     public ByteBuffer get(byte[] dst, int offset, int length) {
         if(((long) length << 0) > Bits.JNI_COPY_TO_ARRAY_THRESHOLD) {
             checkBounds(offset, length, dst.length);
@@ -219,6 +230,7 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         return this;
     }
     
+    // 一次读2个字节，按char解析，将position增加2个单位
     public char getChar() {
         try {
             return getChar(ix(nextGetIndex((1 << 1))));
@@ -227,6 +239,7 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         }
     }
     
+    // 读取i处2个字节解析为char（有越界检查）
     public char getChar(int i) {
         try {
             return getChar(ix(checkIndex(i, (1 << 1))));
@@ -235,15 +248,7 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         }
     }
     
-    private char getChar(long a) {
-        try {
-            char x = UNSAFE.getCharUnaligned(null, a, bigEndian);
-            return (x);
-        } finally {
-            Reference.reachabilityFence(this);
-        }
-    }
-    
+    // 一次读2个字节，按short解析，将position增加2个单位
     public short getShort() {
         try {
             return getShort(ix(nextGetIndex((1 << 1))));
@@ -252,9 +257,92 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         }
     }
     
+    // 读取i处2个字节解析为short（有越界检查）
     public short getShort(int i) {
         try {
             return getShort(ix(checkIndex(i, (1 << 1))));
+        } finally {
+            Reference.reachabilityFence(this);
+        }
+    }
+    
+    // 一次读4个字节，按int解析，将position增加4个单位
+    public int getInt() {
+        try {
+            return getInt(ix(nextGetIndex((1 << 2))));
+        } finally {
+            Reference.reachabilityFence(this);
+        }
+    }
+    
+    // 读取i处4个字节解析为int（有越界检查）
+    public int getInt(int i) {
+        try {
+            return getInt(ix(checkIndex(i, (1 << 2))));
+        } finally {
+            Reference.reachabilityFence(this);
+        }
+    }
+    
+    // 一次读8个字节，按long解析，将position增加8个单位
+    public long getLong() {
+        try {
+            return getLong(ix(nextGetIndex((1 << 3))));
+        } finally {
+            Reference.reachabilityFence(this);
+        }
+    }
+    
+    // 读取i处8个字节解析为long（有越界检查）
+    public long getLong(int i) {
+        try {
+            return getLong(ix(checkIndex(i, (1 << 3))));
+        } finally {
+            Reference.reachabilityFence(this);
+        }
+    }
+    
+    // 一次读4个字节，按float解析，将position增加4个单位
+    public float getFloat() {
+        try {
+            return getFloat(ix(nextGetIndex((1 << 2))));
+        } finally {
+            Reference.reachabilityFence(this);
+        }
+    }
+    
+    // 读取i处4个字节解析为float（有越界检查）
+    public float getFloat(int i) {
+        try {
+            return getFloat(ix(checkIndex(i, (1 << 2))));
+        } finally {
+            Reference.reachabilityFence(this);
+        }
+    }
+    
+    // 一次读8个字节，按double解析，将position增加8个单位
+    public double getDouble() {
+        try {
+            return getDouble(ix(nextGetIndex((1 << 3))));
+        } finally {
+            Reference.reachabilityFence(this);
+        }
+    }
+    
+    // 读取i处8个字节解析为double（有越界检查）
+    public double getDouble(int i) {
+        try {
+            return getDouble(ix(checkIndex(i, (1 << 3))));
+        } finally {
+            Reference.reachabilityFence(this);
+        }
+    }
+    
+    
+    private char getChar(long a) {
+        try {
+            char x = UNSAFE.getCharUnaligned(null, a, bigEndian);
+            return (x);
         } finally {
             Reference.reachabilityFence(this);
         }
@@ -269,34 +357,10 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         }
     }
     
-    public int getInt() {
-        try {
-            return getInt(ix(nextGetIndex((1 << 2))));
-        } finally {
-            Reference.reachabilityFence(this);
-        }
-    }
-    
-    public int getInt(int i) {
-        try {
-            return getInt(ix(checkIndex(i, (1 << 2))));
-        } finally {
-            Reference.reachabilityFence(this);
-        }
-    }
-    
     private int getInt(long a) {
         try {
             int x = UNSAFE.getIntUnaligned(null, a, bigEndian);
             return (x);
-        } finally {
-            Reference.reachabilityFence(this);
-        }
-    }
-    
-    public long getLong() {
-        try {
-            return getLong(ix(nextGetIndex((1 << 3))));
         } finally {
             Reference.reachabilityFence(this);
         }
@@ -311,50 +375,10 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         }
     }
     
-    public long getLong(int i) {
-        try {
-            return getLong(ix(checkIndex(i, (1 << 3))));
-        } finally {
-            Reference.reachabilityFence(this);
-        }
-    }
-    
-    public float getFloat() {
-        try {
-            return getFloat(ix(nextGetIndex((1 << 2))));
-        } finally {
-            Reference.reachabilityFence(this);
-        }
-    }
-    
-    public float getFloat(int i) {
-        try {
-            return getFloat(ix(checkIndex(i, (1 << 2))));
-        } finally {
-            Reference.reachabilityFence(this);
-        }
-    }
-    
     private float getFloat(long a) {
         try {
             int x = UNSAFE.getIntUnaligned(null, a, bigEndian);
             return Float.intBitsToFloat(x);
-        } finally {
-            Reference.reachabilityFence(this);
-        }
-    }
-    
-    public double getDouble() {
-        try {
-            return getDouble(ix(nextGetIndex((1 << 3))));
-        } finally {
-            Reference.reachabilityFence(this);
-        }
-    }
-    
-    public double getDouble(int i) {
-        try {
-            return getDouble(ix(checkIndex(i, (1 << 3))));
         } finally {
             Reference.reachabilityFence(this);
         }
@@ -375,6 +399,7 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
     
     /*▼ put ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 向position处（可能需要加offset）写入byte，并将position递增
     public ByteBuffer put(byte x) {
         try {
             UNSAFE.putByte(ix(nextPutIndex()), ((x)));
@@ -384,6 +409,7 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         return this;
     }
     
+    // 向i处（可能需要加offset）写入byte
     public ByteBuffer put(int i, byte x) {
         try {
             UNSAFE.putByte(ix(checkIndex(i)), ((x)));
@@ -393,6 +419,7 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         return this;
     }
     
+    // 将源缓冲区src的内容全部写入到当前缓冲区
     public ByteBuffer put(ByteBuffer src) {
         if(src instanceof DirectByteBuffer) {
             if(src == this)
@@ -435,6 +462,7 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         return this;
     }
     
+    // 从源字节数组src的offset处开始，复制length个元素，写入到当前缓冲区
     public ByteBuffer put(byte[] src, int offset, int length) {
         if(((long) length << 0) > Bits.JNI_COPY_FROM_ARRAY_THRESHOLD) {
             checkBounds(offset, length, src.length);
@@ -447,8 +475,6 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
             
             long srcOffset = ARRAY_BASE_OFFSET + ((long) offset << 0);
             try {
-                
-                
                 UNSAFE.copyMemory(src, srcOffset, null, ix(pos), (long) length << 0);
             } finally {
                 Reference.reachabilityFence(this);
@@ -460,15 +486,78 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         return this;
     }
     
+    // 将char转为byte存入缓冲区，将position增加2个单位
     public ByteBuffer putChar(char x) {
         putChar(ix(nextPutIndex((1 << 1))), x);
         return this;
     }
     
+    // 将char转为byte存入缓冲区索引i处
     public ByteBuffer putChar(int i, char x) {
         putChar(ix(checkIndex(i, (1 << 1))), x);
         return this;
     }
+    
+    // 将short转为byte存入缓冲区，将position增加2个单位
+    public ByteBuffer putShort(short x) {
+        putShort(ix(nextPutIndex((1 << 1))), x);
+        return this;
+    }
+    
+    // 将short转为byte存入缓冲区索引i处
+    public ByteBuffer putShort(int i, short x) {
+        putShort(ix(checkIndex(i, (1 << 1))), x);
+        return this;
+    }
+    
+    // 将int转为byte存入缓冲区，将position增加4个单位
+    public ByteBuffer putInt(int x) {
+        putInt(ix(nextPutIndex((1 << 2))), x);
+        return this;
+    }
+    
+    // 将int转为byte存入缓冲区索引i处
+    public ByteBuffer putInt(int i, int x) {
+        putInt(ix(checkIndex(i, (1 << 2))), x);
+        return this;
+    }
+    
+    // 将long转为byte存入缓冲区，将position增加8个单位
+    public ByteBuffer putLong(long x) {
+        putLong(ix(nextPutIndex((1 << 3))), x);
+        return this;
+    }
+    
+    // 将long转为byte存入缓冲区索引i处
+    public ByteBuffer putLong(int i, long x) {
+        putLong(ix(checkIndex(i, (1 << 3))), x);
+        return this;
+    }
+    
+    // 将float转为byte存入缓冲区，将position增加4个单位
+    public ByteBuffer putFloat(float x) {
+        putFloat(ix(nextPutIndex((1 << 2))), x);
+        return this;
+    }
+    
+    // 将float转为byte存入缓冲区索引i处
+    public ByteBuffer putFloat(int i, float x) {
+        putFloat(ix(checkIndex(i, (1 << 2))), x);
+        return this;
+    }
+    
+    // 将double转为byte存入缓冲区，将position增加8个单位
+    public ByteBuffer putDouble(double x) {
+        putDouble(ix(nextPutIndex((1 << 3))), x);
+        return this;
+    }
+    
+    // 将double转为byte存入缓冲区索引i处
+    public ByteBuffer putDouble(int i, double x) {
+        putDouble(ix(checkIndex(i, (1 << 3))), x);
+        return this;
+    }
+    
     
     private ByteBuffer putChar(long a, char x) {
         try {
@@ -477,16 +566,6 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         } finally {
             Reference.reachabilityFence(this);
         }
-        return this;
-    }
-    
-    public ByteBuffer putShort(short x) {
-        putShort(ix(nextPutIndex((1 << 1))), x);
-        return this;
-    }
-    
-    public ByteBuffer putShort(int i, short x) {
-        putShort(ix(checkIndex(i, (1 << 1))), x);
         return this;
     }
     
@@ -500,16 +579,6 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         return this;
     }
     
-    public ByteBuffer putInt(int x) {
-        putInt(ix(nextPutIndex((1 << 2))), x);
-        return this;
-    }
-    
-    public ByteBuffer putInt(int i, int x) {
-        putInt(ix(checkIndex(i, (1 << 2))), x);
-        return this;
-    }
-    
     private ByteBuffer putInt(long a, int x) {
         try {
             int y = (x);
@@ -517,16 +586,6 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         } finally {
             Reference.reachabilityFence(this);
         }
-        return this;
-    }
-    
-    public ByteBuffer putLong(long x) {
-        putLong(ix(nextPutIndex((1 << 3))), x);
-        return this;
-    }
-    
-    public ByteBuffer putLong(int i, long x) {
-        putLong(ix(checkIndex(i, (1 << 3))), x);
         return this;
     }
     
@@ -541,16 +600,6 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         return this;
     }
     
-    public ByteBuffer putFloat(float x) {
-        putFloat(ix(nextPutIndex((1 << 2))), x);
-        return this;
-    }
-    
-    public ByteBuffer putFloat(int i, float x) {
-        putFloat(ix(checkIndex(i, (1 << 2))), x);
-        return this;
-    }
-    
     private ByteBuffer putFloat(long a, float x) {
         try {
             int y = Float.floatToRawIntBits(x);
@@ -558,16 +607,6 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         } finally {
             Reference.reachabilityFence(this);
         }
-        return this;
-    }
-    
-    public ByteBuffer putDouble(double x) {
-        putDouble(ix(nextPutIndex((1 << 3))), x);
-        return this;
-    }
-    
-    public ByteBuffer putDouble(int i, double x) {
-        putDouble(ix(checkIndex(i, (1 << 3))), x);
         return this;
     }
     
@@ -587,6 +626,7 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
     
     /*▼ asXXXBuffer ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // ByteBuffer转为CharBuffer
     public CharBuffer asCharBuffer() {
         int off = this.position();
         int lim = this.limit();
@@ -595,16 +635,13 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         
         int size = rem >> 1;
         if(!UNALIGNED && ((address + off) % (1 << 1) != 0)) {
-            return (bigEndian
-                ? (CharBuffer) (new ByteBufferAsCharBufferB(this, -1, 0, size, size, address + off))
-                : (CharBuffer) (new ByteBufferAsCharBufferL(this, -1, 0, size, size, address + off)));
+            return (bigEndian ? (CharBuffer) (new ByteBufferAsCharBufferB(this, -1, 0, size, size, address + off)) : (CharBuffer) (new ByteBufferAsCharBufferL(this, -1, 0, size, size, address + off)));
         } else {
-            return (nativeByteOrder
-                ? (CharBuffer) (new DirectCharBufferU(this, -1, 0, size, size, off))
-                : (CharBuffer) (new DirectCharBufferS(this, -1, 0, size, size, off)));
+            return (nativeByteOrder ? (CharBuffer) (new DirectCharBufferU(this, -1, 0, size, size, off)) : (CharBuffer) (new DirectCharBufferS(this, -1, 0, size, size, off)));
         }
     }
     
+    // ByteBuffer转为ShortBuffer
     public ShortBuffer asShortBuffer() {
         int off = this.position();
         int lim = this.limit();
@@ -613,16 +650,13 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         
         int size = rem >> 1;
         if(!UNALIGNED && ((address + off) % (1 << 1) != 0)) {
-            return (bigEndian
-                ? (ShortBuffer) (new ByteBufferAsShortBufferB(this, -1, 0, size, size, address + off))
-                : (ShortBuffer) (new ByteBufferAsShortBufferL(this, -1, 0, size, size, address + off)));
+            return (bigEndian ? (ShortBuffer) (new ByteBufferAsShortBufferB(this, -1, 0, size, size, address + off)) : (ShortBuffer) (new ByteBufferAsShortBufferL(this, -1, 0, size, size, address + off)));
         } else {
-            return (nativeByteOrder
-                ? (ShortBuffer) (new DirectShortBufferU(this, -1, 0, size, size, off))
-                : (ShortBuffer) (new DirectShortBufferS(this, -1, 0, size, size, off)));
+            return (nativeByteOrder ? (ShortBuffer) (new DirectShortBufferU(this, -1, 0, size, size, off)) : (ShortBuffer) (new DirectShortBufferS(this, -1, 0, size, size, off)));
         }
     }
     
+    // ByteBuffer转为IntBuffer
     public IntBuffer asIntBuffer() {
         int off = this.position();
         int lim = this.limit();
@@ -631,16 +665,13 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         
         int size = rem >> 2;
         if(!UNALIGNED && ((address + off) % (1 << 2) != 0)) {
-            return (bigEndian
-                ? (IntBuffer) (new ByteBufferAsIntBufferB(this, -1, 0, size, size, address + off))
-                : (IntBuffer) (new ByteBufferAsIntBufferL(this, -1, 0, size, size, address + off)));
+            return (bigEndian ? (IntBuffer) (new ByteBufferAsIntBufferB(this, -1, 0, size, size, address + off)) : (IntBuffer) (new ByteBufferAsIntBufferL(this, -1, 0, size, size, address + off)));
         } else {
-            return (nativeByteOrder
-                ? (IntBuffer) (new DirectIntBufferU(this, -1, 0, size, size, off))
-                : (IntBuffer) (new DirectIntBufferS(this, -1, 0, size, size, off)));
+            return (nativeByteOrder ? (IntBuffer) (new DirectIntBufferU(this, -1, 0, size, size, off)) : (IntBuffer) (new DirectIntBufferS(this, -1, 0, size, size, off)));
         }
     }
     
+    // ByteBuffer转为LongBuffer
     public LongBuffer asLongBuffer() {
         int off = this.position();
         int lim = this.limit();
@@ -649,16 +680,13 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         
         int size = rem >> 3;
         if(!UNALIGNED && ((address + off) % (1 << 3) != 0)) {
-            return (bigEndian
-                ? (LongBuffer) (new ByteBufferAsLongBufferB(this, -1, 0, size, size, address + off))
-                : (LongBuffer) (new ByteBufferAsLongBufferL(this, -1, 0, size, size, address + off)));
+            return (bigEndian ? (LongBuffer) (new ByteBufferAsLongBufferB(this, -1, 0, size, size, address + off)) : (LongBuffer) (new ByteBufferAsLongBufferL(this, -1, 0, size, size, address + off)));
         } else {
-            return (nativeByteOrder
-                ? (LongBuffer) (new DirectLongBufferU(this, -1, 0, size, size, off))
-                : (LongBuffer) (new DirectLongBufferS(this, -1, 0, size, size, off)));
+            return (nativeByteOrder ? (LongBuffer) (new DirectLongBufferU(this, -1, 0, size, size, off)) : (LongBuffer) (new DirectLongBufferS(this, -1, 0, size, size, off)));
         }
     }
     
+    // ByteBuffer转为FloatBuffer
     public FloatBuffer asFloatBuffer() {
         int off = this.position();
         int lim = this.limit();
@@ -667,16 +695,13 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         
         int size = rem >> 2;
         if(!UNALIGNED && ((address + off) % (1 << 2) != 0)) {
-            return (bigEndian
-                ? (FloatBuffer) (new ByteBufferAsFloatBufferB(this, -1, 0, size, size, address + off))
-                : (FloatBuffer) (new ByteBufferAsFloatBufferL(this, -1, 0, size, size, address + off)));
+            return (bigEndian ? (FloatBuffer) (new ByteBufferAsFloatBufferB(this, -1, 0, size, size, address + off)) : (FloatBuffer) (new ByteBufferAsFloatBufferL(this, -1, 0, size, size, address + off)));
         } else {
-            return (nativeByteOrder
-                ? (FloatBuffer) (new DirectFloatBufferU(this, -1, 0, size, size, off))
-                : (FloatBuffer) (new DirectFloatBufferS(this, -1, 0, size, size, off)));
+            return (nativeByteOrder ? (FloatBuffer) (new DirectFloatBufferU(this, -1, 0, size, size, off)) : (FloatBuffer) (new DirectFloatBufferS(this, -1, 0, size, size, off)));
         }
     }
     
+    // ByteBuffer转为DoubleBuffer
     public DoubleBuffer asDoubleBuffer() {
         int off = this.position();
         int lim = this.limit();
@@ -685,13 +710,9 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
         
         int size = rem >> 3;
         if(!UNALIGNED && ((address + off) % (1 << 3) != 0)) {
-            return (bigEndian
-                ? (DoubleBuffer) (new ByteBufferAsDoubleBufferB(this, -1, 0, size, size, address + off))
-                : (DoubleBuffer) (new ByteBufferAsDoubleBufferL(this, -1, 0, size, size, address + off)));
+            return (bigEndian ? (DoubleBuffer) (new ByteBufferAsDoubleBufferB(this, -1, 0, size, size, address + off)) : (DoubleBuffer) (new ByteBufferAsDoubleBufferL(this, -1, 0, size, size, address + off)));
         } else {
-            return (nativeByteOrder
-                ? (DoubleBuffer) (new DirectDoubleBufferU(this, -1, 0, size, size, off))
-                : (DoubleBuffer) (new DirectDoubleBufferS(this, -1, 0, size, size, off)));
+            return (nativeByteOrder ? (DoubleBuffer) (new DirectDoubleBufferU(this, -1, 0, size, size, off)) : (DoubleBuffer) (new DirectDoubleBufferS(this, -1, 0, size, size, off)));
         }
     }
     
@@ -701,6 +722,7 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
     
     /*▼ 压缩 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 压缩缓冲区，将当前未读完的数据挪到容器起始处，可用于读模式到写模式的切换，但又不丢失之前读入的数据。
     public ByteBuffer compact() {
         int pos = position();
         int lim = limit();
@@ -720,7 +742,7 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
     /*▲ 压缩 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
-    
+    // 返回内部存储结构的引用（一般用于非直接缓存区）
     @Override
     Object base() {
         return null;
@@ -734,20 +756,22 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
     
     /*▼ 实现DirectBuffer接口 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 返回直接缓冲区的【绝对】起始<地址>
     public long address() {
         return address;
     }
     
+    // 返回附件，一般是指母体缓冲区的引用
     public Object attachment() {
         return att;
     }
     
+    // 返回该缓冲区的清理器
     public Cleaner cleaner() {
         return cleaner;
     }
     
     /*▲ 实现DirectBuffer接口 ████████████████████████████████████████████████████████████████████████████████┛ */
-    
     
     
     // 释放分配的本地内存，用于清理器的清理动作
@@ -773,4 +797,5 @@ class DirectByteBuffer extends MappedByteBuffer implements DirectBuffer {
             Bits.unreserveMemory(size, capacity);
         }
     }
+    
 }

@@ -30,7 +30,7 @@ import sun.nio.ch.DirectBuffer;
 // 只读、直接缓冲区，是DirectCharBufferS的只读版本
 class DirectCharBufferRS extends DirectCharBufferS implements DirectBuffer {
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     // For duplicates and slices
     DirectCharBufferRS(DirectBuffer db, int mark, int pos, int lim, int cap, int off) {
@@ -38,17 +38,19 @@ class DirectCharBufferRS extends DirectCharBufferS implements DirectBuffer {
         this.isReadOnly = true;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 只读/直接 ████████████████████████████████████████████████████████████████████████████████┓ */
     
-    public boolean isDirect() {
+    // 只读/可读写
+    public boolean isReadOnly() {
         return true;
     }
     
-    public boolean isReadOnly() {
+    // 直接缓冲区/非直接缓冲区
+    public boolean isDirect() {
         return true;
     }
     
@@ -58,6 +60,7 @@ class DirectCharBufferRS extends DirectCharBufferS implements DirectBuffer {
     
     /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 切片，截取旧缓冲区的【活跃区域】，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     public CharBuffer slice() {
         int pos = this.position();
         int lim = this.limit();
@@ -68,14 +71,17 @@ class DirectCharBufferRS extends DirectCharBufferS implements DirectBuffer {
         return new DirectCharBufferRS(this, -1, 0, rem, rem, off);
     }
     
+    // 副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public CharBuffer duplicate() {
         return new DirectCharBufferRS(this, this.markValue(), this.position(), this.limit(), this.capacity(), 0);
     }
     
+    // 只读副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public CharBuffer asReadOnlyBuffer() {
         return duplicate();
     }
     
+    // 子副本，新缓冲区的【活跃区域】取自旧缓冲区【活跃区域】的[start，end)部分
     public CharBuffer subSequence(int start, int end) {
         int pos = position();
         int lim = limit();
@@ -94,18 +100,22 @@ class DirectCharBufferRS extends DirectCharBufferS implements DirectBuffer {
     
     /*▼ 只读缓冲区，禁止写入 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 向position处（可能需要加offset）写入char，并将position递增
     public CharBuffer put(char x) {
         throw new ReadOnlyBufferException();
     }
     
+    // 向i处（可能需要加offset）写入char
     public CharBuffer put(int i, char x) {
         throw new ReadOnlyBufferException();
     }
     
+    // 将源缓冲区src的内容全部写入到当前缓冲区
     public CharBuffer put(CharBuffer src) {
         throw new ReadOnlyBufferException();
     }
     
+    // 从源字符数组src的offset处开始，复制length个元素，写入到当前缓冲区
     public CharBuffer put(char[] src, int offset, int length) {
         throw new ReadOnlyBufferException();
     }
@@ -116,6 +126,7 @@ class DirectCharBufferRS extends DirectCharBufferS implements DirectBuffer {
     
     /*▼ 禁止压缩，因为禁止写入，压缩没意义 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 压缩缓冲区，将当前未读完的数据挪到容器起始处，可用于读模式到写模式的切换，但又不丢失之前读入的数据。
     public CharBuffer compact() {
         throw new ReadOnlyBufferException();
     }
