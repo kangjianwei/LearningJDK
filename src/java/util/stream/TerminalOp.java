@@ -40,59 +40,89 @@ import java.util.Spliterator;
  *
  * @param <E_IN> the type of input elements
  * @param <R>    the type of the result
+ *
  * @since 1.8
  */
+// 终端操作接口
 interface TerminalOp<E_IN, R> {
+    
+    /**
+     * Performs a sequential evaluation of the operation using the specified
+     * {@code PipelineHelper}, which describes the upstream intermediate
+     * operations.
+     *
+     * @param helper      the pipeline helper
+     * @param spliterator the source spliterator
+     *
+     * @return the result of the evaluation
+     */
+    /*
+     * 同步处理helper流阶段输出的元素，返回处理后的结果
+     *
+     * 为helper构造一个终端sink，并使用该终端sink对spliterator中的数据进行择取，返回最后的处理结果。
+     * 返回值可能是收集到的元素，也可能只是对过滤后的元素的计数，还可能是其它定制化的结果。
+     *
+     * helper     : 某个流阶段，通常需要在当前终端操作中处理从helper阶段输出的数据
+     * spliterator: 待处理的数据的源头，该流迭代器属于helper之前的(depth==0)的流阶段(包含helper阶段)
+     */
+    <P_IN> R evaluateSequential(PipelineHelper<E_IN> helper, Spliterator<P_IN> spliterator);
+    
+    /**
+     * Performs a parallel evaluation of the operation using the specified
+     * {@code PipelineHelper}, which describes the upstream intermediate
+     * operations.
+     *
+     * @param helper      the pipeline helper
+     * @param spliterator the source spliterator
+     *
+     * @return the result of the evaluation
+     *
+     * @implSpec The default performs a sequential evaluation of the operation
+     * using the specified {@code PipelineHelper}.
+     */
+    /*
+     * 并行处理helper流阶段输出的元素，返回处理后的结果
+     *
+     * 为helper构造一个终端sink，并使用该终端sink对spliterator中的数据进行择取，返回最后的处理结果。
+     * 返回值可能是收集到的元素，也可能只是对过滤后的元素的计数，还可能是其它定制化的结果。
+     *
+     * helper     : 某个流阶段，通常需要在当前终端操作中处理从helper阶段输出的数据
+     * spliterator: 待处理的数据的源头，该流迭代器属于helper之前的(depth==0)的流阶段(包含helper阶段)
+     */
+    default <P_IN> R evaluateParallel(PipelineHelper<E_IN> helper, Spliterator<P_IN> spliterator) {
+        if(Tripwire.ENABLED) {
+            Tripwire.trip(getClass(), "{0} triggering TerminalOp.evaluateParallel serial default");
+        }
+        
+        return evaluateSequential(helper, spliterator);
+    }
+    
     /**
      * Gets the shape of the input type of this operation.
      *
-     * @implSpec The default returns {@code StreamShape.REFERENCE}.
-     *
      * @return StreamShape of the input type of this operation
+     *
+     * @implSpec The default returns {@code StreamShape.REFERENCE}.
      */
-    default StreamShape inputShape() { return StreamShape.REFERENCE; }
-
+    // 从当前终端输出的流的形状
+    default StreamShape inputShape() {
+        return StreamShape.REFERENCE;
+    }
+    
     /**
      * Gets the stream flags of the operation.  Terminal operations may set a
      * limited subset of the stream flags defined in {@link StreamOpFlag}, and
      * these flags are combined with the previously combined stream and
      * intermediate operation flags for the pipeline.
      *
-     * @implSpec The default implementation returns zero.
-     *
      * @return the stream flags for this operation
+     *
+     * @implSpec The default implementation returns zero.
      * @see StreamOpFlag
      */
-    default int getOpFlags() { return 0; }
-
-    /**
-     * Performs a parallel evaluation of the operation using the specified
-     * {@code PipelineHelper}, which describes the upstream intermediate
-     * operations.
-     *
-     * @implSpec The default performs a sequential evaluation of the operation
-     * using the specified {@code PipelineHelper}.
-     *
-     * @param helper the pipeline helper
-     * @param spliterator the source spliterator
-     * @return the result of the evaluation
-     */
-    default <P_IN> R evaluateParallel(PipelineHelper<E_IN> helper,
-                                      Spliterator<P_IN> spliterator) {
-        if (Tripwire.ENABLED)
-            Tripwire.trip(getClass(), "{0} triggering TerminalOp.evaluateParallel serial default");
-        return evaluateSequential(helper, spliterator);
+    // 返回当前终端操作上的组合参数
+    default int getOpFlags() {
+        return 0;
     }
-
-    /**
-     * Performs a sequential evaluation of the operation using the specified
-     * {@code PipelineHelper}, which describes the upstream intermediate
-     * operations.
-     *
-     * @param helper the pipeline helper
-     * @param spliterator the source spliterator
-     * @return the result of the evaluation
-     */
-    <P_IN> R evaluateSequential(PipelineHelper<E_IN> helper,
-                                Spliterator<P_IN> spliterator);
+    
 }

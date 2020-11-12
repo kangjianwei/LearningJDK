@@ -32,6 +32,7 @@ import java.lang.ref.Reference;
 
 // 可读写、直接缓冲区，采用与平台字节顺序相同的字节序，其他部分与DirectCharBufferS相同
 class DirectCharBufferU extends CharBuffer implements DirectBuffer {
+    
     // Cached unaligned-access capability
     protected static final boolean UNALIGNED = Bits.unaligned();
     // Cached array base offset
@@ -44,7 +45,8 @@ class DirectCharBufferU extends CharBuffer implements DirectBuffer {
     private final Object att;   // 指向母体缓冲区
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     // 用于#duplicates和#slices
     DirectCharBufferU(DirectBuffer db, int mark, int pos, int lim, int cap, int off) {
@@ -53,16 +55,18 @@ class DirectCharBufferU extends CharBuffer implements DirectBuffer {
         att = db;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 可读写/直接 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 只读/可读写
     public boolean isReadOnly() {
         return false;
     }
     
+    // 直接缓冲区/非直接缓冲区
     public boolean isDirect() {
         return true;
     }
@@ -94,7 +98,7 @@ class DirectCharBufferU extends CharBuffer implements DirectBuffer {
         return new DirectCharBufferRU(this, this.markValue(), this.position(), this.limit(), this.capacity(), 0);
     }
     
-    // 副本，新缓冲区的【活跃区域】取自旧缓冲区【活跃区域】的[start，end)部分
+    // 子副本，新缓冲区的【活跃区域】取自旧缓冲区【活跃区域】的[start，end)部分
     public CharBuffer subSequence(int start, int end) {
         int pos = position();
         int lim = limit();
@@ -357,6 +361,7 @@ class DirectCharBufferU extends CharBuffer implements DirectBuffer {
         return att;
     }
     
+    // 返回该缓冲区的清理器
     public Cleaner cleaner() {
         return null;
     }

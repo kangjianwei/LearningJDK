@@ -428,13 +428,13 @@ import java.lang.invoke.VarHandle;
  *
  *       ①
  *   ②      ③
- * ④  ⑤  ⑥  ⑦
+ * ④  ⑤    ⑥  ⑦
  *
- * 如图，一个大任务可以拆分很多小任务，然后归并
- * 对于子节点来说，当它执行完成后，会将父节点的挂起次数减一
- * 如果父节点的挂起次数减为0，则将父节点标记为完成
+ * 如图，一个大任务可以拆分很多小任务，然后归并。
+ * 对于子节点来说，当它执行完成后，会将父节点的挂起次数减一。
+ * 如果父节点的挂起次数减为0，则将父节点标记为完成。
  * （可以认为挂起次数为0时，该结点可直接完成）
- * 上述过程会递归进行，向上传播
+ * 上述过程会递归进行，向上传播。
  */
 public abstract class CountedCompleter<V> extends ForkJoinTask<V> {
     private static final long serialVersionUID = 5232453752276485070L;
@@ -557,7 +557,14 @@ public abstract class CountedCompleter<V> extends ForkJoinTask<V> {
      *
      * @param caller the task invoking this method (which may be this task itself)
      */
-    // 在complete()或tryComplete()中被回调
+    /*
+     * 在当前(子)任务执行完成后，需要执行该回调方法。
+     *
+     * 参数中的caller是促进当前任务完成的子任务(只有子任务完成了，父任务才可能完成)。
+     * 如果当前任务没有子任务，或者并不关心子任务，则参数caller的值可以直接传入当前任务。
+     *
+     * 注：该方法在complete()或tryComplete()中被回调
+     */
     public void onCompletion(CountedCompleter<?> caller) {
     }
     
@@ -567,21 +574,37 @@ public abstract class CountedCompleter<V> extends ForkJoinTask<V> {
      * and then similarly tries to complete this task's completer,
      * if one exists, else marks this task as complete.
      */
-    // 尝试完成当前任务，并将父任务挂起次数减一或将父任务标记为完成，执行过程中可能会触发onCompletion()
+    /*
+     * 尝试从当前任务开始，向上传播"完成"消息，可能会触发onCompletion()回调。
+     *
+     * 在当前任务或当前任务的子任务执行完成后，调用此方法，
+     * 以便从当前任务出发，向上遍历，尝试完成整个任务。
+     *
+     * 具体操作就是先检查当前任务是否已完成，
+     * 如果没完成，则将父任务的挂起计数减一(因为当前任务已经完成了)，然后结束本次尝试。
+     * 如果完成了，则执行该任务的onCompletion()回调，并且继续检查父任务。
+     *
+     * 注：上述的父任务在一开始时，其初值就是当前任务本身
+     */
     public final void tryComplete() {
         CountedCompleter<?> parent, child;
         
+        // 初始值都是当前任务
         parent = child = this;
         
         for(; ; ) {
+            // 获取父任务的挂起次数
             int count = parent.pending;
             
+            // 如果父任务的挂起次数已经为0，
             if(count == 0) {
                 parent.onCompletion(child);
-                
+    
+                // 向上遍历，尝试完成整个任务
                 child = parent;
                 parent = parent.completer;
-                
+    
+                // 如果已经遍历到根任务，则标记整个任务的完成
                 if(parent == null) {
                     // 静默完成，即将当前任务标记为[已完成]状态（不会改变当前任务挂起的次数）
                     child.quietlyComplete();
@@ -612,14 +635,63 @@ public abstract class CountedCompleter<V> extends ForkJoinTask<V> {
     // 将当前任务强制标记为完成，不会影响挂起的次数
     public void complete(V rawResult) {
         setRawResult(rawResult);
-        
+    
+        // 执行回调
         onCompletion(this);
         
         // 静默完成，即将当前任务标记为[已完成]状态（不会改变当前任务挂起的次数）
         quietlyComplete();
-        
+    
+        // 如果存在父任务，则需要将"完成"消息向上传播
         if(completer != null) {
             completer.tryComplete();
+        }
+    }
+    
+    /**
+     * Equivalent to {@link #tryComplete} but does not invoke {@link #onCompletion(CountedCompleter)} along the completion path:
+     * If the pending count is nonzero, decrements the count;
+     * otherwise, similarly tries to complete this task's completer, if one exists, else marks this task as complete.
+     * This method may be useful in cases where {@code onCompletion} should not,
+     * or need not, be invoked for each completer in a computation.
+     */
+    /*
+     * 尝试从当前任务开始，向上传播"完成"消息，不会触发onCompletion()回调。
+     *
+     * 在当前任务或当前任务的子任务执行完成后，调用此方法，
+     * 以便从当前任务出发，向上遍历，尝试完成整个任务。
+     *
+     * 具体操作就是先检查当前任务是否已完成，
+     * 如果没完成，则将父任务的挂起计数减一(因为当前任务已经完成了)，然后结束本次尝试。
+     * 如果完成了，则继续检查父任务。
+     *
+     * 注：上述的父任务在一开始时，其初值就是当前任务本身
+     */
+    public final void propagateCompletion() {
+        CountedCompleter<?> parent = this;  // 父任务初始化为当前任务
+        CountedCompleter<?> child;
+        
+        for(; ; ) {
+            // 获取父任务的挂起次数
+            int count = parent.pending;
+            
+            if(count == 0) {
+                // 向上遍历，尝试完成整个任务
+                child = parent;
+                parent = parent.completer;
+                
+                // 如果已经遍历到根任务，则标记整个任务的完成
+                if(parent == null) {
+                    // 静默完成，即将当前任务标记为[已完成]状态（不会改变当前任务挂起的次数）
+                    child.quietlyComplete();
+                    return;
+                }
+            } else {
+                // 将父任务挂起次数减一
+                if(PENDING.weakCompareAndSet(parent, count, count - 1)) {
+                    return;
+                }
+            }
         }
     }
     
@@ -635,35 +707,6 @@ public abstract class CountedCompleter<V> extends ForkJoinTask<V> {
                 return;
             }
             a = p;
-        }
-    }
-    
-    /**
-     * Equivalent to {@link #tryComplete} but does not invoke {@link #onCompletion(CountedCompleter)} along the completion path:
-     * If the pending count is nonzero, decrements the count;
-     * otherwise, similarly tries to complete this task's completer, if one exists, else marks this task as complete.
-     * This method may be useful in cases where {@code onCompletion} should not,
-     * or need not, be invoked for each completer in a computation.
-     */
-    // 尝试完成当前任务，并将父任务挂起次数减一或将父任务标记为完成
-    public final void propagateCompletion() {
-        CountedCompleter<?> parent = this, child;
-        
-        for(; ; ) {
-            int count = parent.pending;
-            
-            if(count == 0) {
-                child = parent;
-                parent = parent.completer;
-                
-                if(parent == null) {
-                    // 静默完成，即将当前任务标记为[已完成]状态（不会改变当前任务挂起的次数）
-                    child.quietlyComplete();
-                    return;
-                }
-            } else if(PENDING.weakCompareAndSet(parent, count, count - 1)) {
-                return;
-            }
         }
     }
     
@@ -738,7 +781,7 @@ public abstract class CountedCompleter<V> extends ForkJoinTask<V> {
     public final CountedCompleter<?> firstComplete() {
         for( ; ; ) {
             int c = pending;
-            
+    
             if(c == 0) {
                 return this;
             } else if(PENDING.weakCompareAndSet(this, c, c - 1)) {

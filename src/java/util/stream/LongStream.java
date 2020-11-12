@@ -70,30 +70,17 @@ import java.util.function.Supplier;
  * @see <a href="package-summary.html">java.util.stream</a>
  * @since 1.8
  */
-
-// 为long类型特化的流水线接口
+// 流接口(long类型版本)
 public interface LongStream extends BaseStream<Long, LongStream> {
     
     /*▼ 创建流的源头阶段 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Returns a sequential ordered stream whose elements are the specified values.
-     *
-     * @param values the elements of the new stream
-     *
-     * @return the new stream
-     */
-    // 从数组（或类似数组）中创建一个Stream
-    static LongStream of(long... values) {
-        return Arrays.stream(values);
-    }
     
     /**
      * Returns an empty sequential {@code LongStream}.
      *
      * @return an empty sequential stream
      */
-    // 返回空的流水线，不包含任何待处理元素
+    // 构造处于源头阶段的流，该流不包含任何待处理元素
     static LongStream empty() {
         return StreamSupport.longStream(Spliterators.emptyLongSpliterator(), false);
     }
@@ -105,9 +92,21 @@ public interface LongStream extends BaseStream<Long, LongStream> {
      *
      * @return a singleton sequential stream
      */
-    // 返回只包含一个元素的流水线。
+    // 构造处于源头阶段的流，该流仅包含一个元素。当然，该元素可能是多维度的，比如数组或其他容器
     static LongStream of(long t) {
         return StreamSupport.longStream(new Streams.LongStreamBuilderImpl(t), false);
+    }
+    
+    /**
+     * Returns a sequential ordered stream whose elements are the specified values.
+     *
+     * @param values the elements of the new stream
+     *
+     * @return the new stream
+     */
+    // 构造处于源头阶段的流，该流包含了指定数组(或类似数组的序列)中的元素
+    static LongStream of(long... values) {
+        return Arrays.stream(values);
     }
     
     /**
@@ -133,8 +132,10 @@ public interface LongStream extends BaseStream<Long, LongStream> {
      *
      * @return a new sequential {@code LongStream}
      */
+    // 构造一个包含无限元素的流，仅支持单元素访问(如果遍历，则停不下来)
     static LongStream iterate(final long seed, final LongUnaryOperator f) {
         Objects.requireNonNull(f);
+    
         Spliterator.OfLong spliterator = new Spliterators.AbstractLongSpliterator(Long.MAX_VALUE, Spliterator.ORDERED | Spliterator.IMMUTABLE | Spliterator.NONNULL) {
             long prev;
             boolean started;
@@ -153,6 +154,7 @@ public interface LongStream extends BaseStream<Long, LongStream> {
                 return true;
             }
         };
+    
         return StreamSupport.longStream(spliterator, false);
     }
     
@@ -195,13 +197,18 @@ public interface LongStream extends BaseStream<Long, LongStream> {
      *
      * @since 9
      */
+    /*
+     * 构造一个包含有限元素的流，既支持单元素访问，也支持批量访问(可以遍历)
+     * 如果由next处理生成的新元素被hasNext识别为终止元素，则需要关闭访问
+     */
     static LongStream iterate(long seed, LongPredicate hasNext, LongUnaryOperator next) {
         Objects.requireNonNull(next);
         Objects.requireNonNull(hasNext);
+    
         Spliterator.OfLong spliterator = new Spliterators.AbstractLongSpliterator(Long.MAX_VALUE, Spliterator.ORDERED | Spliterator.IMMUTABLE | Spliterator.NONNULL) {
             long prev;
             boolean started, finished;
-            
+        
             @Override
             public boolean tryAdvance(LongConsumer action) {
                 Objects.requireNonNull(action);
@@ -235,6 +242,7 @@ public interface LongStream extends BaseStream<Long, LongStream> {
                 }
             }
         };
+    
         return StreamSupport.longStream(spliterator, false);
     }
     
@@ -247,74 +255,11 @@ public interface LongStream extends BaseStream<Long, LongStream> {
      *
      * @return a new infinite sequential unordered {@code LongStream}
      */
-    static LongStream generate(LongSupplier s) {
-        Objects.requireNonNull(s);
-        return StreamSupport.longStream(new StreamSpliterators.InfiniteSupplyingSpliterator.OfLong(Long.MAX_VALUE, s), false);
-    }
-    
-    /**
-     * Returns a sequential ordered {@code LongStream} from {@code startInclusive}
-     * (inclusive) to {@code endExclusive} (exclusive) by an incremental step of
-     * {@code 1}.
-     *
-     * @param startInclusive the (inclusive) initial value
-     * @param endExclusive   the exclusive upper bound
-     *
-     * @return a sequential {@code LongStream} for the range of {@code long}
-     * elements
-     *
-     * @apiNote <p>An equivalent sequence of increasing values can be produced
-     * sequentially using a {@code for} loop as follows:
-     * <pre>{@code
-     *     for (long i = startInclusive; i < endExclusive ; i++) { ... }
-     * }</pre>
-     */
-    static LongStream range(long startInclusive, final long endExclusive) {
-        if(startInclusive >= endExclusive) {
-            return empty();
-        } else if(endExclusive - startInclusive<0) {
-            // Size of range > Long.MAX_VALUE
-            // Split the range in two and concatenate
-            // Note: if the range is [Long.MIN_VALUE, Long.MAX_VALUE) then
-            // the lower range, [Long.MIN_VALUE, 0) will be further split in two
-            long m = startInclusive + Long.divideUnsigned(endExclusive - startInclusive, 2) + 1;
-            return concat(range(startInclusive, m), range(m, endExclusive));
-        } else {
-            return StreamSupport.longStream(new Streams.RangeLongSpliterator(startInclusive, endExclusive, false), false);
-        }
-    }
-    
-    /**
-     * Returns a sequential ordered {@code LongStream} from {@code startInclusive}
-     * (inclusive) to {@code endInclusive} (inclusive) by an incremental step of
-     * {@code 1}.
-     *
-     * @param startInclusive the (inclusive) initial value
-     * @param endInclusive   the inclusive upper bound
-     *
-     * @return a sequential {@code LongStream} for the range of {@code long}
-     * elements
-     *
-     * @apiNote <p>An equivalent sequence of increasing values can be produced
-     * sequentially using a {@code for} loop as follows:
-     * <pre>{@code
-     *     for (long i = startInclusive; i <= endInclusive ; i++) { ... }
-     * }</pre>
-     */
-    static LongStream rangeClosed(long startInclusive, final long endInclusive) {
-        if(startInclusive>endInclusive) {
-            return empty();
-        } else if(endInclusive - startInclusive + 1<=0) {
-            // Size of range > Long.MAX_VALUE
-            // Split the range in two and concatenate
-            // Note: if the range is [Long.MIN_VALUE, Long.MAX_VALUE] then
-            // the lower range, [Long.MIN_VALUE, 0), and upper range,
-            // [0, Long.MAX_VALUE], will both be further split in two
-            long m = startInclusive + Long.divideUnsigned(endInclusive - startInclusive, 2) + 1;
-            return concat(range(startInclusive, m), rangeClosed(m, endInclusive));
-        } else {
-            return StreamSupport.longStream(new Streams.RangeLongSpliterator(startInclusive, endInclusive, true), false);
-        }
+    // 构造一个包含无限元素的流，元素由supplier提供
+    static LongStream generate(LongSupplier supplier) {
+        Objects.requireNonNull(supplier);
+        
+        return StreamSupport.longStream(new StreamSpliterators.InfiniteSupplyingSpliterator.OfLong(Long.MAX_VALUE, supplier), false);
     }
     
     /**
@@ -348,141 +293,99 @@ public interface LongStream extends BaseStream<Long, LongStream> {
      *     LongStream concat = Stream.of(s1, s2, s3, s4).flatMapToLong(s -> s);
      * }</pre>
      */
-    static LongStream concat(LongStream a, LongStream b) {
-        Objects.requireNonNull(a);
-        Objects.requireNonNull(b);
+    // 构造一个由s1和s2拼接而成的流
+    static LongStream concat(LongStream s1, LongStream s2) {
+        Objects.requireNonNull(s1);
+        Objects.requireNonNull(s2);
         
-        Spliterator.OfLong split = new Streams.ConcatSpliterator.OfLong(a.spliterator(), b.spliterator());
-        LongStream stream = StreamSupport.longStream(split, a.isParallel() || b.isParallel());
-        return stream.onClose(Streams.composedClose(a, b));
+        Spliterator.OfLong split = new Streams.ConcatSpliterator.OfLong(s1.spliterator(), s2.spliterator());
+        LongStream stream = StreamSupport.longStream(split, s1.isParallel() || s2.isParallel());
+        return stream.onClose(Streams.composedClose(s1, s2));
     }
     
     /**
-     * Returns, if this stream is ordered, a stream consisting of the longest
-     * prefix of elements taken from this stream that match the given predicate.
-     * Otherwise returns, if this stream is unordered, a stream consisting of a
-     * subset of elements taken from this stream that match the given predicate.
+     * Returns a sequential ordered {@code LongStream} from {@code startInclusive}
+     * (inclusive) to {@code endExclusive} (exclusive) by an incremental step of
+     * {@code 1}.
      *
-     * <p>If this stream is ordered then the longest prefix is a contiguous
-     * sequence of elements of this stream that match the given predicate.  The
-     * first element of the sequence is the first element of this stream, and
-     * the element immediately following the last element of the sequence does
-     * not match the given predicate.
+     * @param startInclusive the (inclusive) initial value
+     * @param endExclusive   the exclusive upper bound
      *
-     * <p>If this stream is unordered, and some (but not all) elements of this
-     * stream match the given predicate, then the behavior of this operation is
-     * nondeterministic; it is free to take any subset of matching elements
-     * (which includes the empty set).
+     * @return a sequential {@code LongStream} for the range of {@code long}
+     * elements
      *
-     * <p>Independent of whether this stream is ordered or unordered if all
-     * elements of this stream match the given predicate then this operation
-     * takes all elements (the result is the same as the input), or if no
-     * elements of the stream match the given predicate then no elements are
-     * taken (the result is an empty stream).
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
-     * stateful intermediate operation</a>.
-     *
-     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *                  <a href="package-summary.html#Statelessness">stateless</a>
-     *                  predicate to apply to elements to determine the longest
-     *                  prefix of elements.
-     *
-     * @return the new stream
-     *
-     * @implSpec The default implementation obtains the {@link #spliterator() spliterator}
-     * of this stream, wraps that spliterator so as to support the semantics
-     * of this operation on traversal, and returns a new stream associated with
-     * the wrapped spliterator.  The returned stream preserves the execution
-     * characteristics of this stream (namely parallel or sequential execution
-     * as per {@link #isParallel()}) but the wrapped spliterator may choose to
-     * not support splitting.  When the returned stream is closed, the close
-     * handlers for both the returned and this stream are invoked.
-     * @apiNote While {@code takeWhile()} is generally a cheap operation on sequential
-     * stream pipelines, it can be quite expensive on ordered parallel
-     * pipelines, since the operation is constrained to return not just any
-     * valid prefix, but the longest prefix of elements in the encounter order.
-     * Using an unordered stream source (such as
-     * {@link #generate(LongSupplier)}) or removing the ordering constraint with
-     * {@link #unordered()} may result in significant speedups of
-     * {@code takeWhile()} in parallel pipelines, if the semantics of your
-     * situation permit.  If consistency with encounter order is required, and
-     * you are experiencing poor performance or memory utilization with
-     * {@code takeWhile()} in parallel pipelines, switching to sequential
-     * execution with {@link #sequential()} may improve performance.
-     * @since 9
+     * @apiNote <p>An equivalent sequence of increasing values can be produced
+     * sequentially using a {@code for} loop as follows:
+     * <pre>{@code
+     *     for (long i = startInclusive; i < endExclusive ; i++) { ... }
+     * }</pre>
      */
-    default LongStream takeWhile(LongPredicate predicate) {
-        Objects.requireNonNull(predicate);
-        // Reuses the unordered spliterator, which, when encounter is present,
-        // is safe to use as long as it configured not to split
-        return StreamSupport.longStream(new WhileOps.UnorderedWhileSpliterator.OfLong.Taking(spliterator(), true, predicate), isParallel()).onClose(this::close);
+    // 构造一个包含有限元素的流，其区间为[startInclusive, endExclusive)（右区间开放）
+    static LongStream range(long startInclusive, final long endExclusive) {
+        if(startInclusive >= endExclusive) {
+            return empty();
+        } else if(endExclusive - startInclusive<0) {
+            /*
+             * Size of range > Long.MAX_VALUE
+             * Split the range in two and concatenate
+             * Note: if the range is [Long.MIN_VALUE, Long.MAX_VALUE) then the lower range, [Long.MIN_VALUE, 0) will be further split in two
+             */
+            long m = startInclusive + Long.divideUnsigned(endExclusive - startInclusive, 2) + 1;
+            return concat(range(startInclusive, m), range(m, endExclusive));
+        } else {
+            return StreamSupport.longStream(new Streams.RangeLongSpliterator(startInclusive, endExclusive, false), false);
+        }
     }
     
     /**
-     * Returns, if this stream is ordered, a stream consisting of the remaining
-     * elements of this stream after dropping the longest prefix of elements
-     * that match the given predicate.  Otherwise returns, if this stream is
-     * unordered, a stream consisting of the remaining elements of this stream
-     * after dropping a subset of elements that match the given predicate.
+     * Returns a sequential ordered {@code LongStream} from {@code startInclusive}
+     * (inclusive) to {@code endInclusive} (inclusive) by an incremental step of
+     * {@code 1}.
      *
-     * <p>If this stream is ordered then the longest prefix is a contiguous
-     * sequence of elements of this stream that match the given predicate.  The
-     * first element of the sequence is the first element of this stream, and
-     * the element immediately following the last element of the sequence does
-     * not match the given predicate.
+     * @param startInclusive the (inclusive) initial value
+     * @param endInclusive   the inclusive upper bound
      *
-     * <p>If this stream is unordered, and some (but not all) elements of this
-     * stream match the given predicate, then the behavior of this operation is
-     * nondeterministic; it is free to drop any subset of matching elements
-     * (which includes the empty set).
+     * @return a sequential {@code LongStream} for the range of {@code long}
+     * elements
      *
-     * <p>Independent of whether this stream is ordered or unordered if all
-     * elements of this stream match the given predicate then this operation
-     * drops all elements (the result is an empty stream), or if no elements of
-     * the stream match the given predicate then no elements are dropped (the
-     * result is the same as the input).
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">stateful
-     * intermediate operation</a>.
-     *
-     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *                  <a href="package-summary.html#Statelessness">stateless</a>
-     *                  predicate to apply to elements to determine the longest
-     *                  prefix of elements.
-     *
-     * @return the new stream
-     *
-     * @implSpec The default implementation obtains the {@link #spliterator() spliterator}
-     * of this stream, wraps that spliterator so as to support the semantics
-     * of this operation on traversal, and returns a new stream associated with
-     * the wrapped spliterator.  The returned stream preserves the execution
-     * characteristics of this stream (namely parallel or sequential execution
-     * as per {@link #isParallel()}) but the wrapped spliterator may choose to
-     * not support splitting.  When the returned stream is closed, the close
-     * handlers for both the returned and this stream are invoked.
-     * @apiNote While {@code dropWhile()} is generally a cheap operation on sequential
-     * stream pipelines, it can be quite expensive on ordered parallel
-     * pipelines, since the operation is constrained to return not just any
-     * valid prefix, but the longest prefix of elements in the encounter order.
-     * Using an unordered stream source (such as
-     * {@link #generate(LongSupplier)}) or removing the ordering constraint with
-     * {@link #unordered()} may result in significant speedups of
-     * {@code dropWhile()} in parallel pipelines, if the semantics of your
-     * situation permit.  If consistency with encounter order is required, and
-     * you are experiencing poor performance or memory utilization with
-     * {@code dropWhile()} in parallel pipelines, switching to sequential
-     * execution with {@link #sequential()} may improve performance.
-     * @since 9
+     * @apiNote <p>An equivalent sequence of increasing values can be produced
+     * sequentially using a {@code for} loop as follows:
+     * <pre>{@code
+     *     for (long i = startInclusive; i <= endInclusive ; i++) { ... }
+     * }</pre>
      */
-    default LongStream dropWhile(LongPredicate predicate) {
-        Objects.requireNonNull(predicate);
-        // Reuses the unordered spliterator, which, when encounter is present,
-        // is safe to use as long as it configured not to split
-        return StreamSupport.longStream(new WhileOps.UnorderedWhileSpliterator.OfLong.Dropping(spliterator(), true, predicate), isParallel()).onClose(this::close);
+    // 构造一个包含有限元素的流，其区间为[startInclusive, endExclusive]（右区间封闭）
+    static LongStream rangeClosed(long startInclusive, final long endInclusive) {
+        if(startInclusive>endInclusive) {
+            return empty();
+        } else if(endInclusive - startInclusive + 1<=0) {
+            /*
+             * Size of range > Long.MAX_VALUE
+             * Split the range in two and concatenate
+             * Note: if the range is [Long.MIN_VALUE, Long.MAX_VALUE] then the lower range, [Long.MIN_VALUE, 0), and upper range, [0, Long.MAX_VALUE], will both be further split in two
+             */
+            long m = startInclusive + Long.divideUnsigned(endInclusive - startInclusive, 2) + 1;
+            return concat(range(startInclusive, m), rangeClosed(m, endInclusive));
+        } else {
+            return StreamSupport.longStream(new Streams.RangeLongSpliterator(startInclusive, endInclusive, true), false);
+        }
     }
     
     /*▲ 创建流的源头阶段 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 流迭代器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 返回当前阶段的流的流迭代器；如果遇到并行流的有状态的中间阶段，则需要特殊处理
+    @Override
+    Spliterator.OfLong spliterator();
+    
+    // 将当前阶段的流的Spliterator适配为Iterator
+    @Override
+    PrimitiveIterator.OfLong iterator();
+    
+    /*▲ 流迭代器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -657,6 +560,14 @@ public interface LongStream extends BaseStream<Long, LongStream> {
     // 转换为DoubleStream
     DoubleStream asDoubleStream();
     
+    // 中间操作，返回顺序的等效流
+    @Override
+    LongStream sequential();
+    
+    // 中间操作，返回并行的等效流
+    @Override
+    LongStream parallel();
+    
     /*▲ 中间操作-无状态 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
@@ -744,118 +655,134 @@ public interface LongStream extends BaseStream<Long, LongStream> {
     // 跳过前n个元素
     LongStream skip(long n);
     
+    /**
+     * Returns, if this stream is ordered, a stream consisting of the longest
+     * prefix of elements taken from this stream that match the given predicate.
+     * Otherwise returns, if this stream is unordered, a stream consisting of a
+     * subset of elements taken from this stream that match the given predicate.
+     *
+     * <p>If this stream is ordered then the longest prefix is a contiguous
+     * sequence of elements of this stream that match the given predicate.  The
+     * first element of the sequence is the first element of this stream, and
+     * the element immediately following the last element of the sequence does
+     * not match the given predicate.
+     *
+     * <p>If this stream is unordered, and some (but not all) elements of this
+     * stream match the given predicate, then the behavior of this operation is
+     * nondeterministic; it is free to take any subset of matching elements
+     * (which includes the empty set).
+     *
+     * <p>Independent of whether this stream is ordered or unordered if all
+     * elements of this stream match the given predicate then this operation
+     * takes all elements (the result is the same as the input), or if no
+     * elements of the stream match the given predicate then no elements are
+     * taken (the result is an empty stream).
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
+     * stateful intermediate operation</a>.
+     *
+     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *                  <a href="package-summary.html#Statelessness">stateless</a>
+     *                  predicate to apply to elements to determine the longest
+     *                  prefix of elements.
+     *
+     * @return the new stream
+     *
+     * @implSpec The default implementation obtains the {@link #spliterator() spliterator}
+     * of this stream, wraps that spliterator so as to support the semantics
+     * of this operation on traversal, and returns a new stream associated with
+     * the wrapped spliterator.  The returned stream preserves the execution
+     * characteristics of this stream (namely parallel or sequential execution
+     * as per {@link #isParallel()}) but the wrapped spliterator may choose to
+     * not support splitting.  When the returned stream is closed, the close
+     * handlers for both the returned and this stream are invoked.
+     * @apiNote While {@code takeWhile()} is generally a cheap operation on sequential
+     * stream pipelines, it can be quite expensive on ordered parallel
+     * pipelines, since the operation is constrained to return not just any
+     * valid prefix, but the longest prefix of elements in the encounter order.
+     * Using an unordered stream source (such as
+     * {@link #generate(LongSupplier)}) or removing the ordering constraint with
+     * {@link #unordered()} may result in significant speedups of
+     * {@code takeWhile()} in parallel pipelines, if the semantics of your
+     * situation permit.  If consistency with encounter order is required, and
+     * you are experiencing poor performance or memory utilization with
+     * {@code takeWhile()} in parallel pipelines, switching to sequential
+     * execution with {@link #sequential()} may improve performance.
+     * @since 9
+     */
+    // "保存前缀"：保存起初遇到的满足predicate条件的元素；只要遇到首个不满足条件的元素，就结束后续的保存动作
+    default LongStream takeWhile(LongPredicate predicate) {
+        Objects.requireNonNull(predicate);
+        // Reuses the unordered spliterator, which, when encounter is present,
+        // is safe to use as long as it configured not to split
+        return StreamSupport.longStream(new WhileOps.UnorderedWhileSpliterator.OfLong.Taking(spliterator(), true, predicate), isParallel()).onClose(this::close);
+    }
+    
+    /**
+     * Returns, if this stream is ordered, a stream consisting of the remaining
+     * elements of this stream after dropping the longest prefix of elements
+     * that match the given predicate.  Otherwise returns, if this stream is
+     * unordered, a stream consisting of the remaining elements of this stream
+     * after dropping a subset of elements that match the given predicate.
+     *
+     * <p>If this stream is ordered then the longest prefix is a contiguous
+     * sequence of elements of this stream that match the given predicate.  The
+     * first element of the sequence is the first element of this stream, and
+     * the element immediately following the last element of the sequence does
+     * not match the given predicate.
+     *
+     * <p>If this stream is unordered, and some (but not all) elements of this
+     * stream match the given predicate, then the behavior of this operation is
+     * nondeterministic; it is free to drop any subset of matching elements
+     * (which includes the empty set).
+     *
+     * <p>Independent of whether this stream is ordered or unordered if all
+     * elements of this stream match the given predicate then this operation
+     * drops all elements (the result is an empty stream), or if no elements of
+     * the stream match the given predicate then no elements are dropped (the
+     * result is the same as the input).
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">stateful
+     * intermediate operation</a>.
+     *
+     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *                  <a href="package-summary.html#Statelessness">stateless</a>
+     *                  predicate to apply to elements to determine the longest
+     *                  prefix of elements.
+     *
+     * @return the new stream
+     *
+     * @implSpec The default implementation obtains the {@link #spliterator() spliterator}
+     * of this stream, wraps that spliterator so as to support the semantics
+     * of this operation on traversal, and returns a new stream associated with
+     * the wrapped spliterator.  The returned stream preserves the execution
+     * characteristics of this stream (namely parallel or sequential execution
+     * as per {@link #isParallel()}) but the wrapped spliterator may choose to
+     * not support splitting.  When the returned stream is closed, the close
+     * handlers for both the returned and this stream are invoked.
+     * @apiNote While {@code dropWhile()} is generally a cheap operation on sequential
+     * stream pipelines, it can be quite expensive on ordered parallel
+     * pipelines, since the operation is constrained to return not just any
+     * valid prefix, but the longest prefix of elements in the encounter order.
+     * Using an unordered stream source (such as
+     * {@link #generate(LongSupplier)}) or removing the ordering constraint with
+     * {@link #unordered()} may result in significant speedups of
+     * {@code dropWhile()} in parallel pipelines, if the semantics of your
+     * situation permit.  If consistency with encounter order is required, and
+     * you are experiencing poor performance or memory utilization with
+     * {@code dropWhile()} in parallel pipelines, switching to sequential
+     * execution with {@link #sequential()} may improve performance.
+     * @since 9
+     */
+    // "丢弃前缀"：丢弃起初遇到的满足predicate条件的元素；只要遇到首个不满足条件的元素，就开始保存它后及其后面的元素
+    default LongStream dropWhile(LongPredicate predicate) {
+        Objects.requireNonNull(predicate);
+        // Reuses the unordered spliterator, which, when encounter is present,
+        // is safe to use as long as it configured not to split
+        return StreamSupport.longStream(new WhileOps.UnorderedWhileSpliterator.OfLong.Dropping(spliterator(), true, predicate), isParallel()).onClose(this::close);
+    }
+    
     /*▲ 中间操作-有状态 ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
-    /*▼ 终端操作-短路操作 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Returns whether any elements of this stream match the provided
-     * predicate.  May not evaluate the predicate on all elements if not
-     * necessary for determining the result.  If the stream is empty then
-     * {@code false} is returned and the predicate is not evaluated.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
-     * terminal operation</a>.
-     *
-     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *                  <a href="package-summary.html#Statelessness">stateless</a>
-     *                  predicate to apply to elements of this stream
-     *
-     * @return {@code true} if any elements of the stream match the provided
-     * predicate, otherwise {@code false}
-     *
-     * @apiNote This method evaluates the <em>existential quantification</em> of the
-     * predicate over the elements of the stream (for some x P(x)).
-     */
-    // 存在元素满足predicate条件
-    boolean anyMatch(LongPredicate predicate);
-    
-    /**
-     * Returns whether all elements of this stream match the provided predicate.
-     * May not evaluate the predicate on all elements if not necessary for
-     * determining the result.  If the stream is empty then {@code true} is
-     * returned and the predicate is not evaluated.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
-     * terminal operation</a>.
-     *
-     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *                  <a href="package-summary.html#Statelessness">stateless</a>
-     *                  predicate to apply to elements of this stream
-     *
-     * @return {@code true} if either all elements of the stream match the
-     * provided predicate or the stream is empty, otherwise {@code false}
-     *
-     * @apiNote This method evaluates the <em>universal quantification</em> of the
-     * predicate over the elements of the stream (for all x P(x)).  If the
-     * stream is empty, the quantification is said to be <em>vacuously
-     * satisfied</em> and is always {@code true} (regardless of P(x)).
-     */
-    // 所有元素满足predicate条件
-    boolean allMatch(LongPredicate predicate);
-    
-    /**
-     * Returns whether no elements of this stream match the provided predicate.
-     * May not evaluate the predicate on all elements if not necessary for
-     * determining the result.  If the stream is empty then {@code true} is
-     * returned and the predicate is not evaluated.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
-     * terminal operation</a>.
-     *
-     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
-     *                  <a href="package-summary.html#Statelessness">stateless</a>
-     *                  predicate to apply to elements of this stream
-     *
-     * @return {@code true} if either no elements of the stream match the
-     * provided predicate or the stream is empty, otherwise {@code false}
-     *
-     * @apiNote This method evaluates the <em>universal quantification</em> of the
-     * negated predicate over the elements of the stream (for all x ~P(x)).  If
-     * the stream is empty, the quantification is said to be vacuously satisfied
-     * and is always {@code true}, regardless of P(x).
-     */
-    // 没有元素满足predicate条件
-    boolean noneMatch(LongPredicate predicate);
-    
-    /**
-     * Returns an {@link OptionalLong} describing the first element of this
-     * stream, or an empty {@code OptionalLong} if the stream is empty.  If the
-     * stream has no encounter order, then any element may be returned.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
-     * terminal operation</a>.
-     *
-     * @return an {@code OptionalLong} describing the first element of this
-     * stream, or an empty {@code OptionalLong} if the stream is empty
-     */
-    // 找出第一个元素，返回一个可选的操作
-    OptionalLong findFirst();
-    
-    /**
-     * Returns an {@link OptionalLong} describing some element of the stream, or
-     * an empty {@code OptionalLong} if the stream is empty.
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
-     * terminal operation</a>.
-     *
-     * <p>The behavior of this operation is explicitly nondeterministic; it is
-     * free to select any element in the stream.  This is to allow for maximal
-     * performance in parallel operations; the cost is that multiple invocations
-     * on the same source may not return the same result.  (If a stable result
-     * is desired, use {@link #findFirst()} instead.)
-     *
-     * @return an {@code OptionalLong} describing some element of this stream,
-     * or an empty {@code OptionalLong} if the stream is empty
-     *
-     * @see #findFirst()
-     */
-    // 找到一个元素就返回，往往是第一个元素
-    OptionalLong findAny();
-    
-    /*▲ 终端操作-短路操作 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -908,6 +835,41 @@ public interface LongStream extends BaseStream<Long, LongStream> {
     void forEachOrdered(LongConsumer action);
     
     /**
+     * Returns an {@code OptionalLong} describing the minimum element of this
+     * stream, or an empty optional if this stream is empty.  This is a special
+     * case of a <a href="package-summary.html#Reduction">reduction</a>
+     * and is equivalent to:
+     * <pre>{@code
+     *     return reduce(Long::min);
+     * }</pre>
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">terminal operation</a>.
+     *
+     * @return an {@code OptionalLong} containing the minimum element of this
+     * stream, or an empty {@code OptionalLong} if the stream is empty
+     */
+    // 求最小值
+    OptionalLong min();
+    
+    /**
+     * Returns an {@code OptionalLong} describing the maximum element of this
+     * stream, or an empty optional if this stream is empty.  This is a special
+     * case of a <a href="package-summary.html#Reduction">reduction</a>
+     * and is equivalent to:
+     * <pre>{@code
+     *     return reduce(Long::max);
+     * }</pre>
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">terminal
+     * operation</a>.
+     *
+     * @return an {@code OptionalLong} containing the maximum element of this
+     * stream, or an empty {@code OptionalLong} if the stream is empty
+     */
+    // 求最大值
+    OptionalLong max();
+    
+    /**
      * Performs a <a href="package-summary.html#Reduction">reduction</a> on the
      * elements of this stream, using an
      * <a href="package-summary.html#Associativity">associative</a> accumulation
@@ -944,7 +906,7 @@ public interface LongStream extends BaseStream<Long, LongStream> {
      *
      * @see #reduce(long, LongBinaryOperator)
      */
-    // 收纳汇总，两两比对，完成指定动作
+    // 无初始状态的汇总操作(long类型版本)
     OptionalLong reduce(LongBinaryOperator op);
     
     /**
@@ -1001,7 +963,7 @@ public interface LongStream extends BaseStream<Long, LongStream> {
      * @see #max()
      * @see #average()
      */
-    // 收纳汇总，两两比对，完成op动作。identity是初值，op中的输入类型应当一致。
+    // 有初始状态的汇总操作(long类型版本)
     long reduce(long identity, LongBinaryOperator op);
     
     /**
@@ -1046,7 +1008,7 @@ public interface LongStream extends BaseStream<Long, LongStream> {
      *
      * @see Stream#collect(Supplier, BiConsumer, BiConsumer)
      */
-    // 收集输出的元素到某个容器
+    // 有初始状态的消费操作(long类型版本)
     <R> R collect(Supplier<R> supplier, ObjLongConsumer<R> accumulator, BiConsumer<R, R> combiner);
     
     /**
@@ -1080,41 +1042,6 @@ public interface LongStream extends BaseStream<Long, LongStream> {
      */
     // 计数
     long count();
-    
-    /**
-     * Returns an {@code OptionalLong} describing the minimum element of this
-     * stream, or an empty optional if this stream is empty.  This is a special
-     * case of a <a href="package-summary.html#Reduction">reduction</a>
-     * and is equivalent to:
-     * <pre>{@code
-     *     return reduce(Long::min);
-     * }</pre>
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">terminal operation</a>.
-     *
-     * @return an {@code OptionalLong} containing the minimum element of this
-     * stream, or an empty {@code OptionalLong} if the stream is empty
-     */
-    // 求最小值
-    OptionalLong min();
-    
-    /**
-     * Returns an {@code OptionalLong} describing the maximum element of this
-     * stream, or an empty optional if this stream is empty.  This is a special
-     * case of a <a href="package-summary.html#Reduction">reduction</a>
-     * and is equivalent to:
-     * <pre>{@code
-     *     return reduce(Long::max);
-     * }</pre>
-     *
-     * <p>This is a <a href="package-summary.html#StreamOps">terminal
-     * operation</a>.
-     *
-     * @return an {@code OptionalLong} containing the maximum element of this
-     * stream, or an empty {@code OptionalLong} if the stream is empty
-     */
-    // 求最大值
-    OptionalLong max();
     
     /**
      * Returns the sum of elements in this stream.  This is a special case
@@ -1164,26 +1091,115 @@ public interface LongStream extends BaseStream<Long, LongStream> {
     /*▲ 终端操作-非短路操作 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
-    /*▼ 实现BaseStream接口 ████████████████████████████████████████████████████████████████████████████████┓ */
     
-    // 返回流中元素的Iterator（迭代器）
-    @Override
-    PrimitiveIterator.OfLong iterator();
+    /*▼ 终端操作-短路操作 ████████████████████████████████████████████████████████████████████████████████┓ */
     
-    // 返回流中元素的Spliterator（可分割的迭代器）
-    @Override
-    Spliterator.OfLong spliterator();
+    /**
+     * Returns an {@link OptionalLong} describing the first element of this
+     * stream, or an empty {@code OptionalLong} if the stream is empty.  If the
+     * stream has no encounter order, then any element may be returned.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
+     * terminal operation</a>.
+     *
+     * @return an {@code OptionalLong} describing the first element of this
+     * stream, or an empty {@code OptionalLong} if the stream is empty
+     */
+    // 找出第一个元素
+    OptionalLong findFirst();
     
-    // 中间操作，返回顺序的等效流。
-    @Override
-    LongStream sequential();
+    /**
+     * Returns an {@link OptionalLong} describing some element of the stream, or
+     * an empty {@code OptionalLong} if the stream is empty.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
+     * terminal operation</a>.
+     *
+     * <p>The behavior of this operation is explicitly nondeterministic; it is
+     * free to select any element in the stream.  This is to allow for maximal
+     * performance in parallel operations; the cost is that multiple invocations
+     * on the same source may not return the same result.  (If a stable result
+     * is desired, use {@link #findFirst()} instead.)
+     *
+     * @return an {@code OptionalLong} describing some element of this stream,
+     * or an empty {@code OptionalLong} if the stream is empty
+     *
+     * @see #findFirst()
+     */
+    // 找到一个元素就返回，不管是不是第一个元素
+    OptionalLong findAny();
     
-    // 中间操作，返回并行的等效流。
-    @Override
-    LongStream parallel();
+    /**
+     * Returns whether any elements of this stream match the provided
+     * predicate.  May not evaluate the predicate on all elements if not
+     * necessary for determining the result.  If the stream is empty then
+     * {@code false} is returned and the predicate is not evaluated.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
+     * terminal operation</a>.
+     *
+     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *                  <a href="package-summary.html#Statelessness">stateless</a>
+     *                  predicate to apply to elements of this stream
+     *
+     * @return {@code true} if any elements of the stream match the provided
+     * predicate, otherwise {@code false}
+     *
+     * @apiNote This method evaluates the <em>existential quantification</em> of the
+     * predicate over the elements of the stream (for some x P(x)).
+     */
+    // 判断是否存在元素满足predicate条件
+    boolean anyMatch(LongPredicate predicate);
     
-    /*▲ 实现BaseStream接口 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /**
+     * Returns whether all elements of this stream match the provided predicate.
+     * May not evaluate the predicate on all elements if not necessary for
+     * determining the result.  If the stream is empty then {@code true} is
+     * returned and the predicate is not evaluated.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
+     * terminal operation</a>.
+     *
+     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *                  <a href="package-summary.html#Statelessness">stateless</a>
+     *                  predicate to apply to elements of this stream
+     *
+     * @return {@code true} if either all elements of the stream match the
+     * provided predicate or the stream is empty, otherwise {@code false}
+     *
+     * @apiNote This method evaluates the <em>universal quantification</em> of the
+     * predicate over the elements of the stream (for all x P(x)).  If the
+     * stream is empty, the quantification is said to be <em>vacuously
+     * satisfied</em> and is always {@code true} (regardless of P(x)).
+     */
+    // 判断是否所有元素满足predicate条件
+    boolean allMatch(LongPredicate predicate);
     
+    /**
+     * Returns whether no elements of this stream match the provided predicate.
+     * May not evaluate the predicate on all elements if not necessary for
+     * determining the result.  If the stream is empty then {@code true} is
+     * returned and the predicate is not evaluated.
+     *
+     * <p>This is a <a href="package-summary.html#StreamOps">short-circuiting
+     * terminal operation</a>.
+     *
+     * @param predicate a <a href="package-summary.html#NonInterference">non-interfering</a>,
+     *                  <a href="package-summary.html#Statelessness">stateless</a>
+     *                  predicate to apply to elements of this stream
+     *
+     * @return {@code true} if either no elements of the stream match the
+     * provided predicate or the stream is empty, otherwise {@code false}
+     *
+     * @apiNote This method evaluates the <em>universal quantification</em> of the
+     * negated predicate over the elements of the stream (for all x ~P(x)).  If
+     * the stream is empty, the quantification is said to be vacuously satisfied
+     * and is always {@code true}, regardless of P(x).
+     */
+    // 判断是否没有元素满足predicate条件
+    boolean noneMatch(LongPredicate predicate);
+    
+    /*▲ 终端操作-短路操作 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     /**
@@ -1253,5 +1269,7 @@ public interface LongStream extends BaseStream<Long, LongStream> {
             accept(t);
             return this;
         }
+    
     }
+    
 }

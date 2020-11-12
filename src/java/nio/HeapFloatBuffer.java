@@ -38,7 +38,7 @@ class HeapFloatBuffer extends FloatBuffer {
     private static final long ARRAY_INDEX_SCALE = UNSAFE.arrayIndexScale(float[].class);
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     protected HeapFloatBuffer(float[] buf, int mark, int pos, int lim, int cap, int off) {
         super(mark, pos, lim, cap, buf, off);
@@ -55,16 +55,18 @@ class HeapFloatBuffer extends FloatBuffer {
         this.address = ARRAY_BASE_OFFSET;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 可读写/非直接 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 只读/可读写
     public boolean isReadOnly() {
         return false;
     }
     
+    // 直接缓冲区/非直接缓冲区
     public boolean isDirect() {
         return false;
     }
@@ -75,14 +77,17 @@ class HeapFloatBuffer extends FloatBuffer {
     
     /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 切片，截取旧缓冲区的【活跃区域】，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     public FloatBuffer slice() {
         return new HeapFloatBuffer(hb, -1, 0, this.remaining(), this.remaining(), this.position() + offset);
     }
     
+    // 副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public FloatBuffer duplicate() {
         return new HeapFloatBuffer(hb, this.markValue(), this.position(), this.limit(), this.capacity(), offset);
     }
     
+    // 只读副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public FloatBuffer asReadOnlyBuffer() {
         return new HeapFloatBufferR(hb, this.markValue(), this.position(), this.limit(), this.capacity(), offset);
     }
@@ -93,14 +98,17 @@ class HeapFloatBuffer extends FloatBuffer {
     
     /*▼ get/读取 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 读取position处（可能需要加offset）的float，然后递增position。
     public float get() {
         return hb[ix(nextGetIndex())];
     }
     
+    // 读取index处（可能需要加offset）的float（有越界检查）
     public float get(int i) {
         return hb[ix(checkIndex(i))];
     }
     
+    // 复制源缓存区的length个元素到dst数组offset索引处
     public FloatBuffer get(float[] dst, int offset, int length) {
         checkBounds(offset, length, dst.length);
         if(length>remaining())
@@ -116,16 +124,19 @@ class HeapFloatBuffer extends FloatBuffer {
     
     /*▼ put/写入 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 向position处（可能需要加offset）写入float，并将position递增
     public FloatBuffer put(float x) {
         hb[ix(nextPutIndex())] = x;
         return this;
     }
     
+    // 向i处（可能需要加offset）写入float
     public FloatBuffer put(int i, float x) {
         hb[ix(checkIndex(i))] = x;
         return this;
     }
     
+    // 从源字节数组src的offset处开始，复制length个元素，写入到当前缓冲区
     public FloatBuffer put(float[] src, int offset, int length) {
         checkBounds(offset, length, src.length);
         if(length>remaining())
@@ -135,6 +146,7 @@ class HeapFloatBuffer extends FloatBuffer {
         return this;
     }
     
+    // 将源缓冲区src的内容全部写入到当前缓冲区
     public FloatBuffer put(FloatBuffer src) {
         if(src instanceof HeapFloatBuffer) {
             if(src == this)
@@ -164,6 +176,7 @@ class HeapFloatBuffer extends FloatBuffer {
     
     /*▼ 压缩 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 压缩缓冲区，将当前未读完的数据挪到容器起始处，可用于读模式到写模式的切换，但又不丢失之前读入的数据
     public FloatBuffer compact() {
         System.arraycopy(hb, ix(position()), hb, ix(0), remaining());
         position(remaining());
@@ -178,6 +191,7 @@ class HeapFloatBuffer extends FloatBuffer {
     
     /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 返回该缓冲区的字节序（大端还是小端）
     public ByteOrder order() {
         return ByteOrder.nativeOrder();
     }

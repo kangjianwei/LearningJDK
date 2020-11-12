@@ -40,15 +40,19 @@ class Comparators {
      *
      * @see Comparable
      */
-    // 自然顺序比较器，用于比较实现了Comparable的对象
+    /*
+     * 自然顺序比较器，用于比较实现了Comparable的对象
+     *
+     * 注：所谓自然顺序是指顺应对象内部的Comparable排序规则
+     */
     enum NaturalOrderComparator implements Comparator<Comparable<Object>> {
         INSTANCE;
-        
+    
         @Override
         public int compare(Comparable<Object> c1, Comparable<Object> c2) {
             return c1.compareTo(c2);
         }
-        
+    
         @Override
         public Comparator<Comparable<Object>> reversed() {
             return Comparator.reverseOrder();

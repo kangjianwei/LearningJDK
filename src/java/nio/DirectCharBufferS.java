@@ -45,7 +45,7 @@ class DirectCharBufferS extends CharBuffer implements DirectBuffer {
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     // 用于#duplicates和#slices
     DirectCharBufferS(DirectBuffer db, int mark, int pos, int lim, int cap, int off) {
@@ -54,16 +54,18 @@ class DirectCharBufferS extends CharBuffer implements DirectBuffer {
         att = db;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 可读写/直接 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 只读/可读写
     public boolean isReadOnly() {
         return false;
     }
     
+    // 直接缓冲区/非直接缓冲区
     public boolean isDirect() {
         return true;
     }
@@ -74,6 +76,7 @@ class DirectCharBufferS extends CharBuffer implements DirectBuffer {
     
     /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 切片，截取旧缓冲区的【活跃区域】，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     public CharBuffer slice() {
         int pos = this.position();
         int lim = this.limit();
@@ -84,14 +87,17 @@ class DirectCharBufferS extends CharBuffer implements DirectBuffer {
         return new DirectCharBufferS(this, -1, 0, rem, rem, off);
     }
     
+    // 副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public CharBuffer duplicate() {
         return new DirectCharBufferS(this, this.markValue(), this.position(), this.limit(), this.capacity(), 0);
     }
     
+    // 只读副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public CharBuffer asReadOnlyBuffer() {
         return new DirectCharBufferRS(this, this.markValue(), this.position(), this.limit(), this.capacity(), 0);
     }
     
+    // 子副本，新缓冲区的【活跃区域】取自旧缓冲区【活跃区域】的[start，end)部分
     public CharBuffer subSequence(int start, int end) {
         int pos = position();
         int lim = limit();
@@ -111,6 +117,7 @@ class DirectCharBufferS extends CharBuffer implements DirectBuffer {
     
     /*▼ get/读取 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 读取position处（可能需要加offset）的char，然后递增position。
     public char get() {
         try {
             // 转换字节顺序（大小端转换）
@@ -120,6 +127,7 @@ class DirectCharBufferS extends CharBuffer implements DirectBuffer {
         }
     }
     
+    // 读取index处（可能需要加offset）的char（有越界检查）
     public char get(int i) {
         try {
             // 转换了字节顺序
@@ -129,14 +137,7 @@ class DirectCharBufferS extends CharBuffer implements DirectBuffer {
         }
     }
     
-    char getUnchecked(int i) {
-        try {
-            return (Bits.swap(UNSAFE.getChar(ix(i))));
-        } finally {
-            Reference.reachabilityFence(this);
-        }
-    }
-    
+    // 复制当前缓存区的length个元素到dst数组offset索引处
     public CharBuffer get(char[] dst, int offset, int length) {
         if(((long) length << 1) > Bits.JNI_COPY_TO_ARRAY_THRESHOLD) {
             checkBounds(offset, length, dst.length);
@@ -171,6 +172,7 @@ class DirectCharBufferS extends CharBuffer implements DirectBuffer {
     
     /*▼ put/写入 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 向position处（可能需要加offset）写入char，并将position递增
     public CharBuffer put(char x) {
         try {
             // 转换了字节顺序
@@ -181,6 +183,7 @@ class DirectCharBufferS extends CharBuffer implements DirectBuffer {
         return this;
     }
     
+    // 向i处（可能需要加offset）写入char
     public CharBuffer put(int i, char x) {
         try {
             // 转换了字节顺序
@@ -191,6 +194,7 @@ class DirectCharBufferS extends CharBuffer implements DirectBuffer {
         return this;
     }
     
+    // 将源缓冲区src的内容全部写入到当前缓冲区
     public CharBuffer put(CharBuffer src) {
         if(src instanceof DirectCharBufferS) {
             if(src == this)
@@ -232,6 +236,7 @@ class DirectCharBufferS extends CharBuffer implements DirectBuffer {
         return this;
     }
     
+    // 从源字符数组src的offset处开始，复制length个元素，写入到当前缓冲区
     public CharBuffer put(char[] src, int offset, int length) {
         if(((long) length << 1) > Bits.JNI_COPY_FROM_ARRAY_THRESHOLD) {
             checkBounds(offset, length, src.length);
@@ -266,6 +271,7 @@ class DirectCharBufferS extends CharBuffer implements DirectBuffer {
     
     /*▼ 压缩 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 压缩缓冲区，将当前未读完的数据挪到容器起始处，可用于读模式到写模式的切换，但又不丢失之前读入的数据。
     public CharBuffer compact() {
         int pos = position();
         int lim = limit();
@@ -301,6 +307,7 @@ class DirectCharBufferS extends CharBuffer implements DirectBuffer {
     /*▲ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
+    // 返回内部存储结构的引用（一般用于非直接缓存区）
     @Override
     Object base() {
         return null;
@@ -310,8 +317,16 @@ class DirectCharBufferS extends CharBuffer implements DirectBuffer {
         return address + ((long) i << 1);
     }
     
+    char getUnchecked(int i) {
+        try {
+            return (Bits.swap(UNSAFE.getChar(ix(i))));
+        } finally {
+            Reference.reachabilityFence(this);
+        }
+    }
+    
     public String toString(int start, int end) {
-        if((end > limit()) || (start > end))
+        if((end>limit()) || (start>end))
             throw new IndexOutOfBoundsException();
         try {
             int len = end - start;
@@ -331,17 +346,21 @@ class DirectCharBufferS extends CharBuffer implements DirectBuffer {
     
     /*▼ 实现DirectBuffer接口 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 返回直接缓冲区的【绝对】起始<地址>
     public long address() {
         return address;
     }
     
+    // 返回附件，一般是指母体缓冲区的引用
     public Object attachment() {
         return att;
     }
     
+    // 返回该缓冲区的清理器
     public Cleaner cleaner() {
         return null;
     }
     
     /*▲ 实现DirectBuffer接口 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }

@@ -34,6 +34,7 @@ package java.nio;
 
 // 只读、非直接缓冲区，是HeapCharBuffer的只读版本，禁止写入操作，内部存储结构实现为char[]
 class HeapCharBufferR extends HeapCharBuffer {
+    
     // 寻找char[]类型数组中的元素时约定的起始偏移地址，与#arrayIndexScale配合使用
     private static final long ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(char[].class);
     // char[]类型数组中每个元素所占字节大小，这里是char[]，每个char占2个字节
@@ -41,7 +42,7 @@ class HeapCharBufferR extends HeapCharBuffer {
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     protected HeapCharBufferR(char[] buf, int mark, int pos, int lim, int cap, int off) {
         super(buf, mark, pos, lim, cap, off);
@@ -58,7 +59,7 @@ class HeapCharBufferR extends HeapCharBuffer {
         this.isReadOnly = true;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -103,18 +104,22 @@ class HeapCharBufferR extends HeapCharBuffer {
     
     /*▼ 只读缓冲区，禁止写入操作 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 向position+offset处写入char，并将position递增
     public CharBuffer put(char x) {
         throw new ReadOnlyBufferException();
     }
     
+    // 向i+offset处写入char
     public CharBuffer put(int i, char x) {
         throw new ReadOnlyBufferException();
     }
     
+    // 从源字符数组src的offset处开始，复制length个元素，写入到当前缓冲区【活跃区域】内（考虑偏移量）
     public CharBuffer put(char[] src, int offset, int length) {
         throw new ReadOnlyBufferException();
     }
     
+    // 将源缓冲区src的内容全部写入到当前缓冲区
     public CharBuffer put(CharBuffer src) {
         throw new ReadOnlyBufferException();
     }
@@ -125,6 +130,7 @@ class HeapCharBufferR extends HeapCharBuffer {
     
     /*▼ 禁止压缩，因为禁止写入，压缩没意义 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 压缩缓冲区，将当前未读完的数据挪到容器起始处，可用于读模式到写模式的切换，但又不丢失之前读入的数据。
     public CharBuffer compact() {
         throw new ReadOnlyBufferException();
     }

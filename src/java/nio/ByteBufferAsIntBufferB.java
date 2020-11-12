@@ -31,7 +31,7 @@ class ByteBufferAsIntBufferB extends IntBuffer {
     protected final ByteBuffer bb;
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     ByteBufferAsIntBufferB(ByteBuffer bb) {   // package-private
         super(-1, 0, bb.remaining() >> 2, bb.remaining() >> 2);
@@ -51,16 +51,18 @@ class ByteBufferAsIntBufferB extends IntBuffer {
         assert address >= bb.address;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 可读写 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 只读/可读写
     public boolean isReadOnly() {
         return false;
     }
     
+    // 直接缓冲区/非直接缓冲区
     public boolean isDirect() {
         return bb.isDirect();
     }
@@ -71,6 +73,7 @@ class ByteBufferAsIntBufferB extends IntBuffer {
     
     /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 切片，截取旧缓冲区的【活跃区域】，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     public IntBuffer slice() {
         int pos = this.position();
         int lim = this.limit();
@@ -80,10 +83,12 @@ class ByteBufferAsIntBufferB extends IntBuffer {
         return new ByteBufferAsIntBufferB(bb, -1, 0, rem, rem, addr);
     }
     
+    // 副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public IntBuffer duplicate() {
         return new ByteBufferAsIntBufferB(bb, this.markValue(), this.position(), this.limit(), this.capacity(), address);
     }
     
+    // 只读副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public IntBuffer asReadOnlyBuffer() {
         return new ByteBufferAsIntBufferRB(bb, this.markValue(), this.position(), this.limit(), this.capacity(), address);
     }
@@ -96,13 +101,15 @@ class ByteBufferAsIntBufferB extends IntBuffer {
     
     /*▼ get/读取 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 读取position处（可能需要加offset）的int，然后递增position。
     public int get() {
         int x = UNSAFE.getIntUnaligned(bb.hb, byteOffset(nextGetIndex()), true);
         return (x);
     }
     
-    public int get(int i) {
-        int x = UNSAFE.getIntUnaligned(bb.hb, byteOffset(checkIndex(i)), true);
+    // 读取index处（可能需要加offset）的int（有越界检查）
+    public int get(int index) {
+        int x = UNSAFE.getIntUnaligned(bb.hb, byteOffset(checkIndex(index)), true);
         return (x);
     }
     
@@ -112,15 +119,17 @@ class ByteBufferAsIntBufferB extends IntBuffer {
     
     /*▼ put/写入 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 向position处（可能需要加offset）写入int，并将position递增
     public IntBuffer put(int x) {
         int y = (x);
         UNSAFE.putIntUnaligned(bb.hb, byteOffset(nextPutIndex()), y, true);
         return this;
     }
     
-    public IntBuffer put(int i, int x) {
+    // 向index处（可能需要加offset）写入int
+    public IntBuffer put(int index, int x) {
         int y = (x);
-        UNSAFE.putIntUnaligned(bb.hb, byteOffset(checkIndex(i)), y, true);
+        UNSAFE.putIntUnaligned(bb.hb, byteOffset(checkIndex(index)), y, true);
         return this;
     }
     
@@ -130,6 +139,7 @@ class ByteBufferAsIntBufferB extends IntBuffer {
     
     /*▼ 压缩 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 压缩缓冲区，将当前未读完的数据挪到容器起始处，可用于读模式到写模式的切换，但又不丢失之前读入的数据。
     public IntBuffer compact() {
         int pos = position();
         int lim = limit();
@@ -154,6 +164,7 @@ class ByteBufferAsIntBufferB extends IntBuffer {
     
     /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 返回该缓冲区的字节序（大端还是小端）
     public ByteOrder order() {
         return ByteOrder.BIG_ENDIAN;
     }
@@ -161,14 +172,14 @@ class ByteBufferAsIntBufferB extends IntBuffer {
     /*▲ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
-    
-    protected long byteOffset(long i) {
-        return (i << 2) + address;
-    }
-    
+    // 返回内部存储结构的引用（一般用于非直接缓存区）
     @Override
     Object base() {
         return bb.hb;
+    }
+    
+    protected long byteOffset(long i) {
+        return (i << 2) + address;
     }
     
     private int ix(int i) {

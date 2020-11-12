@@ -61,8 +61,9 @@ import java.util.function.Consumer;
  *
  * 此外，外部迭代器往往用来支撑内部迭代器的实现。
  *
- * 注：区别于内部迭代器Iterable
- * 注：区别于枚举器Enumeration
+ * 注1：区别于内部迭代器Iterable
+ * 注2：区别于枚举器Enumeration
+ * 注3：区别于流迭代器Spliterator
  */
 public interface Iterator<E> {
     
@@ -144,4 +145,5 @@ public interface Iterator<E> {
             action.accept(next());
         }
     }
+    
 }

@@ -77,39 +77,39 @@ import java.util.stream.StreamSupport;
 /*
  * 用来操作各类型数组的工具类，包含的方法类别如下：
  *
- * 【Array转List】：asList
+ * 【Array转List】asList
  *
- * 【流】：stream
- * 【迭代器】：spliterator
+ * 【流】　　　stream
+ * 【流迭代器】spliterator
  *
- * 【排序】：sort
- * 【并行排序】：parallelSort
+ * 【排序】　　sort
+ * 【并行排序】parallelSort
  *
- * 【二分查找】：binarySearch（要求数组元素有序）
+ * 【二分查找】binarySearch（要求数组元素有序）
  *
- * 【填充】：fill
+ * 【填充】fill
  *
- * 【复制】：copyOf
- * 【范围复制】：copyOfRange
+ * 【复制】　　copyOf
+ * 【范围复制】copyOfRange
  *
- * 【判等】：equals
- * 【深度判等】：deepEquals
+ * 【判等】　　equals
+ * 【深度判等】deepEquals
  *
- * 【比较】：compare（返回值为-1、0、1，分别代表a<b、a==b、a>b）
- * 【无符号比较】：compareUnsigned
+ * 【比较】　　　compare（返回值为-1、0、1，分别代表a<b、a==b、a>b）
+ * 【无符号比较】compareUnsigned
  *
- * 【失配比较】：mismatch（返回首个失配元素的下标，返回-1表示相等）
+ * 【失配比较】mismatch（返回首个失配元素的下标，返回-1表示相等）
  *
- * 【批量设置】：setAll（设置的值与下标相关）
- * 【并行批量设置】：parallelSetAll（设置的值与下标相关）
+ * 【批量设置】　　setAll（设置的值与下标相关）
+ * 【并行批量设置】parallelSetAll（设置的值与下标相关）
  *
- * 【哈希】：hashCode
- * 【深度哈希】：deepHashCode
+ * 【哈希】　　hashCode
+ * 【深度哈希】deepHashCode
  *
- * 【字符串化】：toString
- * 【深度字符串化】：deepToString
+ * 【字符串化】　　toString
+ * 【深度字符串化】deepToString
  *
- * 【并行前缀计算】：parallelPrefix
+ * 【并行前缀计算】parallelPrefix
  */
 public class Arrays {
     
@@ -161,6 +161,22 @@ public class Arrays {
     /*▼ 流 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
+     * Returns a sequential {@link Stream} with the specified array as its
+     * source.
+     *
+     * @param <T>   The type of the array elements
+     * @param array The array, assumed to be unmodified during use
+     *
+     * @return a {@code Stream} for the array
+     *
+     * @since 1.8
+     */
+    // 构造处于源头(head)阶段的流(引用类型版本)，数据源是array
+    public static <T> Stream<T> stream(T[] array) {
+        return stream(array, 0, array.length);
+    }
+    
+    /**
      * Returns a sequential {@link IntStream} with the specified array as its
      * source.
      *
@@ -170,7 +186,7 @@ public class Arrays {
      *
      * @since 1.8
      */
-    // 从数组中创建一个int类型的Stream
+    // 构造处于源头(head)阶段的流(int类型版本)，数据源是array
     public static IntStream stream(int[] array) {
         return stream(array, 0, array.length);
     }
@@ -185,7 +201,7 @@ public class Arrays {
      *
      * @since 1.8
      */
-    // 从数组中创建一个long类型的Stream
+    // 构造处于源头(head)阶段的流(long类型版本)，数据源是array
     public static LongStream stream(long[] array) {
         return stream(array, 0, array.length);
     }
@@ -200,116 +216,121 @@ public class Arrays {
      *
      * @since 1.8
      */
-    // 从数组中创建一个double类型的Stream
+    // 构造处于源头(head)阶段的流(double类型版本)，数据源是array
     public static DoubleStream stream(double[] array) {
         return stream(array, 0, array.length);
     }
     
+    
     /**
-     * Returns a sequential {@link Stream} with the specified array as its
-     * source.
+     * Returns a sequential {@link Stream} with the specified range of the
+     * specified array as its source.
      *
-     * @param <T>   The type of the array elements
-     * @param array The array, assumed to be unmodified during use
+     * @param <T>       the type of the array elements
+     * @param array     the array, assumed to be unmodified during use
+     * @param fromIndex the first index to cover, inclusive
+     * @param toIndex   index immediately past the last index to cover
      *
-     * @return a {@code Stream} for the array
+     * @return a {@code Stream} for the array range
      *
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex} is
+     *                                        negative, {@code toIndex} is less than
+     *                                        {@code fromIndex}, or {@code toIndex} is greater than
+     *                                        the array size
      * @since 1.8
      */
-    // 从数组中创建一个T类型的Stream
-    public static <T> Stream<T> stream(T[] array) {
-        return stream(array, 0, array.length);
+    // 构造处于源头(head)阶段的流(引用类型版本)，数据源是array[fromIndex, toIndex)
+    public static <T> Stream<T> stream(T[] array, int fromIndex, int toIndex) {
+        return StreamSupport.stream(spliterator(array, fromIndex, toIndex), false);
     }
-    
     
     /**
      * Returns a sequential {@link IntStream} with the specified range of the
      * specified array as its source.
      *
-     * @param array          the array, assumed to be unmodified during use
-     * @param startInclusive the first index to cover, inclusive
-     * @param endExclusive   index immediately past the last index to cover
+     * @param array     the array, assumed to be unmodified during use
+     * @param fromIndex the first index to cover, inclusive
+     * @param toIndex   index immediately past the last index to cover
      *
      * @return an {@code IntStream} for the array range
      *
-     * @throws ArrayIndexOutOfBoundsException if {@code startInclusive} is
-     *                                        negative, {@code endExclusive} is less than
-     *                                        {@code startInclusive}, or {@code endExclusive} is greater than
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex} is
+     *                                        negative, {@code toIndex} is less than
+     *                                        {@code fromIndex}, or {@code toIndex} is greater than
      *                                        the array size
      * @since 1.8
      */
-    // 从数组的指定范围中创建一个int类型的Stream
-    public static IntStream stream(int[] array, int startInclusive, int endExclusive) {
-        return StreamSupport.intStream(spliterator(array, startInclusive, endExclusive), false);
+    // 构造处于源头(head)阶段的流(int类型版本)，数据源是array[fromIndex, toIndex)
+    public static IntStream stream(int[] array, int fromIndex, int toIndex) {
+        return StreamSupport.intStream(spliterator(array, fromIndex, toIndex), false);
     }
     
     /**
      * Returns a sequential {@link LongStream} with the specified range of the
      * specified array as its source.
      *
-     * @param array          the array, assumed to be unmodified during use
-     * @param startInclusive the first index to cover, inclusive
-     * @param endExclusive   index immediately past the last index to cover
+     * @param array     the array, assumed to be unmodified during use
+     * @param fromIndex the first index to cover, inclusive
+     * @param toIndex   index immediately past the last index to cover
      *
      * @return a {@code LongStream} for the array range
      *
-     * @throws ArrayIndexOutOfBoundsException if {@code startInclusive} is
-     *                                        negative, {@code endExclusive} is less than
-     *                                        {@code startInclusive}, or {@code endExclusive} is greater than
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex} is
+     *                                        negative, {@code toIndex} is less than
+     *                                        {@code fromIndex}, or {@code toIndex} is greater than
      *                                        the array size
      * @since 1.8
      */
-    // 从数组的指定范围中创建一个long类型的Stream
-    public static LongStream stream(long[] array, int startInclusive, int endExclusive) {
-        return StreamSupport.longStream(spliterator(array, startInclusive, endExclusive), false);
+    // 构造处于源头(head)阶段的流(long类型版本)，数据源是array[fromIndex, toIndex)
+    public static LongStream stream(long[] array, int fromIndex, int toIndex) {
+        return StreamSupport.longStream(spliterator(array, fromIndex, toIndex), false);
     }
     
     /**
      * Returns a sequential {@link DoubleStream} with the specified range of the
      * specified array as its source.
      *
-     * @param array          the array, assumed to be unmodified during use
-     * @param startInclusive the first index to cover, inclusive
-     * @param endExclusive   index immediately past the last index to cover
+     * @param array     the array, assumed to be unmodified during use
+     * @param fromIndex the first index to cover, inclusive
+     * @param toIndex   index immediately past the last index to cover
      *
      * @return a {@code DoubleStream} for the array range
      *
-     * @throws ArrayIndexOutOfBoundsException if {@code startInclusive} is
-     *                                        negative, {@code endExclusive} is less than
-     *                                        {@code startInclusive}, or {@code endExclusive} is greater than
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex} is
+     *                                        negative, {@code toIndex} is less than
+     *                                        {@code fromIndex}, or {@code toIndex} is greater than
      *                                        the array size
      * @since 1.8
      */
-    // 从数组的指定范围中创建一个double类型的Stream
-    public static DoubleStream stream(double[] array, int startInclusive, int endExclusive) {
-        return StreamSupport.doubleStream(spliterator(array, startInclusive, endExclusive), false);
-    }
-    
-    /**
-     * Returns a sequential {@link Stream} with the specified range of the
-     * specified array as its source.
-     *
-     * @param <T> the type of the array elements
-     * @param array the array, assumed to be unmodified during use
-     * @param startInclusive the first index to cover, inclusive
-     * @param endExclusive index immediately past the last index to cover
-     * @return a {@code Stream} for the array range
-     * @throws ArrayIndexOutOfBoundsException if {@code startInclusive} is
-     *         negative, {@code endExclusive} is less than
-     *         {@code startInclusive}, or {@code endExclusive} is greater than
-     *         the array size
-     * @since 1.8
-     */
-    // 从数组的指定范围中创建一个T类型的Stream
-    public static <T> Stream<T> stream(T[] array, int startInclusive, int endExclusive) {
-        return StreamSupport.stream(spliterator(array, startInclusive, endExclusive), false);
+    // 构造处于源头(head)阶段的流(double类型版本)，数据源是array[fromIndex, toIndex)
+    public static DoubleStream stream(double[] array, int fromIndex, int toIndex) {
+        return StreamSupport.doubleStream(spliterator(array, fromIndex, toIndex), false);
     }
     
     /*▲ 流 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
-    /*▼ 可分割迭代器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 流迭代器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a {@link Spliterator} covering all of the specified array.
+     *
+     * <p>The spliterator reports {@link Spliterator#SIZED},
+     * {@link Spliterator#SUBSIZED}, {@link Spliterator#ORDERED}, and
+     * {@link Spliterator#IMMUTABLE}.
+     *
+     * @param <T>   type of elements
+     * @param array the array, assumed to be unmodified during use
+     *
+     * @return a spliterator for the array elements
+     *
+     * @since 1.8
+     */
+    // 构造"数组"Spliterator(引用类型版本)，数据源是array
+    public static <T> Spliterator<T> spliterator(T[] array) {
+        return Spliterators.spliterator(array, Spliterator.ORDERED | Spliterator.IMMUTABLE);
+    }
     
     /**
      * Returns a {@link Spliterator.OfInt} covering all of the specified array.
@@ -324,7 +345,7 @@ public class Arrays {
      *
      * @since 1.8
      */
-    // 将数组元素打包到IntArraySpliterator中返回
+    // 构造"数组"Spliterator(int类型版本)，数据源是array
     public static Spliterator.OfInt spliterator(int[] array) {
         return Spliterators.spliterator(array, Spliterator.ORDERED | Spliterator.IMMUTABLE);
     }
@@ -342,7 +363,7 @@ public class Arrays {
      *
      * @since 1.8
      */
-    // 将数组元素打包到LongArraySpliterator中返回
+    // 构造"数组"Spliterator(long类型版本)，数据源是array
     public static Spliterator.OfLong spliterator(long[] array) {
         return Spliterators.spliterator(array, Spliterator.ORDERED | Spliterator.IMMUTABLE);
     }
@@ -361,30 +382,37 @@ public class Arrays {
      *
      * @since 1.8
      */
-    // 将数组元素打包到DoubleArraySpliterator中返回
+    // 构造"数组"Spliterator(double类型版本)，数据源是array
     public static Spliterator.OfDouble spliterator(double[] array) {
         return Spliterators.spliterator(array, Spliterator.ORDERED | Spliterator.IMMUTABLE);
     }
     
+    
     /**
-     * Returns a {@link Spliterator} covering all of the specified array.
+     * Returns a {@link Spliterator} covering the specified range of the
+     * specified array.
      *
      * <p>The spliterator reports {@link Spliterator#SIZED},
      * {@link Spliterator#SUBSIZED}, {@link Spliterator#ORDERED}, and
      * {@link Spliterator#IMMUTABLE}.
      *
-     * @param <T>   type of elements
-     * @param array the array, assumed to be unmodified during use
+     * @param <T>       type of elements
+     * @param array     the array, assumed to be unmodified during use
+     * @param fromIndex the first index to cover, inclusive
+     * @param toIndex   index immediately past the last index to cover
      *
      * @return a spliterator for the array elements
      *
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex} is
+     *                                        negative, {@code toIndex} is less than
+     *                                        {@code fromIndex}, or {@code toIndex} is greater than
+     *                                        the array size
      * @since 1.8
      */
-    // 将数组元素打包到ArraySpliterator中返回
-    public static <T> Spliterator<T> spliterator(T[] array) {
-        return Spliterators.spliterator(array, Spliterator.ORDERED | Spliterator.IMMUTABLE);
+    // 构造"数组"Spliterator(引用类型版本)，数据源是array[fromIndex, toIndex)
+    public static <T> Spliterator<T> spliterator(T[] array, int fromIndex, int toIndex) {
+        return Spliterators.spliterator(array, fromIndex, toIndex, Spliterator.ORDERED | Spliterator.IMMUTABLE);
     }
-    
     
     /**
      * Returns a {@link Spliterator.OfInt} covering the specified range of the
@@ -394,21 +422,21 @@ public class Arrays {
      * {@link Spliterator#SUBSIZED}, {@link Spliterator#ORDERED}, and
      * {@link Spliterator#IMMUTABLE}.
      *
-     * @param array          the array, assumed to be unmodified during use
-     * @param startInclusive the first index to cover, inclusive
-     * @param endExclusive   index immediately past the last index to cover
+     * @param array     the array, assumed to be unmodified during use
+     * @param fromIndex the first index to cover, inclusive
+     * @param toIndex   index immediately past the last index to cover
      *
      * @return a spliterator for the array elements
      *
-     * @throws ArrayIndexOutOfBoundsException if {@code startInclusive} is
-     *                                        negative, {@code endExclusive} is less than
-     *                                        {@code startInclusive}, or {@code endExclusive} is greater than
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex} is
+     *                                        negative, {@code toIndex} is less than
+     *                                        {@code fromIndex}, or {@code toIndex} is greater than
      *                                        the array size
      * @since 1.8
      */
-    // 将数组指定范围的元素打包到IntArraySpliterator中返回
-    public static Spliterator.OfInt spliterator(int[] array, int startInclusive, int endExclusive) {
-        return Spliterators.spliterator(array, startInclusive, endExclusive, Spliterator.ORDERED | Spliterator.IMMUTABLE);
+    // 构造"数组"Spliterator(int类型版本)，数据源是array[fromIndex, toIndex)
+    public static Spliterator.OfInt spliterator(int[] array, int fromIndex, int toIndex) {
+        return Spliterators.spliterator(array, fromIndex, toIndex, Spliterator.ORDERED | Spliterator.IMMUTABLE);
     }
     
     /**
@@ -419,21 +447,21 @@ public class Arrays {
      * {@link Spliterator#SUBSIZED}, {@link Spliterator#ORDERED}, and
      * {@link Spliterator#IMMUTABLE}.
      *
-     * @param array          the array, assumed to be unmodified during use
-     * @param startInclusive the first index to cover, inclusive
-     * @param endExclusive   index immediately past the last index to cover
+     * @param array     the array, assumed to be unmodified during use
+     * @param fromIndex the first index to cover, inclusive
+     * @param toIndex   index immediately past the last index to cover
      *
      * @return a spliterator for the array elements
      *
-     * @throws ArrayIndexOutOfBoundsException if {@code startInclusive} is
-     *                                        negative, {@code endExclusive} is less than
-     *                                        {@code startInclusive}, or {@code endExclusive} is greater than
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex} is
+     *                                        negative, {@code toIndex} is less than
+     *                                        {@code fromIndex}, or {@code toIndex} is greater than
      *                                        the array size
      * @since 1.8
      */
-    // 将数组指定范围的元素打包到LongArraySpliterator中返回
-    public static Spliterator.OfLong spliterator(long[] array, int startInclusive, int endExclusive) {
-        return Spliterators.spliterator(array, startInclusive, endExclusive, Spliterator.ORDERED | Spliterator.IMMUTABLE);
+    // 构造"数组"Spliterator(long类型版本)，数据源是array[fromIndex, toIndex)
+    public static Spliterator.OfLong spliterator(long[] array, int fromIndex, int toIndex) {
+        return Spliterators.spliterator(array, fromIndex, toIndex, Spliterator.ORDERED | Spliterator.IMMUTABLE);
     }
     
     /**
@@ -444,50 +472,24 @@ public class Arrays {
      * {@link Spliterator#SUBSIZED}, {@link Spliterator#ORDERED}, and
      * {@link Spliterator#IMMUTABLE}.
      *
-     * @param array          the array, assumed to be unmodified during use
-     * @param startInclusive the first index to cover, inclusive
-     * @param endExclusive   index immediately past the last index to cover
+     * @param array     the array, assumed to be unmodified during use
+     * @param fromIndex the first index to cover, inclusive
+     * @param toIndex   index immediately past the last index to cover
      *
      * @return a spliterator for the array elements
      *
-     * @throws ArrayIndexOutOfBoundsException if {@code startInclusive} is
-     *                                        negative, {@code endExclusive} is less than
-     *                                        {@code startInclusive}, or {@code endExclusive} is greater than
+     * @throws ArrayIndexOutOfBoundsException if {@code fromIndex} is
+     *                                        negative, {@code toIndex} is less than
+     *                                        {@code fromIndex}, or {@code toIndex} is greater than
      *                                        the array size
      * @since 1.8
      */
-    // 将数组指定范围的元素打包到DoubleArraySpliterator中返回
-    public static Spliterator.OfDouble spliterator(double[] array, int startInclusive, int endExclusive) {
-        return Spliterators.spliterator(array, startInclusive, endExclusive, Spliterator.ORDERED | Spliterator.IMMUTABLE);
+    // 构造"数组"Spliterator(double类型版本)，数据源是array[fromIndex, toIndex)
+    public static Spliterator.OfDouble spliterator(double[] array, int fromIndex, int toIndex) {
+        return Spliterators.spliterator(array, fromIndex, toIndex, Spliterator.ORDERED | Spliterator.IMMUTABLE);
     }
     
-    /**
-     * Returns a {@link Spliterator} covering the specified range of the
-     * specified array.
-     *
-     * <p>The spliterator reports {@link Spliterator#SIZED},
-     * {@link Spliterator#SUBSIZED}, {@link Spliterator#ORDERED}, and
-     * {@link Spliterator#IMMUTABLE}.
-     *
-     * @param <T>            type of elements
-     * @param array          the array, assumed to be unmodified during use
-     * @param startInclusive the first index to cover, inclusive
-     * @param endExclusive   index immediately past the last index to cover
-     *
-     * @return a spliterator for the array elements
-     *
-     * @throws ArrayIndexOutOfBoundsException if {@code startInclusive} is
-     *                                        negative, {@code endExclusive} is less than
-     *                                        {@code startInclusive}, or {@code endExclusive} is greater than
-     *                                        the array size
-     * @since 1.8
-     */
-    // 将数组指定范围的元素打包到ArraySpliterator中返回
-    public static <T> Spliterator<T> spliterator(T[] array, int startInclusive, int endExclusive) {
-        return Spliterators.spliterator(array, startInclusive, endExclusive, Spliterator.ORDERED | Spliterator.IMMUTABLE);
-    }
-    
-    /*▲ 可分割迭代器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 流迭代器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -717,7 +719,7 @@ public class Arrays {
      * @throws IllegalArgumentException (optional) if the comparator is
      *                                  found to violate the {@link Comparator} contract
      */
-    // 将数组元素按升序排列，需要借助外部比较器
+    // 将数组元素按外部比较器的比较规则进行排序
     public static <T> void sort(T[] a, Comparator<? super T> c) {
         if(c == null) {
             sort(a);
@@ -1038,7 +1040,7 @@ public class Arrays {
      * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0} or
      *                                        {@code toIndex > a.length}
      */
-    // 将数组指定范围的元素按升序排列，需要借助外部比较器
+    // 将数组指定范围的元素按外部比较器的比较规则进行排序
     public static <T> void sort(T[] a, int fromIndex, int toIndex, Comparator<? super T> c) {
         if(c == null) {
             sort(a, fromIndex, toIndex);
@@ -1112,7 +1114,7 @@ public class Arrays {
     public static void parallelSort(byte[] a) {
         int n = a.length;
         int p = ForkJoinPool.getCommonPoolParallelism();
-        
+    
         // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
         if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
             // 执行非并行排序
@@ -1178,7 +1180,7 @@ public class Arrays {
     public static void parallelSort(int[] a) {
         int n = a.length;
         int p = ForkJoinPool.getCommonPoolParallelism();
-        
+    
         // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
         if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
             // 执行非并行排序
@@ -1252,7 +1254,7 @@ public class Arrays {
     public static void parallelSort(float[] a) {
         int n = a.length;
         int p = ForkJoinPool.getCommonPoolParallelism();
-        
+    
         // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
         if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
             // 执行非并行排序
@@ -1293,7 +1295,7 @@ public class Arrays {
     public static void parallelSort(double[] a) {
         int n = a.length;
         int p = ForkJoinPool.getCommonPoolParallelism();
-        
+    
         // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
         if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
             // 执行非并行排序
@@ -1342,7 +1344,7 @@ public class Arrays {
     public static <T extends Comparable<? super T>> void parallelSort(T[] a) {
         int n = a.length;
         int p = ForkJoinPool.getCommonPoolParallelism();
-        
+    
         // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
         if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
             // 执行非并行排序
@@ -1387,7 +1389,7 @@ public class Arrays {
      * execute any parallel tasks.
      * @since 1.8
      */
-    // 将数组元素按升序并行排列，需要借助外部比较器
+    // 将数组元素按外部比较器的比较规则进行排序
     @SuppressWarnings("unchecked")
     public static <T> void parallelSort(T[] a, Comparator<? super T> cmp) {
         if(cmp == null) {
@@ -1396,7 +1398,7 @@ public class Arrays {
         
         int n = a.length;
         int p = ForkJoinPool.getCommonPoolParallelism();
-        
+    
         // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
         if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
             // 执行非并行排序
@@ -1447,7 +1449,7 @@ public class Arrays {
             DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
         } else {
             int g = n / (p << 2);
-            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
+            int gran = (g<=MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
             new ArraysParallelSortHelpers.FJChar.Sorter(null, a, new char[n], fromIndex, n, 0, gran).invoke();
         }
     }
@@ -1482,7 +1484,7 @@ public class Arrays {
         
         int n = toIndex - fromIndex;
         int p = ForkJoinPool.getCommonPoolParallelism();
-        
+    
         // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
         if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
             DualPivotQuicksort.sort(a, fromIndex, toIndex - 1);
@@ -1523,7 +1525,7 @@ public class Arrays {
         
         int n = toIndex - fromIndex;
         int p = ForkJoinPool.getCommonPoolParallelism();
-        
+    
         // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
         if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
             // 执行非并行排序
@@ -1572,7 +1574,7 @@ public class Arrays {
             DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
         } else {
             int g = n / (p << 2);
-            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
+            int gran = (g<=MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
             new ArraysParallelSortHelpers.FJInt.Sorter(null, a, new int[n], fromIndex, n, 0, gran).invoke();
         }
     }
@@ -1607,7 +1609,7 @@ public class Arrays {
         
         int n = toIndex - fromIndex;
         int p = ForkJoinPool.getCommonPoolParallelism();
-        
+    
         // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
         if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
             // 执行非并行排序
@@ -1657,14 +1659,14 @@ public class Arrays {
         
         int n = toIndex - fromIndex;
         int p = ForkJoinPool.getCommonPoolParallelism();
-        
+    
         // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
         if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
             // 执行非并行排序
             DualPivotQuicksort.sort(a, fromIndex, toIndex - 1, null, 0, 0);
         } else {
             int g = n / (p << 2);
-            int gran = (g <= MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
+            int gran = (g<=MIN_ARRAY_SORT_GRAN) ? MIN_ARRAY_SORT_GRAN : g;
             new ArraysParallelSortHelpers.FJFloat.Sorter(null, a, new float[n], fromIndex, n, 0, gran).invoke();
         }
     }
@@ -1707,7 +1709,7 @@ public class Arrays {
         
         int n = toIndex - fromIndex;
         int p = ForkJoinPool.getCommonPoolParallelism();
-        
+    
         // 如果待排序元素数量未到并行阙值，或者并行度为1（相当于没有并行）
         if(n<=MIN_ARRAY_SORT_GRAN || p == 1) {
             // 执行非并行排序
@@ -1823,7 +1825,7 @@ public class Arrays {
      * used to execute any parallel tasks.
      * @since 1.8
      */
-    // 将数组指定范围的元素按升序排列，需要借助外部比较器
+    // 将数组指定范围的元素按外部比较器的比较规则进行排序
     @SuppressWarnings("unchecked")
     public static <T> void parallelSort(T[] a, int fromIndex, int toIndex, Comparator<? super T> cmp) {
         rangeCheck(a.length, fromIndex, toIndex);
@@ -2097,7 +2099,7 @@ public class Arrays {
      *                            or the search key is not comparable to the
      *                            elements of the array using this comparator.
      */
-    // 返回指定的key在数组中的位置，需要借助外部比较器
+    // 返回指定的key在数组中的位置；匹配规则由外部比较器决定
     public static <T> int binarySearch(T[] a, T key, Comparator<? super T> c) {
         return binarySearch0(a, 0, a.length, key, c);
     }
@@ -2459,7 +2461,7 @@ public class Arrays {
      * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0 or toIndex > a.length}
      * @since 1.6
      */
-    // 在数组指定范围内查找key，如果找到，返回其位置，需要借助外部比较器
+    // 在数组指定范围内查找key，如果找到，返回其位置；匹配规则由外部比较器决定
     public static <T> int binarySearch(T[] a, int fromIndex, int toIndex, T key, Comparator<? super T> c) {
         rangeCheck(a.length, fromIndex, toIndex);
         return binarySearch0(a, fromIndex, toIndex, key, c);
@@ -2480,7 +2482,7 @@ public class Arrays {
      */
     // 用val填充数组a
     public static void fill(boolean[] a, boolean val) {
-        for(int i = 0, len = a.length; i<len; i++)
+        for(int i = 0, len = a.length; i < len; i++)
             a[i] = val;
     }
     
@@ -2493,7 +2495,7 @@ public class Arrays {
      */
     // 用val填充数组a
     public static void fill(char[] a, char val) {
-        for(int i = 0, len = a.length; i<len; i++)
+        for(int i = 0, len = a.length; i < len; i++)
             a[i] = val;
     }
     
@@ -2506,7 +2508,7 @@ public class Arrays {
      */
     // 用val填充数组a
     public static void fill(byte[] a, byte val) {
-        for(int i = 0, len = a.length; i<len; i++)
+        for(int i = 0, len = a.length; i < len; i++)
             a[i] = val;
     }
     
@@ -2519,7 +2521,7 @@ public class Arrays {
      */
     // 用val填充数组a
     public static void fill(short[] a, short val) {
-        for(int i = 0, len = a.length; i<len; i++)
+        for(int i = 0, len = a.length; i < len; i++)
             a[i] = val;
     }
     
@@ -2532,7 +2534,7 @@ public class Arrays {
      */
     // 用val填充数组a
     public static void fill(int[] a, int val) {
-        for(int i = 0, len = a.length; i<len; i++)
+        for(int i = 0, len = a.length; i < len; i++)
             a[i] = val;
     }
     
@@ -2545,7 +2547,7 @@ public class Arrays {
      */
     // 用val填充数组a
     public static void fill(long[] a, long val) {
-        for(int i = 0, len = a.length; i<len; i++)
+        for(int i = 0, len = a.length; i < len; i++)
             a[i] = val;
     }
     
@@ -2558,7 +2560,7 @@ public class Arrays {
      */
     // 用val填充数组a
     public static void fill(float[] a, float val) {
-        for(int i = 0, len = a.length; i<len; i++)
+        for(int i = 0, len = a.length; i < len; i++)
             a[i] = val;
     }
     
@@ -2571,7 +2573,7 @@ public class Arrays {
      */
     // 用val填充数组a
     public static void fill(double[] a, double val) {
-        for(int i = 0, len = a.length; i<len; i++)
+        for(int i = 0, len = a.length; i < len; i++)
             a[i] = val;
     }
     
@@ -2587,7 +2589,7 @@ public class Arrays {
      */
     // 用val填充数组a
     public static void fill(Object[] a, Object val) {
-        for(int i = 0, len = a.length; i<len; i++)
+        for(int i = 0, len = a.length; i < len; i++)
             a[i] = val;
     }
     
@@ -2613,7 +2615,7 @@ public class Arrays {
     // 用val填充数组a[fromIndex, toIndex)
     public static void fill(boolean[] a, int fromIndex, int toIndex, boolean val) {
         rangeCheck(a.length, fromIndex, toIndex);
-        for(int i = fromIndex; i<toIndex; i++)
+        for(int i = fromIndex; i < toIndex; i++)
             a[i] = val;
     }
     
@@ -2638,7 +2640,7 @@ public class Arrays {
     // 用val填充数组a[fromIndex, toIndex)
     public static void fill(char[] a, int fromIndex, int toIndex, char val) {
         rangeCheck(a.length, fromIndex, toIndex);
-        for(int i = fromIndex; i<toIndex; i++)
+        for(int i = fromIndex; i < toIndex; i++)
             a[i] = val;
     }
     
@@ -2663,7 +2665,7 @@ public class Arrays {
     // 用val填充数组a[fromIndex, toIndex)
     public static void fill(byte[] a, int fromIndex, int toIndex, byte val) {
         rangeCheck(a.length, fromIndex, toIndex);
-        for(int i = fromIndex; i<toIndex; i++)
+        for(int i = fromIndex; i < toIndex; i++)
             a[i] = val;
     }
     
@@ -2688,7 +2690,7 @@ public class Arrays {
     // 用val填充数组a[fromIndex, toIndex)
     public static void fill(short[] a, int fromIndex, int toIndex, short val) {
         rangeCheck(a.length, fromIndex, toIndex);
-        for(int i = fromIndex; i<toIndex; i++)
+        for(int i = fromIndex; i < toIndex; i++)
             a[i] = val;
     }
     
@@ -2713,7 +2715,7 @@ public class Arrays {
     // 用val填充数组a[fromIndex, toIndex)
     public static void fill(int[] a, int fromIndex, int toIndex, int val) {
         rangeCheck(a.length, fromIndex, toIndex);
-        for(int i = fromIndex; i<toIndex; i++)
+        for(int i = fromIndex; i < toIndex; i++)
             a[i] = val;
     }
     
@@ -2738,7 +2740,7 @@ public class Arrays {
     // 用val填充数组a[fromIndex, toIndex)
     public static void fill(long[] a, int fromIndex, int toIndex, long val) {
         rangeCheck(a.length, fromIndex, toIndex);
-        for(int i = fromIndex; i<toIndex; i++)
+        for(int i = fromIndex; i < toIndex; i++)
             a[i] = val;
     }
     
@@ -2763,7 +2765,7 @@ public class Arrays {
     // 用val填充数组a[fromIndex, toIndex)
     public static void fill(float[] a, int fromIndex, int toIndex, float val) {
         rangeCheck(a.length, fromIndex, toIndex);
-        for(int i = fromIndex; i<toIndex; i++)
+        for(int i = fromIndex; i < toIndex; i++)
             a[i] = val;
     }
     
@@ -2788,7 +2790,7 @@ public class Arrays {
     // 用val填充数组a[fromIndex, toIndex)
     public static void fill(double[] a, int fromIndex, int toIndex, double val) {
         rangeCheck(a.length, fromIndex, toIndex);
-        for(int i = fromIndex; i<toIndex; i++)
+        for(int i = fromIndex; i < toIndex; i++)
             a[i] = val;
     }
     
@@ -3121,7 +3123,8 @@ public class Arrays {
     @HotSpotIntrinsicCandidate
     public static <T, U> T[] copyOf(U[] original, int newLength, Class<? extends T[]> newType) {
         @SuppressWarnings("unchecked")
-        T[] copy = ((Object) newType == (Object) Object[].class) ? (T[]) new Object[newLength] : (T[]) Array.newInstance(newType.getComponentType(), newLength);
+        T[] copy = ((Object) newType == (Object) Object[].class) ? (T[]) new Object[newLength]
+            : (T[]) Array.newInstance(newType.getComponentType(), newLength);
         System.arraycopy(original, 0, copy, 0, Math.min(original.length, newLength));
         return copy;
     }
@@ -3162,7 +3165,7 @@ public class Arrays {
      */
     public static char[] copyOfRange(char[] original, int from, int to) {
         int newLength = to - from;
-        if(newLength<0) {
+        if(newLength < 0) {
             throw new IllegalArgumentException(from + " > " + to);
         }
         char[] copy = new char[newLength];
@@ -3205,7 +3208,7 @@ public class Arrays {
      */
     public static byte[] copyOfRange(byte[] original, int from, int to) {
         int newLength = to - from;
-        if(newLength<0) {
+        if(newLength < 0) {
             throw new IllegalArgumentException(from + " > " + to);
         }
         byte[] copy = new byte[newLength];
@@ -3248,7 +3251,7 @@ public class Arrays {
      */
     public static short[] copyOfRange(short[] original, int from, int to) {
         int newLength = to - from;
-        if(newLength<0) {
+        if(newLength < 0) {
             throw new IllegalArgumentException(from + " > " + to);
         }
         short[] copy = new short[newLength];
@@ -3291,7 +3294,7 @@ public class Arrays {
      */
     public static int[] copyOfRange(int[] original, int from, int to) {
         int newLength = to - from;
-        if(newLength<0) {
+        if(newLength < 0) {
             throw new IllegalArgumentException(from + " > " + to);
         }
         int[] copy = new int[newLength];
@@ -3334,7 +3337,7 @@ public class Arrays {
      */
     public static long[] copyOfRange(long[] original, int from, int to) {
         int newLength = to - from;
-        if(newLength<0) {
+        if(newLength < 0) {
             throw new IllegalArgumentException(from + " > " + to);
         }
         long[] copy = new long[newLength];
@@ -3377,7 +3380,7 @@ public class Arrays {
      */
     public static float[] copyOfRange(float[] original, int from, int to) {
         int newLength = to - from;
-        if(newLength<0) {
+        if(newLength < 0) {
             throw new IllegalArgumentException(from + " > " + to);
         }
         float[] copy = new float[newLength];
@@ -3420,7 +3423,7 @@ public class Arrays {
      */
     public static double[] copyOfRange(double[] original, int from, int to) {
         int newLength = to - from;
-        if(newLength<0) {
+        if(newLength < 0) {
             throw new IllegalArgumentException(from + " > " + to);
         }
         double[] copy = new double[newLength];
@@ -3463,7 +3466,7 @@ public class Arrays {
      */
     public static boolean[] copyOfRange(boolean[] original, int from, int to) {
         int newLength = to - from;
-        if(newLength<0) {
+        if(newLength < 0) {
             throw new IllegalArgumentException(from + " > " + to);
         }
         boolean[] copy = new boolean[newLength];
@@ -3557,7 +3560,7 @@ public class Arrays {
     @HotSpotIntrinsicCandidate
     public static <T, U> T[] copyOfRange(U[] original, int from, int to, Class<? extends T[]> newType) {
         int newLength = to - from;
-        if(newLength<0) {
+        if(newLength < 0) {
             throw new IllegalArgumentException(from + " > " + to);
         }
         @SuppressWarnings("unchecked")
@@ -3600,7 +3603,7 @@ public class Arrays {
             return false;
         }
         
-        return ArraysSupport.mismatch(a, a2, length)<0;
+        return ArraysSupport.mismatch(a, a2, length) < 0;
     }
     
     /**
@@ -3631,8 +3634,8 @@ public class Arrays {
         if(a2.length != length) {
             return false;
         }
-    
-        return ArraysSupport.mismatch(a, a2, length)<0;
+        
+        return ArraysSupport.mismatch(a, a2, length) < 0;
     }
     
     /**
@@ -3665,7 +3668,7 @@ public class Arrays {
         }
         
         // 比较两个数组内容是否相同
-        return ArraysSupport.mismatch(a, a2, length)<0;
+        return ArraysSupport.mismatch(a, a2, length) < 0;
     }
     
     /**
@@ -3696,7 +3699,7 @@ public class Arrays {
             return false;
         }
         
-        return ArraysSupport.mismatch(a, a2, length)<0;
+        return ArraysSupport.mismatch(a, a2, length) < 0;
     }
     
     /**
@@ -3727,7 +3730,7 @@ public class Arrays {
             return false;
         }
         
-        return ArraysSupport.mismatch(a, a2, length)<0;
+        return ArraysSupport.mismatch(a, a2, length) < 0;
     }
     
     /**
@@ -3758,7 +3761,7 @@ public class Arrays {
             return false;
         }
         
-        return ArraysSupport.mismatch(a, a2, length)<0;
+        return ArraysSupport.mismatch(a, a2, length) < 0;
     }
     
     /**
@@ -3796,7 +3799,7 @@ public class Arrays {
             return false;
         }
         
-        return ArraysSupport.mismatch(a, a2, length)<0;
+        return ArraysSupport.mismatch(a, a2, length) < 0;
     }
     
     /**
@@ -3834,7 +3837,7 @@ public class Arrays {
             return false;
         }
         
-        return ArraysSupport.mismatch(a, a2, length)<0;
+        return ArraysSupport.mismatch(a, a2, length) < 0;
     }
     
     /**
@@ -3867,7 +3870,7 @@ public class Arrays {
         if(a2.length != length) {
             return false;
         }
-        
+    
         for(int i = 0; i<length; i++) {
             if(!Objects.equals(a[i], a2[i])) {
                 return false;
@@ -3915,7 +3918,7 @@ public class Arrays {
         if(a2.length != length) {
             return false;
         }
-        
+    
         for(int i = 0; i<length; i++) {
             if(cmp.compare(a[i], a2[i]) != 0) {
                 return false;
@@ -4484,12 +4487,12 @@ public class Arrays {
             /* Figure out whether the two elements are equal */
             // 递归比较（e1和e2可能是嵌套的数组）
             boolean eq = deepEquals0(e1, e2);
-            
+    
             if(!eq) {
                 return false;
             }
         }
-    
+        
         return true;
     }
     
@@ -4521,23 +4524,23 @@ public class Arrays {
      *     Arrays.equals(a, b) == (Arrays.compare(a, b) == 0)
      * }</pre>
      *
-     * @param a the first array to compare
-     * @param b the second array to compare
-     *
-     * @return the value {@code 0} if the first and second array are equal and
-     * contain the same elements in the same order;
-     * a value less than {@code 0} if the first array is
-     * lexicographically less than the second array; and
-     * a value greater than {@code 0} if the first array is
-     * lexicographically greater than the second array
-     *
-     * @apiNote <p>This method behaves as if (for non-{@code null} array references):
+     * @apiNote
+     * <p>This method behaves as if (for non-{@code null} array references):
      * <pre>{@code
      *     int i = Arrays.mismatch(a, b);
      *     if (i >= 0 && i < Math.min(a.length, b.length))
      *         return Boolean.compare(a[i], b[i]);
      *     return a.length - b.length;
      * }</pre>
+     *
+     * @param a the first array to compare
+     * @param b the second array to compare
+     * @return the value {@code 0} if the first and second array are equal and
+     *         contain the same elements in the same order;
+     *         a value less than {@code 0} if the first array is
+     *         lexicographically less than the second array; and
+     *         a value greater than {@code 0} if the first array is
+     *         lexicographically greater than the second array
      * @since 9
      */
     // 按照Boolean的compare()规则比较两个数组的大小
@@ -5029,7 +5032,7 @@ public class Arrays {
         // A null array is less than a non-null array
         if(a == null || b == null)
             return a == null ? -1 : 1;
-        
+    
         int length = Math.min(a.length, b.length);
         for(int i = 0; i<length; i++) {
             T oa = a[i];
@@ -5100,7 +5103,7 @@ public class Arrays {
         if(a == null || b == null) {
             return a == null ? -1 : 1;
         }
-        
+    
         int length = Math.min(a.length, b.length);
         for(int i = 0; i<length; i++) {
             T oa = a[i];
@@ -5252,14 +5255,14 @@ public class Arrays {
     public static int compare(char[] a, int aFromIndex, int aToIndex, char[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
-    
+        
         int aLength = aToIndex - aFromIndex;
         int bLength = bToIndex - bFromIndex;
         int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, Math.min(aLength, bLength));
         if(i >= 0) {
             return Character.compare(a[aFromIndex + i], b[bFromIndex + i]);
         }
-    
+        
         return aLength - bLength;
     }
     
@@ -5324,14 +5327,14 @@ public class Arrays {
     public static int compare(byte[] a, int aFromIndex, int aToIndex, byte[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
-    
+        
         int aLength = aToIndex - aFromIndex;
         int bLength = bToIndex - bFromIndex;
         int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, Math.min(aLength, bLength));
         if(i >= 0) {
             return Byte.compare(a[aFromIndex + i], b[bFromIndex + i]);
         }
-    
+        
         return aLength - bLength;
     }
     
@@ -5396,14 +5399,14 @@ public class Arrays {
     public static int compare(short[] a, int aFromIndex, int aToIndex, short[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
-    
+        
         int aLength = aToIndex - aFromIndex;
         int bLength = bToIndex - bFromIndex;
         int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, Math.min(aLength, bLength));
         if(i >= 0) {
             return Short.compare(a[aFromIndex + i], b[bFromIndex + i]);
         }
-    
+        
         return aLength - bLength;
     }
     
@@ -5540,14 +5543,14 @@ public class Arrays {
     public static int compare(long[] a, int aFromIndex, int aToIndex, long[] b, int bFromIndex, int bToIndex) {
         rangeCheck(a.length, aFromIndex, aToIndex);
         rangeCheck(b.length, bFromIndex, bToIndex);
-    
+        
         int aLength = aToIndex - aFromIndex;
         int bLength = bToIndex - bFromIndex;
         int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, Math.min(aLength, bLength));
         if(i >= 0) {
             return Long.compare(a[aFromIndex + i], b[bFromIndex + i]);
         }
-    
+        
         return aLength - bLength;
     }
     
@@ -5905,12 +5908,12 @@ public class Arrays {
         if(a == null || b == null) {
             return a == null ? -1 : 1;
         }
-    
+        
         int i = ArraysSupport.mismatch(a, b, Math.min(a.length, b.length));
         if(i >= 0) {
             return Byte.compareUnsigned(a[i], b[i]);
         }
-    
+        
         return a.length - b.length;
     }
     
@@ -6385,7 +6388,7 @@ public class Arrays {
         }
     
         int i = ArraysSupport.mismatch(a, b, length);
-        return (i<0 && a.length != b.length) ? length : i;
+        return (i < 0 && a.length != b.length) ? length : i;
     }
     
     /**
@@ -6436,9 +6439,9 @@ public class Arrays {
         if(a == b) {
             return -1;
         }
-        
+    
         int i = ArraysSupport.mismatch(a, b, length);
-        return (i<0 && a.length != b.length) ? length : i;
+        return (i < 0 && a.length != b.length) ? length : i;
     }
     
     /**
@@ -6544,7 +6547,7 @@ public class Arrays {
         }
     
         int i = ArraysSupport.mismatch(a, b, length);
-        return (i<0 && a.length != b.length) ? length : i;
+        return (i < 0 && a.length != b.length) ? length : i;
     }
     
     /**
@@ -6595,9 +6598,9 @@ public class Arrays {
         if(a == b) {
             return -1;
         }
-        
+    
         int i = ArraysSupport.mismatch(a, b, length);
-        return (i<0 && a.length != b.length) ? length : i;
+        return (i < 0 && a.length != b.length) ? length : i;
     }
     
     /**
@@ -6648,9 +6651,9 @@ public class Arrays {
         if(a == b) {
             return -1;
         }
-        
+    
         int i = ArraysSupport.mismatch(a, b, length);
-        return (i<0 && a.length != b.length) ? length : i;
+        return (i < 0 && a.length != b.length) ? length : i;
     }
     
     /**
@@ -6701,9 +6704,9 @@ public class Arrays {
         if(a == b) {
             return -1;
         }
-        
+    
         int i = ArraysSupport.mismatch(a, b, length);
-        return (i<0 && a.length != b.length) ? length : i;
+        return (i < 0 && a.length != b.length) ? length : i;
     }
     
     /**
@@ -6754,9 +6757,9 @@ public class Arrays {
         if(a == b) {
             return -1;
         }
-        
+    
         int i = ArraysSupport.mismatch(a, b, length);
-        return (i<0 && a.length != b.length) ? length : i;
+        return (i < 0 && a.length != b.length) ? length : i;
     }
     
     /**
@@ -6807,7 +6810,7 @@ public class Arrays {
         if(a == b) {
             return -1;
         }
-        
+    
         for(int i = 0; i<length; i++) {
             if(!Objects.equals(a[i], b[i])) {
                 return i;
@@ -6872,7 +6875,7 @@ public class Arrays {
         if(a == b) {
             return -1;
         }
-        
+    
         for(int i = 0; i<length; i++) {
             T oa = a[i];
             T ob = b[i];
@@ -6958,7 +6961,7 @@ public class Arrays {
         int bLength = bToIndex - bFromIndex;
         int length = Math.min(aLength, bLength);
         int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, length);
-        return (i<0 && aLength != bLength) ? length : i;
+        return (i < 0 && aLength != bLength) ? length : i;
     }
     
     /**
@@ -7030,7 +7033,7 @@ public class Arrays {
         int bLength = bToIndex - bFromIndex;
         int length = Math.min(aLength, bLength);
         int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, length);
-        return (i<0 && aLength != bLength) ? length : i;
+        return (i < 0 && aLength != bLength) ? length : i;
     }
     
     /**
@@ -7102,7 +7105,7 @@ public class Arrays {
         int bLength = bToIndex - bFromIndex;
         int length = Math.min(aLength, bLength);
         int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, length);
-        return (i<0 && aLength != bLength) ? length : i;
+        return (i < 0 && aLength != bLength) ? length : i;
     }
     
     /**
@@ -7174,7 +7177,7 @@ public class Arrays {
         int bLength = bToIndex - bFromIndex;
         int length = Math.min(aLength, bLength);
         int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, length);
-        return (i<0 && aLength != bLength) ? length : i;
+        return (i < 0 && aLength != bLength) ? length : i;
     }
     
     /**
@@ -7246,7 +7249,7 @@ public class Arrays {
         int bLength = bToIndex - bFromIndex;
         int length = Math.min(aLength, bLength);
         int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, length);
-        return (i<0 && aLength != bLength) ? length : i;
+        return (i < 0 && aLength != bLength) ? length : i;
     }
     
     /**
@@ -7318,7 +7321,7 @@ public class Arrays {
         int bLength = bToIndex - bFromIndex;
         int length = Math.min(aLength, bLength);
         int i = ArraysSupport.mismatch(a, aFromIndex, b, bFromIndex, length);
-        return (i<0 && aLength != bLength) ? length : i;
+        return (i < 0 && aLength != bLength) ? length : i;
     }
     
     /**
@@ -7538,7 +7541,7 @@ public class Arrays {
                 return i;
             }
         }
-    
+        
         return aLength != bLength ? length : -1;
     }
     
@@ -7808,7 +7811,8 @@ public class Arrays {
     // 借助generator批量为数组array并行设置值
     public static void parallelSetAll(long[] array, IntToLongFunction generator) {
         Objects.requireNonNull(generator);
-        IntStream.range(0, array.length).parallel().forEach(i -> { array[i] = generator.applyAsLong(i); });
+        IntStream.range(0, array.length).parallel()
+            .forEach(i -> { array[i] = generator.applyAsLong(i); });
     }
     
     /**
@@ -7836,7 +7840,8 @@ public class Arrays {
     // 借助generator批量为数组array并行设置值
     public static void parallelSetAll(double[] array, IntToDoubleFunction generator) {
         Objects.requireNonNull(generator);
-        IntStream.range(0, array.length).parallel().forEach(i -> { array[i] = generator.applyAsDouble(i); });
+        IntStream.range(0, array.length).parallel()
+            .forEach(i -> { array[i] = generator.applyAsDouble(i); });
     }
     
     /**
@@ -7865,7 +7870,8 @@ public class Arrays {
     // 借助generator批量为数组array并行设置值
     public static <T> void parallelSetAll(T[] array, IntFunction<? extends T> generator) {
         Objects.requireNonNull(generator);
-        IntStream.range(0, array.length).parallel().forEach(i -> { array[i] = generator.apply(i); });
+        IntStream.range(0, array.length).parallel()
+            .forEach(i -> { array[i] = generator.apply(i); });
     }
     
     /*▲ 并行批量设置 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -7896,12 +7902,12 @@ public class Arrays {
         if(a == null) {
             return 0;
         }
-    
+        
         int result = 1;
         for(char element : a) {
             result = 31 * result + element;
         }
-    
+        
         return result;
     }
     
@@ -7927,12 +7933,12 @@ public class Arrays {
         if(a == null) {
             return 0;
         }
-    
+        
         int result = 1;
         for(byte element : a) {
             result = 31 * result + element;
         }
-    
+        
         return result;
     }
     
@@ -7958,12 +7964,12 @@ public class Arrays {
         if(a == null) {
             return 0;
         }
-    
+        
         int result = 1;
         for(short element : a) {
             result = 31 * result + element;
         }
-    
+        
         return result;
     }
     
@@ -7989,12 +7995,12 @@ public class Arrays {
         if(a == null) {
             return 0;
         }
-    
+        
         int result = 1;
         for(int element : a) {
             result = 31 * result + element;
         }
-    
+        
         return result;
     }
     
@@ -8020,7 +8026,7 @@ public class Arrays {
         if(a == null) {
             return 0;
         }
-    
+        
         int result = 1;
         for(long element : a) {
             int elementHash = (int) (element ^ (element >>> 32));
@@ -8052,12 +8058,12 @@ public class Arrays {
         if(a == null) {
             return 0;
         }
-    
+        
         int result = 1;
         for(boolean element : a) {
             result = 31 * result + (element ? 1231 : 1237);
         }
-    
+        
         return result;
     }
     
@@ -8083,12 +8089,12 @@ public class Arrays {
         if(a == null) {
             return 0;
         }
-    
+        
         int result = 1;
         for(float element : a) {
             result = 31 * result + Float.floatToIntBits(element);
         }
-    
+        
         return result;
     }
     
@@ -8114,7 +8120,7 @@ public class Arrays {
         if(a == null) {
             return 0;
         }
-    
+        
         int result = 1;
         for(double element : a) {
             long bits = Double.doubleToLongBits(element);
@@ -8152,7 +8158,7 @@ public class Arrays {
         if(a == null) {
             return 0;
         }
-    
+        
         int result = 1;
         
         for(Object element : a) {
@@ -8203,7 +8209,7 @@ public class Arrays {
         if(a == null) {
             return 0;
         }
-    
+        
         int result = 1;
         
         for(Object element : a) {
@@ -8218,7 +8224,7 @@ public class Arrays {
             } else {
                 elementHash = primitiveArrayHashCode(element, cl);
             }
-    
+            
             result = 31 * result + elementHash;
         }
         
@@ -9252,10 +9258,10 @@ public class Arrays {
             if(i == iMax) {
                 break;
             }
-    
+            
             buf.append(", ");
         }
-    
+        
         buf.append(']');
         dejaVu.remove(a);
     }
@@ -9273,15 +9279,19 @@ public class Arrays {
         if(fromIndex > toIndex) {
             throw new IllegalArgumentException("fromIndex(" + fromIndex + ") > toIndex(" + toIndex + ")");
         }
-        
-        if(fromIndex<0) {
+    
+        if(fromIndex < 0) {
             throw new ArrayIndexOutOfBoundsException(fromIndex);
         }
-        
+    
         if(toIndex>arrayLength) {
             throw new ArrayIndexOutOfBoundsException(toIndex);
         }
     }
+    
+    
+    
+    
     
     
     /**

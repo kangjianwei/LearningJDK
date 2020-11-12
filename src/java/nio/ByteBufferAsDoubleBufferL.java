@@ -31,7 +31,7 @@ class ByteBufferAsDoubleBufferL extends DoubleBuffer {
     protected final ByteBuffer bb;
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     ByteBufferAsDoubleBufferL(ByteBuffer bb) {   // package-private
         super(-1, 0, bb.remaining() >> 3, bb.remaining() >> 3);
@@ -51,16 +51,18 @@ class ByteBufferAsDoubleBufferL extends DoubleBuffer {
         assert address >= bb.address;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 可读写 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 只读/可读写
     public boolean isReadOnly() {
         return false;
     }
     
+    // 直接缓冲区/非直接缓冲区
     public boolean isDirect() {
         return bb.isDirect();
     }
@@ -71,6 +73,7 @@ class ByteBufferAsDoubleBufferL extends DoubleBuffer {
     
     /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 切片，截取旧缓冲区的【活跃区域】，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     public DoubleBuffer slice() {
         int pos = this.position();
         int lim = this.limit();
@@ -80,10 +83,12 @@ class ByteBufferAsDoubleBufferL extends DoubleBuffer {
         return new ByteBufferAsDoubleBufferL(bb, -1, 0, rem, rem, addr);
     }
     
+    // 副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public DoubleBuffer duplicate() {
         return new ByteBufferAsDoubleBufferL(bb, this.markValue(), this.position(), this.limit(), this.capacity(), address);
     }
     
+    // 只读副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public DoubleBuffer asReadOnlyBuffer() {
         return new ByteBufferAsDoubleBufferRL(bb, this.markValue(), this.position(), this.limit(), this.capacity(), address);
     }
@@ -96,13 +101,15 @@ class ByteBufferAsDoubleBufferL extends DoubleBuffer {
     
     /*▼ get/读取 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 读取position处（可能需要加offset）的double，然后递增position。
     public double get() {
         long x = UNSAFE.getLongUnaligned(bb.hb, byteOffset(nextGetIndex()), false);
         return Double.longBitsToDouble(x);
     }
     
-    public double get(int i) {
-        long x = UNSAFE.getLongUnaligned(bb.hb, byteOffset(checkIndex(i)), false);
+    // 读取index处（可能需要加offset）的double（有越界检查）
+    public double get(int index) {
+        long x = UNSAFE.getLongUnaligned(bb.hb, byteOffset(checkIndex(index)), false);
         return Double.longBitsToDouble(x);
     }
     
@@ -112,15 +119,17 @@ class ByteBufferAsDoubleBufferL extends DoubleBuffer {
     
     /*▼ put/写入 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 向position处（可能需要加offset）写入double，并将position递增
     public DoubleBuffer put(double x) {
         long y = Double.doubleToRawLongBits(x);
         UNSAFE.putLongUnaligned(bb.hb, byteOffset(nextPutIndex()), y, false);
         return this;
     }
     
-    public DoubleBuffer put(int i, double x) {
+    // 向index处（可能需要加offset）写入double
+    public DoubleBuffer put(int index, double x) {
         long y = Double.doubleToRawLongBits(x);
-        UNSAFE.putLongUnaligned(bb.hb, byteOffset(checkIndex(i)), y, false);
+        UNSAFE.putLongUnaligned(bb.hb, byteOffset(checkIndex(index)), y, false);
         return this;
     }
     
@@ -130,6 +139,7 @@ class ByteBufferAsDoubleBufferL extends DoubleBuffer {
     
     /*▼ 压缩 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 压缩缓冲区，将当前未读完的数据挪到容器起始处，可用于读模式到写模式的切换，但又不丢失之前读入的数据。
     public DoubleBuffer compact() {
         int pos = position();
         int lim = limit();
@@ -154,6 +164,7 @@ class ByteBufferAsDoubleBufferL extends DoubleBuffer {
     
     /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 返回该缓冲区的字节序（大端还是小端）
     public ByteOrder order() {
         return ByteOrder.LITTLE_ENDIAN;
     }

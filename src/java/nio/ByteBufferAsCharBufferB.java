@@ -31,7 +31,7 @@ class ByteBufferAsCharBufferB extends CharBuffer {
     protected final ByteBuffer bb;  // 待转换的ByteBuffer
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     ByteBufferAsCharBufferB(ByteBuffer bb) {
         // 从byte到char转换，容量要减半
@@ -52,17 +52,18 @@ class ByteBufferAsCharBufferB extends CharBuffer {
         assert address >= bb.address;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 可读写 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 只读/可读写
     public boolean isReadOnly() {
         return false;
     }
     
-    // 是直接缓冲区还是非直接缓冲区，取决于传入的ByteBuffer
+    // 直接缓冲区/非直接缓冲区
     public boolean isDirect() {
         return bb.isDirect();
     }
@@ -73,6 +74,7 @@ class ByteBufferAsCharBufferB extends CharBuffer {
     
     /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 切片，截取旧缓冲区的【活跃区域】，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     public CharBuffer slice() {
         int pos = this.position();
         int lim = this.limit();
@@ -82,14 +84,17 @@ class ByteBufferAsCharBufferB extends CharBuffer {
         return new ByteBufferAsCharBufferB(bb, -1, 0, rem, rem, addr);
     }
     
+    // 副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public CharBuffer duplicate() {
         return new ByteBufferAsCharBufferB(bb, this.markValue(), this.position(), this.limit(), this.capacity(), address);
     }
     
+    // 只读副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public CharBuffer asReadOnlyBuffer() {
         return new ByteBufferAsCharBufferRB(bb, this.markValue(), this.position(), this.limit(), this.capacity(), address);
     }
     
+    // 子副本，新缓冲区的【活跃区域】取自旧缓冲区【活跃区域】的[start，end)部分
     public CharBuffer subSequence(int start, int end) {
         int pos = position();
         int lim = limit();
@@ -110,18 +115,21 @@ class ByteBufferAsCharBufferB extends CharBuffer {
     
     /*▼ get/读取 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 读取position处（可能需要加offset）的char，然后递增position。
     public char get() {
         char x = UNSAFE.getCharUnaligned(bb.hb, byteOffset(nextGetIndex()), true);
         return (x);
     }
     
-    public char get(int i) {
-        char x = UNSAFE.getCharUnaligned(bb.hb, byteOffset(checkIndex(i)), true);
+    // 读取index处（可能需要加offset）的char（有越界检查）
+    public char get(int index) {
+        char x = UNSAFE.getCharUnaligned(bb.hb, byteOffset(checkIndex(index)), true);
         return (x);
     }
     
-    char getUnchecked(int i) {
-        char x = UNSAFE.getCharUnaligned(bb.hb, byteOffset(i), true);
+    // 返回index处的字符，不经过越界检查
+    char getUnchecked(int index) {
+        char x = UNSAFE.getCharUnaligned(bb.hb, byteOffset(index), true);
         return (x);
     }
     
@@ -131,15 +139,17 @@ class ByteBufferAsCharBufferB extends CharBuffer {
     
     /*▼ put/写入 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 向position处（可能需要加offset）写入char，并将position递增
     public CharBuffer put(char x) {
         char y = (x);
         UNSAFE.putCharUnaligned(bb.hb, byteOffset(nextPutIndex()), y, true);
         return this;
     }
     
-    public CharBuffer put(int i, char x) {
+    // 向index处（可能需要加offset）写入char
+    public CharBuffer put(int index, char x) {
         char y = (x);
-        UNSAFE.putCharUnaligned(bb.hb, byteOffset(checkIndex(i)), y, true);
+        UNSAFE.putCharUnaligned(bb.hb, byteOffset(checkIndex(index)), y, true);
         return this;
     }
     
@@ -149,6 +159,7 @@ class ByteBufferAsCharBufferB extends CharBuffer {
     
     /*▼ 压缩 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 压缩缓冲区，将当前未读完的数据挪到容器起始处，可用于读模式到写模式的切换，但又不丢失之前读入的数据。
     public CharBuffer compact() {
         int pos = position();
         int lim = limit();
@@ -176,10 +187,12 @@ class ByteBufferAsCharBufferB extends CharBuffer {
     
     /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 返回该缓冲区的字节序（大端还是小端）
     public ByteOrder order() {
         return ByteOrder.BIG_ENDIAN;
     }
     
+    // 返回‘char’的字节顺序（大端还是小端），在StringCharBuffer中换回null，其他缓冲区中由实现而定。
     ByteOrder charRegionOrder() {
         return order();
     }

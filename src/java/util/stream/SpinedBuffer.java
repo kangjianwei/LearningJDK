@@ -53,11 +53,13 @@ import java.util.function.LongConsumer;
  * @param <E> the type of elements in this list
  * @since 1.8
  */
-
-// 容量可变的缓冲区，使用一维数组和二维数组做元素缓冲区，只能存取，不能修改，用在流的终端阶段收集数据
-class SpinedBuffer<E>
-    extends AbstractSpinedBuffer
-    implements Consumer<E>, Iterable<E> {
+/*
+ * 弹性缓冲区(引用类型版本)
+ *
+ * 该容器仅支持只能存取元素，不能修改元素，通常用在流式操作的终端阶段来收集元素。
+ */
+class SpinedBuffer<E> extends AbstractSpinedBuffer implements Consumer<E>, Iterable<E> {
+    
     /*
      * We optimistically hope that all the data will fit into the first chunk,
      * so we try to avoid inflating the spine[] and priorElementCount[] arrays
@@ -75,20 +77,29 @@ class SpinedBuffer<E>
      * restoring it to the initial single-chunk state.
      */
     
+    // 弹性缓冲区的流迭代器参数
     private static final int SPLITERATOR_CHARACTERISTICS = Spliterator.SIZED | Spliterator.ORDERED | Spliterator.SUBSIZED;
     
     /**
      * Chunk that we're currently writing into; may or may not be aliased with
      * the first element of the spine.
      */
-    // 一维缓存，初始时为curChunk分配容量，之后将为spine分配容量，并让curChunk指向spine新分配的行
+    /*
+     * 当前一维缓存
+     *
+     * 每个一维缓存满了之后，需要将该一维缓存添加到二维缓存中，并让curChunk指向新构造的一维缓冲区。
+     *
+     * 初始时为curChunk分配容量，之后将为spine分配容量，并让curChunk指向spine新分配的行
+     */
     protected E[] curChunk;
-    
+
     /**
      * All chunks, or null if there is only one chunk.
      */
     /*
-     * 二维缓存，初始时不分配容量，只是让spine[0]指向curChunk，之后为spine的每一行分配容量
+     * 二维缓存
+     *
+     * 初始时不分配容量，只是让spine[0]指向curChunk，之后为spine的每一行分配容量
      * spine中的每一行称作一个chunk
      */
     protected E[][] spine;
@@ -101,7 +112,7 @@ class SpinedBuffer<E>
         super();
         curChunk = (E[]) new Object[1 << initialChunkPower];
     }
-    
+
     /**
      * Constructs an empty list with the specified initial capacity.
      *
@@ -115,22 +126,36 @@ class SpinedBuffer<E>
         curChunk = (E[]) new Object[1 << initialChunkPower];
     }
     
-    // 向SpinedBuffer存入一个元素
+    // 向弹性缓冲区存入一个元素
     @Override
     public void accept(E e) {
-        // 如果一维缓存已满，需要扩容
-        if (elementIndex == curChunk.length) {
-            // 初始化二维缓存
+    
+        // 如果当前一维缓存(chunk)已满，则需要新建
+        if(elementIndex == curChunk.length) {
+        
+            // 确保二维缓存已经初始化
             inflateSpine();
-            if (spineIndex+1 >= spine.length || spine[spineIndex+1] == null) {
-                // 扩容
+        
+            /*
+             * 如果二维缓存也满了，则需要对二维缓存扩容；
+             * 如果二维缓存没满，但是没有可用的空闲行缓存，则需要新建一行作为一维缓存。
+             */
+            if(spineIndex >= spine.length - 1 || spine[spineIndex + 1] == null) {
+                // 新建一维缓存，这个过程可能伴随着二维缓存的扩容
                 increaseCapacity();
             }
+        
+            // 重置一维缓存的元素索引
             elementIndex = 0;
+        
+            // 二维缓存的行索引递增
             ++spineIndex;
+        
+            // 指向新构造的一维缓冲区
             curChunk = spine[spineIndex];
         }
-        
+    
+        // 存入元素
         curChunk[elementIndex++] = e;
     }
     
@@ -139,184 +164,223 @@ class SpinedBuffer<E>
      */
     // 返回索引index处的元素
     public E get(long index) {
-        // @@@ can further optimize by caching last seen spineIndex,
-        // which is going to be right most of the time
-        
         /*
          * Casts to int are safe since the spine array index is the index minus the prior element count from the current spine
          */
-        //
+        // 如果还未启用二维数组，则直接从一维数组中获取元素
         if (spineIndex == 0) {
-            if (index < elementIndex)
+            // 确保给定的索引没有超过当前chunk的索引上限
+            if(index<elementIndex) {
                 return curChunk[((int) index)];
-            else
-                throw new IndexOutOfBoundsException(Long.toString(index));
-        }
-        
-        if (index >= count())
+            }
+    
             throw new IndexOutOfBoundsException(Long.toString(index));
-        
-        for (int j=0; j <= spineIndex; j++)
-            if (index < priorElementCount[j] + spine[j].length)
+        }
+    
+        if(index >= count()) {
+            throw new IndexOutOfBoundsException(Long.toString(index));
+        }
+    
+        // 遍历二维数组，查找index索引处的元素
+        for(int j = 0; j<=spineIndex; j++) {
+            if(index<priorElementCount[j] + spine[j].length) {
                 return spine[j][((int) (index - priorElementCount[j]))];
-        
+            }
+        }
+    
         throw new IndexOutOfBoundsException(Long.toString(index));
     }
     
     /**
-     * Copy the elements, starting at the specified offset, into the specified
-     * array.
+     * Create a new array using the specified array factory, and copy the elements into it.
      */
-    // 将SpinedBuffer中的内容复制到数组array的offset偏移中
+    // 将弹性缓冲区中的元素复制到使用arrayFactory构造的数组中后返回
+    public E[] asArray(IntFunction<E[]> arrayFactory) {
+        long size = count();
+        
+        if(size >= Nodes.MAX_ARRAY_SIZE) {
+            throw new IllegalArgumentException(Nodes.BAD_SIZE);
+        }
+        
+        // 构造数组
+        E[] result = arrayFactory.apply((int) size);
+        
+        // 复制元素
+        copyInto(result, 0);
+        
+        return result;
+    }
+    
+    /**
+     * Copy the elements, starting at the specified offset, into the specified array.
+     */
+    // 将弹性缓冲区中的元素复制到数组array的offset索引中
     public void copyInto(E[] array, int offset) {
         long finalOffset = offset + count();
-        if (finalOffset > array.length || finalOffset < offset) {
+        if(finalOffset>array.length || finalOffset<offset) {
             throw new IndexOutOfBoundsException("does not fit");
         }
         
-        if (spineIndex == 0)
+        // 如果二维数组还未启用，则只需要复制一维数组中的数据
+        if(spineIndex == 0) {
             System.arraycopy(curChunk, 0, array, offset, elementIndex);
-        else {
-            // full chunks
-            for (int i=0; i < spineIndex; i++) {
+            
+            // 全部复制
+        } else {
+            for(int i = 0; i<spineIndex; i++) {
                 System.arraycopy(spine[i], 0, array, offset, spine[i].length);
                 offset += spine[i].length;
             }
-            if (elementIndex > 0) {
+            
+            if(elementIndex>0) {
                 System.arraycopy(curChunk, 0, array, offset, elementIndex);
             }
         }
     }
     
-    /**
-     * Create a new array using the specified array factory, and copy the
-     * elements into it.
-     */
-    // 将SpinedBuffer中的内容复制到数组中返回
-    public E[] asArray(IntFunction<E[]> arrayFactory) {
-        long size = count();
-        if (size >= Nodes.MAX_ARRAY_SIZE)
-            throw new IllegalArgumentException(Nodes.BAD_SIZE);
-        E[] result = arrayFactory.apply((int) size);
-        copyInto(result, 0);
-        return result;
-    }
-    
-    // 清空SpinedBuffer
-    @Override
-    public void clear() {
-        if (spine != null) {
-            curChunk = spine[0];
-            for (int i=0; i<curChunk.length; i++)
-                curChunk[i] = null;
-            spine = null;
-            priorElementCount = null;
-        }
-        else {
-            for (int i=0; i<elementIndex; i++) {
-                curChunk[i] = null;
-            }
-        }
-        elementIndex = 0;
-        spineIndex = 0;
-    }
-    
-    // 遍历SpinedBuffer中的元素，并在其上应用consumer函数
+    // 尝试用consumer消费当前弹性缓冲区中所有元素
     @Override
     public void forEach(Consumer<? super E> consumer) {
         // completed chunks, if any
-        for (int j = 0; j < spineIndex; j++)
-            for (E t : spine[j])
+        for(int j = 0; j<spineIndex; j++) {
+            for(E t : spine[j]) {
                 consumer.accept(t);
+            }
+        }
         
         // current chunk
-        for (int i=0; i<elementIndex; i++)
+        for(int i = 0; i<elementIndex; i++) {
             consumer.accept(curChunk[i]);
+        }
+    }
+    
+    // 清空弹性缓冲区
+    @Override
+    public void clear() {
+        if(spine != null) {
+            curChunk = spine[0];
+            Arrays.fill(curChunk, null);
+            spine = null;
+            priorElementCount = null;
+        } else {
+            for(int i = 0; i<elementIndex; i++) {
+                curChunk[i] = null;
+            }
+        }
+        
+        elementIndex = 0;
+        
+        spineIndex = 0;
     }
     
     /**
      * Returns the current capacity of the buffer
      */
-    // 返回当前SpinedBuffer的容量
+    // 返回弹性缓冲区的容量
     protected long capacity() {
-        return (spineIndex == 0)
-            ? curChunk.length
-            : priorElementCount[spineIndex] + spine[spineIndex].length;
+        if(spineIndex == 0) {
+            return curChunk.length;
+        }
+    
+        return priorElementCount[spineIndex] + spine[spineIndex].length;
     }
     
     /**
      * Ensure that the buffer has at least capacity to hold the target size
      */
-    // 传入需要的容量，确保SpinedBuffer容量充足，不够的话就分配
+    // 确保弹性缓冲区容量充足；targetSize是期望的容量
     @SuppressWarnings("unchecked")
     protected final void ensureCapacity(long targetSize) {
-        // 返回当前SpinedBuffer的容量
+        // 返回当前弹性缓冲区的容量
         long capacity = capacity();
-        // 需要的容量比当前容量大，则需要申请新的空间
-        if (targetSize > capacity) {
-            // 确保二维缓存已初始化
-            inflateSpine();
-            for (int i=spineIndex+1; targetSize > capacity; i++) {
-                // 如果二维缓存也不够用了，需要对二维缓存扩容
-                if (i >= spine.length) {
-                    int newSpineSize = spine.length * 2;
-                    spine = Arrays.copyOf(spine, newSpineSize);
-                    priorElementCount = Arrays.copyOf(priorElementCount, newSpineSize);
-                }
-                
-                // 返回即将分配的chunk应当包含的元素个数
-                int nextChunkSize = chunkSize(i);
-                // 为二维缓存增加一行的空间
-                spine[i] = (E[]) new Object[nextChunkSize];
-                // 累计元素个数
-                priorElementCount[i] = priorElementCount[i-1] + spine[i-1].length;
-                capacity += nextChunkSize;
+    
+        // 当前容量大于需要的容量时，不需要申请新空间，直接返回
+        if(targetSize<=capacity) {
+            return;
+        }
+    
+        // 确保二维缓存已经初始化
+        inflateSpine();
+    
+        for(int i = spineIndex + 1; targetSize>capacity; i++) {
+            // 如果二维缓存满了，需要先对二维缓存扩容
+            if(i >= spine.length) {
+                int newSpineSize = spine.length * 2;
+            
+                // 旧元素移动的新的缓冲区
+                spine = Arrays.copyOf(spine, newSpineSize);
+                priorElementCount = Arrays.copyOf(priorElementCount, newSpineSize);
             }
+        
+            // 获取下一个新建chunk的容量
+            int nextChunkSize = chunkSize(i);
+        
+            // 为二维缓存增加一行的空间
+            spine[i] = (E[]) new Object[nextChunkSize];
+        
+            // 累计元素个数
+            priorElementCount[i] = priorElementCount[i - 1] + spine[i - 1].length;
+        
+            capacity += nextChunkSize;
         }
     }
     
     /**
      * Force the buffer to increase its capacity.
      */
-    // 扩容，比当前容量多一个元素，往往会分配更多的空间
+    /*
+     * 新建一维缓存，这个过程可能伴随着二维缓存的扩容。
+     *
+     * 如果二维缓存也满了，则需要对二维缓存扩容；
+     * 如果二维缓存没满，但是没有可用的空闲行缓存，则需要新建一行作为一维缓存。
+     */
     protected void increaseCapacity() {
-        // 确保SpinedBuffer容量充足
+        // 确保弹性缓冲区容量充足
         ensureCapacity(capacity() + 1);
     }
     
-    // 初始化二维缓存
+    // 确保二维缓存已经初始化
     @SuppressWarnings("unchecked")
     private void inflateSpine() {
-        if (spine == null) {
-            spine = (E[][]) new Object[MIN_SPINE_SIZE][];
-            priorElementCount = new long[MIN_SPINE_SIZE];
-            spine[0] = curChunk;
+        if(spine != null) {
+            return;
         }
+    
+        spine = (E[][]) new Object[MIN_SPINE_SIZE][];
+        priorElementCount = new long[MIN_SPINE_SIZE];
+        spine[0] = curChunk;
     }
     
-    // 返回适用于该SpinedBuffer的Iterator
+    // 返回弹性缓冲区的迭代器
     @Override
     public Iterator<E> iterator() {
-        // 返回(4)类Spliterator：将Spliterator适配到Iterator来使用
-        return Spliterators.iterator(spliterator());
+        // 获取当前弹性缓冲区的流迭代器
+        Spliterator<E> spliterator = spliterator();
+    
+        // 将Spliterator适配为Iterator(引用类型版本)
+        return Spliterators.iterator(spliterator);
     }
     
     /**
      * Return a {@link Spliterator} describing the contents of the buffer.
      */
-    // 返回描述此SpinedBuffer中元素的Spliterator
+    // 返回弹性缓冲区的流迭代器
     public Spliterator<E> spliterator() {
+    
+        // 弹性缓冲区的流迭代器
         class Splitr implements Spliterator<E> {
-            // The current spine index
+        
+            /** The current spine index */
             int splSpineIndex;                  // 二维缓存起始索引
-            // Last spine index
+            /** Last spine index */
             final int lastSpineIndex;           // 二维缓存终点索引
-            // The current element index into the current spine
+        
+            /** The current element index into the current spine */
             int splElementIndex;                // 一维缓存起始索引
-            // Last spine's last element index + 1
+            /** Last spine's last element index + 1 */
             final int lastSpineElementFence;    // 一维缓存终点索引
-            
-            /*
+        
+            /**
              * When splSpineIndex >= lastSpineIndex
              * and splElementIndex >= lastSpineElementFence
              * then this spliterator is fully traversed
@@ -324,7 +388,7 @@ class SpinedBuffer<E>
              */
             // The current spine array
             E[] splChunk;   // 存储当前的chunk，内容会随着遍历而变化
-            
+        
             Splitr(int firstSpineIndex, int lastSpineIndex, int firstSpineElementIndex, int lastSpineElementFence) {
                 this.splSpineIndex = firstSpineIndex;
                 this.lastSpineIndex = lastSpineIndex;
@@ -333,71 +397,99 @@ class SpinedBuffer<E>
                 assert spine != null || firstSpineIndex == 0 && lastSpineIndex == 0;
                 splChunk = (spine == null) ? curChunk : spine[firstSpineIndex];
             }
-            
-            // 返回当前情境中的元素数量（可能是估算值）
+        
+            /*
+             * 返回流迭代器中剩余未消费的元素数量(可能不精确)
+             *
+             * 如果数据量无限、未知、计算成本过高，则返回Long.MAX_VALUE；
+             * 否则，如果数据量有限，则通常应返回剩余未消费的元素总量。
+             */
             @Override
             public long estimateSize() {
-                return (splSpineIndex == lastSpineIndex)
-                    ? (long) lastSpineElementFence - splElementIndex
-                    : priorElementCount[lastSpineIndex] + lastSpineElementFence -   // # of elements prior to end -
+                return (splSpineIndex == lastSpineIndex) ? (long) lastSpineElementFence - splElementIndex : priorElementCount[lastSpineIndex] + lastSpineElementFence -   // # of elements prior to end -
                     priorElementCount[splSpineIndex] - splElementIndex;           // # of elements prior to current
             }
-            
+        
+            // 返回流迭代器的参数
             @Override
             public int characteristics() {
                 return SPLITERATOR_CHARACTERISTICS;
             }
-            
-            // 对容器中的单个当前元素执行择取操作
+        
+            /*
+             * 尝试用action消费当前流迭代器中下一个元素。
+             * 返回值指示是否找到了下一个元素。
+             *
+             * 注1：该操作可能会引起内部游标的变化
+             * 注2：该操作可能会顺着sink链向下游传播
+             */
             @Override
             public boolean tryAdvance(Consumer<? super E> consumer) {
                 Objects.requireNonNull(consumer);
-                
-                if(splSpineIndex < lastSpineIndex || (splSpineIndex == lastSpineIndex && splElementIndex < lastSpineElementFence)) {
-                    consumer.accept(splChunk[splElementIndex++]);
-                    
-                    if(splElementIndex == splChunk.length) {
-                        splElementIndex = 0;
-                        ++splSpineIndex;
-                        if(spine != null && splSpineIndex <= lastSpineIndex)
-                            splChunk = spine[splSpineIndex];
-                    }
-                    return true;
-                }
-                return false;
-            }
             
-            // 遍历容器内每个元素，在其上执行相应的择取操作
+                if(splSpineIndex >= lastSpineIndex && (splSpineIndex != lastSpineIndex || splElementIndex >= lastSpineElementFence)) {
+                    return false;
+                }
+            
+                consumer.accept(splChunk[splElementIndex++]);
+            
+                if(splElementIndex == splChunk.length) {
+                    splElementIndex = 0;
+                    ++splSpineIndex;
+                    if(spine != null && splSpineIndex<=lastSpineIndex) {
+                        splChunk = spine[splSpineIndex];
+                    }
+                }
+            
+                return true;
+            
+            }
+        
+            /*
+             * 尝试用consumer消费当前Spliterator中所有元素。
+             *
+             * 注1：该操作可能会引起内部游标的变化
+             * 注2：该操作可能会顺着sink链向下游传播
+             */
             @Override
             public void forEachRemaining(Consumer<? super E> consumer) {
                 Objects.requireNonNull(consumer);
-                
-                if(splSpineIndex < lastSpineIndex || (splSpineIndex == lastSpineIndex && splElementIndex < lastSpineElementFence)) {
+            
+                if(splSpineIndex<lastSpineIndex || (splSpineIndex == lastSpineIndex && splElementIndex<lastSpineElementFence)) {
                     int i = splElementIndex;
+                
                     // completed chunks, if any
-                    for(int sp = splSpineIndex; sp < lastSpineIndex; sp++) {
+                    for(int sp = splSpineIndex; sp<lastSpineIndex; sp++) {
                         E[] chunk = spine[sp];
-                        for(; i < chunk.length; i++) {
+                        for(; i<chunk.length; i++) {
                             consumer.accept(chunk[i]);
                         }
                         i = 0;
                     }
+                
                     // last (or current uncompleted) chunk
                     E[] chunk = (splSpineIndex == lastSpineIndex) ? splChunk : spine[lastSpineIndex];
-                    int hElementIndex = lastSpineElementFence;
-                    for(; i < hElementIndex; i++) {
+                
+                    for(; i<lastSpineElementFence; i++) {
                         consumer.accept(chunk[i]);
                     }
+                
                     // mark consumed
                     splSpineIndex = lastSpineIndex;
                     splElementIndex = lastSpineElementFence;
                 }
             }
-            
-            // 从容器的指定范围切割一段元素，将其打包到Spliterator后返回，特征值不变
+        
+            /*
+             * 返回子Spliterator，该子Spliterator内持有原Spliterator的部分数据。
+             *
+             * 注1：该操作可能会引起内部游标的变化
+             * 注2：子Spliterator的参数可能发生改变
+             */
             @Override
             public Spliterator<E> trySplit() {
-                if(splSpineIndex < lastSpineIndex) {    // 丢弃未完成的那行chunk
+                // 丢弃未完成的那行chunk
+                if(splSpineIndex<lastSpineIndex) {
                     // split just before last chunk (if it is full this means 50:50 split)
                     Spliterator<E> ret = new Splitr(splSpineIndex, lastSpineIndex - 1, splElementIndex, spine[lastSpineIndex - 1].length);
                     // position to start of last chunk
@@ -405,23 +497,28 @@ class SpinedBuffer<E>
                     splElementIndex = 0;
                     splChunk = spine[splSpineIndex];
                     return ret;
-                } else if(splSpineIndex == lastSpineIndex) {    // 折半
-                    int t = (lastSpineElementFence - splElementIndex) / 2;
-                    if(t == 0)
-                        return null;
-                    else {
-                        Spliterator<E> ret = Arrays.spliterator(splChunk, splElementIndex, splElementIndex + t);
-                        splElementIndex += t;
-                        return ret;
-                    }
-                } else {
-                    return null;
                 }
+            
+                // 取一半
+                if(splSpineIndex == lastSpineIndex) {
+                    int t = (lastSpineElementFence - splElementIndex) / 2;
+                    if(t == 0) {
+                        return null;
+                    }
+                
+                    Spliterator<E> ret = Arrays.spliterator(splChunk, splElementIndex, splElementIndex + t);
+                    splElementIndex += t;
+                    return ret;
+                }
+            
+                return null;
             }
         }
         
         return new Splitr(0, spineIndex, 0, elementIndex);
     }
+    
+    
     
     @Override
     public String toString() {
@@ -429,6 +526,11 @@ class SpinedBuffer<E>
         forEach(list::add);
         return "SpinedBuffer:" + list.toString();
     }
+    
+    
+    
+    
+    
     
     /**
      * An ordered collection of primitive values.  Elements can be added, but
@@ -446,11 +548,9 @@ class SpinedBuffer<E>
      * @param <T_ARR>  the array type for this primitive type
      * @param <T_CONS> the Consumer type for this primitive type
      */
-    // 为基本类型特化的SpinedBuffer
-    abstract static class OfPrimitive<E, T_ARR, T_CONS>
-        extends AbstractSpinedBuffer
-        implements Iterable<E> {
-        
+    // 弹性缓冲区(基本数值类型版本)
+    abstract static class OfPrimitive<E, T_ARR, T_CONS> extends AbstractSpinedBuffer implements Iterable<E> {
+    
         /*
          * We optimistically hope that all the data will fit into the first chunk,
          * so we try to avoid inflating the spine[] and priorElementCount[] arrays
@@ -473,7 +573,7 @@ class SpinedBuffer<E>
         
         // All chunks, or null if there is only one chunk
         T_ARR[] spine;  // 二维缓存
-        
+    
         /**
          * Constructs an empty list with an initial capacity of sixteen.
          */
@@ -481,7 +581,7 @@ class SpinedBuffer<E>
             super();
             curChunk = newArray(1 << initialChunkPower);
         }
-        
+    
         /**
          * Constructs an empty list with the specified initial capacity.
          *
@@ -494,11 +594,11 @@ class SpinedBuffer<E>
             super(initialCapacity);
             curChunk = newArray(1 << initialChunkPower);
         }
-        
+    
         // 返回适用于该SpinedBuffer的Iterator
         @Override
         public abstract Iterator<E> iterator();
-        
+    
         // 遍历SpinedBuffer中的元素，并在其上应用consumer函数
         @Override
         public abstract void forEach(Consumer<? super E> consumer);
@@ -510,65 +610,71 @@ class SpinedBuffer<E>
         /** Create a new array-of-array of the proper type and size */
         // 创建T_ARR类型的二维数组
         protected abstract T_ARR[] newArrayArray(int size);
-        
+    
         /** Get the length of an array */
         // 返回数组array的容量
         protected abstract int arrayLength(T_ARR array);
-        
+    
         /** Iterate an array with the provided consumer */
         // 遍历数组form到to范围的元素，在其上应用consumer函数
         protected abstract void arrayForEach(T_ARR array, int from, int to, T_CONS consumer);
-        
+    
         // 传入需要的容量，确保SpinedBuffer容量充足，不够的话就分配
         protected final void ensureCapacity(long targetSize) {
             long capacity = capacity();
-            if(targetSize > capacity) {
-                inflateSpine();
-                for(int i = spineIndex + 1; targetSize > capacity; i++) {
-                    if(i >= spine.length) {
-                        int newSpineSize = spine.length * 2;
-                        spine = Arrays.copyOf(spine, newSpineSize);
-                        priorElementCount = Arrays.copyOf(priorElementCount, newSpineSize);
-                    }
-                    // 返回即将分配的chunk应当包含的元素个数
-                    int nextChunkSize = chunkSize(i);
-                    spine[i] = newArray(nextChunkSize);
-                    priorElementCount[i] = priorElementCount[i - 1] + arrayLength(spine[i - 1]);
-                    capacity += nextChunkSize;
+            if(targetSize<=capacity) {
+                return;
+            }
+        
+            inflateSpine();
+        
+            for(int i = spineIndex + 1; targetSize>capacity; i++) {
+                if(i >= spine.length) {
+                    int newSpineSize = spine.length * 2;
+                    spine = Arrays.copyOf(spine, newSpineSize);
+                    priorElementCount = Arrays.copyOf(priorElementCount, newSpineSize);
                 }
+                // 返回即将分配的chunk应当包含的元素个数
+                int nextChunkSize = chunkSize(i);
+                spine[i] = newArray(nextChunkSize);
+                priorElementCount[i] = priorElementCount[i - 1] + arrayLength(spine[i - 1]);
+                capacity += nextChunkSize;
             }
         }
-        
+    
         // 将SpinedBuffer中的内容复制到数组array的offset偏移中
         public void copyInto(T_ARR array, int offset) {
             long finalOffset = offset + count();
-            if(finalOffset > arrayLength(array) || finalOffset < offset) {
+            if(finalOffset>arrayLength(array) || finalOffset<offset) {
                 throw new IndexOutOfBoundsException("does not fit");
             }
-            
-            if(spineIndex == 0)
+        
+            if(spineIndex == 0) {
                 System.arraycopy(curChunk, 0, array, offset, elementIndex);
-            else {
+            } else {
                 // full chunks
-                for(int i = 0; i < spineIndex; i++) {
+                for(int i = 0; i<spineIndex; i++) {
                     System.arraycopy(spine[i], 0, array, offset, arrayLength(spine[i]));
                     offset += arrayLength(spine[i]);
                 }
-                if(elementIndex > 0)
+            
+                if(elementIndex>0) {
                     System.arraycopy(curChunk, 0, array, offset, elementIndex);
+                }
             }
         }
-        
+    
         // 将SpinedBuffer中的元素存入基本类型数组后返回
         public T_ARR asPrimitiveArray() {
             long size = count();
-            if(size >= Nodes.MAX_ARRAY_SIZE)
+            if(size >= Nodes.MAX_ARRAY_SIZE) {
                 throw new IllegalArgumentException(Nodes.BAD_SIZE);
+            }
             T_ARR result = newArray((int) size);
             copyInto(result, 0);
             return result;
         }
-        
+    
         // 清空SpinedBuffer
         public void clear() {
             if(spine != null) {
@@ -579,25 +685,26 @@ class SpinedBuffer<E>
             elementIndex = 0;
             spineIndex = 0;
         }
-        
+    
         // 遍历SpinedBuffer中的元素，并在其上应用consumer函数
         @SuppressWarnings("overloads")
         public void forEach(T_CONS consumer) {
             // completed chunks, if any
-            for(int j = 0; j < spineIndex; j++)
+            for(int j = 0; j<spineIndex; j++) {
                 arrayForEach(spine[j], 0, arrayLength(spine[j]), consumer);
+            }
             
             // current chunk
             arrayForEach(curChunk, 0, elementIndex, consumer);
         }
-        
+    
         // 返回当前SpinedBuffer的容量
         protected long capacity() {
             return (spineIndex == 0)
                 ? arrayLength(curChunk)
                 : priorElementCount[spineIndex] + arrayLength(spine[spineIndex]);
         }
-        
+    
         // 扩容，比当前容量多一个元素，往往会分配更多的空间
         protected void increaseCapacity() {
             ensureCapacity(capacity() + 1);
@@ -606,19 +713,23 @@ class SpinedBuffer<E>
         // 查找索引index处的元素所在的chunk的索引
         protected int chunkFor(long index) {
             if(spineIndex == 0) {
-                if(index < elementIndex)
+                if(index<elementIndex) {
                     return 0;
-                else
+                } else {
                     throw new IndexOutOfBoundsException(Long.toString(index));
+                }
             }
-            
-            if(index >= count())
+    
+            if(index >= count()) {
                 throw new IndexOutOfBoundsException(Long.toString(index));
-            
-            for(int j = 0; j <= spineIndex; j++)
-                if(index < priorElementCount[j] + arrayLength(spine[j]))
+            }
+    
+            for(int j = 0; j<=spineIndex; j++) {
+                if(index<priorElementCount[j] + arrayLength(spine[j])) {
                     return j;
-            
+                }
+            }
+    
             throw new IndexOutOfBoundsException(Long.toString(index));
         }
         
@@ -626,26 +737,29 @@ class SpinedBuffer<E>
         protected void preAccept() {
             if(elementIndex == arrayLength(curChunk)) {
                 inflateSpine();
-                if(spineIndex + 1 >= spine.length || spine[spineIndex + 1] == null)
+                if(spineIndex + 1 >= spine.length || spine[spineIndex + 1] == null) {
                     increaseCapacity();
+                }
                 elementIndex = 0;
                 ++spineIndex;
                 curChunk = spine[spineIndex];
             }
         }
-        
+    
         // 初始化二维缓存
         private void inflateSpine() {
-            if(spine == null) {
-                spine = newArrayArray(MIN_SPINE_SIZE);
-                priorElementCount = new long[MIN_SPINE_SIZE];
-                spine[0] = curChunk;
+            if(spine != null) {
+                return;
             }
-        }
         
-        // Spliterator抽象基类，用来描述为基本类型特化的SpinedBuffer中的元素
-        abstract class BaseSpliterator<T_SPLITR extends Spliterator.OfPrimitive<E, T_CONS, T_SPLITR>>
-            implements Spliterator.OfPrimitive<E, T_CONS, T_SPLITR> {
+            spine = newArrayArray(MIN_SPINE_SIZE);
+            priorElementCount = new long[MIN_SPINE_SIZE];
+            spine[0] = curChunk;
+        }
+    
+        // 弹性缓冲区的流迭代器(基本数值类型版本)
+        abstract class BaseSpliterator<T_SPLITR extends Spliterator.OfPrimitive<E, T_CONS, T_SPLITR>> implements Spliterator.OfPrimitive<E, T_CONS, T_SPLITR> {
+        
             // Last spine index
             final int lastSpineIndex;
             // Last spine's last element index + 1
@@ -654,7 +768,7 @@ class SpinedBuffer<E>
             int splSpineIndex;
             // The current element index into the current spine
             int splElementIndex;
-            
+        
             // When splSpineIndex >= lastSpineIndex and
             // splElementIndex >= lastSpineElementFence then
             // this spliterator is fully traversed
@@ -670,56 +784,94 @@ class SpinedBuffer<E>
                 assert spine != null || firstSpineIndex == 0 && lastSpineIndex == 0;
                 splChunk = (spine == null) ? curChunk : spine[firstSpineIndex];
             }
-            
+        
             abstract T_SPLITR newSpliterator(int firstSpineIndex, int lastSpineIndex, int firstSpineElementIndex, int lastSpineElementFence);
-            
+        
             abstract void arrayForOne(T_ARR array, int index, T_CONS consumer);
-            
+        
             abstract T_SPLITR arraySpliterator(T_ARR array, int offset, int len);
-            
+        
+            /*
+             * 返回子Spliterator，该子Spliterator内持有原Spliterator的部分数据。
+             *
+             * 注1：该操作可能会引起内部游标的变化
+             * 注2：子Spliterator的参数可能发生改变
+             */
             @Override
-            public long estimateSize() {
-                return (splSpineIndex == lastSpineIndex) ? (long) lastSpineElementFence - splElementIndex : // # of elements prior to end -
-                    priorElementCount[lastSpineIndex] + lastSpineElementFence -
-                        // # of elements prior to current
-                        priorElementCount[splSpineIndex] - splElementIndex;
-            }
+            public T_SPLITR trySplit() {
+                if(splSpineIndex<lastSpineIndex) {
+                    // split just before last chunk (if it is full this means 50:50 split)
+                    T_SPLITR ret = newSpliterator(splSpineIndex, lastSpineIndex - 1, splElementIndex, arrayLength(spine[lastSpineIndex - 1]));
+                    // position us to start of last chunk
+                    splSpineIndex = lastSpineIndex;
+                    splElementIndex = 0;
+                    splChunk = spine[splSpineIndex];
+                    return ret;
+                }
             
-            @Override
-            public int characteristics() {
-                return SPLITERATOR_CHARACTERISTICS;
-            }
+                if(splSpineIndex == lastSpineIndex) {
+                    int t = (lastSpineElementFence - splElementIndex) / 2;
+                    if(t == 0) {
+                        return null;
+                    }
+                
+                    T_SPLITR ret = arraySpliterator(splChunk, splElementIndex, t);
+                    splElementIndex += t;
+                    return ret;
+                }
             
+            
+                return null;
+            }
+        
+            /*
+             * 尝试用consumer消费当前流迭代器中下一个元素。
+             * 返回值指示是否找到了下一个元素。
+             *
+             * 注1：该操作可能会引起内部游标的变化
+             * 注2：该操作可能会顺着sink链向下游传播
+             */
             @Override
             public boolean tryAdvance(T_CONS consumer) {
                 Objects.requireNonNull(consumer);
-                
-                if(splSpineIndex < lastSpineIndex || (splSpineIndex == lastSpineIndex && splElementIndex < lastSpineElementFence)) {
+            
+                if(splSpineIndex<lastSpineIndex || (splSpineIndex == lastSpineIndex && splElementIndex<lastSpineElementFence)) {
                     arrayForOne(splChunk, splElementIndex++, consumer);
-                    
+                
                     if(splElementIndex == arrayLength(splChunk)) {
                         splElementIndex = 0;
                         ++splSpineIndex;
-                        if(spine != null && splSpineIndex <= lastSpineIndex)
+                        if(spine != null && splSpineIndex<=lastSpineIndex) {
                             splChunk = spine[splSpineIndex];
+                        }
                     }
+                
                     return true;
                 }
+            
                 return false;
             }
-            
+        
+            /*
+             * 尝试用consumer逐个消费当前流迭代器中所有剩余元素。
+             *
+             * 注1：该操作可能会引起内部游标的变化
+             * 注2：该操作可能会顺着sink链向下游传播
+             */
             @Override
             public void forEachRemaining(T_CONS consumer) {
                 Objects.requireNonNull(consumer);
-                
-                if(splSpineIndex < lastSpineIndex || (splSpineIndex == lastSpineIndex && splElementIndex < lastSpineElementFence)) {
+            
+                if(splSpineIndex<lastSpineIndex || (splSpineIndex == lastSpineIndex && splElementIndex<lastSpineElementFence)) {
                     int i = splElementIndex;
+                
                     // completed chunks, if any
-                    for(int sp = splSpineIndex; sp < lastSpineIndex; sp++) {
+                    for(int sp = splSpineIndex; sp<lastSpineIndex; sp++) {
                         T_ARR chunk = spine[sp];
                         arrayForEach(chunk, i, arrayLength(chunk), consumer);
                         i = 0;
                     }
+                
                     // last (or current uncompleted) chunk
                     T_ARR chunk = (splSpineIndex == lastSpineIndex) ? splChunk : spine[lastSpineIndex];
                     arrayForEach(chunk, i, lastSpineElementFence, consumer);
@@ -728,40 +880,35 @@ class SpinedBuffer<E>
                     splElementIndex = lastSpineElementFence;
                 }
             }
-            
+        
+            /*
+             * 初始时，返回流迭代器中的元素总量(可能不精确)。
+             * 如果数据量无限、未知、计算成本过高，则可以返回Long.MAX_VALUE。
+             * 当访问过流迭代器中的元素后，此处的返回值可能是元素总量，也可能是剩余未访问的元素数量，依实现而定。
+             */
             @Override
-            public T_SPLITR trySplit() {
-                if(splSpineIndex < lastSpineIndex) {
-                    // split just before last chunk (if it is full this means 50:50 split)
-                    T_SPLITR ret = newSpliterator(splSpineIndex, lastSpineIndex - 1, splElementIndex, arrayLength(spine[lastSpineIndex - 1]));
-                    // position us to start of last chunk
-                    splSpineIndex = lastSpineIndex;
-                    splElementIndex = 0;
-                    splChunk = spine[splSpineIndex];
-                    return ret;
-                } else if(splSpineIndex == lastSpineIndex) {
-                    int t = (lastSpineElementFence - splElementIndex) / 2;
-                    if(t == 0)
-                        return null;
-                    else {
-                        T_SPLITR ret = arraySpliterator(splChunk, splElementIndex, t);
-                        splElementIndex += t;
-                        return ret;
-                    }
-                } else {
-                    return null;
+            public long estimateSize() {
+                if(splSpineIndex == lastSpineIndex) {
+                    return (long) lastSpineElementFence - splElementIndex;
                 }
+            
+                return priorElementCount[lastSpineIndex] + lastSpineElementFence - priorElementCount[splSpineIndex] - splElementIndex;
             }
+        
+            // 返回流迭代器的参数
+            @Override
+            public int characteristics() {
+                return SPLITERATOR_CHARACTERISTICS;
+            }
+        
         }
     }
     
     /**
      * An ordered collection of {@code int} values.
      */
-    // 为int类型特化的SpinedBuffer
-    static class OfInt
-        extends SpinedBuffer.OfPrimitive<Integer, int[], IntConsumer>
-        implements IntConsumer {
+    // 弹性缓冲区(int类型版本)
+    static class OfInt extends SpinedBuffer.OfPrimitive<Integer, int[], IntConsumer> implements IntConsumer {
         
         OfInt() {
         }
@@ -776,8 +923,9 @@ class SpinedBuffer<E>
             if(consumer instanceof IntConsumer) {
                 forEach((IntConsumer) consumer);
             } else {
-                if(Tripwire.ENABLED)
+                if(Tripwire.ENABLED) {
                     Tripwire.trip(getClass(), "{0} calling SpinedBuffer.OfInt.forEach(Consumer)");
+                }
                 spliterator().forEachRemaining(consumer);
             }
         }
@@ -787,13 +935,13 @@ class SpinedBuffer<E>
         public int[] newArray(int size) {
             return new int[size];
         }
-        
+    
         // 创建int[][]数组
         @Override
         protected int[][] newArrayArray(int size) {
             return new int[size][];
         }
-        
+    
         // 将元素i存入SpinedBuffer
         @Override
         public void accept(int i) {
@@ -805,12 +953,13 @@ class SpinedBuffer<E>
         public int get(long index) {
             // Casts to int are safe since the spine array index is the index minus the prior element count from the current spine
             int ch = chunkFor(index);
-            if(spineIndex == 0 && ch == 0)
+            if(spineIndex == 0 && ch == 0) {
                 return curChunk[(int) index];
-            else
+            } else {
                 return spine[ch][(int) (index - priorElementCount[ch])];
+            }
         }
-        
+    
         // 返回数组array的容量
         @Override
         protected int arrayLength(int[] array) {
@@ -820,7 +969,7 @@ class SpinedBuffer<E>
         // 遍历数组form到to范围的元素，在其上应用consumer函数
         @Override
         protected void arrayForEach(int[] array, int from, int to, IntConsumer consumer) {
-            for(int i = from; i < to; i++) {
+            for(int i = from; i<to; i++) {
                 consumer.accept(array[i]);
             }
         }
@@ -831,11 +980,11 @@ class SpinedBuffer<E>
             return Spliterators.iterator(spliterator());
         }
         
-        // 返回描述此SpinedBuffer中元素的Spliterator
+        // 返回弹性缓冲区的流迭代器
         public Spliterator.OfInt spliterator() {
-            class Splitr
-                extends BaseSpliterator<Spliterator.OfInt>
-                implements Spliterator.OfInt {
+            
+            // 弹性缓冲区的流迭代器(int类型版本)
+            class Splitr extends BaseSpliterator<Spliterator.OfInt> implements Spliterator.OfInt {
                 
                 Splitr(int firstSpineIndex, int lastSpineIndex, int firstSpineElementIndex, int lastSpineElementFence) {
                     super(firstSpineIndex, lastSpineIndex, firstSpineElementIndex, lastSpineElementFence);
@@ -845,21 +994,21 @@ class SpinedBuffer<E>
                 Splitr newSpliterator(int firstSpineIndex, int lastSpineIndex, int firstSpineElementIndex, int lastSpineElementFence) {
                     return new Splitr(firstSpineIndex, lastSpineIndex, firstSpineElementIndex, lastSpineElementFence);
                 }
-                
+            
                 @Override
                 void arrayForOne(int[] array, int index, IntConsumer consumer) {
                     consumer.accept(array[index]);
                 }
-                
+            
                 @Override
                 Spliterator.OfInt arraySpliterator(int[] array, int offset, int len) {
                     return Arrays.spliterator(array, offset, offset + len);
                 }
             }
-            
+        
             return new Splitr(0, spineIndex, 0, elementIndex);
         }
-        
+    
         @Override
         public String toString() {
             int[] array = asPrimitiveArray();
@@ -875,10 +1024,8 @@ class SpinedBuffer<E>
     /**
      * An ordered collection of {@code long} values.
      */
-    // 为long类型特化的SpinedBuffer
-    static class OfLong
-        extends SpinedBuffer.OfPrimitive<Long, long[], LongConsumer>
-        implements LongConsumer {
+    // 弹性缓冲区(long类型版本)
+    static class OfLong extends SpinedBuffer.OfPrimitive<Long, long[], LongConsumer> implements LongConsumer {
         
         OfLong() {
         }
@@ -893,8 +1040,9 @@ class SpinedBuffer<E>
             if(consumer instanceof LongConsumer) {
                 forEach((LongConsumer) consumer);
             } else {
-                if(Tripwire.ENABLED)
+                if(Tripwire.ENABLED) {
                     Tripwire.trip(getClass(), "{0} calling SpinedBuffer.OfLong.forEach(Consumer)");
+                }
                 spliterator().forEachRemaining(consumer);
             }
         }
@@ -904,42 +1052,44 @@ class SpinedBuffer<E>
         public long[] newArray(int size) {
             return new long[size];
         }
-        
+    
         // 创建long[][]数组
         @Override
         protected long[][] newArrayArray(int size) {
             return new long[size][];
         }
-        
+    
         // 将元素i存入SpinedBuffer
         @Override
         public void accept(long i) {
             preAccept();
             curChunk[elementIndex++] = i;
         }
-        
+    
         // 返回索引index处的元素
         public long get(long index) {
             // Casts to int are safe since the spine array index is the index minus
             // the prior element count from the current spine
             int ch = chunkFor(index);
-            if(spineIndex == 0 && ch == 0)
+            if(spineIndex == 0 && ch == 0) {
                 return curChunk[(int) index];
-            else
+            } else {
                 return spine[ch][(int) (index - priorElementCount[ch])];
+            }
         }
-        
+    
         // 返回数组array的容量
         @Override
         protected int arrayLength(long[] array) {
             return array.length;
         }
-        
+    
         // 遍历数组form到to范围的元素，在其上应用consumer函数
         @Override
         protected void arrayForEach(long[] array, int from, int to, LongConsumer consumer) {
-            for(int i = from; i < to; i++)
+            for(int i = from; i<to; i++) {
                 consumer.accept(array[i]);
+            }
         }
         
         // 返回适用于该SpinedBuffer的Iterator
@@ -948,8 +1098,10 @@ class SpinedBuffer<E>
             return Spliterators.iterator(spliterator());
         }
         
-        // 返回描述此SpinedBuffer中元素的Spliterator
+        // 返回弹性缓冲区的流迭代器
         public Spliterator.OfLong spliterator() {
+            
+            // 弹性缓冲区的流迭代器(long类型版本)
             class Splitr extends BaseSpliterator<Spliterator.OfLong> implements Spliterator.OfLong {
                 Splitr(int firstSpineIndex, int lastSpineIndex, int firstSpineElementIndex, int lastSpineElementFence) {
                     super(firstSpineIndex, lastSpineIndex, firstSpineElementIndex, lastSpineElementFence);
@@ -959,20 +1111,21 @@ class SpinedBuffer<E>
                 Splitr newSpliterator(int firstSpineIndex, int lastSpineIndex, int firstSpineElementIndex, int lastSpineElementFence) {
                     return new Splitr(firstSpineIndex, lastSpineIndex, firstSpineElementIndex, lastSpineElementFence);
                 }
-                
+            
                 @Override
                 void arrayForOne(long[] array, int index, LongConsumer consumer) {
                     consumer.accept(array[index]);
                 }
-                
+            
                 @Override
                 Spliterator.OfLong arraySpliterator(long[] array, int offset, int len) {
                     return Arrays.spliterator(array, offset, offset + len);
                 }
             }
+            
             return new Splitr(0, spineIndex, 0, elementIndex);
         }
-        
+    
         @Override
         public String toString() {
             long[] array = asPrimitiveArray();
@@ -988,9 +1141,8 @@ class SpinedBuffer<E>
     /**
      * An ordered collection of {@code double} values.
      */
-    // 为double类型特化的SpinedBuffer
-    static class OfDouble extends SpinedBuffer.OfPrimitive<Double, double[], DoubleConsumer>
-        implements DoubleConsumer {
+    // 弹性缓冲区(double类型版本)
+    static class OfDouble extends SpinedBuffer.OfPrimitive<Double, double[], DoubleConsumer> implements DoubleConsumer {
         
         OfDouble() {
         }
@@ -1016,31 +1168,32 @@ class SpinedBuffer<E>
         public double[] newArray(int size) {
             return new double[size];
         }
-        
+    
         // 创建double[][]数组
         @Override
         protected double[][] newArrayArray(int size) {
             return new double[size][];
         }
-        
+    
         // 将元素i存入SpinedBuffer
         @Override
         public void accept(double i) {
             preAccept();
             curChunk[elementIndex++] = i;
         }
-        
+    
         // 返回索引index处的元素
         public double get(long index) {
             // Casts to int are safe since the spine array index is the index minus
             // the prior element count from the current spine
             int ch = chunkFor(index);
-            if(spineIndex == 0 && ch == 0)
+            if(spineIndex == 0 && ch == 0) {
                 return curChunk[(int) index];
-            else
+            } else {
                 return spine[ch][(int) (index - priorElementCount[ch])];
+            }
         }
-        
+    
         // 返回数组array的容量
         @Override
         protected int arrayLength(double[] array) {
@@ -1050,8 +1203,9 @@ class SpinedBuffer<E>
         // 遍历数组form到to范围的元素，在其上应用consumer函数
         @Override
         protected void arrayForEach(double[] array, int from, int to, DoubleConsumer consumer) {
-            for(int i = from; i < to; i++)
+            for(int i = from; i<to; i++) {
                 consumer.accept(array[i]);
+            }
         }
         
         // 返回适用于该SpinedBuffer的Iterator
@@ -1060,8 +1214,10 @@ class SpinedBuffer<E>
             return Spliterators.iterator(spliterator());
         }
         
-        // 返回描述此SpinedBuffer中元素的Spliterator
+        // 返回弹性缓冲区的流迭代器
         public Spliterator.OfDouble spliterator() {
+            
+            // 弹性缓冲区的流迭代器(double类型版本)
             class Splitr extends BaseSpliterator<Spliterator.OfDouble> implements Spliterator.OfDouble {
                 Splitr(int firstSpineIndex, int lastSpineIndex, int firstSpineElementIndex, int lastSpineElementFence) {
                     super(firstSpineIndex, lastSpineIndex, firstSpineElementIndex, lastSpineElementFence);
@@ -1071,23 +1227,25 @@ class SpinedBuffer<E>
                 Splitr newSpliterator(int firstSpineIndex, int lastSpineIndex, int firstSpineElementIndex, int lastSpineElementFence) {
                     return new Splitr(firstSpineIndex, lastSpineIndex, firstSpineElementIndex, lastSpineElementFence);
                 }
-                
+            
                 @Override
                 void arrayForOne(double[] array, int index, DoubleConsumer consumer) {
                     consumer.accept(array[index]);
                 }
-                
+            
                 @Override
                 Spliterator.OfDouble arraySpliterator(double[] array, int offset, int len) {
                     return Arrays.spliterator(array, offset, offset + len);
                 }
             }
+            
             return new Splitr(0, spineIndex, 0, elementIndex);
         }
         
         @Override
         public String toString() {
             double[] array = asPrimitiveArray();
+            
             if(array.length < 200) {
                 return String.format("%s[length=%d, chunks=%d]%s", getClass().getSimpleName(), array.length, spineIndex, Arrays.toString(array));
             } else {
@@ -1097,3 +1255,4 @@ class SpinedBuffer<E>
         }
     }
 }
+

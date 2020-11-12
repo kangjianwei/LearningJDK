@@ -36,12 +36,12 @@ import java.util.function.Supplier;
  *
  * @since 1.8
  */
-
-// 辅助类，用于创建流的源头阶段（HEAD）
+// 流工厂，集中用来创建源头(head)阶段的流
 public final class StreamSupport {
     
     private StreamSupport() {
     }
+    
     
     /**
      * Creates a new sequential or parallel {@code Stream} from a
@@ -66,11 +66,121 @@ public final class StreamSupport {
      *
      * @return a new sequential or parallel {@code Stream}
      */
-    // 返回Stream的HEAD阶段
+    // 构造处于源头(head)阶段的流(引用类型版本)
     public static <T> Stream<T> stream(Spliterator<T> spliterator, boolean parallel) {
         Objects.requireNonNull(spliterator);
-        return new ReferencePipeline.Head<>(spliterator, StreamOpFlag.fromCharacteristics(spliterator), parallel);
+        
+        /*
+         * 将流分割器(SPLITERATOR)参数转换为流(STREAM)参数。
+         * 如果流分割器中的元素有序，且使用Comparable进行自然排序，则去掉"SORTED"参数。
+         */
+        int streamFlags = StreamOpFlag.fromCharacteristics(spliterator);
+        
+        return new ReferencePipeline.Head<>(spliterator, streamFlags, parallel);
     }
+    
+    /**
+     * Creates a new sequential or parallel {@code IntStream} from a
+     * {@code Spliterator.OfInt}.
+     *
+     * <p>The spliterator is only traversed, split, or queried for estimated size
+     * after the terminal operation of the stream pipeline commences.
+     *
+     * <p>It is strongly recommended the spliterator report a characteristic of
+     * {@code IMMUTABLE} or {@code CONCURRENT}, or be
+     * <a href="../Spliterator.html#binding">late-binding</a>.  Otherwise,
+     * {@link #intStream(java.util.function.Supplier, int, boolean)} should be
+     * used to reduce the scope of potential interference with the source.  See
+     * <a href="package-summary.html#NonInterference">Non-Interference</a> for
+     * more details.
+     *
+     * @param spliterator a {@code Spliterator.OfInt} describing the stream elements
+     * @param parallel    if {@code true} then the returned stream is a parallel
+     *                    stream; if {@code false} the returned stream is a sequential
+     *                    stream.
+     *
+     * @return a new sequential or parallel {@code IntStream}
+     */
+    // 构造处于源头(head)阶段的流(int类型版本)
+    public static IntStream intStream(Spliterator.OfInt spliterator, boolean parallel) {
+        
+        /*
+         * 将流分割器(SPLITERATOR)参数转换为流(STREAM)参数。
+         * 如果流分割器中的元素有序，且使用Comparable进行自然排序，则去掉"SORTED"参数。
+         */
+        int streamFlags = StreamOpFlag.fromCharacteristics(spliterator);
+        
+        return new IntPipeline.Head<>(spliterator, streamFlags, parallel);
+    }
+    
+    /**
+     * Creates a new sequential or parallel {@code LongStream} from a
+     * {@code Spliterator.OfLong}.
+     *
+     * <p>The spliterator is only traversed, split, or queried for estimated
+     * size after the terminal operation of the stream pipeline commences.
+     *
+     * <p>It is strongly recommended the spliterator report a characteristic of
+     * {@code IMMUTABLE} or {@code CONCURRENT}, or be
+     * <a href="../Spliterator.html#binding">late-binding</a>.  Otherwise,
+     * {@link #longStream(java.util.function.Supplier, int, boolean)} should be
+     * used to reduce the scope of potential interference with the source.  See
+     * <a href="package-summary.html#NonInterference">Non-Interference</a> for
+     * more details.
+     *
+     * @param spliterator a {@code Spliterator.OfLong} describing the stream elements
+     * @param parallel    if {@code true} then the returned stream is a parallel
+     *                    stream; if {@code false} the returned stream is a sequential
+     *                    stream.
+     *
+     * @return a new sequential or parallel {@code LongStream}
+     */
+    // 构造处于源头(head)阶段的流(long类型版本)
+    public static LongStream longStream(Spliterator.OfLong spliterator, boolean parallel) {
+        
+        /*
+         * 将流分割器(SPLITERATOR)参数转换为流(STREAM)参数。
+         * 如果流分割器中的元素有序，且使用Comparable进行自然排序，则去掉"SORTED"参数。
+         */
+        int streamFlags = StreamOpFlag.fromCharacteristics(spliterator);
+        
+        return new LongPipeline.Head<>(spliterator, streamFlags, parallel);
+    }
+    
+    /**
+     * Creates a new sequential or parallel {@code DoubleStream} from a
+     * {@code Spliterator.OfDouble}.
+     *
+     * <p>The spliterator is only traversed, split, or queried for estimated size
+     * after the terminal operation of the stream pipeline commences.
+     *
+     * <p>It is strongly recommended the spliterator report a characteristic of
+     * {@code IMMUTABLE} or {@code CONCURRENT}, or be
+     * <a href="../Spliterator.html#binding">late-binding</a>.  Otherwise,
+     * {@link #doubleStream(java.util.function.Supplier, int, boolean)} should
+     * be used to reduce the scope of potential interference with the source.  See
+     * <a href="package-summary.html#NonInterference">Non-Interference</a> for
+     * more details.
+     *
+     * @param spliterator A {@code Spliterator.OfDouble} describing the stream elements
+     * @param parallel    if {@code true} then the returned stream is a parallel
+     *                    stream; if {@code false} the returned stream is a sequential
+     *                    stream.
+     *
+     * @return a new sequential or parallel {@code DoubleStream}
+     */
+    // 构造处于源头(head)阶段的流(double类型版本)
+    public static DoubleStream doubleStream(Spliterator.OfDouble spliterator, boolean parallel) {
+        
+        /*
+         * 将流分割器(SPLITERATOR)参数转换为流(STREAM)参数。
+         * 如果流分割器中的元素有序，且使用Comparable进行自然排序，则去掉"SORTED"参数。
+         */
+        int streamFlags = StreamOpFlag.fromCharacteristics(spliterator);
+        
+        return new DoublePipeline.Head<>(spliterator, streamFlags, parallel);
+    }
+    
     
     /**
      * Creates a new sequential or parallel {@code Stream} from a
@@ -107,37 +217,14 @@ public final class StreamSupport {
      *
      * @see #stream(java.util.Spliterator, boolean)
      */
-    // 返回Stream的HEAD阶段，需要从supplier中提取Spliterator
+    // 构造处于源头(head)阶段的流(引用类型版本)
     public static <T> Stream<T> stream(Supplier<? extends Spliterator<T>> supplier, int characteristics, boolean parallel) {
         Objects.requireNonNull(supplier);
-        return new ReferencePipeline.Head<>(supplier, StreamOpFlag.fromCharacteristics(characteristics), parallel);
-    }
     
-    /**
-     * Creates a new sequential or parallel {@code IntStream} from a
-     * {@code Spliterator.OfInt}.
-     *
-     * <p>The spliterator is only traversed, split, or queried for estimated size
-     * after the terminal operation of the stream pipeline commences.
-     *
-     * <p>It is strongly recommended the spliterator report a characteristic of
-     * {@code IMMUTABLE} or {@code CONCURRENT}, or be
-     * <a href="../Spliterator.html#binding">late-binding</a>.  Otherwise,
-     * {@link #intStream(java.util.function.Supplier, int, boolean)} should be
-     * used to reduce the scope of potential interference with the source.  See
-     * <a href="package-summary.html#NonInterference">Non-Interference</a> for
-     * more details.
-     *
-     * @param spliterator a {@code Spliterator.OfInt} describing the stream elements
-     * @param parallel    if {@code true} then the returned stream is a parallel
-     *                    stream; if {@code false} the returned stream is a sequential
-     *                    stream.
-     *
-     * @return a new sequential or parallel {@code IntStream}
-     */
-    // 返回IntStream的HEAD阶段
-    public static IntStream intStream(Spliterator.OfInt spliterator, boolean parallel) {
-        return new IntPipeline.Head<>(spliterator, StreamOpFlag.fromCharacteristics(spliterator), parallel);
+        // 将流分割器(SPLITERATOR)参数转换为流(STREAM)参数
+        int streamFlags = StreamOpFlag.fromCharacteristics(characteristics);
+    
+        return new ReferencePipeline.Head<>(supplier, streamFlags, parallel);
     }
     
     /**
@@ -174,36 +261,13 @@ public final class StreamSupport {
      *
      * @see #intStream(java.util.Spliterator.OfInt, boolean)
      */
-    // 返回IntStream的HEAD阶段，需要从supplier中提取Spliterator
+    // 构造处于源头(head)阶段的流(int类型版本)
     public static IntStream intStream(Supplier<? extends Spliterator.OfInt> supplier, int characteristics, boolean parallel) {
-        return new IntPipeline.Head<>(supplier, StreamOpFlag.fromCharacteristics(characteristics), parallel);
-    }
     
-    /**
-     * Creates a new sequential or parallel {@code LongStream} from a
-     * {@code Spliterator.OfLong}.
-     *
-     * <p>The spliterator is only traversed, split, or queried for estimated
-     * size after the terminal operation of the stream pipeline commences.
-     *
-     * <p>It is strongly recommended the spliterator report a characteristic of
-     * {@code IMMUTABLE} or {@code CONCURRENT}, or be
-     * <a href="../Spliterator.html#binding">late-binding</a>.  Otherwise,
-     * {@link #longStream(java.util.function.Supplier, int, boolean)} should be
-     * used to reduce the scope of potential interference with the source.  See
-     * <a href="package-summary.html#NonInterference">Non-Interference</a> for
-     * more details.
-     *
-     * @param spliterator a {@code Spliterator.OfLong} describing the stream elements
-     * @param parallel    if {@code true} then the returned stream is a parallel
-     *                    stream; if {@code false} the returned stream is a sequential
-     *                    stream.
-     *
-     * @return a new sequential or parallel {@code LongStream}
-     */
-    // 返回LongStream的HEAD阶段
-    public static LongStream longStream(Spliterator.OfLong spliterator, boolean parallel) {
-        return new LongPipeline.Head<>(spliterator, StreamOpFlag.fromCharacteristics(spliterator), parallel);
+        // 将流分割器(SPLITERATOR)参数转换为流(STREAM)参数
+        int streamFlags = StreamOpFlag.fromCharacteristics(characteristics);
+    
+        return new IntPipeline.Head<>(supplier, streamFlags, parallel);
     }
     
     /**
@@ -240,36 +304,13 @@ public final class StreamSupport {
      *
      * @see #longStream(java.util.Spliterator.OfLong, boolean)
      */
-    // 返回LongStream的HEAD阶段，需要从supplier中提取Spliterator
+    // 构造处于源头(head)阶段的流(long类型版本)
     public static LongStream longStream(Supplier<? extends Spliterator.OfLong> supplier, int characteristics, boolean parallel) {
-        return new LongPipeline.Head<>(supplier, StreamOpFlag.fromCharacteristics(characteristics), parallel);
-    }
     
-    /**
-     * Creates a new sequential or parallel {@code DoubleStream} from a
-     * {@code Spliterator.OfDouble}.
-     *
-     * <p>The spliterator is only traversed, split, or queried for estimated size
-     * after the terminal operation of the stream pipeline commences.
-     *
-     * <p>It is strongly recommended the spliterator report a characteristic of
-     * {@code IMMUTABLE} or {@code CONCURRENT}, or be
-     * <a href="../Spliterator.html#binding">late-binding</a>.  Otherwise,
-     * {@link #doubleStream(java.util.function.Supplier, int, boolean)} should
-     * be used to reduce the scope of potential interference with the source.  See
-     * <a href="package-summary.html#NonInterference">Non-Interference</a> for
-     * more details.
-     *
-     * @param spliterator A {@code Spliterator.OfDouble} describing the stream elements
-     * @param parallel    if {@code true} then the returned stream is a parallel
-     *                    stream; if {@code false} the returned stream is a sequential
-     *                    stream.
-     *
-     * @return a new sequential or parallel {@code DoubleStream}
-     */
-    // 返回DoubleStream的HEAD阶段
-    public static DoubleStream doubleStream(Spliterator.OfDouble spliterator, boolean parallel) {
-        return new DoublePipeline.Head<>(spliterator, StreamOpFlag.fromCharacteristics(spliterator), parallel);
+        // 将流分割器(SPLITERATOR)参数转换为流(STREAM)参数
+        int streamFlags = StreamOpFlag.fromCharacteristics(characteristics);
+    
+        return new LongPipeline.Head<>(supplier, streamFlags, parallel);
     }
     
     /**
@@ -306,8 +347,13 @@ public final class StreamSupport {
      *
      * @see #doubleStream(java.util.Spliterator.OfDouble, boolean)
      */
-    // 返回DoubleStream的HEAD阶段，需要从supplier中提取Spliterator
+    // 构造处于源头(head)阶段的流(double类型版本)
     public static DoubleStream doubleStream(Supplier<? extends Spliterator.OfDouble> supplier, int characteristics, boolean parallel) {
-        return new DoublePipeline.Head<>(supplier, StreamOpFlag.fromCharacteristics(characteristics), parallel);
+    
+        // 将流分割器(SPLITERATOR)参数转换为流(STREAM)参数
+        int streamFlags = StreamOpFlag.fromCharacteristics(characteristics);
+    
+        return new DoublePipeline.Head<>(supplier, streamFlags, parallel);
     }
+    
 }

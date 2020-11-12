@@ -47,7 +47,7 @@ class DirectLongBufferU extends LongBuffer implements DirectBuffer {
     private final Object att;
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     // For duplicates and slices
     DirectLongBufferU(DirectBuffer db,  int mark, int pos, int lim, int cap, int off) {
@@ -56,16 +56,18 @@ class DirectLongBufferU extends LongBuffer implements DirectBuffer {
         att = db;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 可读写/直接 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 只读/可读写
     public boolean isReadOnly() {
         return false;
     }
     
+    // 直接缓冲区/非直接缓冲区
     public boolean isDirect() {
         return true;
     }
@@ -76,6 +78,7 @@ class DirectLongBufferU extends LongBuffer implements DirectBuffer {
     
     /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 切片，截取旧缓冲区的【活跃区域】，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     public LongBuffer slice() {
         int pos = this.position();
         int lim = this.limit();
@@ -86,10 +89,12 @@ class DirectLongBufferU extends LongBuffer implements DirectBuffer {
         return new DirectLongBufferU(this, -1, 0, rem, rem, off);
     }
     
+    // 副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public LongBuffer duplicate() {
         return new DirectLongBufferU(this, this.markValue(), this.position(), this.limit(), this.capacity(), 0);
     }
     
+    // 只读副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public LongBuffer asReadOnlyBuffer() {
         return new DirectLongBufferRU(this, this.markValue(), this.position(), this.limit(), this.capacity(), 0);
     }
@@ -100,6 +105,7 @@ class DirectLongBufferU extends LongBuffer implements DirectBuffer {
     
     /*▼ get/读取 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 读取position处（可能需要加offset）的long，然后递增position。
     public long get() {
         try {
             return ((UNSAFE.getLong(ix(nextGetIndex()))));
@@ -108,6 +114,7 @@ class DirectLongBufferU extends LongBuffer implements DirectBuffer {
         }
     }
     
+    // 读取i处（可能需要加offset）的long（有越界检查）
     public long get(int i) {
         try {
             return ((UNSAFE.getLong(ix(checkIndex(i)))));
@@ -116,6 +123,7 @@ class DirectLongBufferU extends LongBuffer implements DirectBuffer {
         }
     }
     
+    // 复制源缓存区的length个元素到dst数组offset索引处
     public LongBuffer get(long[] dst, int offset, int length) {
         if(((long) length << 3) > Bits.JNI_COPY_TO_ARRAY_THRESHOLD) {
             checkBounds(offset, length, dst.length);
@@ -142,6 +150,13 @@ class DirectLongBufferU extends LongBuffer implements DirectBuffer {
         return this;
     }
     
+    /*▲ get/读取 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ put/写入 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 向position处（可能需要加offset）写入long，并将position递增
     public LongBuffer put(long x) {
         try {
             UNSAFE.putLong(ix(nextPutIndex()), ((x)));
@@ -151,12 +166,7 @@ class DirectLongBufferU extends LongBuffer implements DirectBuffer {
         return this;
     }
     
-    /*▲ get/读取 ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
-    /*▼ put/写入 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
+    // 向i处（可能需要加offset）写入long
     public LongBuffer put(int i, long x) {
         try {
             UNSAFE.putLong(ix(checkIndex(i)), ((x)));
@@ -166,6 +176,7 @@ class DirectLongBufferU extends LongBuffer implements DirectBuffer {
         return this;
     }
     
+    // 将源缓冲区src的内容全部写入到当前缓冲区
     public LongBuffer put(LongBuffer src) {
         if(src instanceof DirectLongBufferU) {
             if(src == this)
@@ -208,6 +219,7 @@ class DirectLongBufferU extends LongBuffer implements DirectBuffer {
         return this;
     }
     
+    // 从源long数组src的offset处开始，复制length个元素，写入到当前缓冲区
     public LongBuffer put(long[] src, int offset, int length) {
         if(((long) length << 3) > Bits.JNI_COPY_FROM_ARRAY_THRESHOLD) {
             checkBounds(offset, length, src.length);
@@ -240,6 +252,7 @@ class DirectLongBufferU extends LongBuffer implements DirectBuffer {
     
     /*▼ 压缩 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 压缩缓冲区，将当前未读完的数据挪到容器起始处，可用于读模式到写模式的切换，但又不丢失之前读入的数据
     public LongBuffer compact() {
         int pos = position();
         int lim = limit();
@@ -262,6 +275,7 @@ class DirectLongBufferU extends LongBuffer implements DirectBuffer {
     
     /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 返回该缓冲区的字节序（大端还是小端）
     public ByteOrder order() {
         return ((ByteOrder.nativeOrder() != ByteOrder.BIG_ENDIAN) ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
     }
@@ -269,7 +283,7 @@ class DirectLongBufferU extends LongBuffer implements DirectBuffer {
     /*▲ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
-    
+    // 返回内部存储结构的引用（一般用于非直接缓存区）
     @Override
     Object base() {
         return null;
@@ -283,14 +297,17 @@ class DirectLongBufferU extends LongBuffer implements DirectBuffer {
     
     /*▼ 实现DirectBuffer接口 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 返回直接缓冲区的【绝对】起始<地址>
     public long address() {
         return address;
     }
     
+    // 返回附件，一般是指母体缓冲区的引用
     public Object attachment() {
         return att;
     }
     
+    // 返回该缓冲区的清理器
     public Cleaner cleaner() {
         return null;
     }

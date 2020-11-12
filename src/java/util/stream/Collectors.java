@@ -55,6 +55,7 @@ import java.util.function.Supplier;
 import java.util.function.ToDoubleFunction;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
+import java.util.stream.Collector.Characteristics;
 
 /**
  * Implementations of {@link Collector} that implement various useful reduction
@@ -101,25 +102,43 @@ import java.util.function.ToLongFunction;
  *
  * @since 1.8
  */
-
-// 收集器(Collector)工厂，定义了各种收集器，以完成各种收纳操作
+/*
+ * 收集器(Collector)工厂
+ *
+ * 该工厂中允许定制各种收集器，以完成不同的收集操作。
+ */
 public final class Collectors {
     
-    static final Set<Collector.Characteristics> CH_NOID
-        = Collections.emptySet();
-    static final Set<Collector.Characteristics> CH_CONCURRENT_ID
-        = Collections.unmodifiableSet(EnumSet.of(Collector.Characteristics.CONCURRENT, Collector.Characteristics.UNORDERED, Collector.Characteristics.IDENTITY_FINISH));
-    static final Set<Collector.Characteristics> CH_CONCURRENT_NOID
-        = Collections.unmodifiableSet(EnumSet.of(Collector.Characteristics.CONCURRENT, Collector.Characteristics.UNORDERED));
-    static final Set<Collector.Characteristics> CH_UNORDERED_ID
-        = Collections.unmodifiableSet(EnumSet.of(Collector.Characteristics.UNORDERED, Collector.Characteristics.IDENTITY_FINISH));
-    static final Set<Collector.Characteristics> CH_UNORDERED_NOID
-        = Collections.unmodifiableSet(EnumSet.of(Collector.Characteristics.UNORDERED));
-    static final Set<Collector.Characteristics> CH_ID
-        = Collections.unmodifiableSet(EnumSet.of(Collector.Characteristics.IDENTITY_FINISH));
+    // 未设置任何参数
+    static final Set<Collector.Characteristics> CH_NOID = Collections.emptySet();
+    
+    // 并发容器/无序收集/无需收尾
+    static final Set<Collector.Characteristics> CH_CONCURRENT_ID = Collections.unmodifiableSet(EnumSet.of(Collector.Characteristics.CONCURRENT, Collector.Characteristics.UNORDERED, Collector.Characteristics.IDENTITY_FINISH));
+    
+    // 并发容器/无序收集
+    static final Set<Collector.Characteristics> CH_CONCURRENT_NOID = Collections.unmodifiableSet(EnumSet.of(Collector.Characteristics.CONCURRENT, Collector.Characteristics.UNORDERED));
+    
+    // 无序收集/无需收尾
+    static final Set<Collector.Characteristics> CH_UNORDERED_ID = Collections.unmodifiableSet(EnumSet.of(Collector.Characteristics.UNORDERED, Collector.Characteristics.IDENTITY_FINISH));
+    
+    // 无序收集
+    static final Set<Collector.Characteristics> CH_UNORDERED_NOID = Collections.unmodifiableSet(EnumSet.of(Collector.Characteristics.UNORDERED));
+    
+    // 无需收尾
+    static final Set<Collector.Characteristics> CH_ID = Collections.unmodifiableSet(EnumSet.of(Collector.Characteristics.IDENTITY_FINISH));
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     private Collectors() {
     }
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 简单收集 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Returns a {@code Collector} that accumulates the input elements into a
@@ -134,14 +153,37 @@ public final class Collectors {
      * @return a {@code Collector} which collects all the input elements into a
      * {@code Collection}, in encounter order
      */
-    // 自定义容器，在参数中指定，该容器需要实现add方法
+    // 收集元素到自定义容器
     public static <T, C extends Collection<T>> Collector<T, ?, C> toCollection(Supplier<C> collectionFactory) {
-        return new CollectorImpl<>(
-            collectionFactory,  // 1.构造容器
-            Collection<T>::add, // 2.收纳元素
-            (r1, r2) -> { r1.addAll(r2); return r1; }, // 3.合并容器
-            CH_ID // 5. 容器的特征值
-        );
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   由入参提供。
+         */
+        Supplier<C> supplier = collectionFactory;
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   将遇到的元素添加到容器中。
+         */
+        BiConsumer<C, T> accumulator = Collection::add;
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   将后一个容器中的元素添加到前一个容器中，并返回前一个容器。
+         */
+        BinaryOperator<C> combiner = (collection1, collection2) -> {
+            collection1.addAll(collection2);
+            return collection1;
+        };
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   无需收尾。
+         */
+        Set<Characteristics> characteristics = CH_ID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, characteristics);
     }
     
     /**
@@ -155,14 +197,37 @@ public final class Collectors {
      * @return a {@code Collector} which collects all the input elements into a
      * {@code List}, in encounter order
      */
-    // ArrayList容器，内部定义
+    // 收集元素到ArrayList容器
     public static <T> Collector<T, ?, List<T>> toList() {
-        return new CollectorImpl<>(
-            (Supplier<List<T>>) ArrayList::new, // 1.构造容器
-            List::add, // 2.收纳元素
-            (left, right) -> { left.addAll(right); return left; }, // 3.合并容器
-            CH_ID // 5. 容器的特征值
-        );
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   构造一个ArrayList。
+         */
+        Supplier<List<T>> supplier = (Supplier<List<T>>) ArrayList::new;
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   将遇到的元素添加到容器中。
+         */
+        BiConsumer<List<T>, T> accumulator = List::add;
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   将后一个容器中的元素添加到前一个容器中，并返回前一个容器。
+         */
+        BinaryOperator<List<T>> combiner = (list1, list2) -> {
+            list1.addAll(list2);
+            return list1;
+        };
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   无需收尾。
+         */
+        Set<Characteristics> characteristics = CH_ID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, characteristics);
     }
     
     /**
@@ -178,16 +243,44 @@ public final class Collectors {
      *
      * @since 10
      */
-    // 不可变的ArrayList容器，内部定义。按遭遇顺序收纳元素。
+    // 收集元素到只读的List容器
     @SuppressWarnings("unchecked")
     public static <T> Collector<T, ?, List<T>> toUnmodifiableList() {
-        return new CollectorImpl<>(
-            (Supplier<List<T>>) ArrayList::new, // 1.构造容器
-            List::add, // 2.收纳元素
-            (left, right) -> { left.addAll(right); return left; }, // 3.合并容器
-            list -> (List<T>) List.of(list.toArray()), // 4.整理操作
-            CH_NOID // 5. 容器的特征值
-        );
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   构造一个ArrayList。
+         */
+        Supplier<List<T>> supplier = (Supplier<List<T>>) ArrayList::new;
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   将遇到的元素添加到容器中。
+         */
+        BiConsumer<List<T>, T> accumulator = List::add;
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   将后一个容器中的元素添加到前一个容器中，并返回前一个容器。
+         */
+        BinaryOperator<List<T>> combiner = (list1, list2) -> {
+            list1.addAll(list2);
+            return list1;
+        };
+    
+        /*
+         * 4.收尾操作（可选，最后执行）。
+         *   将之前收集到的元素存入一个只读容器后返回。
+         */
+        Function<List<T>, List<T>> finisher = list -> (List<T>) List.of(list.toArray());
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   未设置任何参数。
+         */
+        Set<Characteristics> characteristics = CH_NOID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, finisher, characteristics);
     }
     
     /**
@@ -205,21 +298,42 @@ public final class Collectors {
      * @return a {@code Collector} which collects all the input elements into a
      * {@code Set}
      */
-    // HashSet容器，内部定义
+    // 收集元素到HashSet容器
     public static <T> Collector<T, ?, Set<T>> toSet() {
-        return new CollectorImpl<>(
-            (Supplier<Set<T>>) HashSet::new, // 1.构造容器
-            Set::add, // 2.收纳元素
-            (left, right) -> {
-                if(left.size() < right.size()) {
-                    right.addAll(left);
-                    return right;
-                } else {
-                    left.addAll(right);
-                    return left;
-                } }, // 3.合并容器
-            CH_UNORDERED_ID // 5. 容器的特征值
-        );
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   构造一个HashSet。
+         */
+        Supplier<Set<T>> supplier = (Supplier<Set<T>>) HashSet::new;
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   将遇到的元素添加到容器中。
+         */
+        BiConsumer<Set<T>, T> accumulator = Set::add;
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   将小容量容器中的元素添加到大容量容器中，这样做可以节省一定的时间。
+         */
+        BinaryOperator<Set<T>> combiner = (left, right) -> {
+            if(left.size()<right.size()) {
+                right.addAll(left);
+                return right;
+            } else {
+                left.addAll(right);
+                return left;
+            }
+        };
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   无序收集/无需收尾。
+         */
+        Set<Characteristics> characteristics = CH_UNORDERED_ID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, characteristics);
     }
     
     /**
@@ -239,22 +353,49 @@ public final class Collectors {
      *
      * @since 10
      */
-    // 不可变的HashSet容器，内部定义。
+    // 收集元素到只读的Set容器
     @SuppressWarnings("unchecked")
     public static <T> Collector<T, ?, Set<T>> toUnmodifiableSet() {
-        return new CollectorImpl<>(
-            (Supplier<Set<T>>) HashSet::new, // 1.构造容器
-            Set::add, (left, right) -> {
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   构造一个HashSet。
+         */
+        Supplier<Set<T>> supplier = (Supplier<Set<T>>) HashSet::new;
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   将遇到的元素添加到容器中。
+         */
+        BiConsumer<Set<T>, T> accumulator = Set::add;
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   将小容量容器中的元素添加到大容量容器中，这样做可以节省一定的时间。
+         */
+        BinaryOperator<Set<T>> combiner = (left, right) -> {
             if(left.size()<right.size()) {
                 right.addAll(left);
                 return right;
             } else {
                 left.addAll(right);
                 return left;
-            } }, // 2.收纳元素
-            set -> (Set<T>) Set.of(set.toArray()), // 3.合并容器
-            CH_UNORDERED_NOID // 5. 容器的特征值
-        );
+            }
+        };
+    
+        /*
+         * 4.收尾操作（可选，最后执行）。
+         *   将之前收集到的元素存入一个只读容器后返回。
+         */
+        Function<Set<T>, Set<T>> finisher = set -> (Set<T>) Set.of(set.toArray());
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   无序收集
+         */
+        Set<Characteristics> characteristics = CH_UNORDERED_NOID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, characteristics);
     }
     
     /**
@@ -264,14 +405,43 @@ public final class Collectors {
      * @return a {@code Collector} that concatenates the input elements into a
      * {@code String}, in encounter order
      */
-    // StringBuilder容器，拼接String。
+    // 收集字符串到StringBuilder容器，并转换为String后返回
     public static Collector<CharSequence, ?, String> joining() {
-        return new CollectorImpl<CharSequence, StringBuilder, String>(
-            StringBuilder::new, // 1.构造容器
-            StringBuilder::append, (r1, r2) -> { r1.append(r2); return r1; }, // 2.收纳元素
-            StringBuilder::toString, // 3.合并容器
-            CH_NOID // 5. 容器的特征值
-        );
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   构造一个StringBuilder。
+         */
+        Supplier<StringBuilder> supplier = StringBuilder::new;
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   将遇到的元素添加到容器中。
+         */
+        BiConsumer<StringBuilder, CharSequence> accumulator = StringBuilder::append;
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   将后一个容器中的元素添加到前一个容器中，并返回前一个容器。
+         */
+        BinaryOperator<StringBuilder> combiner = (builder, charSequence) -> {
+            builder.append(charSequence);
+            return builder;
+        };
+    
+        /*
+         * 4.收尾操作（可选，最后执行）。
+         *   将之前收集到的字符序列转换为String后返回。
+         */
+        Function<StringBuilder, String> finisher = StringBuilder::toString;
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   未设置任何参数。
+         */
+        Set<Characteristics> characteristics = CH_NOID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, finisher, characteristics);
     }
     
     /**
@@ -283,7 +453,7 @@ public final class Collectors {
      * @return A {@code Collector} which concatenates CharSequence elements,
      * separated by the specified delimiter, in encounter order
      */
-    // StringJoiner容器，使用指定的分隔符拼接String。
+    // 收集字符串到StringJoiner容器，并转换为String后返回；字符串之间使用delimiter分割
     public static Collector<CharSequence, ?, String> joining(CharSequence delimiter) {
         return joining(delimiter, "", "");
     }
@@ -302,16 +472,47 @@ public final class Collectors {
      * @return A {@code Collector} which concatenates CharSequence elements,
      * separated by the specified delimiter, in encounter order
      */
-    // StringJoiner容器，使用指定的分隔符、前缀、后缀拼接String。
+    // 收集字符串到StringJoiner容器，并转换为String后返回；字符串之间使用delimiter分割，并且带有前缀prefix和后缀suffix
     public static Collector<CharSequence, ?, String> joining(CharSequence delimiter, CharSequence prefix, CharSequence suffix) {
-        return new CollectorImpl<>(
-            () -> new StringJoiner(delimiter, prefix, suffix), // 1.构造容器
-            StringJoiner::add, // 2.收纳元素
-            StringJoiner::merge, // 3.合并容器
-            StringJoiner::toString, // 4.整理操作
-            CH_NOID // 5. 容器的特征值
-        );
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   构造一个StringJoiner。
+         */
+        Supplier<StringJoiner> supplier = () -> new StringJoiner(delimiter, prefix, suffix);
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   将遇到的元素添加到容器中。
+         */
+        BiConsumer<StringJoiner, CharSequence> accumulator = StringJoiner::add;
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   将后一个容器中的元素添加到前一个容器中，并返回前一个容器。
+         */
+        BinaryOperator<StringJoiner> combiner = StringJoiner::merge;
+    
+        /*
+         * 4.收尾操作（可选，最后执行）。
+         *   将之前收集到的字符序列转换为String后返回。
+         */
+        Function<StringJoiner, String> finisher = StringJoiner::toString;
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   未设置任何参数。
+         */
+        Set<Characteristics> characteristics = CH_NOID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, finisher, characteristics);
     }
+    
+    /*▲ 简单收集 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 过滤 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Adapts a {@code Collector} to one accepting elements of the same type
@@ -322,8 +523,7 @@ public final class Collectors {
      * @param <A>        intermediate accumulation type of the downstream collector
      * @param <R>        result type of collector
      * @param predicate  a predicate to be applied to the input elements
-     * @param downstream a collector which will accept values that match the
-     *                   predicate
+     * @param downstream a collector which will accept values that match the predicate
      *
      * @return a collector which applies the predicate to the input elements
      * and provides matching elements to the downstream collector
@@ -348,20 +548,51 @@ public final class Collectors {
      * no mapping for that department at all.
      * @since 9
      */
-    // 自定义容器，收纳之前先过滤，在groupingBy中很实用
+    // 对上游的数据进行过滤：只保存符合predicate条件的元素，过滤后存储到downstream中
     public static <T, A, R> Collector<T, ?, R> filtering(Predicate<? super T> predicate, Collector<? super T, A, R> downstream) {
-        BiConsumer<A, ? super T> downstreamAccumulator = downstream.accumulator();
-        return new CollectorImpl<>(
-            downstream.supplier(), // 1.构造容器
-            (r, t) -> {
-                if(predicate.test(t)) {
-                    downstreamAccumulator.accept(r, t);
-                } }, // 2.收纳元素
-            downstream.combiner(), // 3.合并容器
-            downstream.finisher(), // 4.整理操作
-            downstream.characteristics() // 5. 容器的特征值
-        );
+        
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   使用downstream中的容器工厂。
+         */
+        Supplier<A> supplier = downstream.supplier();
+        
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   使用downstream中的择取操作，但是择取每个元素之前，必须先使用predicate对元素过滤，保留满足条件的元素。
+         */
+        BiConsumer<A, T> accumulator = (r, t) -> {
+            if(predicate.test(t)) {
+                downstream.accumulator().accept(r, t);
+            }
+        };
+        
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   使用downstream中的合并操作。
+         */
+        BinaryOperator<A> combiner = downstream.combiner();
+        
+        /*
+         * 4.收尾操作（可选，最后执行）。
+         *   使用downstream中的收尾操作。
+         */
+        Function<A, R> finisher = downstream.finisher();
+        
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   使用downstream中的容器参数。
+         */
+        Set<Characteristics> characteristics = downstream.characteristics();
+        
+        return new CollectorImpl<>(supplier, accumulator, combiner, finisher, characteristics);
     }
+    
+    /*▲ 过滤 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 映射 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Adapts a {@code Collector} accepting elements of type {@code U} to one
@@ -390,17 +621,47 @@ public final class Collectors {
      *                        toSet())));
      * }</pre>
      */
-    // 自定义容器，收纳之前先映射，在groupingBy中很实用
+    // 对上游的数据进行映射：将上游的元素使用mapper映射后再保存，映射后存储到downstream中
     public static <T, U, A, R> Collector<T, ?, R> mapping(Function<? super T, ? extends U> mapper, Collector<? super U, A, R> downstream) {
-        BiConsumer<A, ? super U> downstreamAccumulator = downstream.accumulator();
-        return new CollectorImpl<>(
-            downstream.supplier(), // 1.构造容器
-            (r, t) -> downstreamAccumulator.accept(r, mapper.apply(t)), // 2.收纳元素
-            downstream.combiner(), // 3.合并容器
-            downstream.finisher(), // 4.整理操作
-            downstream.characteristics() // 5. 容器的特征值
-        );
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   使用downstream中的容器工厂。
+         */
+        Supplier<A> supplier = downstream.supplier();
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   使用downstream中的择取操作，但是择取每个元素之前，必须先使用mapper对元素映射，保留转换之后的元素。
+         */
+        BiConsumer<A, T> accumulator = (r, t) -> downstream.accumulator().accept(r, mapper.apply(t));
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   使用downstream中的合并操作。
+         */
+        BinaryOperator<A> combiner = downstream.combiner();
+    
+        /*
+         * 4.收尾操作（可选，最后执行）。
+         *   使用downstream中的收尾操作。
+         */
+        Function<A, R> finisher = downstream.finisher();
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   使用downstream中的容器参数。
+         */
+        Set<Characteristics> characteristics = downstream.characteristics();
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, finisher, characteristics);
     }
+    
+    /*▲ 映射 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 降维 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Adapts a {@code Collector} accepting elements of type {@code U} to one
@@ -437,21 +698,53 @@ public final class Collectors {
      * }</pre>
      * @since 9
      */
-    // 自定义容器，收纳之前先降维，在groupingBy中很实用
+    // 对上游的数据进行降维：如果上游的元素本身是一个容器，则将该容器中的元素逐一选出来，再存入downstream中；mapper的作用是将上游的元素流化
     public static <T, U, A, R> Collector<T, ?, R> flatMapping(Function<? super T, ? extends Stream<? extends U>> mapper, Collector<? super U, A, R> downstream) {
-        BiConsumer<A, ? super U> downstreamAccumulator = downstream.accumulator();
-        return new CollectorImpl<>(
-            downstream.supplier(),  // 1.构造容器
-            (r, t) -> {
-                try(Stream<? extends U> result = mapper.apply(t)) {
-                    if(result != null)
-                        result.sequential().forEach(u -> downstreamAccumulator.accept(r, u));
-                } }, // 2.收纳元素
-            downstream.combiner(), // 3.合并容器
-            downstream.finisher(), // 4.整理操作
-            downstream.characteristics() // 5. 容器的特征值
-        );
+        
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   使用downstream中的容器工厂。
+         */
+        Supplier<A> supplier = downstream.supplier();
+        
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   使用downstream中的择取操作，但是择取每个元素之前，必须先将该元素内的子元素分别取出来，再对其进行择取，则相当于"降维"。
+         */
+        BiConsumer<A, T> accumulator = (r, t) -> {
+            try(Stream<? extends U> result = mapper.apply(t)) {
+                if(result != null) {
+                    result.sequential().forEach(u -> downstream.accumulator().accept(r, u));
+                }
+            }
+        };
+        
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   使用downstream中的合并操作。
+         */
+        BinaryOperator<A> combiner = downstream.combiner();
+        
+        /*
+         * 4.收尾操作（可选，最后执行）。
+         *   使用downstream中的收尾操作。
+         */
+        Function<A, R> finisher = downstream.finisher();
+        
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   使用downstream中的容器参数。
+         */
+        Set<Characteristics> characteristics = downstream.characteristics();
+        
+        return new CollectorImpl<>(supplier, accumulator, combiner, finisher, characteristics);
     }
+    
+    /*▲ 降维 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 后处理 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Adapts a {@code Collector} to perform an additional finishing
@@ -473,26 +766,58 @@ public final class Collectors {
      * @return a collector which performs the action of the downstream collector,
      * followed by an additional finishing step
      */
-    // 自定义容器，收纳之后对容器进行操作
-    public static <T, A, R, RR> Collector<T, A, RR> collectingAndThen(Collector<T, A, R> downstream, Function<R, RR> finisher) {
-        Set<Collector.Characteristics> characteristics = downstream.characteristics();
-        if(characteristics.contains(Collector.Characteristics.IDENTITY_FINISH)) {
-            if(characteristics.size() == 1)
+    // 对上游的数据进行后处理：对上游的元素先使用downstream中的收尾操作处理，再使用thenFinisher这个收尾操作处理；后处理的结果存储到downstream中
+    public static <T, A, R, RR> Collector<T, A, RR> collectingAndThen(Collector<T, A, R> downstream, Function<R, RR> thenFinisher) {
+        
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   使用downstream中的容器工厂。
+         */
+        Supplier<A> supplier = downstream.supplier();
+        
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   使用downstream中的择取操作。
+         */
+        BiConsumer<A, T> accumulator = downstream.accumulator();
+        
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   使用downstream中的合并操作。
+         */
+        BinaryOperator<A> combiner = downstream.combiner();
+        
+        /*
+         * 4.收尾操作（可选，最后执行）。
+         *   使用downstream中的收尾操作之后，还要再使用另一个收尾操作。
+         */
+        Function<A, RR> finisher = downstream.finisher().andThen(thenFinisher);
+        
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   使用downstream中的容器参数；如果容器参数中包含IDENTITY_FINISH，则需要移除IDENTITY_FINISH的限制。
+         */
+        Set<Characteristics> characteristics = downstream.characteristics();
+        
+        // 如果downstream包含了IDENTITY_FINISH参数，则移除它
+        if(characteristics.contains(Characteristics.IDENTITY_FINISH)) {
+            if(characteristics.size() == 1) {
                 characteristics = Collectors.CH_NOID;
-            else {
+            } else {
                 characteristics = EnumSet.copyOf(characteristics);
-                characteristics.remove(Collector.Characteristics.IDENTITY_FINISH);
+                characteristics.remove(Characteristics.IDENTITY_FINISH);
                 characteristics = Collections.unmodifiableSet(characteristics);
             }
         }
-        return new CollectorImpl<>(
-            downstream.supplier(), // 1.构造容器
-            downstream.accumulator(), // 2.收纳元素
-            downstream.combiner(), // 3.合并容器
-            downstream.finisher().andThen(finisher), // 4.整理操作
-            characteristics // 5. 容器的特征值
-        );
+        
+        return new CollectorImpl<>(supplier, accumulator, combiner, finisher, characteristics);
     }
+    
+    /*▲ 后处理 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 计数 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Returns a {@code Collector} accepting elements of type {@code T} that
@@ -523,14 +848,43 @@ public final class Collectors {
      *
      * @return a {@code Collector} that produces the sum of a derived property
      */
-    // int求和，参数是求和时对每个元素所做的动作
+    // 对一系列int元素求和，待求和元素需要先经过mapper的处理
     public static <T> Collector<T, ?, Integer> summingInt(ToIntFunction<? super T> mapper) {
-        return new CollectorImpl<>(
-            () -> new int[1], // 1.构造容器
-            (a, t) -> { a[0] += mapper.applyAsInt(t); }, // 2.收纳元素
-            (a, b) -> { a[0] += b[0]; return a; }, a -> a[0], // 3.合并容器
-            CH_NOID // 5. 容器的特征值
-        );
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   使用int数组。
+         */
+        Supplier<int[]> supplier = () -> new int[1];
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   将遇到的元素转换为int类型的值，然后累加起来。
+         */
+        BiConsumer<int[], T> accumulator = (array, e) -> { array[0] += mapper.applyAsInt(e); };
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   将后一个容器中的和值累加到前一个容器的和值上，并返回前一个容器。
+         */
+        BinaryOperator<int[]> combiner = (a, array2) -> {
+            a[0] += array2[0];
+            return a;
+        };
+    
+        /*
+         * 4.收尾操作（可选，最后执行）。
+         *   返回获取到的和。
+         */
+        Function<int[], Integer> finisher = array -> array[0];
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   未设置任何参数。
+         */
+        Set<Characteristics> characteristics = CH_NOID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, characteristics);
     }
     
     /**
@@ -543,15 +897,43 @@ public final class Collectors {
      *
      * @return a {@code Collector} that produces the sum of a derived property
      */
-    // long求和，参数是求和时对每个元素所做的动作
+    // 对一系列long元素求和，待求和元素需要先经过mapper的处理
     public static <T> Collector<T, ?, Long> summingLong(ToLongFunction<? super T> mapper) {
-        return new CollectorImpl<>(
-            () -> new long[1], // 1.构造容器
-            (a, t) -> { a[0] += mapper.applyAsLong(t); }, // 2.收纳元素
-            (a, b) -> { a[0] += b[0]; return a; }, // 3.合并容器
-            a -> a[0], // 4.整理操作
-            CH_NOID // 5. 容器的特征值
-        );
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   使用long数组。
+         */
+        Supplier<long[]> supplier = () -> new long[1];
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   将遇到的元素转换为long类型的值，然后累加起来。
+         */
+        BiConsumer<long[], T> accumulator = (array, e) -> { array[0] += mapper.applyAsLong(e); };
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   将后一个容器中的和值累加到前一个容器的和值上，并返回前一个容器。
+         */
+        BinaryOperator<long[]> combiner = (a, b) -> {
+            a[0] += b[0];
+            return a;
+        };
+    
+        /*
+         * 4.收尾操作（可选，最后执行）。
+         *   返回获取到的和。
+         */
+        Function<long[], Long> finisher = array -> array[0];
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   未设置任何参数。
+         */
+        Set<Characteristics> characteristics = CH_NOID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, finisher, characteristics);
     }
     
     /**
@@ -571,8 +953,47 @@ public final class Collectors {
      *
      * @return a {@code Collector} that produces the sum of a derived property
      */
-    // double求和，参数是求和时对每个元素所做的动作
+    // 对一系列double元素求和，待求和元素需要先经过mapper的处理
     public static <T> Collector<T, ?, Double> summingDouble(ToDoubleFunction<? super T> mapper) {
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   使用double数组。
+         */
+        Supplier<double[]> supplier = () -> new double[3];
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   将遇到的元素转换为double类型的值，然后累加起来。
+         */
+        BiConsumer<double[], T> accumulator = (array, e) -> {
+            double val = mapper.applyAsDouble(e);
+            sumWithCompensation(array, val);
+            array[2] += val;
+        };
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   将后一个容器中的和值累加到前一个容器的和值上，并返回前一个容器。
+         */
+        BinaryOperator<double[]> combiner = (a, b) -> {
+            sumWithCompensation(a, b[0]);
+            a[2] += b[2];
+            return sumWithCompensation(a, b[1]);
+        };
+    
+        /*
+         * 4.收尾操作（可选，最后执行）。
+         *   返回获取到的和。
+         */
+        Function<double[], Double> finisher = array -> computeFinalSum(array);
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   未设置任何参数。
+         */
+        Set<Characteristics> characteristics = CH_NOID;
+    
         /*
          * In the arrays allocated for the collect operation, index 0
          * holds the high-order bits of the running sum, index 1 holds
@@ -581,22 +1002,14 @@ public final class Collectors {
          * the proper result if the stream contains infinite values of
          * the same sign.
          */
-        return new CollectorImpl<>(
-            () -> new double[3], // 1.构造容器
-            (a, t) -> {
-                double val = mapper.applyAsDouble(t);
-                sumWithCompensation(a, val);
-                a[2] += val;
-            }, // 2.收纳元素
-            (a, b) -> {
-                sumWithCompensation(a, b[0]);
-                a[2] += b[2];
-                return sumWithCompensation(a, b[1]);
-            }, // 3.合并容器
-            a -> computeFinalSum(a), // 4.整理操作
-            CH_NOID // 5. 容器的特征值
-        );
+        return new CollectorImpl<>(supplier, accumulator, combiner, finisher, characteristics);
     }
+    
+    /*▲ 计数 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 平均值 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Returns a {@code Collector} that produces the arithmetic mean of an integer-valued
@@ -609,22 +1022,48 @@ public final class Collectors {
      * @return a {@code Collector} that produces the arithmetic mean of a
      * derived property
      */
-    // 求int的平均值
+    // 求一系列int元素的平均值，待求均值的元素需要先经过mapper的处理
     public static <T> Collector<T, ?, Double> averagingInt(ToIntFunction<? super T> mapper) {
-        return new CollectorImpl<>(
-            () -> new long[2], // 1.构造容器
-            (a, t) -> {
-                a[0] += mapper.applyAsInt(t);
-                a[1]++;
-            }, // 2.收纳元素
-            (a, b) -> {
-                a[0] += b[0];
-                a[1] += b[1];
-                return a;
-            }, // 3.合并容器
-            a -> (a[1] == 0) ? 0.0d : (double) a[0] / a[1], // 4.整理操作
-            CH_NOID // 5. 容器的特征值
-        );
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   使用long数组。
+         */
+        Supplier<long[]> supplier = () -> new long[2];
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   将遇到的元素转换为int类型的值，然后累加起来。
+         *   array[0]中存储了和值，array[1]中存储了元素的数量以便后续求均值。
+         */
+        BiConsumer<long[], T> accumulator = (array, t) -> {
+            array[0] += mapper.applyAsInt(t);
+            array[1]++;
+        };
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   将后一个容器中的和值与元素数量信息累加到前一个容器中，并返回前一个容器。
+         */
+        BinaryOperator<long[]> combiner = (a, b) -> {
+            a[0] += b[0];
+            a[1] += b[1];
+            return a;
+        };
+    
+        /*
+         * 4.收尾操作（可选，最后执行）。
+         *   返回获取到的均值。
+         */
+        Function<long[], Double> finisher = a -> (a[1] == 0) ? 0.0d : (double) a[0] / a[1];
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   未设置任何参数。
+         */
+        Set<Characteristics> characteristics = CH_NOID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, finisher, characteristics);
     }
     
     /**
@@ -638,22 +1077,48 @@ public final class Collectors {
      * @return a {@code Collector} that produces the arithmetic mean of a
      * derived property
      */
-    // 求long的平均值
+    // 求一系列long元素的平均值，待求均值的元素需要先经过mapper的处理
     public static <T> Collector<T, ?, Double> averagingLong(ToLongFunction<? super T> mapper) {
-        return new CollectorImpl<>(
-            () -> new long[2],  // 1.构造容器
-            (a, t) -> {
-                a[0] += mapper.applyAsLong(t);
-                a[1]++;
-            }, // 2.收纳元素
-            (a, b) -> {
-                a[0] += b[0];
-                a[1] += b[1];
-                return a;
-            }, // 3.合并容器
-            a -> (a[1] == 0) ? 0.0d : (double) a[0] / a[1], // 4.整理操作
-            CH_NOID // 5. 容器的特征值
-        );
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   使用long数组。
+         */
+        Supplier<long[]> supplier = () -> new long[2];
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   将遇到的元素转换为long类型的值，然后累加起来。
+         *   array[0]中存储了和值，array[1]中存储了元素的数量以便后续求均值。
+         */
+        BiConsumer<long[], T> accumulator = (a, t) -> {
+            a[0] += mapper.applyAsLong(t);
+            a[1]++;
+        };
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   将后一个容器中的和值与元素数量信息累加到前一个容器中，并返回前一个容器。
+         */
+        BinaryOperator<long[]> combiner = (a, b) -> {
+            a[0] += b[0];
+            a[1] += b[1];
+            return a;
+        };
+    
+        /*
+         * 4.收尾操作（可选，最后执行）。
+         *   返回获取到的均值。
+         */
+        Function<long[], Double> finisher = a -> (a[1] == 0) ? 0.0d : (double) a[0] / a[1];
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   未设置任何参数。
+         */
+        Set<Characteristics> characteristics = CH_NOID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, finisher, characteristics);
     }
     
     /**
@@ -680,33 +1145,65 @@ public final class Collectors {
      * values, the divisor in the average computation will saturate at
      * 2<sup>53</sup>, leading to additional numerical errors.
      */
-    // 求double的平均值
+    // 求一系列double元素的平均值，待求均值的元素需要先经过mapper的处理
     public static <T> Collector<T, ?, Double> averagingDouble(ToDoubleFunction<? super T> mapper) {
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   使用double数组。
+         */
+        Supplier<double[]> supplier = () -> new double[4];
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   将遇到的元素转换为double类型的值，然后累加起来。
+         *   array[0]中存储了和值，array[1]中存储了元素的数量以便后续求均值。
+         */
+        BiConsumer<double[], T> accumulator = (a, t) -> {
+            double val = mapper.applyAsDouble(t);
+            sumWithCompensation(a, val);
+            a[2]++;
+            a[3] += val;
+        };
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   将后一个容器中的和值与元素数量信息累加到前一个容器中，并返回前一个容器。
+         */
+        BinaryOperator<double[]> combiner = (a, b) -> {
+            sumWithCompensation(a, b[0]);
+            sumWithCompensation(a, b[1]);
+            a[2] += b[2];
+            a[3] += b[3];
+            return a;
+        };
+    
+        /*
+         * 4.收尾操作（可选，最后执行）。
+         *   返回获取到的均值。
+         */
+        Function<double[], Double> finisher = a -> (a[2] == 0) ? 0.0d : (computeFinalSum(a) / a[2]);
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   未设置任何参数。
+         */
+        Set<Characteristics> characteristics = CH_NOID;
+    
         /*
          * In the arrays allocated for the collect operation, index 0
          * holds the high-order bits of the running sum, index 1 holds
          * the low-order bits of the sum computed via compensated
          * summation, and index 2 holds the number of values seen.
          */
-        return new CollectorImpl<>(
-            () -> new double[4], // 1.构造容器
-            (a, t) -> {
-                double val = mapper.applyAsDouble(t);
-                sumWithCompensation(a, val);
-                a[2]++;
-                a[3] += val;
-            }, // 2.收纳元素
-            (a, b) -> {
-                sumWithCompensation(a, b[0]);
-                sumWithCompensation(a, b[1]);
-                a[2] += b[2];
-                a[3] += b[3];
-                return a;
-            }, // 3.合并容器
-            a -> (a[2] == 0) ? 0.0d : (computeFinalSum(a) / a[2]), // 4.整理操作
-            CH_NOID // 5. 容器的特征值
-        );
+        return new CollectorImpl<>(supplier, accumulator, combiner, finisher, characteristics);
     }
+    
+    /*▲ 平均值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 最值 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Returns a {@code Collector} that produces the minimal element according
@@ -722,7 +1219,7 @@ public final class Collectors {
      *     reducing(BinaryOperator.minBy(comparator))
      * }</pre>
      */
-    // 求最小值（返回值是Optional）
+    // 求最小值，元素的比较规则由comparator给出
     public static <T> Collector<T, ?, Optional<T>> minBy(Comparator<? super T> comparator) {
         return reducing(BinaryOperator.minBy(comparator));
     }
@@ -741,10 +1238,16 @@ public final class Collectors {
      *     reducing(BinaryOperator.maxBy(comparator))
      * }</pre>
      */
-    // 求最大值（返回值是Optional）
+    // 求最大值，元素的比较规则由comparator给出
     public static <T> Collector<T, ?, Optional<T>> maxBy(Comparator<? super T> comparator) {
         return reducing(BinaryOperator.maxBy(comparator));
     }
+    
+    /*▲ 最值 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 归约 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Returns a {@code Collector} which performs a reduction of its
@@ -773,16 +1276,21 @@ public final class Collectors {
      * @see #reducing(Object, BinaryOperator)
      * @see #reducing(Object, Function, BinaryOperator)
      */
-    // 使用指定的动作归约输出元素
-    public static <T> Collector<T, ?, Optional<T>> reducing(BinaryOperator<T> op) {
+    // 使用operator将遇到的所有元素归约成一个元素后返回
+    public static <T> Collector<T, ?, Optional<T>> reducing(BinaryOperator<T> operator) {
+        
+        // 状态盒
         class OptionalBox implements Consumer<T> {
             T value = null;
             boolean present = false;
             
             @Override
             public void accept(T t) {
+                // 处理后续元素
                 if(present) {
-                    value = op.apply(value, t);
+                    value = operator.apply(value, t);
+                    
+                    // 保存首个元素
                 } else {
                     value = t;
                     present = true;
@@ -790,18 +1298,42 @@ public final class Collectors {
             }
         }
         
-        return new CollectorImpl<>(
-            OptionalBox::new, // 1.构造容器
-            OptionalBox::accept, // 2.收纳元素
-            (a, b) -> {
-                if(b.present) {
-                    a.accept(b.value);
-                }
-                return a;
-            }, // 3.合并容器
-            a -> Optional.ofNullable(a.value), // 4.整理操作
-            CH_NOID // 5. 容器的特征值
-        );
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   构造一个状态盒。
+         */
+        Supplier<OptionalBox> supplier = OptionalBox::new;
+        
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   使用operator对上个元素和新元素进行归约，并且用归约后的结果更新上个元素。
+         */
+        BiConsumer<OptionalBox, T> accumulator = OptionalBox::accept;
+        
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   对两个容器中的元素进行归约，并用归约结果更新第一个容器的后将其返回。
+         */
+        BinaryOperator<OptionalBox> combiner = (a, b) -> {
+            if(b.present) {
+                a.accept(b.value);
+            }
+            return a;
+        };
+        
+        /*
+         * 4.收尾操作（可选，最后执行）。
+         *   返回对归约结果的包装值。
+         */
+        Function<OptionalBox, Optional<T>> finisher = a -> Optional.ofNullable(a.value);
+        
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   未设置任何参数。
+         */
+        Set<Characteristics> characteristics = CH_NOID;
+        
+        return new CollectorImpl<>(supplier, accumulator, combiner, finisher, characteristics);
     }
     
     /**
@@ -823,18 +1355,43 @@ public final class Collectors {
      * @see #reducing(BinaryOperator)
      * @see #reducing(Object, Function, BinaryOperator)
      */
-    // 使用指定的动作归约输出元素，identity可以看做是初始值
-    public static <T> Collector<T, ?, T> reducing(T identity, BinaryOperator<T> op) {
-        return new CollectorImpl<>(
-            boxSupplier(identity),  // 1.构造容器
-            (a, t) -> { a[0] = op.apply(a[0], t); }, // 2.收纳元素
-            (a, b) -> {
-                a[0] = op.apply(a[0], b[0]);
-                return a;
-            }, // 3.合并容器
-            a -> a[0], // 4.整理操作
-            CH_NOID // 5. 容器的特征值
-        );
+    // 使用operator将遇到的所有元素归约成一个元素后返回，identity将作为首个待归约元素
+    public static <T> Collector<T, ?, T> reducing(T identity, BinaryOperator<T> operator) {
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   构造一个引用类型的数组。
+         */
+        Supplier<T[]> supplier = boxSupplier(identity);
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   使用operator对上个元素和新元素进行归约，并且用归约后的结果更新上个元素。
+         */
+        BiConsumer<T[], T> accumulator = (a, t) -> { a[0] = operator.apply(a[0], t); };
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   对两个容器中的元素进行归约，并用归约结果更新第一个容器的后将其返回。
+         */
+        BinaryOperator<T[]> combiner = (a, b) -> {
+            a[0] = operator.apply(a[0], b[0]);
+            return a;
+        };
+    
+        /*
+         * 4.收尾操作（可选，最后执行）。
+         *   返回对归约结果。
+         */
+        Function<T[], T> finisher = a -> a[0];
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   未设置任何参数。
+         */
+        Set<Characteristics> characteristics = CH_NOID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, finisher, characteristics);
     }
     
     /**
@@ -873,16 +1430,51 @@ public final class Collectors {
      * @see #reducing(Object, BinaryOperator)
      * @see #reducing(BinaryOperator)
      */
-    // 使用指定的动作归约输出元素，归约之前，可先对元素执行mapper操作
-    public static <T, U> Collector<T, ?, U> reducing(U identity, Function<? super T, ? extends U> mapper, BinaryOperator<U> op) {
-        return new CollectorImpl<>(
-            boxSupplier(identity), // 1.构造容器
-            (a, t) -> { a[0] = op.apply(a[0], mapper.apply(t)); }, // 2.收纳元素
-            (a, b) -> { a[0] = op.apply(a[0], b[0]); return a; }, // 3.合并容器
-            a -> a[0], // 4.整理操作
-            CH_NOID // 5. 容器的特征值
-        );
+    // 使用operator将遇到的所有元素归约成一个元素后返回，identity将作为首个待归约元素；除identity外，其他待归约元素要先经过mapper的处理后再参加归约
+    public static <T, U> Collector<T, ?, U> reducing(U identity, Function<? super T, ? extends U> mapper, BinaryOperator<U> operator) {
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   构造一个引用类型的数组。
+         */
+        Supplier<U[]> supplier = boxSupplier(identity);
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   使用operator对上个元素和新元素进行归约，并且用归约后的结果更新上个元素。
+         *   除identity外，其他待归约元素要先经过mapper的处理后再参加归约。
+         */
+        BiConsumer<U[], T> accumulator = (a, t) -> { a[0] = operator.apply(a[0], mapper.apply(t)); };
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   对两个容器中的元素进行归约，并用归约结果更新第一个容器的后将其返回。
+         */
+        BinaryOperator<U[]> combiner = (a, b) -> {
+            a[0] = operator.apply(a[0], b[0]);
+            return a;
+        };
+    
+        /*
+         * 4.收尾操作（可选，最后执行）。
+         *   返回对归约结果。
+         */
+        Function<U[], U> finisher = a -> a[0];
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   未设置任何参数。
+         */
+        Set<Characteristics> characteristics = CH_NOID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, finisher, characteristics);
     }
+    
+    /*▲ 归约 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 分类 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Returns a {@code Collector} implementing a "group by" operation on
@@ -919,7 +1511,15 @@ public final class Collectors {
      * @see #groupingBy(Function, Supplier, Collector)
      * @see #groupingByConcurrent(Function)
      */
-    // 分组，HashMap容器，classifier用来制定分类依据生成key值，下游收集器默认使用ArrayList
+    /*
+     * 对上游的数据进行分类，分类后的数据存储一个收集器中并将其返回，该收集器的容器默认是HashMap。
+     *
+     * classifier: 对key进行分类，入参是非空的key，返回值是分类后的特征值。
+     *
+     * 注：
+     * 1.上面提到的HashMap，其key是分类特征值，而value是ArrayList，存储着分类后的数据。
+     * 2.分类后的数据就是原始的key，这里没有做进一步处理。
+     */
     public static <T, K> Collector<T, ?, Map<K, List<T>>> groupingBy(Function<? super T, ? extends K> classifier) {
         return groupingBy(classifier, toList());
     }
@@ -967,7 +1567,16 @@ public final class Collectors {
      * @see #groupingBy(Function, Supplier, Collector)
      * @see #groupingByConcurrent(Function, Collector)
      */
-    // 分组，HashMap容器，classifier用来制定分类依据生成key值，downstream代表下游的收集器，可以进一步分解上游收集到的元素以作为上游容器的value
+    /*
+     * 对上游的数据进行分类，分类后的数据存储一个收集器中并将其返回，该收集器的容器默认是HashMap。
+     *
+     * classifier: 对key进行分类，入参是非空的key，返回值是分类后的特征值(分类后的元素存放容器需要由downstream给出)。
+     * downstream: 制定分类数据的操作流程以及提供存储分类后数据的容器。
+     *
+     * 注：
+     * 1.上面提到的HashMap，其key是分类特征值，而value也是一个容器，存储着分类后的数据。
+     * 2.分类后的数据是什么，由downstream的择取逻辑来决定，而且，downstream还提供了存储分类后的数据的容器。
+     */
     public static <T, K, A, D> Collector<T, ?, Map<K, D>> groupingBy(Function<? super T, ? extends K> classifier, Collector<? super T, A, D> downstream) {
         return groupingBy(classifier, HashMap::new, downstream);
     }
@@ -1018,42 +1627,85 @@ public final class Collectors {
      * @see #groupingBy(Function)
      * @see #groupingByConcurrent(Function, Supplier, Collector)
      */
-    // 分组，自定义Map类的容器，classifier用来制定分类依据生成key值，downstream代表下游的收集器，可以进一步分解上游收集到的元素以作为上游容器的value
+    /*
+     * 对上游的数据进行分类，分类后的数据存储一个收集器中并将其返回，该收集器的容器是mapFactory，它应当被设置为Map类型。
+     *
+     * classifier: 对key进行分类，入参是非空的key，返回值是分类后的特征值。
+     * mapFactory: 收集数据的容器工厂，其生产的容器必须为Map。
+     * downstream: 制定分类数据的操作流程以及提供存储分类后数据的容器。
+     *
+     * 注：
+     * 1.downstream生产的Map容器，其key是分类特征值，而value也是一个容器，存储着分类后的数据。
+     * 2.分类后的数据是什么，由downstream的择取逻辑来决定，而且，downstream还提供了存储分类后的数据的容器。
+     */
     public static <T, K, D, A, M extends Map<K, D>> Collector<T, ?, M> groupingBy(Function<? super T, ? extends K> classifier, Supplier<M> mapFactory, Collector<? super T, A, D> downstream) {
-        Supplier<A> downstreamSupplier = downstream.supplier();
-        BiConsumer<A, ? super T> downstreamAccumulator = downstream.accumulator();
-        BiConsumer<Map<K, A>, T> accumulator = (m, t) -> {
-            K key = Objects.requireNonNull(classifier.apply(t), "element cannot be mapped to a null key");
-            A container = m.computeIfAbsent(key, k -> downstreamSupplier.get());
-            downstreamAccumulator.accept(container, t);
-        };
-        BinaryOperator<Map<K, A>> merger = Collectors.<K, A, Map<K, A>>mapMerger(downstream.combiner());
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   容器工厂由入参给出，应该使用一个Map容器。
+         */
         @SuppressWarnings("unchecked")
-        Supplier<Map<K, A>> mangledFactory = (Supplier<Map<K, A>>) mapFactory;
+        Supplier<Map<K, A>> supplier = (Supplier<Map<K, A>>) mapFactory;
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   将遇到的key进行分类，并决定后续如何处理分类后的key和该key对应的值。
+         */
+        BiConsumer<Map<K, A>, T> accumulator = (map, k) -> {
+            // 使用classifier对key进行分类；如果key为null，则抛异常
+            K key = Objects.requireNonNull(classifier.apply(k), "element cannot be mapped to a null key");
         
+            // 如果map中已经存在这个key了，则返回它的分类容器；否则，为其创建一个新的分类容器后返回(这个所谓的新容器获取自downstream中)
+            A container = map.computeIfAbsent(key, thisKey -> downstream.supplier().get());
+        
+            // 对指定的key做择取操作，通常是将该key对应的value存储到分类容器中
+            downstream.accumulator().accept(container, k);
+        };
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   合并相同类别的元素到同一个容器。
+         */
+        BinaryOperator<Map<K, A>> combiner = Collectors.<K, A, Map<K, A>>mapMerger(downstream.combiner());
+    
+        // 如果downstream指示不需要执行收尾操作，则这里可以直接构造收集器了
         if(downstream.characteristics().contains(Collector.Characteristics.IDENTITY_FINISH)) {
-            return new CollectorImpl<>(
-                mangledFactory, // 1.构造容器
-                accumulator, // 2.收纳元素
-                merger, // 3.合并容器
-                CH_ID // 5. 容器的特征值
-            );
+        
+            /*
+             * 5.容器参数，指示容器的特征。
+             *   无需收尾。
+             */
+            Set<Characteristics> characteristics = CH_ID;
+        
+            return new CollectorImpl<>(supplier, accumulator, combiner, characteristics);
         } else {
-            @SuppressWarnings("unchecked")
-            Function<A, A> downstreamFinisher = (Function<A, A>) downstream.finisher();
+        
+            /*
+             * 4.收尾操作（可选，最后执行）。
+             *   使用downstream中的收尾操作处理容器中的元素。
+             */
             Function<Map<K, A>, M> finisher = intermediate -> {
+                // 获取downstream中的收尾操作
+                @SuppressWarnings("unchecked")
+                Function<A, A> downstreamFinisher = (Function<A, A>) downstream.finisher();
+            
+                // 使用downstream中的收尾操作处理容器中的元素
                 intermediate.replaceAll((k, v) -> downstreamFinisher.apply(v));
+            
                 @SuppressWarnings("unchecked")
                 M castResult = (M) intermediate;
+            
+                // 返回处理结果
                 return castResult;
             };
-            return new CollectorImpl<>(
-                mangledFactory, // 1.构造容器
-                accumulator, // 2.收纳元素
-                merger, // 3.合并容器
-                finisher, // 4.整理操作
-                CH_NOID // 5. 容器的特征值
-            );
+        
+            /*
+             * 5.容器参数，指示容器的特征。
+             *   未设置任何参数。
+             */
+            Set<Characteristics> characteristics = CH_NOID;
+        
+            return new CollectorImpl<>(supplier, accumulator, combiner, finisher, characteristics);
         }
     }
     
@@ -1090,9 +1742,18 @@ public final class Collectors {
      * @see #groupingByConcurrent(Function, Collector)
      * @see #groupingByConcurrent(Function, Supplier, Collector)
      */
-    // 分组，ConcurrentHashMap容器
+    /*
+     * 对上游的数据进行分类，分类后的数据存储一个收集器中并将其返回，该收集器的容器默认是ConcurrentHashMap。
+     *
+     * classifier: 对key进行分类，入参是非空的key，返回值是分类后的特征值。
+     *
+     * 注：
+     * 1.上面提到的ConcurrentHashMap，其key是分类特征值，而value是ArrayList，存储着分类后的数据。
+     * 2.分类后的数据就是原始的key，这里没有做进一步处理。
+     * 3.这是groupingBy(Function)的同步容器版本。
+     */
     public static <T, K> Collector<T, ?, ConcurrentMap<K, List<T>>> groupingByConcurrent(Function<? super T, ? extends K> classifier) {
-        return groupingByConcurrent(classifier, ConcurrentHashMap::new, toList());
+        return groupingByConcurrent(classifier, toList());
     }
     
     /**
@@ -1136,7 +1797,17 @@ public final class Collectors {
      * @see #groupingByConcurrent(Function)
      * @see #groupingByConcurrent(Function, Supplier, Collector)
      */
-    // 分组，ConcurrentHashMap容器
+    /*
+     * 对上游的数据进行分类，分类后的数据存储一个收集器中并将其返回，该收集器的容器默认是ConcurrentHashMap。
+     *
+     * classifier: 对key进行分类，入参是非空的key，返回值是分类后的特征值(分类后的元素存放容器需要由downstream给出)。
+     * downstream: 制定分类数据的操作流程以及提供存储分类后数据的容器。
+     *
+     * 注：
+     * 1.上面提到的ConcurrentHashMap，其key是分类特征值，而value也是一个容器，存储着分类后的数据。
+     * 2.分类后的数据是什么，由downstream的择取逻辑来决定，而且，downstream还提供了存储分类后的数据的容器。
+     * 3.这是groupingBy(Function, Collector)的同步容器版本。
+     */
     public static <T, K, A, D> Collector<T, ?, ConcurrentMap<K, D>> groupingByConcurrent(Function<? super T, ? extends K> classifier, Collector<? super T, A, D> downstream) {
         return groupingByConcurrent(classifier, ConcurrentHashMap::new, downstream);
     }
@@ -1184,56 +1855,111 @@ public final class Collectors {
      * @see #groupingByConcurrent(Function, Collector)
      * @see #groupingBy(Function, Supplier, Collector)
      */
-    // 分组，自定义ConcurrentMap类的容器
+    /*
+     * 对上游的数据进行分类，分类后的数据存储一个收集器中并将其返回，该收集器的容器是mapFactory，它应当被设置为ConcurrentMap类型。
+     *
+     * classifier: 对key进行分类，入参是非空的key，返回值是分类后的特征值。
+     * mapFactory: 收集数据的容器工厂，其生产的容器必须为Map。
+     * downstream: 制定分类数据的操作流程以及提供存储分类后数据的容器。
+     *
+     * 注：
+     * 1.downstream生产的Map容器，其key是分类特征值，而value也是一个容器，存储着分类后的数据。
+     * 2.分类后的数据是什么，由downstream的择取逻辑来决定，而且，downstream还提供了存储分类后的数据的容器。
+     * 3.这是groupingBy(Function, Supplier, Collector)的同步容器版本。
+     */
     public static <T, K, A, D, M extends ConcurrentMap<K, D>> Collector<T, ?, M> groupingByConcurrent(Function<? super T, ? extends K> classifier, Supplier<M> mapFactory, Collector<? super T, A, D> downstream) {
-        Supplier<A> downstreamSupplier = downstream.supplier();
-        BiConsumer<A, ? super T> downstreamAccumulator = downstream.accumulator();
-        BinaryOperator<ConcurrentMap<K, A>> merger = Collectors.<K, A, ConcurrentMap<K, A>>mapMerger(downstream.combiner());
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   容器工厂由入参给出，应该使用一个ConcurrentMap容器。
+         */
         @SuppressWarnings("unchecked")
-        Supplier<ConcurrentMap<K, A>> mangledFactory = (Supplier<ConcurrentMap<K, A>>) mapFactory;
+        Supplier<ConcurrentMap<K, A>> supplier = (Supplier<ConcurrentMap<K, A>>) mapFactory;
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   将遇到的key进行分类，并决定后续如何处理分类后的key和该key对应的值。
+         */
         BiConsumer<ConcurrentMap<K, A>, T> accumulator;
-        
+    
+        // downstream中给出的容器是支持并发的，则可以直接存储元素；否则，需要存储分类后的数据时，需要进行同步操作
         if(downstream.characteristics().contains(Collector.Characteristics.CONCURRENT)) {
-            accumulator = (m, t) -> {
+            accumulator = (map, t) -> {
+                // 使用classifier对key进行分类；如果key为null，则抛异常
                 K key = Objects.requireNonNull(classifier.apply(t), "element cannot be mapped to a null key");
-                A resultContainer = m.computeIfAbsent(key, k -> downstreamSupplier.get());
-                downstreamAccumulator.accept(resultContainer, t);
+                // 如果map中已经存在这个key了，则返回它的分类容器；否则，为其创建一个新的分类容器后返回(这个所谓的新容器获取自downstream中)
+                A resultContainer = map.computeIfAbsent(key, k -> downstream.supplier().get());
+                // 对指定的key做择取操作，通常是将该key对应的value存储到分类容器中
+                downstream.accumulator().accept(resultContainer, t);
             };
         } else {
-            accumulator = (m, t) -> {
+            accumulator = (map, t) -> {
+                // 使用classifier对key进行分类；如果key为null，则抛异常
                 K key = Objects.requireNonNull(classifier.apply(t), "element cannot be mapped to a null key");
-                A resultContainer = m.computeIfAbsent(key, k -> downstreamSupplier.get());
+                // 如果map中已经存在这个key了，则返回它的分类容器；否则，为其创建一个新的分类容器后返回(这个所谓的新容器获取自downstream中)
+                A resultContainer = map.computeIfAbsent(key, k -> downstream.supplier().get());
+            
+                // 进行同步操作
                 synchronized(resultContainer) {
-                    downstreamAccumulator.accept(resultContainer, t);
+                    // 对指定的key做择取操作，通常是将该key对应的value存储到分类容器中
+                    downstream.accumulator().accept(resultContainer, t);
                 }
             };
         }
-        
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   合并相同类别的元素到同一个容器。
+         */
+        BinaryOperator<ConcurrentMap<K, A>> combiner = Collectors.<K, A, ConcurrentMap<K, A>>mapMerger(downstream.combiner());
+    
+        // 如果downstream指示不需要执行收尾操作，则这里可以直接构造收集器了
         if(downstream.characteristics().contains(Collector.Characteristics.IDENTITY_FINISH)) {
-            return new CollectorImpl<>(
-                mangledFactory, // 1.构造容器
-                accumulator, // 2.收纳元素
-                merger, // 3.合并容器
-                CH_CONCURRENT_ID // 5. 容器的特征值
-            );
+        
+            /*
+             * 5.容器参数，指示容器的特征。
+             *   并发容器/无序收集/无需收尾。
+             */
+            Set<Characteristics> characteristics = CH_CONCURRENT_ID;
+        
+            return new CollectorImpl<>(supplier, accumulator, combiner, characteristics);
         } else {
-            @SuppressWarnings("unchecked")
-            Function<A, A> downstreamFinisher = (Function<A, A>) downstream.finisher();
+        
+            /*
+             * 4.收尾操作（可选，最后执行）。
+             *   使用downstream中的收尾操作处理容器中的元素。
+             */
             Function<ConcurrentMap<K, A>, M> finisher = intermediate -> {
+            
+                // 获取downstream中的收尾操作
+                @SuppressWarnings("unchecked")
+                Function<A, A> downstreamFinisher = (Function<A, A>) downstream.finisher();
+            
+                // 使用downstream中的收尾操作处理容器中的元素
                 intermediate.replaceAll((k, v) -> downstreamFinisher.apply(v));
+            
                 @SuppressWarnings("unchecked")
                 M castResult = (M) intermediate;
+            
+                // 返回处理结果
                 return castResult;
             };
-            return new CollectorImpl<>(
-                mangledFactory, // 1.构造容器
-                accumulator, // 2.收纳元素
-                merger, // 3.合并容器
-                finisher, // 4.整理操作
-                CH_CONCURRENT_NOID // 5. 容器的特征值
-            );
+        
+            /*
+             * 5.容器参数，指示容器的特征。
+             *   并发容器/无序收集。
+             */
+            Set<Characteristics> characteristics = CH_CONCURRENT_NOID;
+        
+            return new CollectorImpl<>(supplier, accumulator, combiner, finisher, characteristics);
         }
     }
+    
+    /*▲ 分类 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 二元分组 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Returns a {@code Collector} which partitions the input elements according
@@ -1255,7 +1981,7 @@ public final class Collectors {
      * an empty List.
      * @see #partitioningBy(Predicate, Collector)
      */
-    // 分组，下游容器是ArrayList
+    // 将上游元素根据给定的校验条件分组到两个ArrayList容器中
     public static <T> Collector<T, ?, Map<Boolean, List<T>>> partitioningBy(Predicate<? super T> predicate) {
         return partitioningBy(predicate, toList());
     }
@@ -1288,32 +2014,60 @@ public final class Collectors {
      * applying the finisher function.
      * @see #partitioningBy(Predicate)
      */
-    // 分组，自定义下游容器
+    // 将上游元素根据给定的校验条件分组到两个自定义的容器中
     public static <T, D, A> Collector<T, ?, Map<Boolean, D>> partitioningBy(Predicate<? super T> predicate, Collector<? super T, A, D> downstream) {
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   生产一个Partition容器，该容器内部包含两个由downstream提供的小容器，一个用来存储与predicate匹配的元素，另一个用来存储与predicate不匹配的元素。
+         */
+        Supplier<Partition<A>> supplier = () -> new Partition<>(downstream.supplier().get(), downstream.supplier().get());
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   先对上游元素进行predicate校验，如果返回true，则将该元素交给forTrue容器处理，否则，将其交给forFalse容器。
+         *   具体说交给容器后怎么处理，由downstream给出的择取逻辑决定。
+         */
         BiConsumer<A, ? super T> downstreamAccumulator = downstream.accumulator();
         BiConsumer<Partition<A>, T> accumulator = (result, t) -> downstreamAccumulator.accept(predicate.test(t) ? result.forTrue : result.forFalse, t);
-        BinaryOperator<A> op = downstream.combiner();
-        BinaryOperator<Partition<A>> merger = (left, right) -> new Partition<>(op.apply(left.forTrue, right.forTrue), op.apply(left.forFalse, right.forFalse));
-        Supplier<Partition<A>> supplier = () -> new Partition<>(downstream.supplier().get(), downstream.supplier().get());
-        
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   分别对两个Partition容器中的forTrue与forFalse子容器进行合并。
+         */
+        BinaryOperator<A> downstreamCombiner = downstream.combiner();
+        BinaryOperator<Partition<A>> combiner = (left, right) -> new Partition<>(downstreamCombiner.apply(left.forTrue, right.forTrue), downstreamCombiner.apply(left.forFalse, right.forFalse));
+    
         if(downstream.characteristics().contains(Collector.Characteristics.IDENTITY_FINISH)) {
-            return new CollectorImpl<>(
-                supplier, // 1.构造容器
-                accumulator, // 2.收纳元素
-                merger, // 3.合并容器
-                CH_ID // 5. 容器的特征值
-            );
+            /*
+             * 5.容器参数，指示容器的特征。
+             *   无需收尾。
+             */
+            Set<Characteristics> characteristics = CH_ID;
+        
+            return new CollectorImpl<>(supplier, accumulator, combiner, characteristics);
         } else {
+            /*
+             * 4.收尾操作（可选，最后执行）。
+             *   由downstream给出的收尾操作决定如何进一步处理Partition容器中的元素。
+             */
             Function<Partition<A>, Map<Boolean, D>> finisher = par -> new Partition<>(downstream.finisher().apply(par.forTrue), downstream.finisher().apply(par.forFalse));
-            return new CollectorImpl<>(
-                supplier, // 1.构造容器
-                accumulator, // 2.收纳元素
-                merger, // 3.合并容器
-                finisher, // 4.整理操作
-                CH_NOID // 5. 容器的特征值
-            );
+        
+            /*
+             * 5.容器参数，指示容器的特征。
+             *   未设置任何参数。
+             */
+            Set<Characteristics> characteristics = CH_NOID;
+        
+            return new CollectorImpl<>(supplier, accumulator, combiner, finisher, characteristics);
         }
     }
+    
+    /*▲ 二元分组 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ Map化 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Returns a {@code Collector} that accumulates elements into a
@@ -1368,14 +2122,34 @@ public final class Collectors {
      * @see #toMap(Function, Function, BinaryOperator, Supplier)
      * @see #toConcurrentMap(Function, Function)
      */
-    // 键值对，使用HashMap容器，key不能重复
+    // 将每个上游元素解析成一个键值对，并将其存入HashMap；其中，keyMapper和valueMapper分别用来映射键和值，且要确保键不重复
     public static <T, K, U> Collector<T, ?, Map<K, U>> toMap(Function<? super T, ? extends K> keyMapper, Function<? super T, ? extends U> valueMapper) {
-        return new CollectorImpl<>(
-            HashMap::new, // 1.构造容器
-            uniqKeysMapAccumulator(keyMapper, valueMapper), // 2.收纳元素
-            uniqKeysMapMerger(), // 3.合并容器
-            CH_ID // 5. 容器的特征值
-        );
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   此处生产的HashMap用于存储择取后的元素。
+         */
+        Supplier<Map<K, U>> supplier = HashMap::new;
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   从指定的元素中解析出键值对，然后存入map中(此过程需要确保key不重复，否则抛异常)
+         */
+        BiConsumer<Map<K, U>, T> accumulator = uniqKeysMapAccumulator(keyMapper, valueMapper);
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   合并给定的两个Map，需要确保key不重复，否则抛异常。
+         */
+        BinaryOperator<Map<K, U>> combiner = uniqKeysMapMerger();
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   无需收尾。
+         */
+        Set<Characteristics> characteristics = CH_ID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, characteristics);
     }
     
     /**
@@ -1431,7 +2205,7 @@ public final class Collectors {
      * @see #toMap(Function, Function, BinaryOperator, Supplier)
      * @see #toConcurrentMap(Function, Function, BinaryOperator)
      */
-    // 键值对，使用HashMap容器，当key重复时，需要借助合并函数来合并value（所以本质上来说，key还是不重复）
+    // 将每个上游元素解析成一个键值对，并将其存入HashMap；其中，keyMapper和valueMapper分别用来映射键和值，且如果key重复时，需要使用mergeFunction对旧值与备用值进行归并
     public static <T, K, U> Collector<T, ?, Map<K, U>> toMap(Function<? super T, ? extends K> keyMapper, Function<? super T, ? extends U> valueMapper, BinaryOperator<U> mergeFunction) {
         return toMap(keyMapper, valueMapper, mergeFunction, HashMap::new);
     }
@@ -1475,15 +2249,35 @@ public final class Collectors {
      * @see #toMap(Function, Function, BinaryOperator)
      * @see #toConcurrentMap(Function, Function, BinaryOperator, Supplier)
      */
-    // 键值对，自定义Map类容器接收元素，当key重复时，需要合并value
+    // 将每个上游元素解析成一个键值对，并将其存入mapFactory提供的Map容器中；其中，keyMapper和valueMapper分别用来映射键和值，且如果key重复时，需要使用mergeFunction对旧值与备用值进行归并
     public static <T, K, U, M extends Map<K, U>> Collector<T, ?, M> toMap(Function<? super T, ? extends K> keyMapper, Function<? super T, ? extends U> valueMapper, BinaryOperator<U> mergeFunction, Supplier<M> mapFactory) {
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   此处生产的Map用于存储择取后的元素。
+         */
+        Supplier<M> supplier = mapFactory;
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   从指定的元素中解析出键值对，然后存入map中。
+         *   如果该key已经重复了，则需要借助mergeFunction将旧值和入参中的备用值重新构造为一个新值后存入map。
+         */
         BiConsumer<M, T> accumulator = (map, element) -> map.merge(keyMapper.apply(element), valueMapper.apply(element), mergeFunction);
-        return new CollectorImpl<>(
-            mapFactory, // 1.构造容器
-            accumulator, // 2.收纳元素
-            mapMerger(mergeFunction), // 3.合并容器
-            CH_ID // 5. 容器的特征值
-        );
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   合并两个Map；如果key出现重复，则对旧value和入参中的备用value进行归并，归并后的新的value存入map。
+         */
+        BinaryOperator<M> combiner = mapMerger(mergeFunction);
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   无需收尾。
+         */
+        Set<Characteristics> characteristics = CH_ID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, characteristics);
     }
     
     /**
@@ -1515,12 +2309,20 @@ public final class Collectors {
      * @see #toUnmodifiableMap(Function, Function, BinaryOperator)
      * @since 10
      */
-    // 键值对，使用HashMap容器，key不能重复，元素放到容器后不能被修改
+    // 将每个上游元素解析成一个键值对，并将其存入一个只读Map；其中，keyMapper和valueMapper分别用来映射键和值，且要确保键不重复
     @SuppressWarnings({"rawtypes", "unchecked"})
     public static <T, K, U> Collector<T, ?, Map<K, U>> toUnmodifiableMap(Function<? super T, ? extends K> keyMapper, Function<? super T, ? extends U> valueMapper) {
         Objects.requireNonNull(keyMapper, "keyMapper");
         Objects.requireNonNull(valueMapper, "valueMapper");
-        return collectingAndThen(toMap(keyMapper, valueMapper), map -> (Map<K, U>) Map.ofEntries(map.entrySet().toArray(new Map.Entry[0])));
+    
+        // 从上游元素中解析出键值对，并将其存入HashMap；其中，keyMapper和valueMapper分别用来映射键和值，且要确保键不重复
+        Collector<T, ?, Map<K, U>> downstream = toMap(keyMapper, valueMapper);
+    
+        // 将上述收集到的元素存入一个只读Map中后返回
+        Function<Map<K, U>, Map<K, U>> thenFinisher = map -> (Map<K, U>) Map.ofEntries(map.entrySet().toArray(new Map.Entry[0]));
+    
+        // 对上游的数据进行后处理：对上游的元素先使用downstream中的收尾操作处理，再使用thenFinisher这个收尾操作处理；后处理的结果存储到downstream中
+        return collectingAndThen(downstream, thenFinisher);
     }
     
     /**
@@ -1555,13 +2357,21 @@ public final class Collectors {
      * @see #toUnmodifiableMap(Function, Function)
      * @since 10
      */
-    // 键值对，使用HashMap容器，当key重复时，需要合并value，元素放到容器后不能被修改
+    // 将每个上游元素解析成一个键值对，并将其存入一个只读Map；其中，keyMapper和valueMapper分别用来映射键和值，且如果key重复时，需要使用mergeFunction对旧值与备用值进行归并
     @SuppressWarnings({"rawtypes", "unchecked"})
     public static <T, K, U> Collector<T, ?, Map<K, U>> toUnmodifiableMap(Function<? super T, ? extends K> keyMapper, Function<? super T, ? extends U> valueMapper, BinaryOperator<U> mergeFunction) {
         Objects.requireNonNull(keyMapper, "keyMapper");
         Objects.requireNonNull(valueMapper, "valueMapper");
         Objects.requireNonNull(mergeFunction, "mergeFunction");
-        return collectingAndThen(toMap(keyMapper, valueMapper, mergeFunction, HashMap::new), map -> (Map<K, U>) Map.ofEntries(map.entrySet().toArray(new Map.Entry[0])));
+    
+        // 从上游元素中解析出键值对，并将其存入HashMap；其中，keyMapper和valueMapper分别用来映射键和值，且如果key重复时，需要使用mergeFunction对旧值与备用值进行归并
+        Collector<T, ?, Map<K, U>> downstream = toMap(keyMapper, valueMapper, mergeFunction, HashMap::new);
+    
+        // 将上述收集到的元素存入一个只读Map中后返回
+        Function<Map<K, U>, Map<K, U>> thenFinisher = map -> (Map<K, U>) Map.ofEntries(map.entrySet().toArray(new Map.Entry[0]));
+    
+        // 对上游的数据进行后处理：对上游的元素先使用downstream中的收尾操作处理，再使用thenFinisher这个收尾操作处理；后处理的结果存储到downstream中
+        return collectingAndThen(downstream, thenFinisher);
     }
     
     /**
@@ -1615,14 +2425,34 @@ public final class Collectors {
      * @see #toConcurrentMap(Function, Function, BinaryOperator)
      * @see #toConcurrentMap(Function, Function, BinaryOperator, Supplier)
      */
-    // 键值对，使用ConcurrentHashMap容器，key不能重复
+    // 将每个上游元素解析成一个键值对，并将其存入ConcurrentHashMap；其中，keyMapper和valueMapper分别用来映射键和值，且要确保键不重复
     public static <T, K, U> Collector<T, ?, ConcurrentMap<K, U>> toConcurrentMap(Function<? super T, ? extends K> keyMapper, Function<? super T, ? extends U> valueMapper) {
-        return new CollectorImpl<>(
-            ConcurrentHashMap::new, // 1.构造容器
-            uniqKeysMapAccumulator(keyMapper, valueMapper), // 2.收纳元素
-            uniqKeysMapMerger(), // 3.合并容器
-            CH_CONCURRENT_ID // 5. 容器的特征值
-        );
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   此处生产的ConcurrentHashMap用于存储择取后的元素。
+         */
+        Supplier<Map<K, U>> supplier = ConcurrentHashMap::new;
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   从指定的元素中解析出键值对，然后存入map中(此过程需要确保key不重复，否则抛异常)
+         */
+        BiConsumer<Map<K, U>, T> accumulator = uniqKeysMapAccumulator(keyMapper, valueMapper);
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   合并给定的两个Map，需要确保key不重复，否则抛异常
+         */
+        BinaryOperator<Map<K, U>> combiner = uniqKeysMapMerger();
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   并发容器/无序收集/无需收尾。
+         */
+        Set<Characteristics> characteristics = CH_CONCURRENT_ID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, characteristics);
     }
     
     /**
@@ -1674,7 +2504,7 @@ public final class Collectors {
      * @see #toConcurrentMap(Function, Function, BinaryOperator, Supplier)
      * @see #toMap(Function, Function, BinaryOperator)
      */
-    // 键值对，使用ConcurrentHashMap容器，当key重复时，需要合并value
+    // 将每个上游元素解析成一个键值对，并将其存入ConcurrentMap；其中，keyMapper和valueMapper分别用来映射键和值，且如果key重复时，需要使用mergeFunction对旧值与备用值进行归并
     public static <T, K, U> Collector<T, ?, ConcurrentMap<K, U>> toConcurrentMap(Function<? super T, ? extends K> keyMapper, Function<? super T, ? extends U> valueMapper, BinaryOperator<U> mergeFunction) {
         return toConcurrentMap(keyMapper, valueMapper, mergeFunction, ConcurrentHashMap::new);
     }
@@ -1714,16 +2544,42 @@ public final class Collectors {
      * @see #toConcurrentMap(Function, Function, BinaryOperator)
      * @see #toMap(Function, Function, BinaryOperator, Supplier)
      */
-    // 键值对，自定义ConcurrentMap类容器，当key重复时，需要合并value
+    // 将每个上游元素解析成一个键值对，并将其存入mapFactory提供的ConcurrentMap容器中；其中，keyMapper和valueMapper分别用来映射键和值，且如果key重复时，需要使用mergeFunction对旧值与备用值进行归并
     public static <T, K, U, M extends ConcurrentMap<K, U>> Collector<T, ?, M> toConcurrentMap(Function<? super T, ? extends K> keyMapper, Function<? super T, ? extends U> valueMapper, BinaryOperator<U> mergeFunction, Supplier<M> mapFactory) {
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   此处生产的ConcurrentMap用于存储择取后的元素。
+         */
+        Supplier<M> supplier = mapFactory;
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   从指定的元素中解析出键值对，然后存入map中。
+         *   如果该key已经重复了，则需要借助mergeFunction将旧值和入参中的备用值重新构造为一个新值后存入map。
+         */
         BiConsumer<M, T> accumulator = (map, element) -> map.merge(keyMapper.apply(element), valueMapper.apply(element), mergeFunction);
-        return new CollectorImpl<>(
-            mapFactory, // 1.构造容器
-            accumulator, // 2.收纳元素
-            mapMerger(mergeFunction), // 3.合并容器
-            CH_CONCURRENT_ID // 5. 容器的特征值
-        );
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   合并两个Map；如果key出现重复，则对旧value和入参中的备用value进行归并，归并后的新的value存入map。
+         */
+        BinaryOperator<M> combiner = mapMerger(mergeFunction);
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   并发容器/无序收集/无需收尾。
+         */
+        Set<Characteristics> characteristics = CH_CONCURRENT_ID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, characteristics);
     }
+    
+    /*▲ Map化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 信息统计 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Returns a {@code Collector} which applies an {@code int}-producing
@@ -1738,14 +2594,37 @@ public final class Collectors {
      * @see #summarizingDouble(ToDoubleFunction)
      * @see #summarizingLong(ToLongFunction)
      */
-    // 信息统计，对int类型的元素统计相关信息：计数、求和、均值、最小值、最大值
+    // 信息统计，即对int类型的元素统计如下相关信息：计数、求和、均值、最小值、最大值；被统计的元素需要先经过mapper的处理
     public static <T> Collector<T, ?, IntSummaryStatistics> summarizingInt(ToIntFunction<? super T> mapper) {
-        return new CollectorImpl<T, IntSummaryStatistics, IntSummaryStatistics>(
-            IntSummaryStatistics::new,  // 1.构造容器
-            (r, t) -> r.accept(mapper.applyAsInt(t)), // 2.收纳元素
-            (l, r) -> { l.combine(r); return l; }, // 3.合并容器
-            CH_ID // 5. 容器的特征值
-        );
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   此处生产的IntSummaryStatistics容器存储统计信息。
+         */
+        Supplier<IntSummaryStatistics> supplier = IntSummaryStatistics::new;
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   将上游元素用mapper映射后，再将其记录到IntSummaryStatistics中。
+         */
+        BiConsumer<IntSummaryStatistics, T> accumulator = (r, t) -> r.accept(mapper.applyAsInt(t));
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   合并两个IntSummaryStatistics中的统计信息。
+         */
+        BinaryOperator<IntSummaryStatistics> combiner = (l, r) -> {
+            l.combine(r);
+            return l;
+        };
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   无需收尾。
+         */
+        Set<Characteristics> characteristics = CH_ID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, characteristics);
     }
     
     /**
@@ -1761,14 +2640,37 @@ public final class Collectors {
      * @see #summarizingDouble(ToDoubleFunction)
      * @see #summarizingInt(ToIntFunction)
      */
-    // 信息统计，对long类型的元素统计相关信息：计数、求和、均值、最小值、最大值
+    // 信息统计，即对long类型的元素统计如下相关信息：计数、求和、均值、最小值、最大值；被统计的元素需要先经过mapper的处理
     public static <T> Collector<T, ?, LongSummaryStatistics> summarizingLong(ToLongFunction<? super T> mapper) {
-        return new CollectorImpl<T, LongSummaryStatistics, LongSummaryStatistics>(
-            LongSummaryStatistics::new, // 1.构造容器
-            (r, t) -> r.accept(mapper.applyAsLong(t)), // 2.收纳元素
-            (l, r) -> { l.combine(r); return l; }, // 3.合并容器
-            CH_ID // 5. 容器的特征值
-        );
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   此处生产的LongSummaryStatistics容器存储统计信息。
+         */
+        Supplier<LongSummaryStatistics> supplier = LongSummaryStatistics::new;
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   将上游元素用mapper映射后，再将其记录到LongSummaryStatistics中。
+         */
+        BiConsumer<LongSummaryStatistics, T> accumulator = (r, t) -> r.accept(mapper.applyAsLong(t));
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   合并两个LongSummaryStatistics中的统计信息。
+         */
+        BinaryOperator<LongSummaryStatistics> combiner = (l, r) -> {
+            l.combine(r);
+            return l;
+        };
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   无需收尾。
+         */
+        Set<Characteristics> characteristics = CH_ID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, characteristics);
     }
     
     /**
@@ -1784,16 +2686,40 @@ public final class Collectors {
      * @see #summarizingLong(ToLongFunction)
      * @see #summarizingInt(ToIntFunction)
      */
-    // 信息统计，对double类型的元素统计相关信息：计数、求和、均值、最小值、最大值
+    // 信息统计，即对double类型的元素统计如下相关信息：计数、求和、均值、最小值、最大值；被统计的元素需要先经过mapper的处理
     public static <T> Collector<T, ?, DoubleSummaryStatistics> summarizingDouble(ToDoubleFunction<? super T> mapper) {
-        return new CollectorImpl<T, DoubleSummaryStatistics, DoubleSummaryStatistics>(
-            DoubleSummaryStatistics::new, // 1.构造容器
-            (r, t) -> r.accept(mapper.applyAsDouble(t)), // 2.收纳元素
-            (l, r) -> { l.combine(r); return l; }, // 3.合并容器
-            CH_ID // 5. 容器的特征值
-        );
+    
+        /*
+         * 1.容器工厂（该工厂用来构造收纳元素的容器）。
+         *   此处生产的DoubleSummaryStatistics容器存储统计信息。
+         */
+        Supplier<DoubleSummaryStatistics> supplier = DoubleSummaryStatistics::new;
+    
+        /*
+         * 2.择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）。
+         *   将上游元素用mapper映射后，再将其记录到DoubleSummaryStatistics中。
+         */
+        BiConsumer<DoubleSummaryStatistics, T> accumulator = (r, t) -> r.accept(mapper.applyAsDouble(t));
+    
+        /*
+         * 3.合并容器（这是合并操作，通常用于在并行流中合并子任务）。
+         *   合并两个DoubleSummaryStatistics中的统计信息。
+         */
+        BinaryOperator<DoubleSummaryStatistics> combiner = (l, r) -> {
+            l.combine(r);
+            return l;
+        };
+    
+        /*
+         * 5.容器参数，指示容器的特征。
+         *   无需收尾。
+         */
+        Set<Characteristics> characteristics = CH_ID;
+    
+        return new CollectorImpl<>(supplier, accumulator, combiner, characteristics);
     }
     
+    /*▲ 信息统计 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     /**
@@ -1849,7 +2775,7 @@ public final class Collectors {
      *
      * @return a merge function for two maps
      */
-    // 确保key不重复，否则抛异常
+    // 合并给定的两个Map，需要确保key不重复，否则抛异常
     private static <K, V, M extends Map<K, V>> BinaryOperator<M> uniqKeysMapMerger() {
         return (m1, m2) -> {
             for(Map.Entry<K, V> e : m2.entrySet()) {
@@ -1877,19 +2803,26 @@ public final class Collectors {
      *
      * @return an accumulating consumer
      */
-    // 确保key不重复，否则抛异常
+    // 从指定的元素中解析出键值对，然后存入map中(此过程需要确保key不重复，否则抛异常)
     private static <T, K, V> BiConsumer<Map<K, V>, T> uniqKeysMapAccumulator(Function<? super T, ? extends K> keyMapper, Function<? super T, ? extends V> valueMapper) {
         return (map, element) -> {
+            // 从给定的元素中解析出一个key
             K k = keyMapper.apply(element);
+    
+            // 从给定的元素中解析出一个value
             V v = Objects.requireNonNull(valueMapper.apply(element));
+    
+            // 将指定的键值对加入到map中，返回旧值
             V u = map.putIfAbsent(k, v);
+    
+            // 如果返回值不为null，说明之前就存在该key了，会抛异常
             if(u != null) {
                 throw duplicateKeyException(k, u, v);
             }
         };
     }
     
-    // 强制类型转换
+    // 强制类型转换(标识转换)
     @SuppressWarnings("unchecked")
     private static <I, R> Function<I, R> castingIdentity() {
         return i -> (R) i;
@@ -1908,7 +2841,7 @@ public final class Collectors {
      *
      * @return a merge function for two maps
      */
-    // key出现重复时，合并对应的value
+    // 合并两个Map；如果key出现重复，则对旧value和入参中的备用value进行归并，归并后的新的value存入map
     private static <K, V, M extends Map<K, V>> BinaryOperator<M> mapMerger(BinaryOperator<V> mergeFunction) {
         return (m1, m2) -> {
             for(Map.Entry<K, V> e : m2.entrySet()) {
@@ -1937,7 +2870,6 @@ public final class Collectors {
     }
     
     
-    
     /**
      * Simple implementation class for {@code Collector}.
      *
@@ -1946,11 +2878,11 @@ public final class Collectors {
      */
     // 收集器Collector的实现类
     static class CollectorImpl<T, A, R> implements Collector<T, A, R> {
-        private final Supplier<A> supplier;         // 1.构造容器
-        private final BiConsumer<A, T> accumulator; // 2.收纳元素
-        private final BinaryOperator<A> combiner;   // 3.合并容器
-        private final Function<A, R> finisher;      // 4.整理操作
-        private final Set<Characteristics> characteristics; // 5. 容器的特征值
+        private final Supplier<A> supplier;                 // 1.构造容器
+        private final BiConsumer<A, T> accumulator;         // 2.择取元素
+        private final BinaryOperator<A> combiner;           // 3.合并容器
+        private final Function<A, R> finisher;              // 4.收尾操作
+        private final Set<Characteristics> characteristics; // 5.容器参数
         
         CollectorImpl(Supplier<A> supplier, BiConsumer<A, T> accumulator, BinaryOperator<A> combiner, Function<A, R> finisher, Set<Characteristics> characteristics) {
             this.supplier = supplier;
@@ -1964,31 +2896,31 @@ public final class Collectors {
             this(supplier, accumulator, combiner, castingIdentity(), characteristics);
         }
         
-        // 1.构造容器
+        // 1. 容器工厂（该工厂用来构造收纳元素的容器）
         @Override
         public Supplier<A> supplier() {
             return supplier;
         }
         
-        // 2.收纳元素
+        // 2. 择取元素（这是(子)任务中的择取操作，通常用于将元素添加到目标容器）
         @Override
         public BiConsumer<A, T> accumulator() {
             return accumulator;
         }
         
-        // 3.合并容器
+        // 3. 合并容器（这是合并操作，通常用于在并行流中合并子任务）
         @Override
         public BinaryOperator<A> combiner() {
             return combiner;
         }
         
-        // 4.整理操作
+        // 4. 收尾操作（可选，最后执行）
         @Override
         public Function<A, R> finisher() {
             return finisher;
         }
         
-        // 5. 容器的特征值
+        // 5. 返回容器的参数，指示容器的特征
         @Override
         public Set<Characteristics> characteristics() {
             return characteristics;
@@ -1998,7 +2930,7 @@ public final class Collectors {
     /**
      * Implementation class used by partitioningBy.
      */
-    // partitioningBy中使用的容器
+    // partitioningBy中使用的容器，里面包含两个小容器
     private static final class Partition<T> extends AbstractMap<Boolean, T> implements Map<Boolean, T> {
         final T forTrue;
         final T forFalse;
@@ -2025,4 +2957,5 @@ public final class Collectors {
             };
         }
     }
+    
 }

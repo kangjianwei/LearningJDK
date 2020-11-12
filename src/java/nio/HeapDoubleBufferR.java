@@ -31,7 +31,6 @@ package java.nio;
  * ReadOnlyBufferException} and overriding the view-buffer methods to return an
  * instance of this class rather than of the superclass.
  */
-
 // 只读、非直接缓冲区，是HeapDoubleBuffer的只读版本，禁止写入操作，内部存储结构实现为double[]
 class HeapDoubleBufferR extends HeapDoubleBuffer {
     
@@ -41,7 +40,7 @@ class HeapDoubleBufferR extends HeapDoubleBuffer {
     private static final long ARRAY_INDEX_SCALE = UNSAFE.arrayIndexScale(double[].class);
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     protected HeapDoubleBufferR(double[] buf, int mark, int pos, int lim, int cap, int off) {
         super(buf, mark, pos, lim, cap, off);
@@ -58,12 +57,13 @@ class HeapDoubleBufferR extends HeapDoubleBuffer {
         this.isReadOnly = true;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 只读/非直接 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 只读/可读写
     public boolean isReadOnly() {
         return true;
     }
@@ -73,14 +73,17 @@ class HeapDoubleBufferR extends HeapDoubleBuffer {
     
     /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 切片，截取旧缓冲区的【活跃区域】，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     public DoubleBuffer slice() {
         return new HeapDoubleBufferR(hb, -1, 0, this.remaining(), this.remaining(), this.position() + offset);
     }
     
+    // 副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public DoubleBuffer duplicate() {
         return new HeapDoubleBufferR(hb, this.markValue(), this.position(), this.limit(), this.capacity(), offset);
     }
     
+    // 只读副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public DoubleBuffer asReadOnlyBuffer() {
         return duplicate();
     }
@@ -91,18 +94,22 @@ class HeapDoubleBufferR extends HeapDoubleBuffer {
     
     /*▼ 只读缓冲区，禁止写入操作 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 向position处（可能需要加offset）写入double，并将position递增
     public DoubleBuffer put(double x) {
         throw new ReadOnlyBufferException();
     }
     
+    // 向i处（可能需要加offset）写入double
     public DoubleBuffer put(int i, double x) {
         throw new ReadOnlyBufferException();
     }
     
+    // 将源缓冲区src的内容全部写入到当前缓冲区
     public DoubleBuffer put(double[] src, int offset, int length) {
         throw new ReadOnlyBufferException();
     }
     
+    // 将double数组src的全部内容写入此缓冲区
     public DoubleBuffer put(DoubleBuffer src) {
         throw new ReadOnlyBufferException();
     }
@@ -113,6 +120,7 @@ class HeapDoubleBufferR extends HeapDoubleBuffer {
     
     /*▼ 禁止压缩，因为禁止写入，压缩没意义 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 压缩缓冲区，将当前未读完的数据挪到容器起始处，可用于读模式到写模式的切换，但又不丢失之前读入的数据。
     public DoubleBuffer compact() {
         throw new ReadOnlyBufferException();
     }
@@ -123,6 +131,7 @@ class HeapDoubleBufferR extends HeapDoubleBuffer {
     
     /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 返回该缓冲区的字节序（大端还是小端）
     public ByteOrder order() {
         return ByteOrder.nativeOrder();
     }

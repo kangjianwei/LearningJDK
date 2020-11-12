@@ -28,7 +28,6 @@ package java.nio;
 /**
  * A read/write HeapShortBuffer.
  */
-
 // 可读写、非直接缓冲区，内部存储结构实现为short[]
 class HeapShortBuffer extends ShortBuffer {
     
@@ -39,7 +38,7 @@ class HeapShortBuffer extends ShortBuffer {
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     protected HeapShortBuffer(short[] buf, int mark, int pos, int lim, int cap, int off) {
         super(mark, pos, lim, cap, buf, off);
@@ -56,17 +55,19 @@ class HeapShortBuffer extends ShortBuffer {
         this.address = ARRAY_BASE_OFFSET;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 可读写/非直接 ████████████████████████████████████████████████████████████████████████████████┓ */
     
-    public boolean isDirect() {
+    // 只读/可读写
+    public boolean isReadOnly() {
         return false;
     }
     
-    public boolean isReadOnly() {
+    // 直接缓冲区/非直接缓冲区
+    public boolean isDirect() {
         return false;
     }
     
@@ -76,14 +77,17 @@ class HeapShortBuffer extends ShortBuffer {
     
     /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 切片，截取旧缓冲区的【活跃区域】，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     public ShortBuffer slice() {
         return new HeapShortBuffer(hb, -1, 0, this.remaining(), this.remaining(), this.position() + offset);
     }
     
+    // 副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public ShortBuffer duplicate() {
         return new HeapShortBuffer(hb, this.markValue(), this.position(), this.limit(), this.capacity(), offset);
     }
     
+    // 只读副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public ShortBuffer asReadOnlyBuffer() {
         return new HeapShortBufferR(hb, this.markValue(), this.position(), this.limit(), this.capacity(), offset);
     }
@@ -94,14 +98,17 @@ class HeapShortBuffer extends ShortBuffer {
     
     /*▼ get/读取 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 读取position处（可能需要加offset）的short，然后递增position。
     public short get() {
         return hb[ix(nextGetIndex())];
     }
     
+    // 读取index处（可能需要加offset）的short（有越界检查）
     public short get(int i) {
         return hb[ix(checkIndex(i))];
     }
     
+    // 复制源缓存区的length个元素到dst数组offset索引处
     public ShortBuffer get(short[] dst, int offset, int length) {
         checkBounds(offset, length, dst.length);
         if(length > remaining())
@@ -117,16 +124,19 @@ class HeapShortBuffer extends ShortBuffer {
     
     /*▼ put/写入 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 向position处（可能需要加offset）写入short，并将position递增
     public ShortBuffer put(short x) {
         hb[ix(nextPutIndex())] = x;
         return this;
     }
     
+    // 向i处（可能需要加offset）写入short
     public ShortBuffer put(int i, short x) {
         hb[ix(checkIndex(i))] = x;
         return this;
     }
     
+    // 从源short数组src的offset处开始，复制length个元素，写入到当前缓冲区
     public ShortBuffer put(short[] src, int offset, int length) {
         checkBounds(offset, length, src.length);
         if(length > remaining())
@@ -136,6 +146,7 @@ class HeapShortBuffer extends ShortBuffer {
         return this;
     }
     
+    // 将源缓冲区src的内容全部写入到当前缓冲区
     public ShortBuffer put(ShortBuffer src) {
         if(src instanceof HeapShortBuffer) {
             if(src == this)
@@ -165,6 +176,7 @@ class HeapShortBuffer extends ShortBuffer {
     
     /*▼ 压缩 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 压缩缓冲区，将当前未读完的数据挪到容器起始处，可用于读模式到写模式的切换，但又不丢失之前读入的数据。
     public ShortBuffer compact() {
         System.arraycopy(hb, ix(position()), hb, ix(0), remaining());
         position(remaining());
@@ -179,6 +191,7 @@ class HeapShortBuffer extends ShortBuffer {
     
     /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 返回该缓冲区的字节序（大端还是小端）
     public ByteOrder order() {
         return ByteOrder.nativeOrder();
     }

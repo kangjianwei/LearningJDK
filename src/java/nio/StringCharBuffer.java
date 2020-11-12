@@ -32,7 +32,7 @@ class StringCharBuffer extends CharBuffer {
     
     CharSequence str;   // 缓冲区
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     StringCharBuffer(CharSequence s, int start, int end) { // package-private
         super(-1, start, end, s.length());
@@ -49,7 +49,7 @@ class StringCharBuffer extends CharBuffer {
         this.isReadOnly = true;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -123,10 +123,12 @@ class StringCharBuffer extends CharBuffer {
     
     /*▼ 只读缓冲区，禁止写入 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 向position处（可能需要加offset）写入char，并将position递增
     public final CharBuffer put(char c) {
         throw new ReadOnlyBufferException();
     }
     
+    // 向index处（可能需要加offset）写入char
     public final CharBuffer put(int index, char c) {
         throw new ReadOnlyBufferException();
     }
@@ -163,6 +165,16 @@ class StringCharBuffer extends CharBuffer {
     
     /*▼ 比较 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    public int compareTo(CharBuffer that) {
+        int i = BufferMismatch.mismatch(this, this.position(), that, that.position(), Math.min(this.remaining(), that.remaining()));
+        
+        if(i >= 0) {
+            return Character.compare(this.get(this.position() + i), that.get(that.position() + i));
+        }
+        
+        return this.remaining() - that.remaining();
+    }
+    
     // 比较两个缓冲区是否相同
     public boolean equals(Object ob) {
         if(this == ob)
@@ -172,15 +184,7 @@ class StringCharBuffer extends CharBuffer {
         CharBuffer that = (CharBuffer) ob;
         if(this.remaining() != that.remaining())
             return false;
-        return BufferMismatch.mismatch(this, this.position(), that, that.position(), this.remaining()) < 0;
-    }
-    
-    public int compareTo(CharBuffer that) {
-        int i = BufferMismatch.mismatch(this, this.position(), that, that.position(), Math.min(this.remaining(), that.remaining()));
-        if(i >= 0) {
-            return Character.compare(this.get(this.position() + i), that.get(that.position() + i));
-        }
-        return this.remaining() - that.remaining();
+        return BufferMismatch.mismatch(this, this.position(), that, that.position(), this.remaining())<0;
     }
     
     /*▲ 比较 ████████████████████████████████████████████████████████████████████████████████┛ */

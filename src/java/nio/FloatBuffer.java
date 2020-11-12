@@ -111,16 +111,18 @@ package java.nio;
  */
 public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuffer> {
     
-    // These fields are declared here rather than in Heap-X-Buffer in order to
-    // reduce the number of virtual method invocations needed to access these
-    // values, which is especially costly when coding small buffers.
+    /**
+     * These fields are declared here rather than in Heap-X-Buffer in order to
+     * reduce the number of virtual method invocations needed to access these
+     * values, which is especially costly when coding small buffers.
+     */
     final float[] hb;                  // Non-null only for heap buffers
     
-    final int offset;
-    boolean isReadOnly;
+    final int offset;   // 寻址偏移量
+    boolean isReadOnly; // 该缓冲区是否只读
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     // Creates a new buffer with the given mark, position, limit, capacity, backing array, and array offset
     FloatBuffer(int mark, int pos, int lim, int cap, float[] hb, int offset) {
@@ -134,7 +136,108 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
         this(mark, pos, lim, cap, null, 0);
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Allocates a new float buffer.
+     *
+     * <p> The new buffer's position will be zero, its limit will be its
+     * capacity, its mark will be undefined, each of its elements will be
+     * initialized to zero, and its byte order will be
+     *
+     *
+     *
+     * the {@link ByteOrder#nativeOrder native order} of the underlying
+     * hardware.
+     *
+     * It will have a {@link #array backing array}, and its
+     * {@link #arrayOffset array offset} will be zero.
+     *
+     * @param capacity The new buffer's capacity, in floats
+     *
+     * @return The new float buffer
+     *
+     * @throws IllegalArgumentException If the {@code capacity} is a negative integer
+     */
+    // 创建堆内存缓冲区HeapFloatBuffer
+    public static FloatBuffer allocate(int capacity) {
+        if(capacity<0)
+            throw createCapacityException(capacity);
+        return new HeapFloatBuffer(capacity, capacity);
+    }
+    
+    /**
+     * Wraps a float array into a buffer.
+     *
+     * <p> The new buffer will be backed by the given float array;
+     * that is, modifications to the buffer will cause the array to be modified
+     * and vice versa.  The new buffer's capacity will be
+     * {@code array.length}, its position will be {@code offset}, its limit
+     * will be {@code offset + length}, its mark will be undefined, and its
+     * byte order will be
+     *
+     *
+     *
+     * the {@link ByteOrder#nativeOrder native order} of the underlying
+     * hardware.
+     *
+     * Its {@link #array backing array} will be the given array, and
+     * its {@link #arrayOffset array offset} will be zero.  </p>
+     *
+     * @param array  The array that will back the new buffer
+     * @param offset The offset of the subarray to be used; must be non-negative and
+     *               no larger than {@code array.length}.  The new buffer's position
+     *               will be set to this value.
+     * @param length The length of the subarray to be used;
+     *               must be non-negative and no larger than
+     *               {@code array.length - offset}.
+     *               The new buffer's limit will be set to {@code offset + length}.
+     *
+     * @return The new float buffer
+     *
+     * @throws IndexOutOfBoundsException If the preconditions on the {@code offset} and {@code length}
+     *                                   parameters do not hold
+     */
+    // 包装一个float数组到buffer（包装一部分）
+    public static FloatBuffer wrap(float[] array, int offset, int length) {
+        try {
+            return new HeapFloatBuffer(array, offset, length);
+        } catch(IllegalArgumentException x) {
+            throw new IndexOutOfBoundsException();
+        }
+    }
+    
+    /**
+     * Wraps a float array into a buffer.
+     *
+     * <p> The new buffer will be backed by the given float array;
+     * that is, modifications to the buffer will cause the array to be modified
+     * and vice versa.  The new buffer's capacity and limit will be
+     * {@code array.length}, its position will be zero, its mark will be
+     * undefined, and its byte order will be
+     *
+     *
+     *
+     * the {@link ByteOrder#nativeOrder native order} of the underlying
+     * hardware.
+     *
+     * Its {@link #array backing array} will be the given array, and its
+     * {@link #arrayOffset array offset} will be zero.  </p>
+     *
+     * @param array The array that will back this buffer
+     *
+     * @return The new float buffer
+     */
+    // 包装一个float数组到buffer
+    public static FloatBuffer wrap(float[] array) {
+        return wrap(array, 0, array.length);
+    }
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -145,6 +248,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
      *
      * @return {@code true} if, and only if, this buffer is direct
      */
+    // 直接缓冲区/非直接缓冲区
     public abstract boolean isDirect();
     
     /*▲ 缓冲区属性 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -156,6 +260,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
     /**
      * {@inheritDoc}
      */
+    // 在当前游标position处设置新的mark（备忘）
     @Override
     public final FloatBuffer mark() {
         super.mark();
@@ -165,6 +270,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
     /**
      * {@inheritDoc}
      */
+    // 设置新的游标position
     @Override
     public final FloatBuffer position(int newPosition) {
         super.position(newPosition);
@@ -174,6 +280,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
     /**
      * {@inheritDoc}
      */
+    // 设置新的上界limit
     @Override
     public final FloatBuffer limit(int newLimit) {
         super.limit(newLimit);
@@ -183,6 +290,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
     /**
      * {@inheritDoc}
      */
+    // 将当前游标position回退到mark（备忘）位置
     @Override
     public final FloatBuffer reset() {
         super.reset();
@@ -192,6 +300,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
     /**
      * {@inheritDoc}
      */
+    // 清理缓冲区，重置标记
     @Override
     public final FloatBuffer clear() {
         super.clear();
@@ -201,6 +310,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
     /**
      * {@inheritDoc}
      */
+    // 修改标记，可以切换缓冲区读/写模式
     @Override
     public final FloatBuffer flip() {
         super.flip();
@@ -210,6 +320,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
     /**
      * {@inheritDoc}
      */
+    // 丢弃备忘，游标归零
     @Override
     public final FloatBuffer rewind() {
         super.rewind();
@@ -240,6 +351,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
      *
      * @return The new float buffer
      */
+    // 切片，截取旧缓冲区的【活跃区域】，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     @Override
     public abstract FloatBuffer slice();
     
@@ -258,6 +370,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
      *
      * @return The new float buffer
      */
+    // 副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     @Override
     public abstract FloatBuffer duplicate();
     
@@ -279,6 +392,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
      *
      * @return The new, read-only float buffer
      */
+    // 只读副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public abstract FloatBuffer asReadOnlyBuffer();
     
     /*▲ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -295,6 +409,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
      *
      * @throws BufferUnderflowException If the buffer's current position is not smaller than its limit
      */
+    // 读取position处（可能需要加offset）的float，然后递增position。
     public abstract float get();
     
     /**
@@ -308,6 +423,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
      * @throws IndexOutOfBoundsException If {@code index} is negative
      *                                   or not smaller than the buffer's limit
      */
+    // 读取index处（可能需要加offset）的float（有越界检查）
     public abstract float get(int index);
     
     /**
@@ -352,6 +468,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
      * @throws IndexOutOfBoundsException If the preconditions on the {@code offset} and {@code length}
      *                                   parameters do not hold
      */
+    // 复制源缓存区的length个元素到dst数组offset索引处
     public FloatBuffer get(float[] dst, int offset, int length) {
         checkBounds(offset, length, dst.length);
         if(length > remaining())
@@ -379,6 +496,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
      * @throws BufferUnderflowException If there are fewer than {@code length} floats
      *                                  remaining in this buffer
      */
+    // 复制源缓存区的内容到dst数组，尽量填满dst
     public FloatBuffer get(float[] dst) {
         return get(dst, 0, dst.length);
     }
@@ -402,6 +520,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
      * @throws BufferOverflowException If this buffer's current position is not smaller than its limit
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
+    // 向position处（可能需要加offset）写入float，并将position递增
     public abstract FloatBuffer put(float f);
     
     /**
@@ -419,6 +538,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
      *                                   or not smaller than the buffer's limit
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
+    // 向index处（可能需要加offset）写入float
     public abstract FloatBuffer put(int index, float f);
     
     /**
@@ -462,6 +582,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
      *                                   parameters do not hold
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
+    // 从源字节数组src的offset处开始，复制length个元素，写入到当前缓冲区（具体行为由子类实现）
     public FloatBuffer put(float[] src, int offset, int length) {
         checkBounds(offset, length, src.length);
         if(length > remaining())
@@ -490,6 +611,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
      * @throws BufferOverflowException If there is insufficient space in this buffer
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
+    // 将float数组src的全部内容写入此缓冲区
     public final FloatBuffer put(float[] src) {
         return put(src, 0, src.length);
     }
@@ -529,6 +651,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
      * @throws IllegalArgumentException If the source buffer is this buffer
      * @throws ReadOnlyBufferException  If this buffer is read-only
      */
+    // 将源缓冲区src的内容全部写入到当前缓冲区
     public FloatBuffer put(FloatBuffer src) {
         if(src == this)
             throw createSameBufferException();
@@ -543,77 +666,6 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
     }
     
     /*▲ put ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
-    /*▼ wrap/非直接缓冲区 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Wraps a float array into a buffer.
-     *
-     * <p> The new buffer will be backed by the given float array;
-     * that is, modifications to the buffer will cause the array to be modified
-     * and vice versa.  The new buffer's capacity will be
-     * {@code array.length}, its position will be {@code offset}, its limit
-     * will be {@code offset + length}, its mark will be undefined, and its
-     * byte order will be
-     *
-     *
-     *
-     * the {@link ByteOrder#nativeOrder native order} of the underlying
-     * hardware.
-     *
-     * Its {@link #array backing array} will be the given array, and
-     * its {@link #arrayOffset array offset} will be zero.  </p>
-     *
-     * @param array  The array that will back the new buffer
-     * @param offset The offset of the subarray to be used; must be non-negative and
-     *               no larger than {@code array.length}.  The new buffer's position
-     *               will be set to this value.
-     * @param length The length of the subarray to be used;
-     *               must be non-negative and no larger than
-     *               {@code array.length - offset}.
-     *               The new buffer's limit will be set to {@code offset + length}.
-     *
-     * @return The new float buffer
-     *
-     * @throws IndexOutOfBoundsException If the preconditions on the {@code offset} and {@code length}
-     *                                   parameters do not hold
-     */
-    public static FloatBuffer wrap(float[] array, int offset, int length) {
-        try {
-            return new HeapFloatBuffer(array, offset, length);
-        } catch(IllegalArgumentException x) {
-            throw new IndexOutOfBoundsException();
-        }
-    }
-    
-    /**
-     * Wraps a float array into a buffer.
-     *
-     * <p> The new buffer will be backed by the given float array;
-     * that is, modifications to the buffer will cause the array to be modified
-     * and vice versa.  The new buffer's capacity and limit will be
-     * {@code array.length}, its position will be zero, its mark will be
-     * undefined, and its byte order will be
-     *
-     *
-     *
-     * the {@link ByteOrder#nativeOrder native order} of the underlying
-     * hardware.
-     *
-     * Its {@link #array backing array} will be the given array, and its
-     * {@link #arrayOffset array offset} will be zero.  </p>
-     *
-     * @param array The array that will back this buffer
-     *
-     * @return The new float buffer
-     */
-    public static FloatBuffer wrap(float[] array) {
-        return wrap(array, 0, array.length);
-    }
-    
-    /*▲ wrap/非直接缓冲区 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -641,6 +693,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
      *
      * @throws ReadOnlyBufferException If this buffer is read-only
      */
+    // 压缩缓冲区，将当前未读完的数据挪到容器起始处，可用于读模式到写模式的切换，但又不丢失之前读入的数据。
     public abstract FloatBuffer compact();
     
     /*▲ 压缩 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -661,6 +714,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
      *
      * @return This buffer's byte order
      */
+    // 返回该缓冲区的字节序（大端还是小端）
     public abstract ByteOrder order();
     
     /*▲ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -668,49 +722,6 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
     
     
     /*▼ 比较 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Tells whether or not this buffer is equal to another object.
-     *
-     * <p> Two float buffers are equal if, and only if,
-     *
-     * <ol>
-     *
-     * <li><p> They have the same element type,  </p></li>
-     *
-     * <li><p> They have the same number of remaining elements, and
-     * </p></li>
-     *
-     * <li><p> The two sequences of remaining elements, considered
-     * independently of their starting positions, are pointwise equal.
-     *
-     * This method considers two float elements {@code a} and {@code b}
-     * to be equal if
-     * {@code (a == b) || (Float.isNaN(a) && Float.isNaN(b))}.
-     * The values {@code -0.0} and {@code +0.0} are considered to be
-     * equal, unlike {@link Float#equals(Object)}.
-     *
-     * </p></li>
-     *
-     * </ol>
-     *
-     * <p> A float buffer is not equal to any other type of object.  </p>
-     *
-     * @param ob The object to which this buffer is to be compared
-     *
-     * @return {@code true} if, and only if, this buffer is equal to the
-     * given object
-     */
-    public boolean equals(Object ob) {
-        if(this == ob)
-            return true;
-        if(!(ob instanceof FloatBuffer))
-            return false;
-        FloatBuffer that = (FloatBuffer) ob;
-        if(this.remaining() != that.remaining())
-            return false;
-        return BufferMismatch.mismatch(this, this.position(), that, that.position(), this.remaining()) < 0;
-    }
     
     private static int compare(float x, float y) {
         
@@ -773,6 +784,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
      *
      * @since 11
      */
+    // 快速比较两个缓冲区内容，并返回失配元素的索引。返回-1代表缓冲区内容相同。
     public int mismatch(FloatBuffer that) {
         int length = Math.min(this.remaining(), that.remaining());
         int r = BufferMismatch.mismatch(this, this.position(), that, that.position(), length);
@@ -796,6 +808,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
      * @return {@code true} if, and only if, this buffer
      * is backed by an array and is not read-only
      */
+    // true：此buffer由可访问的数组实现
     public final boolean hasArray() {
         return (hb != null) && !isReadOnly;
     }
@@ -816,6 +829,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
      * @throws ReadOnlyBufferException       If this buffer is backed by an array but is read-only
      * @throws UnsupportedOperationException If this buffer is not backed by an accessible array
      */
+    // 返回该buffer内部的非只读数组
     public final float[] array() {
         if(hb == null)
             throw new UnsupportedOperationException();
@@ -824,6 +838,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
         return hb;
     }
     
+    // 返回内部存储结构的引用（一般用于非直接缓存区）
     @Override
     Object base() {
         return hb;
@@ -846,6 +861,7 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
      * @throws ReadOnlyBufferException       If this buffer is backed by an array but is read-only
      * @throws UnsupportedOperationException If this buffer is not backed by an accessible array
      */
+    // 返回此缓冲区中的第一个元素在缓冲区的底层实现数组中的偏移量（可选操作）
     public final int arrayOffset() {
         if(hb == null)
             throw new UnsupportedOperationException();
@@ -857,33 +873,6 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
     /*▲ Buffer ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
-    
-    /**
-     * Allocates a new float buffer.
-     *
-     * <p> The new buffer's position will be zero, its limit will be its
-     * capacity, its mark will be undefined, each of its elements will be
-     * initialized to zero, and its byte order will be
-     *
-     *
-     *
-     * the {@link ByteOrder#nativeOrder native order} of the underlying
-     * hardware.
-     *
-     * It will have a {@link #array backing array}, and its
-     * {@link #arrayOffset array offset} will be zero.
-     *
-     * @param capacity The new buffer's capacity, in floats
-     *
-     * @return The new float buffer
-     *
-     * @throws IllegalArgumentException If the {@code capacity} is a negative integer
-     */
-    public static FloatBuffer allocate(int capacity) {
-        if(capacity < 0)
-            throw createCapacityException(capacity);
-        return new HeapFloatBuffer(capacity, capacity);
-    }
     
     /**
      * Returns a string summarizing the state of this buffer.
@@ -901,6 +890,49 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
         sb.append(capacity());
         sb.append("]");
         return sb.toString();
+    }
+    
+    /**
+     * Tells whether or not this buffer is equal to another object.
+     *
+     * <p> Two float buffers are equal if, and only if,
+     *
+     * <ol>
+     *
+     * <li><p> They have the same element type,  </p></li>
+     *
+     * <li><p> They have the same number of remaining elements, and
+     * </p></li>
+     *
+     * <li><p> The two sequences of remaining elements, considered
+     * independently of their starting positions, are pointwise equal.
+     *
+     * This method considers two float elements {@code a} and {@code b}
+     * to be equal if
+     * {@code (a == b) || (Float.isNaN(a) && Float.isNaN(b))}.
+     * The values {@code -0.0} and {@code +0.0} are considered to be
+     * equal, unlike {@link Float#equals(Object)}.
+     *
+     * </p></li>
+     *
+     * </ol>
+     *
+     * <p> A float buffer is not equal to any other type of object.  </p>
+     *
+     * @param ob The object to which this buffer is to be compared
+     *
+     * @return {@code true} if, and only if, this buffer is equal to the
+     * given object
+     */
+    public boolean equals(Object ob) {
+        if(this == ob)
+            return true;
+        if(!(ob instanceof FloatBuffer))
+            return false;
+        FloatBuffer that = (FloatBuffer) ob;
+        if(this.remaining() != that.remaining())
+            return false;
+        return BufferMismatch.mismatch(this, this.position(), that, that.position(), this.remaining())<0;
     }
     
     /**
@@ -926,4 +958,5 @@ public abstract class FloatBuffer extends Buffer implements Comparable<FloatBuff
         
         return h;
     }
+    
 }

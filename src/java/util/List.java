@@ -246,7 +246,7 @@ public interface List<E> extends Collection<E> {
     
     /*▼ 取值 ████████████████████████████████████████████████████████████████████████████████┓ */
     
-    /**
+     /**
      * Returns the element at the specified position in this list.
      *
      * @param index index of the element to return
@@ -573,7 +573,7 @@ public interface List<E> extends Collection<E> {
      *         sequence
      * @see Arrays#asList(Object[])
      */
-    // 以数组形式返回当前顺序表
+    // 以数组形式返回当前List中的元素
     Object[] toArray();
     
     /**
@@ -615,7 +615,7 @@ public interface List<E> extends Collection<E> {
      *         this list
      * @throws NullPointerException if the specified array is null
      */
-    // 将当前顺序表中的元素存入数组a后返回，需要将链表中的元素转换为T类型
+    // 将当前List中的元素存入数组a后返回，需要将List中的元素转换为T类型
     <T> T[] toArray(T[] a);
     
     /*▲ 视图 ████████████████████████████████████████████████████████████████████████████████┛ */

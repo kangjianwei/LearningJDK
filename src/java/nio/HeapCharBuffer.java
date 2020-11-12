@@ -28,9 +28,9 @@ package java.nio;
 /**
  * A read/write HeapCharBuffer.
  */
-
 // 可读写、非直接缓冲区，内部存储结构实现为char[]
 class HeapCharBuffer extends CharBuffer {
+    
     // 寻找char[]类型数组中的元素时约定的起始偏移地址，与#arrayIndexScale配合使用
     private static final long ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(char[].class);
     // char[]类型数组中每个元素所占字节大小，这里是char[]，每个char占2个字节
@@ -38,7 +38,7 @@ class HeapCharBuffer extends CharBuffer {
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     // 最后一个参数用于确定当前缓冲区在内部存储器上的【绝对】起始地址
     protected HeapCharBuffer(char[] buf, int mark, int pos, int lim, int cap, int off) {
@@ -56,7 +56,7 @@ class HeapCharBuffer extends CharBuffer {
         this.address = ARRAY_BASE_OFFSET;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     

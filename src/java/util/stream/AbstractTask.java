@@ -83,40 +83,40 @@ import java.util.concurrent.ForkJoinWorkerThread;
  * tasks managed by stream ops.
  * @since 1.8
  */
-// 用于"流"运算的抽象任务，依托于fork/join框架，可并行地执行该任务
+// 用于流式运算的抽象任务，依托于fork/join框架，可并行地执行该任务
 @SuppressWarnings("serial")
 abstract class AbstractTask<P_IN, P_OUT, R, K extends AbstractTask<P_IN, P_OUT, R, K>> extends CountedCompleter<R> {
+    
+    // 默认的子任务数量
     private static final int LEAF_TARGET = ForkJoinPool.getCommonPoolParallelism() << 2;
     
     /** The pipeline helper, common to all tasks in a computation */
-    protected final PipelineHelper<P_OUT> helper;
+    protected final PipelineHelper<P_OUT> helper;   // 流
     
     /**
-     * The spliterator for the portion of the input associated with the subtree
-     * rooted at this task
+     * The spliterator for the portion of the input associated with the subtree rooted at this task
      */
-    protected Spliterator<P_IN> spliterator;
+    protected Spliterator<P_IN> spliterator;    // 流迭代器
     
     /** Target leaf size, common to all tasks in a computation */
-    // 目标叶子大小
-    protected long targetSize; // may be lazily initialized
+    protected long targetSize;     // 目标叶子大小
     
     /**
      * The left child.
      * null if no children
      * if non-null rightChild is non-null
      */
-    protected K leftChild;
+    protected K leftChild;    // 左孩子
     
     /**
      * The right child.
      * null if no children
      * if non-null leftChild is non-null
      */
-    protected K rightChild;
+    protected K rightChild;   // 右孩子
     
     /** The result of this node, if completed */
-    private R localResult;
+    private R localResult;    // 当前任务的执行结果
     
     /**
      * Constructor for root nodes.
@@ -148,19 +148,144 @@ abstract class AbstractTask<P_IN, P_OUT, R, K extends AbstractTask<P_IN, P_OUT, 
     }
     
     /**
+     * Constructs a new node of type T whose parent is the receiver; must call
+     * the AbstractTask(T, Spliterator) constructor with the receiver and the
+     * provided Spliterator.
+     *
+     * @param spliterator {@code Spliterator} describing the subtree rooted at
+     *                    this node, obtained by splitting the parent {@code Spliterator}
+     *
+     * @return newly constructed child node
+     */
+    // 返回一个子任务，该子任务的数据源是spliterator，以待处理
+    protected abstract K makeChild(Spliterator<P_IN> spliterator);
+    
+    /**
+     * Decides whether or not to split a task further or compute it
+     * directly. If computing directly, calls {@code doLeaf} and pass
+     * the result to {@code setRawResult}. Otherwise splits off
+     * subtasks, forking one and continuing as the other.
+     *
+     * <p> The method is structured to conserve resources across a
+     * range of uses.  The loop continues with one of the child tasks
+     * when split, to avoid deep recursion. To cope with spliterators
+     * that may be systematically biased toward left-heavy or
+     * right-heavy splits, we alternate which child is forked versus
+     * continued in the loop.
+     */
+    // 计算当前任务，可能需要对其进行拆分
+    @Override
+    public void compute() {
+        Spliterator<P_IN> rightSplit = spliterator;
+        Spliterator<P_IN> leftSplit;
+    
+        // 获取right任务剩余元素数量
+        long rightSplitSize = rightSplit.estimateSize();
+    
+        // 返回为目标结点分配的元素数量（建议值）
+        long sizeThreshold = getTargetSize(rightSplitSize);
+    
+        boolean forkRight = false;
+    
+        @SuppressWarnings("unchecked")
+        K task = (K) this;
+    
+        while(true) {
+        
+            // 如果right任务的数据量已经满足要求，则无需再拆分
+            if(rightSplitSize<=sizeThreshold) {
+                break;
+            }
+        
+            // 如果right任务数据量过大，则需要拆分其流迭代器
+            leftSplit = rightSplit.trySplit();
+            if(leftSplit == null) {
+                break;
+            }
+        
+            K leftChild, rightChild, taskToFork;
+        
+            // 封装左右孩子任务
+            task.leftChild = leftChild = task.makeChild(leftSplit);
+            task.rightChild = rightChild = task.makeChild(rightSplit);
+        
+            // 设置挂起计数
+            task.setPendingCount(1);
+        
+            // 轮流拆分左右子任务
+            if(forkRight) {
+                forkRight = false;
+                rightSplit = leftSplit;
+                task = leftChild;
+                taskToFork = rightChild;
+            } else {
+                forkRight = true;
+                task = rightChild;
+                taskToFork = leftChild;
+            }
+        
+            // 将taskToFork交给其他线程去执行
+            taskToFork.fork();
+        
+            // 更新right任务中包含的元素数量
+            rightSplitSize = rightSplit.estimateSize();
+        }
+    
+        // 当前线程直接执行最后剩余的子任务，并返回子任务的计算结果
+        R result = task.doLeaf();
+    
+        // 设置task任务的计算结果
+        task.setLocalResult(result);
+    
+        // 尝试从task任务开始，向上传播"完成"消息
+        task.tryComplete();
+    }
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @implNote Clears spliterator and children fields.  Overriders MUST call
+     * {@code super.onCompletion} as the last thing they do if they want these
+     * cleared.
+     */
+    /*
+     * 在当前(子)任务执行完成后，需要执行该回调方法。
+     *
+     * 参数中的caller是促进当前任务完成的子任务(只有子任务完成了，父任务才可能完成)。
+     * 如果当前任务没有子任务，或者并不关心子任务，则参数caller的值可以直接传入当前任务。
+     *
+     * 注：该方法在complete()或tryComplete()中被回调
+     */
+    @Override
+    public void onCompletion(CountedCompleter<?> caller) {
+        // 置空当前任务内的核心参数
+        spliterator = null;
+        leftChild = rightChild = null;
+    }
+    
+    /**
+     * Computes the result associated with a leaf node.  Will be called by
+     * {@code compute()} and the result passed to @{code setLocalResult()}
+     *
+     * @return the computed result of a leaf node
+     */
+    // 返回子任务的计算结果
+    protected abstract R doLeaf();
+    
+    /**
      * Default target of leaf tasks for parallel decomposition.
      * To allow load balancing, we over-partition, currently to approximately
      * four tasks per processor, which enables others to help out
      * if leaf tasks are uneven or some processors are otherwise busy.
      */
-    // 返回为每个处理器分配的任务数量
+    // 如果需要拆分当前任务，则返回子任务数量的一个建议值
     public static int getLeafTarget() {
         Thread t = Thread.currentThread();
         if(t instanceof ForkJoinWorkerThread) {
             return ((ForkJoinWorkerThread) t).getPool().getParallelism() << 2;
-        } else {
-            return LEAF_TARGET;
         }
+        
+        return LEAF_TARGET;
     }
     
     /**
@@ -168,7 +293,7 @@ abstract class AbstractTask<P_IN, P_OUT, R, K extends AbstractTask<P_IN, P_OUT, 
      *
      * @return suggested target leaf size
      */
-    // 返回为目标结点分配的元素数量（建议值）
+    // 根据传入的元素总量，返回每个子任务(建议)包含的元素数量
     public static long suggestTargetSize(long sizeEstimate) {
         long est = sizeEstimate / getLeafTarget();
         return est>0L ? est : 1L;
@@ -177,14 +302,16 @@ abstract class AbstractTask<P_IN, P_OUT, R, K extends AbstractTask<P_IN, P_OUT, 
     /**
      * Returns the targetSize, initializing it via the supplied size estimate if not already initialized.
      */
-    // 返回为目标结点分配的元素数量（建议值）
+    // 根据传入的元素总量，返回每个子任务(建议)包含的元素数量
     protected final long getTargetSize(long sizeEstimate) {
-        if(targetSize != 0){
-            return targetSize;
-        } else {
-            targetSize = suggestTargetSize(sizeEstimate);
+        if(targetSize != 0) {
             return targetSize;
         }
+        
+        // 根据传入的元素总量，返回每个子任务(建议)包含的元素数量
+        targetSize = suggestTargetSize(sizeEstimate);
+        
+        return targetSize;
     }
     
     /**
@@ -217,107 +344,6 @@ abstract class AbstractTask<P_IN, P_OUT, R, K extends AbstractTask<P_IN, P_OUT, 
             throw new IllegalStateException();
         }
     }
-    
-    /**
-     * Decides whether or not to split a task further or compute it
-     * directly. If computing directly, calls {@code doLeaf} and pass
-     * the result to {@code setRawResult}. Otherwise splits off
-     * subtasks, forking one and continuing as the other.
-     *
-     * <p> The method is structured to conserve resources across a
-     * range of uses.  The loop continues with one of the child tasks
-     * when split, to avoid deep recursion. To cope with spliterators
-     * that may be systematically biased toward left-heavy or
-     * right-heavy splits, we alternate which child is forked versus
-     * continued in the loop.
-     */
-    // 决定是否进一步拆分任务或直接计算任务
-    @Override
-    public void compute() {
-        Spliterator<P_IN> rs = spliterator, ls; // right, left spliterators
-        
-        // 获取元素总量
-        long sizeEstimate = rs.estimateSize();
-        
-        // 返回为目标结点分配的元素数量（建议值）
-        long sizeThreshold = getTargetSize(sizeEstimate);
-        
-        boolean forkRight = false;
-        
-        @SuppressWarnings("unchecked")
-        K task = (K) this;
-        
-        while(sizeEstimate>sizeThreshold && (ls = rs.trySplit()) != null) {
-            K leftChild, rightChild, taskToFork;
-            
-            // 包装为子任务，以待处理
-            task.leftChild = leftChild = task.makeChild(ls);
-            task.rightChild = rightChild = task.makeChild(rs);
-            
-            // 设置挂起计数
-            task.setPendingCount(1);
-            
-            // 执行子任务
-            if(forkRight) {
-                forkRight = false;
-                rs = ls;
-                task = leftChild;
-                taskToFork = rightChild;
-            } else {
-                forkRight = true;
-                task = rightChild;
-                taskToFork = leftChild;
-            }
-            
-            // 将子任务交给其他线程去执行
-            taskToFork.fork();
-            
-            // 更新当前任务中包含的元素数量
-            sizeEstimate = rs.estimateSize();
-        }
-        
-        // 设置当前任务的计算结果
-        task.setLocalResult(task.doLeaf());
-        
-        // 尝试完成当前任务
-        task.tryComplete();
-    }
-    
-    /**
-     * {@inheritDoc}
-     *
-     * @implNote Clears spliterator and children fields.  Overriders MUST call
-     * {@code super.onCompletion} as the last thing they do if they want these
-     * cleared.
-     */
-    // 任务完成时的回调
-    @Override
-    public void onCompletion(CountedCompleter<?> caller) {
-        spliterator = null;
-        leftChild = rightChild = null;
-    }
-    
-    /**
-     * Constructs a new node of type T whose parent is the receiver; must call
-     * the AbstractTask(T, Spliterator) constructor with the receiver and the
-     * provided Spliterator.
-     *
-     * @param spliterator {@code Spliterator} describing the subtree rooted at
-     *                    this node, obtained by splitting the parent {@code Spliterator}
-     *
-     * @return newly constructed child node
-     */
-    // 包装为子任务，以待处理
-    protected abstract K makeChild(Spliterator<P_IN> spliterator);
-    
-    /**
-     * Computes the result associated with a leaf node.  Will be called by
-     * {@code compute()} and the result passed to @{code setLocalResult()}
-     *
-     * @return the computed result of a leaf node
-     */
-    // 返回叶子结点的计算结果
-    protected abstract R doLeaf();
     
     /**
      * Retrieves a result previously stored with {@link #setLocalResult}
@@ -360,7 +386,12 @@ abstract class AbstractTask<P_IN, P_OUT, R, K extends AbstractTask<P_IN, P_OUT, 
      *
      * @return {@code true} if this task is a leaf node
      */
-    // 判断是否为叶子任务
+    /*
+     * 判断当前任务是否为叶子任务
+     *
+     * 如果不是叶子任务，则leftChild和rightChild必定都不为空，
+     * 参见上面的onCompletion()方法。
+     */
     protected boolean isLeaf() {
         return leftChild == null;
     }
@@ -370,7 +401,7 @@ abstract class AbstractTask<P_IN, P_OUT, R, K extends AbstractTask<P_IN, P_OUT, 
      *
      * @return {@code true} if this task is the root node.
      */
-    // 判断是否为根任务
+    // 判断当前任务是否为根任务
     protected boolean isRoot() {
         return getParent() == null;
     }
@@ -386,14 +417,18 @@ abstract class AbstractTask<P_IN, P_OUT, R, K extends AbstractTask<P_IN, P_OUT, 
     protected boolean isLeftmostNode() {
         @SuppressWarnings("unchecked")
         K node = (K) this;
+    
         while(node != null) {
             K parent = node.getParent();
+        
             if(parent != null && parent.leftChild != node) {
                 return false;
             }
+        
             node = parent;
         }
         
         return true;
     }
+    
 }

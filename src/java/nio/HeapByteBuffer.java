@@ -28,7 +28,6 @@ package java.nio;
 /**
  * A read/write HeapByteBuffer.
  */
-
 // 可读写、非直接缓冲区，内部存储结构实现为byte[]
 class HeapByteBuffer extends ByteBuffer {
     
@@ -39,7 +38,7 @@ class HeapByteBuffer extends ByteBuffer {
     
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     // 最后一个参数用于确定当前缓冲区在内部存储器上的【绝对】起始地址
     protected HeapByteBuffer(byte[] buf, int mark, int pos, int lim, int cap, int off) {
@@ -57,16 +56,18 @@ class HeapByteBuffer extends ByteBuffer {
         this.address = ARRAY_BASE_OFFSET;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 可读写/非直接 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 只读/可读写
     public boolean isReadOnly() {
         return false;
     }
     
+    // 直接缓冲区/非直接缓冲区
     public boolean isDirect() {
         return false;
     }
@@ -77,10 +78,12 @@ class HeapByteBuffer extends ByteBuffer {
     
     /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 切片，截取旧缓冲区的【活跃区域】，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     public ByteBuffer slice() {
         return new HeapByteBuffer(hb, -1, 0, this.remaining(), this.remaining(), this.position() + offset);
     }
     
+    // 切片，截取旧缓冲区【活跃区域】中pos~lim中的一段，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     ByteBuffer slice(int pos, int lim) {
         assert (pos >= 0);
         assert (pos <= lim);
@@ -88,10 +91,12 @@ class HeapByteBuffer extends ByteBuffer {
         return new HeapByteBuffer(hb, -1, 0, rem, rem, pos + offset);
     }
     
+    // 副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public ByteBuffer duplicate() {
         return new HeapByteBuffer(hb, this.markValue(), this.position(), this.limit(), this.capacity(), offset);
     }
     
+    // 只读副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public ByteBuffer asReadOnlyBuffer() {
         return new HeapByteBufferR(hb, this.markValue(), this.position(), this.limit(), this.capacity(), offset);
     }
@@ -411,4 +416,5 @@ class HeapByteBuffer extends ByteBuffer {
     void _put(int i, byte b) {                  // package-private
         hb[i] = b;
     }
+    
 }

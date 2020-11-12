@@ -239,8 +239,11 @@ package java.nio;
  */
 public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer> {
     
-    // These fields are declared here rather than in Heap-X-Buffer in order to reduce the number of virtual method invocations needed to access these values,
-    // which is especially costly when coding small buffers.
+    /**
+     * These fields are declared here rather than in Heap-X-Buffer in order to
+     * reduce the number of virtual method invocations needed to access these
+     * values, which is especially costly when coding small buffers.
+     */
     final byte[] hb;            // Non-null only for heap buffers
     
     final int offset;       // 寻址偏移量，用于ByteBuffer/HeapByteBuffer/DirectByteBuffer这三组实现
@@ -268,6 +271,125 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
     }
     
     /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Allocates a new direct byte buffer.
+     *
+     * <p> The new buffer's position will be zero, its limit will be its
+     * capacity, its mark will be undefined, each of its elements will be
+     * initialized to zero, and its byte order will be
+     * {@link ByteOrder#BIG_ENDIAN BIG_ENDIAN}.  Whether or not it has a
+     * {@link #hasArray backing array} is unspecified.
+     *
+     * @param capacity The new buffer's capacity, in bytes
+     *
+     * @return The new byte buffer
+     *
+     * @throws IllegalArgumentException If the {@code capacity} is a negative integer
+     */
+    // 创建直接内存缓冲区DirectByteBuffer
+    public static ByteBuffer allocateDirect(int capacity) {
+        return new DirectByteBuffer(capacity);
+    }
+    
+    /**
+     * Allocates a new byte buffer.
+     *
+     * <p> The new buffer's position will be zero, its limit will be its
+     * capacity, its mark will be undefined, each of its elements will be
+     * initialized to zero, and its byte order will be
+     *
+     * {@link ByteOrder#BIG_ENDIAN BIG_ENDIAN}.
+     *
+     *
+     *
+     *
+     * It will have a {@link #array backing array}, and its
+     * {@link #arrayOffset array offset} will be zero.
+     *
+     * @param capacity The new buffer's capacity, in bytes
+     *
+     * @return The new byte buffer
+     *
+     * @throws IllegalArgumentException If the {@code capacity} is a negative integer
+     */
+    // 创建堆内存缓冲区HeapByteBuffer
+    public static ByteBuffer allocate(int capacity) {
+        if(capacity<0)
+            throw createCapacityException(capacity);
+        return new HeapByteBuffer(capacity, capacity);
+    }
+    
+    /**
+     * Wraps a byte array into a buffer.
+     *
+     * <p> The new buffer will be backed by the given byte array;
+     * that is, modifications to the buffer will cause the array to be modified
+     * and vice versa.  The new buffer's capacity will be
+     * {@code array.length}, its position will be {@code offset}, its limit
+     * will be {@code offset + length}, its mark will be undefined, and its
+     * byte order will be
+     *
+     * {@link ByteOrder#BIG_ENDIAN BIG_ENDIAN}.
+     *
+     *
+     *
+     *
+     * Its {@link #array backing array} will be the given array, and
+     * its {@link #arrayOffset array offset} will be zero.  </p>
+     *
+     * @param array  The array that will back the new buffer
+     * @param offset The offset of the subarray to be used; must be non-negative and
+     *               no larger than {@code array.length}.  The new buffer's position
+     *               will be set to this value.
+     * @param length The length of the subarray to be used;
+     *               must be non-negative and no larger than
+     *               {@code array.length - offset}.
+     *               The new buffer's limit will be set to {@code offset + length}.
+     *
+     * @return The new byte buffer
+     *
+     * @throws IndexOutOfBoundsException If the preconditions on the {@code offset} and {@code length}
+     *                                   parameters do not hold
+     */
+    // 包装一个字节数组到buffer（包装一部分）
+    public static ByteBuffer wrap(byte[] array, int offset, int length) {
+        try {
+            return new HeapByteBuffer(array, offset, length);
+        } catch(IllegalArgumentException x) {
+            throw new IndexOutOfBoundsException();
+        }
+    }
+    
+    /**
+     * Wraps a byte array into a buffer.
+     *
+     * <p> The new buffer will be backed by the given byte array;
+     * that is, modifications to the buffer will cause the array to be modified
+     * and vice versa.  The new buffer's capacity and limit will be
+     * {@code array.length}, its position will be zero, its mark will be
+     * undefined, and its byte order will be
+     *
+     * {@link ByteOrder#BIG_ENDIAN BIG_ENDIAN}.
+     *
+     *
+     * Its {@link #array backing array} will be the given array, and its
+     * {@link #arrayOffset array offset} will be zero.  </p>
+     *
+     * @param array The array that will back this buffer
+     *
+     * @return The new byte buffer
+     */
+    // 包装一个字节数组到buffer
+    public static ByteBuffer wrap(byte[] array) {
+        return wrap(array, 0, array.length);
+    }
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -389,7 +511,7 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
     @Override
     public abstract ByteBuffer slice();
     
-    // 切片，截取旧缓冲区【活跃区域】中pos-lim中的一段，作为新缓冲区的【原始区域】。两个缓冲区标记独立
+    // 切片，截取旧缓冲区【活跃区域】中pos~lim中的一段，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     abstract ByteBuffer slice(int pos, int lim);
     
     /**
@@ -544,8 +666,8 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
      * @throws IndexOutOfBoundsException If {@code index} is negative
      *                                   or not smaller than the buffer's limit
      */
-    // 读取index处（可能需要加offset）的byte（有越界检查）
-    public abstract byte get(int index);
+    // 读取i处（可能需要加offset）的byte（有越界检查）
+    public abstract byte get(int i);
     
     /**
      * Relative bulk <i>get</i> method.
@@ -589,7 +711,7 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
      * @throws IndexOutOfBoundsException If the preconditions on the {@code offset} and {@code length}
      *                                   parameters do not hold
      */
-    // 复制当前缓存区的length个元素到dst数组offset索引处
+    // 复制源缓存区的length个元素到dst数组offset索引处
     public ByteBuffer get(byte[] dst, int offset, int length) {
         checkBounds(offset, length, dst.length);
         if(length > remaining())
@@ -617,7 +739,7 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
      * @throws BufferUnderflowException If there are fewer than {@code length} bytes
      *                                  remaining in this buffer
      */
-    // 复制原缓存区的内容到dst数组（复制dst数组能容纳的所有内容，不考虑偏移量offset）
+    // 复制源缓存区的内容到dst数组，尽量填满dst
     public ByteBuffer get(byte[] dst) {
         return get(dst, 0, dst.length);
     }
@@ -652,7 +774,7 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
      *                                   minus one
      */
     // 读取i处2个字节解析为char（有越界检查）
-    public abstract char getChar(int index);
+    public abstract char getChar(int i);
     
     /**
      * Relative <i>get</i> method for reading a short value.
@@ -684,7 +806,7 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
      *                                   minus one
      */
     // 读取i处2个字节解析为short（有越界检查）
-    public abstract short getShort(int index);
+    public abstract short getShort(int i);
     
     /**
      * Relative <i>get</i> method for reading an int value.
@@ -716,7 +838,7 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
      *                                   minus three
      */
     // 读取i处4个字节解析为int（有越界检查）
-    public abstract int getInt(int index);
+    public abstract int getInt(int i);
     
     /**
      * Relative <i>get</i> method for reading a long value.
@@ -748,7 +870,7 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
      *                                   minus seven
      */
     // 读取i处8个字节解析为long（有越界检查）
-    public abstract long getLong(int index);
+    public abstract long getLong(int i);
     
     /**
      * Relative <i>get</i> method for reading a float value.
@@ -780,7 +902,7 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
      *                                   minus three
      */
     // 读取i处4个字节解析为float（有越界检查）
-    public abstract float getFloat(int index);
+    public abstract float getFloat(int i);
     
     /**
      * Relative <i>get</i> method for reading a double value.
@@ -812,7 +934,7 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
      *                                   minus seven
      */
     // 读取i处8个字节解析为double（有越界检查）
-    public abstract double getDouble(int index);
+    public abstract double getDouble(int i);
     
     /*▲ get ████████████████████████████████████████████████████████████████████████████████┛ */
     
@@ -851,8 +973,83 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
      *                                   or not smaller than the buffer's limit
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
-    // 向index处（可能需要加offset）写入byte
-    public abstract ByteBuffer put(int index, byte b);
+    // 向i处（可能需要加offset）写入byte
+    public abstract ByteBuffer put(int i, byte b);
+    
+    /**
+     * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
+     *
+     * <p> This method transfers bytes into this buffer from the given
+     * source array.  If there are more bytes to be copied from the array
+     * than remain in this buffer, that is, if
+     * {@code length}&nbsp;{@code >}&nbsp;{@code remaining()}, then no
+     * bytes are transferred and a {@link BufferOverflowException} is
+     * thrown.
+     *
+     * <p> Otherwise, this method copies {@code length} bytes from the
+     * given array into this buffer, starting at the given offset in the array
+     * and at the current position of this buffer.  The position of this buffer
+     * is then incremented by {@code length}.
+     *
+     * <p> In other words, an invocation of this method of the form
+     * <code>dst.put(src,&nbsp;off,&nbsp;len)</code> has exactly the same effect as
+     * the loop
+     *
+     * <pre>{@code
+     *     for (int i = off; i < off + len; i++)
+     *         dst.put(a[i]);
+     * }</pre>
+     *
+     * except that it first checks that there is sufficient space in this
+     * buffer and it is potentially much more efficient.
+     *
+     * @param src    The array from which bytes are to be read
+     * @param offset The offset within the array of the first byte to be read;
+     *               must be non-negative and no larger than {@code array.length}
+     * @param length The number of bytes to be read from the given array;
+     *               must be non-negative and no larger than
+     *               {@code array.length - offset}
+     *
+     * @return This buffer
+     *
+     * @throws BufferOverflowException   If there is insufficient space in this buffer
+     * @throws IndexOutOfBoundsException If the preconditions on the {@code offset} and {@code length}
+     *                                   parameters do not hold
+     * @throws ReadOnlyBufferException   If this buffer is read-only
+     */
+    // 从源字节数组src的offset处开始，复制length个元素，写入到当前缓冲区
+    public ByteBuffer put(byte[] src, int offset, int length) {
+        checkBounds(offset, length, src.length);
+        if(length > remaining())
+            throw new BufferOverflowException();
+        int end = offset + length;
+        for(int i = offset; i < end; i++)
+            this.put(src[i]);
+        return this;
+    }
+    
+    /**
+     * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
+     *
+     * <p> This method transfers the entire content of the given source
+     * byte array into this buffer.  An invocation of this method of the
+     * form {@code dst.put(a)} behaves in exactly the same way as the
+     * invocation
+     *
+     * <pre>
+     *     dst.put(a, 0, a.length) </pre>
+     *
+     * @param src The source array
+     *
+     * @return This buffer
+     *
+     * @throws BufferOverflowException If there is insufficient space in this buffer
+     * @throws ReadOnlyBufferException If this buffer is read-only
+     */
+    // 将字节数组src的全部内容写入此缓冲区
+    public final ByteBuffer put(byte[] src) {
+        return put(src, 0, src.length);
+    }
     
     /**
      * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
@@ -896,86 +1093,11 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
         if(isReadOnly())
             throw new ReadOnlyBufferException();
         int n = src.remaining();
-        if(n > remaining())
+        if(n>remaining())
             throw new BufferOverflowException();
-        for(int i = 0; i < n; i++)
+        for(int i = 0; i<n; i++)
             put(src.get());
         return this;
-    }
-    
-    /**
-     * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
-     *
-     * <p> This method transfers bytes into this buffer from the given
-     * source array.  If there are more bytes to be copied from the array
-     * than remain in this buffer, that is, if
-     * {@code length}&nbsp;{@code >}&nbsp;{@code remaining()}, then no
-     * bytes are transferred and a {@link BufferOverflowException} is
-     * thrown.
-     *
-     * <p> Otherwise, this method copies {@code length} bytes from the
-     * given array into this buffer, starting at the given offset in the array
-     * and at the current position of this buffer.  The position of this buffer
-     * is then incremented by {@code length}.
-     *
-     * <p> In other words, an invocation of this method of the form
-     * <code>dst.put(src,&nbsp;off,&nbsp;len)</code> has exactly the same effect as
-     * the loop
-     *
-     * <pre>{@code
-     *     for (int i = off; i < off + len; i++)
-     *         dst.put(a[i]);
-     * }</pre>
-     *
-     * except that it first checks that there is sufficient space in this
-     * buffer and it is potentially much more efficient.
-     *
-     * @param src    The array from which bytes are to be read
-     * @param offset The offset within the array of the first byte to be read;
-     *               must be non-negative and no larger than {@code array.length}
-     * @param length The number of bytes to be read from the given array;
-     *               must be non-negative and no larger than
-     *               {@code array.length - offset}
-     *
-     * @return This buffer
-     *
-     * @throws BufferOverflowException   If there is insufficient space in this buffer
-     * @throws IndexOutOfBoundsException If the preconditions on the {@code offset} and {@code length}
-     *                                   parameters do not hold
-     * @throws ReadOnlyBufferException   If this buffer is read-only
-     */
-    // 从源字节数组src的offset处开始，复制length个元素，写入到当前缓冲区（具体行为由子类实现）
-    public ByteBuffer put(byte[] src, int offset, int length) {
-        checkBounds(offset, length, src.length);
-        if(length > remaining())
-            throw new BufferOverflowException();
-        int end = offset + length;
-        for(int i = offset; i < end; i++)
-            this.put(src[i]);
-        return this;
-    }
-    
-    /**
-     * Relative bulk <i>put</i> method&nbsp;&nbsp;<i>(optional operation)</i>.
-     *
-     * <p> This method transfers the entire content of the given source
-     * byte array into this buffer.  An invocation of this method of the
-     * form {@code dst.put(a)} behaves in exactly the same way as the
-     * invocation
-     *
-     * <pre>
-     *     dst.put(a, 0, a.length) </pre>
-     *
-     * @param src The source array
-     *
-     * @return This buffer
-     *
-     * @throws BufferOverflowException If there is insufficient space in this buffer
-     * @throws ReadOnlyBufferException If this buffer is read-only
-     */
-    // 将字节数组src的全部内容写入此缓冲区
-    public final ByteBuffer put(byte[] src) {
-        return put(src, 0, src.length);
     }
     
     /**
@@ -1015,7 +1137,7 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
     // 将char转为byte存入缓冲区索引i处
-    public abstract ByteBuffer putChar(int index, char value);
+    public abstract ByteBuffer putChar(int i, char value);
     
     /**
      * Relative <i>put</i> method for writing a short
@@ -1054,7 +1176,7 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
     // 将short转为byte存入缓冲区索引i处
-    public abstract ByteBuffer putShort(int index, short value);
+    public abstract ByteBuffer putShort(int i, short value);
     
     /**
      * Relative <i>put</i> method for writing an int
@@ -1093,7 +1215,7 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
     // 将int转为byte存入缓冲区索引i处
-    public abstract ByteBuffer putInt(int index, int value);
+    public abstract ByteBuffer putInt(int i, int value);
     
     /**
      * Relative <i>put</i> method for writing a long
@@ -1132,7 +1254,7 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
     // 将long转为byte存入缓冲区索引i处
-    public abstract ByteBuffer putLong(int index, long value);
+    public abstract ByteBuffer putLong(int i, long value);
     
     /**
      * Relative <i>put</i> method for writing a float
@@ -1171,7 +1293,7 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
     // 将float转为byte存入缓冲区索引i处
-    public abstract ByteBuffer putFloat(int index, float value);
+    public abstract ByteBuffer putFloat(int i, float value);
     
     /**
      * Relative <i>put</i> method for writing a double
@@ -1210,7 +1332,7 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
      * @throws ReadOnlyBufferException   If this buffer is read-only
      */
     // 将double转为byte存入缓冲区索引i处
-    public abstract ByteBuffer putDouble(int index, double value);
+    public abstract ByteBuffer putDouble(int i, double value);
     
     /*▲ put ████████████████████████████████████████████████████████████████████████████████┛ */
     
@@ -1342,131 +1464,6 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
     
     
     
-    /*▼ allocate ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Allocates a new direct byte buffer.
-     *
-     * <p> The new buffer's position will be zero, its limit will be its
-     * capacity, its mark will be undefined, each of its elements will be
-     * initialized to zero, and its byte order will be
-     * {@link ByteOrder#BIG_ENDIAN BIG_ENDIAN}.  Whether or not it has a
-     * {@link #hasArray backing array} is unspecified.
-     *
-     * @param capacity The new buffer's capacity, in bytes
-     *
-     * @return The new byte buffer
-     *
-     * @throws IllegalArgumentException If the {@code capacity} is a negative integer
-     */
-    // 创建直接内存缓冲区DirectByteBuffer
-    public static ByteBuffer allocateDirect(int capacity) {
-        return new DirectByteBuffer(capacity);
-    }
-    
-    /**
-     * Allocates a new byte buffer.
-     *
-     * <p> The new buffer's position will be zero, its limit will be its
-     * capacity, its mark will be undefined, each of its elements will be
-     * initialized to zero, and its byte order will be
-     *
-     * {@link ByteOrder#BIG_ENDIAN BIG_ENDIAN}.
-     *
-     *
-     *
-     *
-     * It will have a {@link #array backing array}, and its
-     * {@link #arrayOffset array offset} will be zero.
-     *
-     * @param capacity The new buffer's capacity, in bytes
-     *
-     * @return The new byte buffer
-     *
-     * @throws IllegalArgumentException If the {@code capacity} is a negative integer
-     */
-    // 创建堆内存缓冲区HeapByteBuffer
-    public static ByteBuffer allocate(int capacity) {
-        if(capacity < 0)
-            throw createCapacityException(capacity);
-        return new HeapByteBuffer(capacity, capacity);
-    }
-    
-    /*▲ allocate ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
-    /*▼ wrap/非直接缓冲区 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Wraps a byte array into a buffer.
-     *
-     * <p> The new buffer will be backed by the given byte array;
-     * that is, modifications to the buffer will cause the array to be modified
-     * and vice versa.  The new buffer's capacity will be
-     * {@code array.length}, its position will be {@code offset}, its limit
-     * will be {@code offset + length}, its mark will be undefined, and its
-     * byte order will be
-     *
-     * {@link ByteOrder#BIG_ENDIAN BIG_ENDIAN}.
-     *
-     *
-     *
-     *
-     * Its {@link #array backing array} will be the given array, and
-     * its {@link #arrayOffset array offset} will be zero.  </p>
-     *
-     * @param array  The array that will back the new buffer
-     * @param offset The offset of the subarray to be used; must be non-negative and
-     *               no larger than {@code array.length}.  The new buffer's position
-     *               will be set to this value.
-     * @param length The length of the subarray to be used;
-     *               must be non-negative and no larger than
-     *               {@code array.length - offset}.
-     *               The new buffer's limit will be set to {@code offset + length}.
-     *
-     * @return The new byte buffer
-     *
-     * @throws IndexOutOfBoundsException If the preconditions on the {@code offset} and {@code length}
-     *                                   parameters do not hold
-     */
-    // 包装一个字节数组到buffer（包装一部分）
-    public static ByteBuffer wrap(byte[] array, int offset, int length) {
-        try {
-            return new HeapByteBuffer(array, offset, length);
-        } catch(IllegalArgumentException x) {
-            throw new IndexOutOfBoundsException();
-        }
-    }
-    
-    /**
-     * Wraps a byte array into a buffer.
-     *
-     * <p> The new buffer will be backed by the given byte array;
-     * that is, modifications to the buffer will cause the array to be modified
-     * and vice versa.  The new buffer's capacity and limit will be
-     * {@code array.length}, its position will be zero, its mark will be
-     * undefined, and its byte order will be
-     *
-     * {@link ByteOrder#BIG_ENDIAN BIG_ENDIAN}.
-     *
-     *
-     * Its {@link #array backing array} will be the given array, and its
-     * {@link #arrayOffset array offset} will be zero.  </p>
-     *
-     * @param array The array that will back this buffer
-     *
-     * @return The new byte buffer
-     */
-    // 包装一个字节数组到buffer
-    public static ByteBuffer wrap(byte[] array) {
-        return wrap(array, 0, array.length);
-    }
-    
-    /*▲ wrap/非直接缓冲区 ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
     /*▼ 压缩 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
@@ -1549,43 +1546,6 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
     
     
     /*▼ 比较 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Tells whether or not this buffer is equal to another object.
-     *
-     * <p> Two byte buffers are equal if, and only if,
-     *
-     * <ol>
-     *
-     * <li><p> They have the same element type,  </p></li>
-     *
-     * <li><p> They have the same number of remaining elements, and
-     * </p></li>
-     *
-     * <li><p> The two sequences of remaining elements, considered
-     * independently of their starting positions, are pointwise equal.
-     *
-     * </p></li>
-     *
-     * </ol>
-     *
-     * <p> A byte buffer is not equal to any other type of object.  </p>
-     *
-     * @param ob The object to which this buffer is to be compared
-     *
-     * @return {@code true} if, and only if, this buffer is equal to the
-     * given object
-     */
-    public boolean equals(Object ob) {
-        if(this == ob)
-            return true;
-        if(!(ob instanceof ByteBuffer))
-            return false;
-        ByteBuffer that = (ByteBuffer) ob;
-        if(this.remaining() != that.remaining())
-            return false;
-        return BufferMismatch.mismatch(this, this.position(), that, that.position(), this.remaining()) < 0;
-    }
     
     private static int compare(byte x, byte y) {
         return Byte.compare(x, y);
@@ -1798,6 +1758,43 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
     }
     
     /**
+     * Tells whether or not this buffer is equal to another object.
+     *
+     * <p> Two byte buffers are equal if, and only if,
+     *
+     * <ol>
+     *
+     * <li><p> They have the same element type,  </p></li>
+     *
+     * <li><p> They have the same number of remaining elements, and
+     * </p></li>
+     *
+     * <li><p> The two sequences of remaining elements, considered
+     * independently of their starting positions, are pointwise equal.
+     *
+     * </p></li>
+     *
+     * </ol>
+     *
+     * <p> A byte buffer is not equal to any other type of object.  </p>
+     *
+     * @param ob The object to which this buffer is to be compared
+     *
+     * @return {@code true} if, and only if, this buffer is equal to the
+     * given object
+     */
+    public boolean equals(Object ob) {
+        if(this == ob)
+            return true;
+        if(!(ob instanceof ByteBuffer))
+            return false;
+        ByteBuffer that = (ByteBuffer) ob;
+        if(this.remaining() != that.remaining())
+            return false;
+        return BufferMismatch.mismatch(this, this.position(), that, that.position(), this.remaining())<0;
+    }
+    
+    /**
      * Returns the current hash code of this buffer.
      *
      * <p> The hash code of a byte buffer depends only upon its remaining
@@ -1817,4 +1814,5 @@ public abstract class ByteBuffer extends Buffer implements Comparable<ByteBuffer
             h = 31 * h + (int) get(i);
         return h;
     }
+    
 }

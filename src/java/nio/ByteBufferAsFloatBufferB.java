@@ -31,7 +31,7 @@ class ByteBufferAsFloatBufferB extends FloatBuffer {
     protected final ByteBuffer bb;
     
     
-    /*▼ 构造方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     ByteBufferAsFloatBufferB(ByteBuffer bb) {   // package-private
         super(-1, 0, bb.remaining() >> 2, bb.remaining() >> 2);
@@ -51,16 +51,18 @@ class ByteBufferAsFloatBufferB extends FloatBuffer {
         assert address >= bb.address;
     }
     
-    /*▲ 构造方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
     /*▼ 可读写 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 只读/可读写
     public boolean isReadOnly() {
         return false;
     }
     
+    // 直接缓冲区/非直接缓冲区
     public boolean isDirect() {
         return bb.isDirect();
     }
@@ -71,6 +73,7 @@ class ByteBufferAsFloatBufferB extends FloatBuffer {
     
     /*▼ 创建新缓冲区，新旧缓冲区共享内部的存储容器 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 切片，截取旧缓冲区的【活跃区域】，作为新缓冲区的【原始区域】。两个缓冲区标记独立
     public FloatBuffer slice() {
         int pos = this.position();
         int lim = this.limit();
@@ -80,10 +83,12 @@ class ByteBufferAsFloatBufferB extends FloatBuffer {
         return new ByteBufferAsFloatBufferB(bb, -1, 0, rem, rem, addr);
     }
     
+    // 副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public FloatBuffer duplicate() {
         return new ByteBufferAsFloatBufferB(bb, this.markValue(), this.position(), this.limit(), this.capacity(), address);
     }
     
+    // 只读副本，新缓冲区共享旧缓冲区的【原始区域】，且新旧缓冲区【活跃区域】一致。两个缓冲区标记独立。
     public FloatBuffer asReadOnlyBuffer() {
         return new ByteBufferAsFloatBufferRB(bb, this.markValue(), this.position(), this.limit(), this.capacity(), address);
     }
@@ -96,11 +101,13 @@ class ByteBufferAsFloatBufferB extends FloatBuffer {
     
     /*▼ get/读取 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 读取position处（可能需要加offset）的float，然后递增position。
     public float get() {
         int x = UNSAFE.getIntUnaligned(bb.hb, byteOffset(nextGetIndex()), true);
         return Float.intBitsToFloat(x);
     }
     
+    // 读取index处（可能需要加offset）的float（有越界检查）
     public float get(int i) {
         int x = UNSAFE.getIntUnaligned(bb.hb, byteOffset(checkIndex(i)), true);
         return Float.intBitsToFloat(x);
@@ -112,12 +119,14 @@ class ByteBufferAsFloatBufferB extends FloatBuffer {
     
     /*▼ put/写入 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 向position处（可能需要加offset）写入float，并将position递增
     public FloatBuffer put(float x) {
         int y = Float.floatToRawIntBits(x);
         UNSAFE.putIntUnaligned(bb.hb, byteOffset(nextPutIndex()), y, true);
         return this;
     }
     
+    // 向index处（可能需要加offset）写入float
     public FloatBuffer put(int i, float x) {
         int y = Float.floatToRawIntBits(x);
         UNSAFE.putIntUnaligned(bb.hb, byteOffset(checkIndex(i)), y, true);
@@ -130,6 +139,7 @@ class ByteBufferAsFloatBufferB extends FloatBuffer {
     
     /*▼ 压缩 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 压缩缓冲区，将当前未读完的数据挪到容器起始处，可用于读模式到写模式的切换，但又不丢失之前读入的数据。
     public FloatBuffer compact() {
         int pos = position();
         int lim = limit();
@@ -154,6 +164,7 @@ class ByteBufferAsFloatBufferB extends FloatBuffer {
     
     /*▼ 字节顺序 ████████████████████████████████████████████████████████████████████████████████┓ */
     
+    // 返回该缓冲区的字节序（大端还是小端）
     public ByteOrder order() {
         return ByteOrder.BIG_ENDIAN;
     }

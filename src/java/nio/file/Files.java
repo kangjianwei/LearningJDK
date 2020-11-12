@@ -545,7 +545,7 @@ public final class Files {
      */
     // 返回指定目录的流(非递归遍历)
     public static Stream<Path> list(Path dir) throws IOException {
-        
+    
         // 返回指定实体的目录流，用来搜寻目录内的子文件/目录（不会过滤任何子项）
         DirectoryStream<Path> ds = Files.newDirectoryStream(dir);
         
@@ -564,7 +564,7 @@ public final class Files {
                         throw new UncheckedIOException(e.getCause());
                     }
                 }
-                
+    
                 @Override
                 public Path next() {
                     try {
@@ -574,13 +574,18 @@ public final class Files {
                     }
                 }
             };
-            
+    
+            // 构造"适配Iterator"的Spliterator(引用类型版本)
+            Spliterator<Path> spliterator = Spliterators.spliteratorUnknownSize(iterator, Spliterator.DISTINCT);
+    
+            // 构造处于源头(head)阶段的流(引用类型版本)
+            Stream<Path> stream = StreamSupport.stream(spliterator, false);
+    
             // 获取一个Runnable，执行对目录流的关闭操作
             Runnable runnable = asUncheckedRunnable(ds);
-            
-            Spliterator<Path> spliterator = Spliterators.spliteratorUnknownSize(iterator, Spliterator.DISTINCT);
-            
-            return StreamSupport.stream(spliterator, false).onClose(runnable);
+    
+            // 为stream注册关闭回调：当stream关闭时，顺便将目录流一起关闭
+            return stream.onClose(runnable);
         } catch(Error | RuntimeException e) {
             try {
                 ds.close();
@@ -643,7 +648,7 @@ public final class Files {
      * 返回指定目录的流(可以递归遍历)
      *
      * maxDepth：最大递归层次
-     * matcher ：对遍历到的文件/目录进行过滤
+     * matcher ：对遍历到的文件/目录进行过滤，只保存满足matcher条件的目录
      * options ：对于符号链接，是否将其链接到目标文件；如果显式设置了LinkOption.NOFOLLOW_LINKS，表示不链接
      */
     public static Stream<Path> find(Path start, int maxDepth, BiPredicate<Path, BasicFileAttributes> matcher, FileVisitOption... options) throws IOException {
@@ -652,10 +657,17 @@ public final class Files {
         FileTreeIterator iterator = new FileTreeIterator(start, maxDepth, options);
         
         try {
+    
+            // 构造"适配Iterator"的Spliterator(引用类型版本)
             Spliterator<FileTreeWalker.Event> spliterator = Spliterators.spliteratorUnknownSize(iterator, Spliterator.DISTINCT);
-            
-            return StreamSupport.stream(spliterator, false).onClose(iterator::close).filter(entry -> matcher.test(entry.file(), entry.attributes())).map(event -> event.file());
-            
+    
+            // 构造处于源头(head)阶段的流(引用类型版本)
+            Stream<Event> stream = StreamSupport.stream(spliterator, false);
+    
+            return stream.onClose(iterator::close)  // 为stream注册关闭回调：当stream关闭时，顺便将迭代器一起关闭
+                .filter(entry -> matcher.test(entry.file(), entry.attributes())) // 只保存满足matcher条件的目录
+                .map(event -> event.file());  // 获取到文件路径
+    
         } catch(Error | RuntimeException e) {
             iterator.close();
             throw e;
@@ -779,13 +791,15 @@ public final class Files {
         FileTreeIterator iterator = new FileTreeIterator(start, maxDepth, options);
         
         try {
-            // 返回一个spliterator，内部封装了Collection和Iterator，使用Iterator去遍历Collection
+            // 构造"适配Iterator"的Spliterator(引用类型版本)
             Spliterator<FileTreeWalker.Event> spliterator = Spliterators.spliteratorUnknownSize(iterator, Spliterator.DISTINCT);
-            
-            return StreamSupport.stream(spliterator, false) // 流的源头阶段：返回Stream的HEAD阶段
-                .onClose(iterator::close)                   // 流的中间阶段：设置流关闭时的回调，需要关闭迭代器
-                .map(Event::file);                          // 中间操作：映射数据，将实体映射到实体的路径
-            
+    
+            // 构造处于源头(head)阶段的流(引用类型版本)
+            Stream<Event> stream = StreamSupport.stream(spliterator, false);
+    
+            return stream.onClose(iterator::close) // 为stream注册关闭回调：当stream关闭时，顺便将迭代器一起关闭
+                .map(Event::file);        // 获取到文件路径
+    
         } catch(Error | RuntimeException e) {
             iterator.close();
             throw e;
@@ -902,10 +916,10 @@ public final class Files {
          * 3) the file size is such that all bytes can be indexed by int values (this limitation is imposed by ByteBuffer)
          */
         if(path.getFileSystem() == FileSystems.getDefault() && FileChannelLinesSpliterator.SUPPORTED_CHARSET_NAMES.contains(cs.name())) {
-            
+    
             // 创建一个File Channel，默认为只读
             FileChannel fc = FileChannel.open(path, StandardOpenOption.READ);
-            
+    
             // 返回指定文件的流，该文件以FileChannel的形式给出。如果过大，返回null
             Stream<String> stream = createFileChannelLinesStream(fc, cs);
             if(stream != null) {
@@ -914,9 +928,9 @@ public final class Files {
             
             fc.close();
         }
-        
+    
         BufferedReader reader = Files.newBufferedReader(path, cs);
-        
+    
         // 返回指定文件的流，该文件以BufferedReader的形式给出
         return createBufferedReaderLinesStream(reader);
     }
@@ -1047,10 +1061,10 @@ public final class Files {
     public static BufferedReader newBufferedReader(Path path, Charset cs) throws IOException {
         // 获取字符解码器
         CharsetDecoder decoder = cs.newDecoder();
-        
+    
         // 返回path处文件的输入流，以便从中读取数据
         InputStream in = newInputStream(path);
-        
+    
         /*
          * in     ：源头输入流，是读取字节的地方
          * decoder：解码字节流时用到的解码器
@@ -1126,16 +1140,16 @@ public final class Files {
     public static BufferedWriter newBufferedWriter(Path path, Charset cs, OpenOption... options) throws IOException {
         // 获取字符编码器
         CharsetEncoder encoder = cs.newEncoder();
-        
+    
         // 返回path处文件的输出流，以便向其写入数据
         OutputStream out = newOutputStream(path, options);
-        
+    
         /*
          * out    ：最终输出流，是字节最终写入的地方
          * encoder：编码字节流时用到的编码器
          */
         Writer writer = new OutputStreamWriter(out, encoder);
-        
+    
         // 返回带有内部缓存区的字符输出流
         return new BufferedWriter(writer);
     }
@@ -1401,13 +1415,13 @@ public final class Files {
             if(sbc instanceof FileChannelImpl) {
                 ((FileChannelImpl) sbc).setUninterruptible();
             }
-            
+    
             // 返回此通道（文件）的字节数量
             long size = sbc.size();
             if(size>(long) MAX_BUFFER_SIZE) {
                 throw new OutOfMemoryError("Required array size too large");
             }
-            
+    
             // 返回从指定的输入流中读到的全部数据；size用来指示内部缓存的初始容量
             return read(in, (int) size);
         }
@@ -1469,10 +1483,10 @@ public final class Files {
     public static String readString(Path path, Charset charset) throws IOException {
         Objects.requireNonNull(path);
         Objects.requireNonNull(charset);
-        
+    
         // 返回从path处文件的输入流中读到的全部数据
         byte[] buf = readAllBytes(path);
-        
+    
         // 以cs格式解码buf，进而构造String
         return JLA.newStringNoRepl(buf, charset);
     }
@@ -1497,8 +1511,8 @@ public final class Files {
      * convenient to read all lines in a single operation. It is not intended
      * for reading in large files.
      *
-     * @param path    the path to the file
-     * @param charset the charset to use for decoding
+     * @param path     the path to the file
+     * @param charset  the charset to use for decoding
      *
      * @return the lines from the file as a {@code List}; whether the {@code
      * List} is modifiable or not is implementation dependent and
@@ -1601,7 +1615,7 @@ public final class Files {
     public static Path write(Path path, byte[] bytes, OpenOption... options) throws IOException {
         // ensure bytes is not null before opening file
         Objects.requireNonNull(bytes);
-        
+    
         // 返回path处文件的输出流，以便向其写入数据
         try(OutputStream out = Files.newOutputStream(path, options)) {
             int len = bytes.length; // 所有待写数据的数量
@@ -1742,10 +1756,10 @@ public final class Files {
     public static Path write(Path path, Iterable<? extends CharSequence> lines, Charset cs, OpenOption... options) throws IOException {
         // ensure lines is not null before opening file
         Objects.requireNonNull(lines);
-        
+    
         // 获取字符编码器
         CharsetEncoder encoder = cs.newEncoder();
-        
+    
         // 返回path处文件的输出流，以便向其写入数据
         OutputStream out = newOutputStream(path, options);
         
@@ -1950,7 +1964,7 @@ public final class Files {
         }
         
         Path child = parent;
-        
+    
         // 相对化：返回一个相对路径，通过该相对路径，可以从parent访问到dir
         Path relativize = parent.relativize(dir);
         
@@ -2402,7 +2416,7 @@ public final class Files {
      * - ExtendedCopyOption.INTERRUPTIBLE
      */
     public static Path copy(Path source, Path target, CopyOption... options) throws IOException {
-        
+    
         // 获取路径source所属的文件系统提供器
         FileSystemProvider sourceProvider = provider(source);
         // 获取路径target所属的文件系统提供器
@@ -2568,7 +2582,7 @@ public final class Files {
     public static long copy(Path source, OutputStream out) throws IOException {
         // ensure not null before opening file
         Objects.requireNonNull(out);
-        
+    
         // 返回source处文件的输入流，以便从中读取数据
         try(InputStream in = newInputStream(source)) {
             // 将输入流in中的字节转移到输出流out中，返回值表示成功转移的字节数
@@ -3881,18 +3895,24 @@ public final class Files {
         try {
             // Obtaining the size from the FileChannel is much faster than obtaining using path.toFile().length()
             long length = fc.size();
-            
+    
             // FileChannel.size() may in certain circumstances return zero for a non-zero length file so disallow this case.
             if(length<=0 || length>Integer.MAX_VALUE) {
                 // 如果文件太大，则返回null
                 return null;
             }
-            
-            Spliterator<String> s = new FileChannelLinesSpliterator(fc, cs, 0, (int) length);
-            
+    
+            // 基于文件行的流迭代器
+            Spliterator<String> spliterator = new FileChannelLinesSpliterator(fc, cs, 0, (int) length);
+    
+            // 构造处于源头(head)阶段的流(引用类型版本)
+            Stream<String> stream = StreamSupport.stream(spliterator, false);
+    
+            // 关闭通道的动作
             Runnable runnable = Files.asUncheckedRunnable(fc);
-            
-            return StreamSupport.stream(s, false).onClose(runnable);
+    
+            // 为stream注册关闭回调：当stream关闭时，顺便将通道一起关闭
+            return stream.onClose(runnable);
         } catch(Error | RuntimeException | IOException e) {
             try {
                 fc.close();
@@ -3909,8 +3929,14 @@ public final class Files {
     // 返回指定文件的流，该文件以BufferedReader的形式给出
     private static Stream<String> createBufferedReaderLinesStream(BufferedReader reader) {
         try {
+            // 返回"行"的流，可用来按行获取输入
+            Stream<String> stream = reader.lines();
+    
+            // 关闭reader的动作
             Runnable runnable = asUncheckedRunnable(reader);
-            return reader.lines().onClose(runnable);
+    
+            // 为stream注册关闭回调：当stream关闭时，顺便将reader关闭
+            return stream.onClose(runnable);
         } catch(Error | RuntimeException e) {
             try {
                 reader.close();
@@ -4056,7 +4082,7 @@ public final class Files {
                 }
             });
         }
-        
+    
         // 加载当前环境下所有已注册的文件类型检测器
         private static List<FileTypeDetector> loadInstalledDetectors() {
             return AccessController.doPrivileged(new PrivilegedAction<>() {
