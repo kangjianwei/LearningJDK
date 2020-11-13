@@ -127,13 +127,14 @@ import java.util.concurrent.ThreadLocalRandom;
  * @since 1.1
  */
 /*
- * 大整数运算
+ * 大整数
  *
  * BigInteger将符号位和数值分开存储，其存储数据的基本原理是将数据切割成不同的分段后存入数组
  *
  * 注：该对象本身是不可变的，类似String，在运算之后会产生一个新对象
  */
 public class BigInteger extends Number implements Comparable<BigInteger> {
+    
     /**
      * The signum of this BigInteger: -1 for negative, 0 for zero, or 1 for positive.
      * Note that the BigInteger zero <em>must</em> have a signum of 0.
@@ -861,7 +862,7 @@ public class BigInteger extends Number implements Comparable<BigInteger> {
      * is a compelling need to specify a certainty.
      * @see #bitLength()
      */
-    // ▶ 5 （可能）随机生成一个拥有bitLength个二进制位的质数，返回合数的概率
+    // ▶ 5 （可能）随机生成一个拥有bitLength个二进制位的质数，返回表示当前数字是合数的概率
     public BigInteger(int bitLength, int certainty, Random rnd) {
         BigInteger prime;
         
@@ -1027,45 +1028,19 @@ public class BigInteger extends Number implements Comparable<BigInteger> {
     // 返回值为val的BigInteger
     public static BigInteger valueOf(long val) {
         // If -MAX_CONSTANT < val < MAX_CONSTANT, return stashed constant
-        if (val == 0)
+        if(val == 0) {
             return ZERO;
-        if (val > 0 && val <= MAX_CONSTANT)
+        }
+    
+        if(val>0 && val<=MAX_CONSTANT) {
             return posConst[(int) val];
-        else if (val < 0 && val >= -MAX_CONSTANT)
+        }
+    
+        if(val<0 && val >= -MAX_CONSTANT) {
             return negConst[(int) -val];
-        
+        }
+    
         return new BigInteger(val);
-    }
-    
-    /**
-     * Returns a BigInteger with the given two's complement representation.
-     * Assumes that the input array will not be modified (the returned
-     * BigInteger will reference the input array if feasible).
-     */
-    private static BigInteger valueOf(int val[]) {
-        return (val[0] > 0 ? new BigInteger(val, 1) : new BigInteger(val));
-    }
-    
-    /**
-     * Constructs a BigInteger with the specified value, which may not be zero.
-     */
-    private BigInteger(long val) {
-        if (val < 0) {
-            val = -val;
-            signum = -1;
-        } else {
-            signum = 1;
-        }
-        
-        int highWord = (int)(val >>> 32);
-        if (highWord == 0) {
-            mag = new int[1];
-            mag[0] = (int)val;
-        } else {
-            mag = new int[2];
-            mag[0] = highWord;
-            mag[1] = (int)val;
-        }
     }
     
     /*▲ 类似装箱 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -2079,7 +2054,7 @@ public class BigInteger extends Number implements Comparable<BigInteger> {
      *
      * @see #shiftRight
      */
-    // x<<n
+    // this<<n
     public BigInteger shiftLeft(int n) {
         if(signum == 0)
             return ZERO;
@@ -2106,7 +2081,7 @@ public class BigInteger extends Number implements Comparable<BigInteger> {
      *
      * @see #shiftLeft
      */
-    // x>>n
+    // this>>n
     public BigInteger shiftRight(int n) {
         if(signum == 0)
             return ZERO;
@@ -2199,8 +2174,9 @@ public class BigInteger extends Number implements Comparable<BigInteger> {
     // 位与
     public BigInteger and(BigInteger val) {
         int[] result = new int[Math.max(intLength(), val.intLength())];
-        for(int i = 0; i<result.length; i++)
+        for(int i = 0; i<result.length; i++) {
             result[i] = (getInt(result.length - i - 1) & val.getInt(result.length - i - 1));
+        }
         
         return valueOf(result);
     }
@@ -2268,7 +2244,7 @@ public class BigInteger extends Number implements Comparable<BigInteger> {
      *
      * @return {@code this & ~val}
      */
-    // x & -val
+    // this & -val
     public BigInteger andNot(BigInteger val) {
         int[] result = new int[Math.max(intLength(), val.intLength())];
         for(int i = 0; i<result.length; i++)
@@ -2398,70 +2374,6 @@ public class BigInteger extends Number implements Comparable<BigInteger> {
     
     
     
-    /*▼ 字符串化 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Returns the String representation of this BigInteger in the
-     * given radix.  If the radix is outside the range from {@link
-     * Character#MIN_RADIX} to {@link Character#MAX_RADIX} inclusive,
-     * it will default to 10 (as is the case for
-     * {@code Integer.toString}).  The digit-to-character mapping
-     * provided by {@code Character.forDigit} is used, and a minus
-     * sign is prepended if appropriate.  (This representation is
-     * compatible with the {@link #BigInteger(String, int) (String,
-     * int)} constructor.)
-     *
-     * @param radix radix of the String representation.
-     *
-     * @return String representation of this BigInteger in the given radix.
-     *
-     * @see Integer#toString
-     * @see Character#forDigit
-     * @see #BigInteger(java.lang.String, int)
-     */
-    public String toString(int radix) {
-        if(signum == 0)
-            return "0";
-        if(radix<Character.MIN_RADIX || radix>Character.MAX_RADIX)
-            radix = 10;
-        
-        // If it's small enough, use smallToString.
-        if(mag.length<=SCHOENHAGE_BASE_CONVERSION_THRESHOLD)
-            return smallToString(radix);
-        
-        // Otherwise use recursive toString, which requires positive arguments.
-        // The results will be concatenated into this StringBuilder
-        StringBuilder sb = new StringBuilder();
-        if(signum<0) {
-            toString(this.negate(), sb, radix, 0);
-            sb.insert(0, '-');
-        } else
-            toString(this, sb, radix, 0);
-        
-        return sb.toString();
-    }
-    
-    /**
-     * Returns the decimal String representation of this BigInteger.
-     * The digit-to-character mapping provided by
-     * {@code Character.forDigit} is used, and a minus sign is
-     * prepended if appropriate.  (This representation is compatible
-     * with the {@link #BigInteger(String) (String)} constructor, and
-     * allows for String concatenation with Java's + operator.)
-     *
-     * @return decimal String representation of this BigInteger.
-     *
-     * @see Character#forDigit
-     * @see #BigInteger(java.lang.String)
-     */
-    public String toString() {
-        return toString(10);
-    }
-    
-    /*▲ 字符串化 ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
     /*▼ 其他 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
@@ -2488,6 +2400,78 @@ public class BigInteger extends Number implements Comparable<BigInteger> {
     // 较大值
     public BigInteger max(BigInteger val) {
         return (compareTo(val)>0 ? this : val);
+    }
+    
+    /*▲ 其他 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字符串化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the String representation of this BigInteger in the
+     * given radix.  If the radix is outside the range from {@link
+     * Character#MIN_RADIX} to {@link Character#MAX_RADIX} inclusive,
+     * it will default to 10 (as is the case for
+     * {@code Integer.toString}).  The digit-to-character mapping
+     * provided by {@code Character.forDigit} is used, and a minus
+     * sign is prepended if appropriate.  (This representation is
+     * compatible with the {@link #BigInteger(String, int) (String,
+     * int)} constructor.)
+     *
+     * @param radix radix of the String representation.
+     *
+     * @return String representation of this BigInteger in the given radix.
+     *
+     * @see Integer#toString
+     * @see Character#forDigit
+     * @see #BigInteger(java.lang.String, int)
+     */
+    public String toString(int radix) {
+        if(signum == 0) {
+            return "0";
+        }
+    
+        if(radix<Character.MIN_RADIX || radix>Character.MAX_RADIX) {
+            radix = 10;
+        }
+    
+        // If it's small enough, use smallToString.
+        if(mag.length<=SCHOENHAGE_BASE_CONVERSION_THRESHOLD) {
+            return smallToString(radix);
+        }
+    
+        // Otherwise use recursive toString, which requires positive arguments.
+        // The results will be concatenated into this StringBuilder
+        StringBuilder sb = new StringBuilder();
+        if(signum<0) {
+            toString(this.negate(), sb, radix, 0);
+            sb.insert(0, '-');
+        } else {
+            toString(this, sb, radix, 0);
+        }
+    
+        return sb.toString();
+    }
+    
+    /*▲ 字符串化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    /**
+     * Returns the decimal String representation of this BigInteger.
+     * The digit-to-character mapping provided by
+     * {@code Character.forDigit} is used, and a minus sign is
+     * prepended if appropriate.  (This representation is compatible
+     * with the {@link #BigInteger(String) (String)} constructor, and
+     * allows for String concatenation with Java's + operator.)
+     *
+     * @return decimal String representation of this BigInteger.
+     *
+     * @see Character#forDigit
+     * @see #BigInteger(java.lang.String)
+     */
+    public String toString() {
+        return toString(10);
     }
     
     /**
@@ -2564,11 +2548,6 @@ public class BigInteger extends Number implements Comparable<BigInteger> {
         
         return hashCode * signum;
     }
-    
-    /*▲ 其他 ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
     
     
     
@@ -2819,6 +2798,37 @@ public class BigInteger extends Number implements Comparable<BigInteger> {
             val[0] = 1;
         }
         return val;
+    }
+    
+    /**
+     * Returns a BigInteger with the given two's complement representation.
+     * Assumes that the input array will not be modified (the returned
+     * BigInteger will reference the input array if feasible).
+     */
+    private static BigInteger valueOf(int val[]) {
+        return (val[0]>0 ? new BigInteger(val, 1) : new BigInteger(val));
+    }
+    
+    /**
+     * Constructs a BigInteger with the specified value, which may not be zero.
+     */
+    private BigInteger(long val) {
+        if(val<0) {
+            val = -val;
+            signum = -1;
+        } else {
+            signum = 1;
+        }
+        
+        int highWord = (int) (val >>> 32);
+        if(highWord == 0) {
+            mag = new int[1];
+            mag[0] = (int) val;
+        } else {
+            mag = new int[2];
+            mag[0] = highWord;
+            mag[1] = (int) val;
+        }
     }
     
     private static void reportOverflow() {
@@ -3330,8 +3340,7 @@ public class BigInteger extends Number implements Comparable<BigInteger> {
         }
     }
     
-    // Make sure that the int array z (which is expected to contain the result of a Montgomery multiplication)
-    // is present and sufficiently large.
+    // Make sure that the int array z (which is expected to contain the result of a Montgomery multiplication) is present and sufficiently large.
     private static int[] materialize(int[] z, int len) {
         if(z == null || z.length<len)
             z = new int[len];
@@ -4935,4 +4944,5 @@ public class BigInteger extends Number implements Comparable<BigInteger> {
             unsafe.putObject(bi, magOffset, magnitude);
         }
     }
+    
 }

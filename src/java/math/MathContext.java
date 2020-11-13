@@ -78,7 +78,7 @@ public final class MathContext implements Serializable {
      * rounding mode of {@link RoundingMode#HALF_EVEN HALF_EVEN}, the
      * IEEE 754R default.
      */
-    // 7位有效数字，类似float
+    // 32位浮点数精度(7个有效数字)，类似float
     public static final MathContext DECIMAL32 = new MathContext(7, RoundingMode.HALF_EVEN);
     
     /**
@@ -87,7 +87,7 @@ public final class MathContext implements Serializable {
      * rounding mode of {@link RoundingMode#HALF_EVEN HALF_EVEN}, the
      * IEEE 754R default.
      */
-    // 16位精度，类似double
+    // 64位浮点数精度(16个有效数字)，类似double
     public static final MathContext DECIMAL64 = new MathContext(16, RoundingMode.HALF_EVEN);
     
     /**
@@ -96,7 +96,7 @@ public final class MathContext implements Serializable {
      * rounding mode of {@link RoundingMode#HALF_EVEN HALF_EVEN}, the
      * IEEE 754R default.
      */
-    // 34位精度
+    // 128位浮点数精度(34个有效数字)
     public static final MathContext DECIMAL128 = new MathContext(34, RoundingMode.HALF_EVEN);
     
     
@@ -110,14 +110,14 @@ public final class MathContext implements Serializable {
      *
      * @serial
      */
-    final int precision;
+    final int precision;             // 精度
     /**
      * The rounding algorithm to be used for an operation.
      *
      * @serial
      * @see RoundingMode
      */
-    final RoundingMode roundingMode;
+    final RoundingMode roundingMode; // 舍入模式
     
     // defaults for constructors
     private static final int DEFAULT_DIGITS = 9;

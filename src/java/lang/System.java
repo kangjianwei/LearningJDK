@@ -88,13 +88,13 @@ import java.util.stream.Stream;
  *
  * @since 1.0
  */
-// System工具类
+// 系统工具类
 public final class System {
     
-    // @see #initPhase2()
+    /** @see #initPhase2() */
     static ModuleLayer bootLayer;
     
-    // The security manager for the system. */
+    /** The security manager for the system. */
     // 当前使用的安全管理器，默认为null
     private static volatile SecurityManager security;
     
@@ -264,10 +264,8 @@ public final class System {
     
     // 为字段System.in关联(初始化)标准输入流
     private static native void setIn0(InputStream in);
-    
     // 为字段System.out关联(初始化)标准输出流
     private static native void setOut0(PrintStream out);
-    
     // 为字段System.err关联(初始化)标准错误流
     private static native void setErr0(PrintStream err);
     
@@ -863,7 +861,11 @@ public final class System {
      *
      * @see java.util.Date
      */
-    // 返回以毫秒为单位的当前时间，其表现为当前时间与GMT时间(格林威治时间)1970年1月1号0时0分0秒所差的毫秒数（具体粒度由底层操作系统决定）
+    /*
+     * 返回当前时间点与新纪元时间点之间的毫秒差值（具体粒度由底层操作系统决定）
+     *
+     * 新纪元时间点：UTC/GMT时间1970年1月1号0时0分0秒
+     */
     @HotSpotIntrinsicCandidate
     public static native long currentTimeMillis();
     

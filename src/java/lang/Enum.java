@@ -176,10 +176,11 @@ public abstract class Enum<E extends Enum<E>> implements Comparable<E>, Serializ
      * same enum type.  The natural order implemented by this
      * method is the order in which the constants are declared.
      */
-    // 按自然顺序标胶枚举实例的值
+    // 比较枚举实例的值；声明靠前的枚举，其"值"较小
     public final int compareTo(E o) {
         Enum<?> other = (Enum<?>) o;
         Enum<E> self = this;
+    
         if(self.getClass() != other.getClass() && // optimization
             self.getDeclaringClass() != other.getDeclaringClass()) {
             throw new ClassCastException();
@@ -224,10 +225,14 @@ public abstract class Enum<E extends Enum<E>> implements Comparable<E>, Serializ
      */
     public static <T extends Enum<T>> T valueOf(Class<T> enumType, String name) {
         T result = enumType.enumConstantDirectory().get(name);
-        if(result != null)
+    
+        if(result != null) {
             return result;
-        if(name == null)
+        }
+    
+        if(name == null) {
             throw new NullPointerException("Name is null");
+        }
         throw new IllegalArgumentException("No enum constant " + enumType.getCanonicalName() + "." + name);
     }
     
