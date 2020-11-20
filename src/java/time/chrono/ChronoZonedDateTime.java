@@ -61,12 +61,6 @@
  */
 package java.time.chrono;
 
-import static java.time.temporal.ChronoField.INSTANT_SECONDS;
-import static java.time.temporal.ChronoField.OFFSET_SECONDS;
-import static java.time.temporal.ChronoUnit.FOREVER;
-import static java.time.temporal.ChronoUnit.NANOS;
-
-import java.io.Serializable;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalTime;
@@ -88,6 +82,11 @@ import java.time.temporal.UnsupportedTemporalTypeException;
 import java.time.temporal.ValueRange;
 import java.util.Comparator;
 import java.util.Objects;
+
+import static java.time.temporal.ChronoField.INSTANT_SECONDS;
+import static java.time.temporal.ChronoField.OFFSET_SECONDS;
+import static java.time.temporal.ChronoUnit.FOREVER;
+import static java.time.temporal.ChronoUnit.NANOS;
 
 /**
  * A date-time with a time-zone in an arbitrary chronology,
@@ -111,43 +110,18 @@ import java.util.Objects;
  * Ensure that the discussion in {@code ChronoLocalDate} has been read and understood
  * before using this interface.
  *
- * @implSpec
- * This interface must be implemented with care to ensure other classes operate correctly.
+ * @param <D> the concrete type for the date of this date-time
+ *
+ * @implSpec This interface must be implemented with care to ensure other classes operate correctly.
  * All implementations that can be instantiated must be final, immutable and thread-safe.
  * Subclasses should be Serializable wherever possible.
- *
- * @param <D> the concrete type for the date of this date-time
  * @since 1.8
  */
-public interface ChronoZonedDateTime<D extends ChronoLocalDate>
-        extends Temporal, Comparable<ChronoZonedDateTime<?>> {
-
-    /**
-     * Gets a comparator that compares {@code ChronoZonedDateTime} in
-     * time-line order ignoring the chronology.
-     * <p>
-     * This comparator differs from the comparison in {@link #compareTo} in that it
-     * only compares the underlying instant and not the chronology.
-     * This allows dates in different calendar systems to be compared based
-     * on the position of the date-time on the instant time-line.
-     * The underlying comparison is equivalent to comparing the epoch-second and nano-of-second.
-     *
-     * @return a comparator that compares in time-line order ignoring the chronology
-     * @see #isAfter
-     * @see #isBefore
-     * @see #isEqual
-     */
-    static Comparator<ChronoZonedDateTime<?>> timeLineOrder() {
-        return (Comparator<ChronoZonedDateTime<?>> & Serializable) (dateTime1, dateTime2) -> {
-                int cmp = Long.compare(dateTime1.toEpochSecond(), dateTime2.toEpochSecond());
-                if (cmp == 0) {
-                    cmp = Long.compare(dateTime1.toLocalTime().getNano(), dateTime2.toLocalTime().getNano());
-                }
-                return cmp;
-            };
-    }
-
-    //-----------------------------------------------------------------------
+// "本地日期-时间"接口，"时间"[关联]了所属的时区ID，允许在子类中将"日期"部件绑定到某种历法系统
+public interface ChronoZonedDateTime<D extends ChronoLocalDate> extends Temporal, Comparable<ChronoZonedDateTime<?>> {
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Obtains an instance of {@code ChronoZonedDateTime} from a temporal object.
      * <p>
@@ -164,85 +138,109 @@ public interface ChronoZonedDateTime<D extends ChronoLocalDate>
      * This method matches the signature of the functional interface {@link TemporalQuery}
      * allowing it to be used as a query via method reference, {@code ChronoZonedDateTime::from}.
      *
-     * @param temporal  the temporal object to convert, not null
+     * @param temporal the temporal object to convert, not null
+     *
      * @return the date-time, not null
+     *
      * @throws DateTimeException if unable to convert to a {@code ChronoZonedDateTime}
      * @see Chronology#zonedDateTime(TemporalAccessor)
      */
+    // 从temporal中获取/构造ChronoZonedDateTime对象
     static ChronoZonedDateTime<?> from(TemporalAccessor temporal) {
-        if (temporal instanceof ChronoZonedDateTime) {
+        Objects.requireNonNull(temporal, "temporal");
+    
+        if(temporal instanceof ChronoZonedDateTime) {
             return (ChronoZonedDateTime<?>) temporal;
         }
-        Objects.requireNonNull(temporal, "temporal");
+    
+        // 查询时间量的历法系统
         Chronology chrono = temporal.query(TemporalQueries.chronology());
-        if (chrono == null) {
+        if(chrono == null) {
             throw new DateTimeException("Unable to obtain ChronoZonedDateTime from TemporalAccessor: " + temporal.getClass());
         }
+    
+        // 构造ChronoZonedDateTime对象
         return chrono.zonedDateTime(temporal);
     }
-
-    //-----------------------------------------------------------------------
-    @Override
-    default ValueRange range(TemporalField field) {
-        if (field instanceof ChronoField) {
-            if (field == INSTANT_SECONDS || field == OFFSET_SECONDS) {
-                return field.range();
-            }
-            return toLocalDateTime().range(field);
-        }
-        return field.rangeRefinedBy(this);
-    }
-
-    @Override
-    default int get(TemporalField field) {
-        if (field instanceof ChronoField) {
-            switch ((ChronoField) field) {
-                case INSTANT_SECONDS:
-                    throw new UnsupportedTemporalTypeException("Invalid field 'InstantSeconds' for get() method, use getLong() instead");
-                case OFFSET_SECONDS:
-                    return getOffset().getTotalSeconds();
-            }
-            return toLocalDateTime().get(field);
-        }
-        return Temporal.super.get(field);
-    }
-
-    @Override
-    default long getLong(TemporalField field) {
-        if (field instanceof ChronoField) {
-            switch ((ChronoField) field) {
-                case INSTANT_SECONDS: return toEpochSecond();
-                case OFFSET_SECONDS: return getOffset().getTotalSeconds();
-            }
-            return toLocalDateTime().getLong(field);
-        }
-        return field.getFrom(this);
-    }
-
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 转换 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Gets the local date part of this date-time.
+     * Converts this date-time to an {@code Instant}.
      * <p>
-     * This returns a local date with the same year, month and day
-     * as this date-time.
+     * This returns an {@code Instant} representing the same point on the
+     * time-line as this date-time. The calculation combines the
+     * {@linkplain #toLocalDateTime() local date-time} and
+     * {@linkplain #getOffset() offset}.
      *
-     * @return the date part of this date-time, not null
+     * @return an {@code Instant} representing the same instant, not null
      */
-    default D toLocalDate() {
-        return toLocalDateTime().toLocalDate();
+    // 将当前"本地日期-时间"转换为时间戳，该时间戳反映的是UTC/GMT"零时区"的时间点
+    default Instant toInstant() {
+        // 计算当前时间点下，UTC时区的纪元秒
+        long second = toEpochSecond();
+        
+        // 获取当前时间量中的纳秒部件
+        int nano = toLocalTime().getNano();
+        
+        // 根据给定的纪元秒与纳秒偏移构造一个时间戳
+        return Instant.ofEpochSecond(second, nano);
     }
-
+    
     /**
-     * Gets the local time part of this date-time.
+     * Converts this date-time to the number of seconds from the epoch
+     * of 1970-01-01T00:00:00Z.
      * <p>
-     * This returns a local time with the same hour, minute, second and
-     * nanosecond as this date-time.
+     * This uses the {@linkplain #toLocalDateTime() local date-time} and
+     * {@linkplain #getOffset() offset} to calculate the epoch-second value,
+     * which is the number of elapsed seconds from 1970-01-01T00:00:00Z.
+     * Instants on the time-line after the epoch are positive, earlier are negative.
      *
-     * @return the time part of this date-time, not null
+     * @return the number of seconds from the epoch of 1970-01-01T00:00:00Z
      */
-    default LocalTime toLocalTime() {
-        return toLocalDateTime().toLocalTime();
+    // 计算当前时间点下，UTC时区的纪元秒
+    default long toEpochSecond() {
+        // 计算当前时间量的纪元天
+        long epochDay = toLocalDate().toEpochDay();
+        // 计算当前时间量的纪元秒
+        long secs = epochDay * 86400 + toLocalTime().toSecondOfDay();
+        
+        // 将"本地"的纪元秒转换为UTC/GMT"零时区"的纪元秒
+        secs -= getOffset().getTotalSeconds();
+        
+        return secs;
     }
-
+    
+    /*▲ 转换 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 部件 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Gets the zone ID, such as 'Europe/Paris'.
+     * <p>
+     * This returns the stored time-zone id used to determine the time-zone rules.
+     *
+     * @return the zone ID, not null
+     */
+    // 返回"时区ID"部件
+    ZoneId getZone();
+    
+    /**
+     * Gets the zone offset, such as '+01:00'.
+     * <p>
+     * This is the offset of the local date-time from UTC/Greenwich.
+     *
+     * @return the zone offset, not null
+     */
+    // 返回基于时间偏移的"时区ID"部件
+    ZoneOffset getOffset();
+    
     /**
      * Gets the local date-time part of this date-time.
      * <p>
@@ -251,115 +249,155 @@ public interface ChronoZonedDateTime<D extends ChronoLocalDate>
      *
      * @return the local date-time part of this date-time, not null
      */
+    // 返回"本地日期-时间"组件
     ChronoLocalDateTime<D> toLocalDateTime();
-
+    
     /**
-     * Gets the chronology of this date-time.
+     * Gets the local date part of this date-time.
      * <p>
-     * The {@code Chronology} represents the calendar system in use.
-     * The era and other fields in {@link ChronoField} are defined by the chronology.
+     * This returns a local date with the same year, month and day
+     * as this date-time.
      *
-     * @return the chronology, not null
+     * @return the date part of this date-time, not null
      */
-    default Chronology getChronology() {
-        return toLocalDate().getChronology();
+    // 返回"本地日期"组件
+    default D toLocalDate() {
+        return toLocalDateTime().toLocalDate();
     }
-
+    
     /**
-     * Gets the zone offset, such as '+01:00'.
+     * Gets the local time part of this date-time.
      * <p>
-     * This is the offset of the local date-time from UTC/Greenwich.
+     * This returns a local time with the same hour, minute, second and
+     * nanosecond as this date-time.
      *
-     * @return the zone offset, not null
+     * @return the time part of this date-time, not null
      */
-    ZoneOffset getOffset();
-
+    // 返回"本地时间"组件
+    default LocalTime toLocalTime() {
+        return toLocalDateTime().toLocalTime();
+    }
+    
+    /*▲ 部件 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 增加 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Gets the zone ID, such as 'Europe/Paris'.
-     * <p>
-     * This returns the stored time-zone id used to determine the time-zone rules.
+     * {@inheritDoc}
      *
-     * @return the zone ID, not null
+     * @throws DateTimeException   {@inheritDoc}
+     * @throws ArithmeticException {@inheritDoc}
      */
-    ZoneId getZone();
-
-    //-----------------------------------------------------------------------
+    /*
+     * 对当前时间量的值与参数中的"时间段"求和
+     *
+     * 如果求和后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"求和"后的新对象再返回。
+     */
+    @Override
+    default ChronoZonedDateTime<D> plus(TemporalAmount amount) {
+        return ChronoZonedDateTimeImpl.ensureValid(getChronology(), Temporal.super.plus(amount));
+    }
+    
     /**
-     * Returns a copy of this date-time changing the zone offset to the
-     * earlier of the two valid offsets at a local time-line overlap.
-     * <p>
-     * This method only has any effect when the local time-line overlaps, such as
-     * at an autumn daylight savings cutover. In this scenario, there are two
-     * valid offsets for the local date-time. Calling this method will return
-     * a zoned date-time with the earlier of the two selected.
-     * <p>
-     * If this method is called when it is not an overlap, {@code this}
-     * is returned.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
+     * {@inheritDoc}
      *
-     * @return a {@code ChronoZonedDateTime} based on this date-time with the earlier offset, not null
-     * @throws DateTimeException if no rules can be found for the zone
-     * @throws DateTimeException if no rules are valid for this date-time
+     * @throws DateTimeException   {@inheritDoc}
+     * @throws ArithmeticException {@inheritDoc}
      */
-    ChronoZonedDateTime<D> withEarlierOffsetAtOverlap();
-
+    /*
+     * 对当前时间量的值累加amountToAdd个unit单位的时间量
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    @Override
+    ChronoZonedDateTime<D> plus(long amountToAdd, TemporalUnit unit);
+    
+    /*▲ 增加 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 减少 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns a copy of this date-time changing the zone offset to the
-     * later of the two valid offsets at a local time-line overlap.
-     * <p>
-     * This method only has any effect when the local time-line overlaps, such as
-     * at an autumn daylight savings cutover. In this scenario, there are two
-     * valid offsets for the local date-time. Calling this method will return
-     * a zoned date-time with the later of the two selected.
-     * <p>
-     * If this method is called when it is not an overlap, {@code this}
-     * is returned.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
+     * {@inheritDoc}
      *
-     * @return a {@code ChronoZonedDateTime} based on this date-time with the later offset, not null
-     * @throws DateTimeException if no rules can be found for the zone
-     * @throws DateTimeException if no rules are valid for this date-time
+     * @throws DateTimeException   {@inheritDoc}
+     * @throws ArithmeticException {@inheritDoc}
      */
-    ChronoZonedDateTime<D> withLaterOffsetAtOverlap();
-
+    /*
+     * 对当前时间量的值与参数中的"时间段"求差
+     *
+     * 如果求差后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"求差"后的新对象再返回。
+     */
+    @Override
+    default ChronoZonedDateTime<D> minus(TemporalAmount amount) {
+        return ChronoZonedDateTimeImpl.ensureValid(getChronology(), Temporal.super.minus(amount));
+    }
+    
     /**
-     * Returns a copy of this date-time with a different time-zone,
-     * retaining the local date-time if possible.
-     * <p>
-     * This method changes the time-zone and retains the local date-time.
-     * The local date-time is only changed if it is invalid for the new zone.
-     * <p>
-     * To change the zone and adjust the local date-time,
-     * use {@link #withZoneSameInstant(ZoneId)}.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
+     * {@inheritDoc}
      *
-     * @param zone  the time-zone to change to, not null
-     * @return a {@code ChronoZonedDateTime} based on this date-time with the requested zone, not null
+     * @throws DateTimeException   {@inheritDoc}
+     * @throws ArithmeticException {@inheritDoc}
      */
-    ChronoZonedDateTime<D> withZoneSameLocal(ZoneId zone);
-
+    /*
+     * 对当前时间量的值减去amountToSubtract个unit单位的时间量
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    @Override
+    default ChronoZonedDateTime<D> minus(long amountToSubtract, TemporalUnit unit) {
+        Temporal temporal = Temporal.super.minus(amountToSubtract, unit);
+        return ChronoZonedDateTimeImpl.ensureValid(getChronology(), temporal);
+    }
+    
+    /*▲ 减少 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 时间量单位 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns a copy of this date-time with a different time-zone,
-     * retaining the instant.
+     * Checks if the specified unit is supported.
      * <p>
-     * This method changes the time-zone and retains the instant.
-     * This normally results in a change to the local date-time.
+     * This checks if the specified unit can be added to or subtracted from this date-time.
+     * If false, then calling the {@link #plus(long, TemporalUnit)} and
+     * {@link #minus(long, TemporalUnit) minus} methods will throw an exception.
      * <p>
-     * This method is based on retaining the same instant, thus gaps and overlaps
-     * in the local time-line have no effect on the result.
+     * The set of supported units is defined by the chronology and normally includes
+     * all {@code ChronoUnit} units except {@code FOREVER}.
      * <p>
-     * To change the offset while keeping the local time,
-     * use {@link #withZoneSameLocal(ZoneId)}.
+     * If the unit is not a {@code ChronoUnit}, then the result of this method
+     * is obtained by invoking {@code TemporalUnit.isSupportedBy(Temporal)}
+     * passing {@code this} as the argument.
+     * Whether the unit is supported is determined by the unit.
      *
-     * @param zone  the time-zone to change to, not null
-     * @return a {@code ChronoZonedDateTime} based on this date-time with the requested zone, not null
-     * @throws DateTimeException if the result exceeds the supported date range
+     * @param unit the unit to check, null returns false
+     *
+     * @return true if the unit can be added/subtracted, false if not
      */
-    ChronoZonedDateTime<D> withZoneSameInstant(ZoneId zone);
-
+    // 判断当前时间量是否支持指定的时间量单位
+    @Override
+    default boolean isSupported(TemporalUnit unit) {
+        if(unit instanceof ChronoUnit) {
+            return unit != FOREVER;
+        }
+        
+        return unit != null && unit.isSupportedBy(this);
+    }
+    
+    /*▲ 时间量单位 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 时间量字段操作(TemporalAccessor) ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Checks if the specified field is supported.
      * <p>
@@ -376,97 +414,62 @@ public interface ChronoZonedDateTime<D extends ChronoLocalDate>
      * passing {@code this} as the argument.
      * Whether the field is supported is determined by the field.
      *
-     * @param field  the field to check, null returns false
+     * @param field the field to check, null returns false
+     *
      * @return true if the field can be queried, false if not
      */
+    // 判断当前时间量是否支持指定的时间量字段
     @Override
     boolean isSupported(TemporalField field);
-
-    /**
-     * Checks if the specified unit is supported.
-     * <p>
-     * This checks if the specified unit can be added to or subtracted from this date-time.
-     * If false, then calling the {@link #plus(long, TemporalUnit)} and
-     * {@link #minus(long, TemporalUnit) minus} methods will throw an exception.
-     * <p>
-     * The set of supported units is defined by the chronology and normally includes
-     * all {@code ChronoUnit} units except {@code FOREVER}.
-     * <p>
-     * If the unit is not a {@code ChronoUnit}, then the result of this method
-     * is obtained by invoking {@code TemporalUnit.isSupportedBy(Temporal)}
-     * passing {@code this} as the argument.
-     * Whether the unit is supported is determined by the unit.
-     *
-     * @param unit  the unit to check, null returns false
-     * @return true if the unit can be added/subtracted, false if not
-     */
+    
+    // 返回时间量字段field的取值区间，通常要求当前时间量支持该时间量字段
     @Override
-    default boolean isSupported(TemporalUnit unit) {
-        if (unit instanceof ChronoUnit) {
-            return unit != FOREVER;
+    default ValueRange range(TemporalField field) {
+        if(field instanceof ChronoField) {
+            if(field == INSTANT_SECONDS || field == OFFSET_SECONDS) {
+                return field.range();
+            }
+            
+            return toLocalDateTime().range(field);
         }
-        return unit != null && unit.isSupportedBy(this);
+        
+        return field.rangeRefinedBy(this);
     }
-
-    //-----------------------------------------------------------------------
-    // override for covariant return type
-    /**
-     * {@inheritDoc}
-     * @throws DateTimeException {@inheritDoc}
-     * @throws ArithmeticException {@inheritDoc}
-     */
+    
+    // 以int形式返回时间量字段field的值
     @Override
-    default ChronoZonedDateTime<D> with(TemporalAdjuster adjuster) {
-        return ChronoZonedDateTimeImpl.ensureValid(getChronology(), Temporal.super.with(adjuster));
+    default int get(TemporalField field) {
+        if(field instanceof ChronoField) {
+            switch((ChronoField) field) {
+                case INSTANT_SECONDS:
+                    throw new UnsupportedTemporalTypeException("Invalid field 'InstantSeconds' for get() method, use getLong() instead");
+                case OFFSET_SECONDS:
+                    return getOffset().getTotalSeconds();
+            }
+            
+            return toLocalDateTime().get(field);
+        }
+        
+        return Temporal.super.get(field);
     }
-
-    /**
-     * {@inheritDoc}
-     * @throws DateTimeException {@inheritDoc}
-     * @throws ArithmeticException {@inheritDoc}
-     */
+    
+    // 以long形式返回时间量字段field的值
     @Override
-    ChronoZonedDateTime<D> with(TemporalField field, long newValue);
-
-    /**
-     * {@inheritDoc}
-     * @throws DateTimeException {@inheritDoc}
-     * @throws ArithmeticException {@inheritDoc}
-     */
-    @Override
-    default ChronoZonedDateTime<D> plus(TemporalAmount amount) {
-        return ChronoZonedDateTimeImpl.ensureValid(getChronology(), Temporal.super.plus(amount));
+    default long getLong(TemporalField field) {
+        if(field instanceof ChronoField) {
+            switch((ChronoField) field) {
+                case INSTANT_SECONDS:
+                    return toEpochSecond();
+                case OFFSET_SECONDS:
+                    return getOffset().getTotalSeconds();
+            }
+            
+            return toLocalDateTime().getLong(field);
+        }
+        
+        return field.getFrom(this);
     }
-
-    /**
-     * {@inheritDoc}
-     * @throws DateTimeException {@inheritDoc}
-     * @throws ArithmeticException {@inheritDoc}
-     */
-    @Override
-    ChronoZonedDateTime<D> plus(long amountToAdd, TemporalUnit unit);
-
-    /**
-     * {@inheritDoc}
-     * @throws DateTimeException {@inheritDoc}
-     * @throws ArithmeticException {@inheritDoc}
-     */
-    @Override
-    default ChronoZonedDateTime<D> minus(TemporalAmount amount) {
-        return ChronoZonedDateTimeImpl.ensureValid(getChronology(), Temporal.super.minus(amount));
-    }
-
-    /**
-     * {@inheritDoc}
-     * @throws DateTimeException {@inheritDoc}
-     * @throws ArithmeticException {@inheritDoc}
-     */
-    @Override
-    default ChronoZonedDateTime<D> minus(long amountToSubtract, TemporalUnit unit) {
-        return ChronoZonedDateTimeImpl.ensureValid(getChronology(), Temporal.super.minus(amountToSubtract, unit));
-    }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Queries this date-time using the specified query.
      * <p>
@@ -479,31 +482,332 @@ public interface ChronoZonedDateTime<D extends ChronoLocalDate>
      * {@link TemporalQuery#queryFrom(TemporalAccessor)} method on the
      * specified query passing {@code this} as the argument.
      *
-     * @param <R> the type of the result
-     * @param query  the query to invoke, not null
+     * @param <R>   the type of the result
+     * @param query the query to invoke, not null
+     *
      * @return the query result, null may be returned (defined by the query)
-     * @throws DateTimeException if unable to query (defined by the query)
+     *
+     * @throws DateTimeException   if unable to query (defined by the query)
      * @throws ArithmeticException if numeric overflow occurs (defined by the query)
      */
+    // 使用指定的时间量查询器，从当前时间量中查询目标信息
     @SuppressWarnings("unchecked")
     @Override
     default <R> R query(TemporalQuery<R> query) {
-        if (query == TemporalQueries.zone() || query == TemporalQueries.zoneId()) {
-            return (R) getZone();
-        } else if (query == TemporalQueries.offset()) {
-            return (R) getOffset();
-        } else if (query == TemporalQueries.localTime()) {
-            return (R) toLocalTime();
-        } else if (query == TemporalQueries.chronology()) {
-            return (R) getChronology();
-        } else if (query == TemporalQueries.precision()) {
+        // 查询时间量支持的最小时间量单位
+        if(query == TemporalQueries.precision()) {
             return (R) NANOS;
         }
-        // inline TemporalAccessor.super.query(query) as an optimization
-        // non-JDK classes are not permitted to make this optimization
+        
+        // 查询时间量的历法系统
+        if(query == TemporalQueries.chronology()) {
+            return (R) getChronology();
+        }
+        
+        if(query == TemporalQueries.zone() || query == TemporalQueries.zoneId()) {
+            return (R) getZone();
+        }
+        
+        if(query == TemporalQueries.offset()) {
+            return (R) getOffset();
+        }
+        
+        // 查询时间量的本地时间
+        if(query == TemporalQueries.localTime()) {
+            return (R) toLocalTime();
+        }
+        
+        /*
+         * inline TemporalAccessor.super.query(query) as an optimization
+         * non-JDK classes are not permitted to make this optimization
+         */
         return query.queryFrom(this);
     }
-
+    
+    /*▲ 时间量字段操作(TemporalAccessor) ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 整合 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @throws DateTimeException   {@inheritDoc}
+     * @throws ArithmeticException {@inheritDoc}
+     */
+    /*
+     * 使用指定的时间量整合器adjuster来构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     */
+    @Override
+    default ChronoZonedDateTime<D> with(TemporalAdjuster adjuster) {
+        Temporal temporal = Temporal.super.with(adjuster);
+        
+        // 获取当前时间量的历法系统
+        Chronology chrono = getChronology();
+        
+        // 判断当前时间量的历法系统chrono是否与时间量temporal的历法系统相同
+        return ChronoZonedDateTimeImpl.ensureValid(chrono, temporal);
+    }
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @throws DateTimeException   {@inheritDoc}
+     * @throws ArithmeticException {@inheritDoc}
+     */
+    /*
+     * 通过整合指定类型的字段和当前时间量中的其他类型的字段来构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * field   : 待整合的字段(类型)
+     * newValue: field的原始值，需要根据filed的类型进行放缩
+     */
+    @Override
+    ChronoZonedDateTime<D> with(TemporalField field, long newValue);
+    
+    /**
+     * Returns a copy of this date-time with a different time-zone,
+     * retaining the local date-time if possible.
+     * <p>
+     * This method changes the time-zone and retains the local date-time.
+     * The local date-time is only changed if it is invalid for the new zone.
+     * <p>
+     * To change the zone and adjust the local date-time,
+     * use {@link #withZoneSameInstant(ZoneId)}.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param zone the time-zone to change to, not null
+     *
+     * @return a {@code ChronoZonedDateTime} based on this date-time with the requested zone, not null
+     */
+    /*
+     * 将指定的"时区ID"整合到当前时间量中以构造时间量对象。
+     * 该操作是尝试对ZoneId属性和ZoneOffset属性进行更新。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：(本地日期-时间)、时区ID、基于时间偏移的时区ID
+     */
+    ChronoZonedDateTime<D> withZoneSameLocal(ZoneId zone);
+    
+    /**
+     * Returns a copy of this date-time with a different time-zone,
+     * retaining the instant.
+     * <p>
+     * This method changes the time-zone and retains the instant.
+     * This normally results in a change to the local date-time.
+     * <p>
+     * This method is based on retaining the same instant, thus gaps and overlaps
+     * in the local time-line have no effect on the result.
+     * <p>
+     * To change the offset while keeping the local time,
+     * use {@link #withZoneSameLocal(ZoneId)}.
+     *
+     * @param zone the time-zone to change to, not null
+     *
+     * @return a {@code ChronoZonedDateTime} based on this date-time with the requested zone, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported date range
+     */
+    /*
+     * 将指定的"时区ID"整合到当前时间量中以构造时间量对象。
+     * 该操作会先获取在当前时刻时UTC时区的时间点，然后使用该时间点与zone构造一个ZonedDateTime对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：本地日期-时间、时区ID、基于时间偏移的时区ID
+     */
+    ChronoZonedDateTime<D> withZoneSameInstant(ZoneId zone);
+    
+    /**
+     * Returns a copy of this date-time changing the zone offset to the
+     * earlier of the two valid offsets at a local time-line overlap.
+     * <p>
+     * This method only has any effect when the local time-line overlaps, such as
+     * at an autumn daylight savings cutover. In this scenario, there are two
+     * valid offsets for the local date-time. Calling this method will return
+     * a zoned date-time with the earlier of the two selected.
+     * <p>
+     * If this method is called when it is not an overlap, {@code this}
+     * is returned.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @return a {@code ChronoZonedDateTime} based on this date-time with the earlier offset, not null
+     *
+     * @throws DateTimeException if no rules can be found for the zone
+     * @throws DateTimeException if no rules are valid for this date-time
+     */
+    /*
+     * 如果当前本地日期-时间位于其所在时区的"重叠时间"中，
+     * 则将当前时间量的时区偏移更新为"重叠时间"之前的时区偏移。
+     */
+    ChronoZonedDateTime<D> withEarlierOffsetAtOverlap();
+    
+    /**
+     * Returns a copy of this date-time changing the zone offset to the
+     * later of the two valid offsets at a local time-line overlap.
+     * <p>
+     * This method only has any effect when the local time-line overlaps, such as
+     * at an autumn daylight savings cutover. In this scenario, there are two
+     * valid offsets for the local date-time. Calling this method will return
+     * a zoned date-time with the later of the two selected.
+     * <p>
+     * If this method is called when it is not an overlap, {@code this}
+     * is returned.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @return a {@code ChronoZonedDateTime} based on this date-time with the later offset, not null
+     *
+     * @throws DateTimeException if no rules can be found for the zone
+     * @throws DateTimeException if no rules are valid for this date-time
+     */
+    /*
+     * 如果当前本地日期-时间位于其所在时区的"重叠时间"中，
+     * 则将当前时间量的时区偏移更新为"重叠时间"之后的时区偏移。
+     */
+    ChronoZonedDateTime<D> withLaterOffsetAtOverlap();
+    
+    /*▲ 整合 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Gets the chronology of this date-time.
+     * <p>
+     * The {@code Chronology} represents the calendar system in use.
+     * The era and other fields in {@link ChronoField} are defined by the chronology.
+     *
+     * @return the chronology, not null
+     */
+    // 返回当前时间量的历法系统
+    default Chronology getChronology() {
+        return toLocalDate().getChronology();
+    }
+    
+    /**
+     * Checks if the instant of this date-time is after that of the specified date-time.
+     * <p>
+     * This method differs from the comparison in {@link #compareTo} in that it
+     * only compares the instant of the date-time. This is equivalent to using
+     * {@code dateTime1.toInstant().isAfter(dateTime2.toInstant());}.
+     * <p>
+     * This default implementation performs the comparison based on the epoch-second
+     * and nano-of-second.
+     *
+     * @param other the other date-time to compare to, not null
+     *
+     * @return true if this is after the specified date-time
+     */
+    // 判断当前日期-时间是否晚于参数中指定的日期-时间
+    default boolean isAfter(ChronoZonedDateTime<?> other) {
+        long thisEpochSec = toEpochSecond();
+        long otherEpochSec = other.toEpochSecond();
+        
+        if(thisEpochSec>otherEpochSec) {
+            return true;
+        } else if(thisEpochSec<otherEpochSec) {
+            return false;
+        } else {
+            return toLocalTime().getNano()>other.toLocalTime().getNano();
+        }
+    }
+    
+    /**
+     * Checks if the instant of this date-time is before that of the specified date-time.
+     * <p>
+     * This method differs from the comparison in {@link #compareTo} in that it
+     * only compares the instant of the date-time. This is equivalent to using
+     * {@code dateTime1.toInstant().isBefore(dateTime2.toInstant());}.
+     * <p>
+     * This default implementation performs the comparison based on the epoch-second
+     * and nano-of-second.
+     *
+     * @param other the other date-time to compare to, not null
+     *
+     * @return true if this point is before the specified date-time
+     */
+    // 判断当前日期-时间是否早于参数中指定的日期-时间
+    default boolean isBefore(ChronoZonedDateTime<?> other) {
+        long thisEpochSec = toEpochSecond();
+        long otherEpochSec = other.toEpochSecond();
+        
+        if(thisEpochSec>otherEpochSec) {
+            return false;
+        } else if(thisEpochSec<otherEpochSec) {
+            return true;
+        } else {
+            return toLocalTime().getNano()<other.toLocalTime().getNano();
+        }
+    }
+    
+    /**
+     * Checks if the instant of this date-time is equal to that of the specified date-time.
+     * <p>
+     * This method differs from the comparison in {@link #compareTo} and {@link #equals}
+     * in that it only compares the instant of the date-time. This is equivalent to using
+     * {@code dateTime1.toInstant().equals(dateTime2.toInstant());}.
+     * <p>
+     * This default implementation performs the comparison based on the epoch-second
+     * and nano-of-second.
+     *
+     * @param other the other date-time to compare to, not null
+     *
+     * @return true if the instant equals the instant of the specified date-time
+     */
+    // 判断当前日期-时间与参数中指定的日期-时间是否相等
+    default boolean isEqual(ChronoZonedDateTime<?> other) {
+        return toEpochSecond() == other.toEpochSecond() && toLocalTime().getNano() == other.toLocalTime().getNano();
+    }
+    
+    /**
+     * Gets a comparator that compares {@code ChronoZonedDateTime} in
+     * time-line order ignoring the chronology.
+     * <p>
+     * This comparator differs from the comparison in {@link #compareTo} in that it
+     * only compares the underlying instant and not the chronology.
+     * This allows dates in different calendar systems to be compared based
+     * on the position of the date-time on the instant time-line.
+     * The underlying comparison is equivalent to comparing the epoch-second and nano-of-second.
+     *
+     * @return a comparator that compares in time-line order ignoring the chronology
+     *
+     * @see #isAfter
+     * @see #isBefore
+     * @see #isEqual
+     */
+    // 返回一个外部比较器，以比较两个"本地日期-时间"的早晚
+    static Comparator<ChronoZonedDateTime<?>> timeLineOrder() {
+        return new Comparator<ChronoZonedDateTime<?>>() {
+            @Override
+            public int compare(ChronoZonedDateTime<?> dateTime1, ChronoZonedDateTime<?> dateTime2) {
+                int cmp = Long.compare(dateTime1.toEpochSecond(), dateTime2.toEpochSecond());
+                if(cmp == 0) {
+                    cmp = Long.compare(dateTime1.toLocalTime().getNano(), dateTime2.toLocalTime().getNano());
+                }
+                return cmp;
+            }
+        };
+    }
+    
     /**
      * Formats this date-time using the specified formatter.
      * <p>
@@ -514,49 +818,21 @@ public interface ChronoZonedDateTime<D extends ChronoLocalDate>
      *  return formatter.format(this);
      * </pre>
      *
-     * @param formatter  the formatter to use, not null
+     * @param formatter the formatter to use, not null
+     *
      * @return the formatted date-time string, not null
+     *
      * @throws DateTimeException if an error occurs during printing
      */
+    // 将当前日期-时间转换为一个指定格式的字符串后返回
     default String format(DateTimeFormatter formatter) {
         Objects.requireNonNull(formatter, "formatter");
         return formatter.format(this);
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Converts this date-time to an {@code Instant}.
-     * <p>
-     * This returns an {@code Instant} representing the same point on the
-     * time-line as this date-time. The calculation combines the
-     * {@linkplain #toLocalDateTime() local date-time} and
-     * {@linkplain #getOffset() offset}.
-     *
-     * @return an {@code Instant} representing the same instant, not null
-     */
-    default Instant toInstant() {
-        return Instant.ofEpochSecond(toEpochSecond(), toLocalTime().getNano());
-    }
-
-    /**
-     * Converts this date-time to the number of seconds from the epoch
-     * of 1970-01-01T00:00:00Z.
-     * <p>
-     * This uses the {@linkplain #toLocalDateTime() local date-time} and
-     * {@linkplain #getOffset() offset} to calculate the epoch-second value,
-     * which is the number of elapsed seconds from 1970-01-01T00:00:00Z.
-     * Instants on the time-line after the epoch are positive, earlier are negative.
-     *
-     * @return the number of seconds from the epoch of 1970-01-01T00:00:00Z
-     */
-    default long toEpochSecond() {
-        long epochDay = toLocalDate().toEpochDay();
-        long secs = epochDay * 86400 + toLocalTime().toSecondOfDay();
-        secs -= getOffset().getTotalSeconds();
-        return secs;
-    }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
     /**
      * Compares this date-time to another date-time, including the chronology.
      * <p>
@@ -569,19 +845,20 @@ public interface ChronoZonedDateTime<D extends ChronoLocalDate>
      * <p>
      * This default implementation performs the comparison defined above.
      *
-     * @param other  the other date-time to compare to, not null
+     * @param other the other date-time to compare to, not null
+     *
      * @return the comparator value, negative if less, positive if greater
      */
     @Override
     default int compareTo(ChronoZonedDateTime<?> other) {
         int cmp = Long.compare(toEpochSecond(), other.toEpochSecond());
-        if (cmp == 0) {
+        if(cmp == 0) {
             cmp = toLocalTime().getNano() - other.toLocalTime().getNano();
-            if (cmp == 0) {
+            if(cmp == 0) {
                 cmp = toLocalDateTime().compareTo(other.toLocalDateTime());
-                if (cmp == 0) {
+                if(cmp == 0) {
                     cmp = getZone().getId().compareTo(other.getZone().getId());
-                    if (cmp == 0) {
+                    if(cmp == 0) {
                         cmp = getChronology().compareTo(other.getChronology());
                     }
                 }
@@ -589,88 +866,7 @@ public interface ChronoZonedDateTime<D extends ChronoLocalDate>
         }
         return cmp;
     }
-
-    /**
-     * Checks if the instant of this date-time is before that of the specified date-time.
-     * <p>
-     * This method differs from the comparison in {@link #compareTo} in that it
-     * only compares the instant of the date-time. This is equivalent to using
-     * {@code dateTime1.toInstant().isBefore(dateTime2.toInstant());}.
-     * <p>
-     * This default implementation performs the comparison based on the epoch-second
-     * and nano-of-second.
-     *
-     * @param other  the other date-time to compare to, not null
-     * @return true if this point is before the specified date-time
-     */
-    default boolean isBefore(ChronoZonedDateTime<?> other) {
-        long thisEpochSec = toEpochSecond();
-        long otherEpochSec = other.toEpochSecond();
-        return thisEpochSec < otherEpochSec ||
-            (thisEpochSec == otherEpochSec && toLocalTime().getNano() < other.toLocalTime().getNano());
-    }
-
-    /**
-     * Checks if the instant of this date-time is after that of the specified date-time.
-     * <p>
-     * This method differs from the comparison in {@link #compareTo} in that it
-     * only compares the instant of the date-time. This is equivalent to using
-     * {@code dateTime1.toInstant().isAfter(dateTime2.toInstant());}.
-     * <p>
-     * This default implementation performs the comparison based on the epoch-second
-     * and nano-of-second.
-     *
-     * @param other  the other date-time to compare to, not null
-     * @return true if this is after the specified date-time
-     */
-    default boolean isAfter(ChronoZonedDateTime<?> other) {
-        long thisEpochSec = toEpochSecond();
-        long otherEpochSec = other.toEpochSecond();
-        return thisEpochSec > otherEpochSec ||
-            (thisEpochSec == otherEpochSec && toLocalTime().getNano() > other.toLocalTime().getNano());
-    }
-
-    /**
-     * Checks if the instant of this date-time is equal to that of the specified date-time.
-     * <p>
-     * This method differs from the comparison in {@link #compareTo} and {@link #equals}
-     * in that it only compares the instant of the date-time. This is equivalent to using
-     * {@code dateTime1.toInstant().equals(dateTime2.toInstant());}.
-     * <p>
-     * This default implementation performs the comparison based on the epoch-second
-     * and nano-of-second.
-     *
-     * @param other  the other date-time to compare to, not null
-     * @return true if the instant equals the instant of the specified date-time
-     */
-    default boolean isEqual(ChronoZonedDateTime<?> other) {
-        return toEpochSecond() == other.toEpochSecond() &&
-                toLocalTime().getNano() == other.toLocalTime().getNano();
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Checks if this date-time is equal to another date-time.
-     * <p>
-     * The comparison is based on the offset date-time and the zone.
-     * To compare for the same instant on the time-line, use {@link #compareTo}.
-     * Only objects of type {@code ChronoZonedDateTime} are compared, other types return false.
-     *
-     * @param obj  the object to check, null returns false
-     * @return true if this is equal to the other date-time
-     */
-    @Override
-    boolean equals(Object obj);
-
-    /**
-     * A hash code for this date-time.
-     *
-     * @return a suitable hash code
-     */
-    @Override
-    int hashCode();
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Outputs this date-time as a {@code String}.
      * <p>
@@ -680,5 +876,27 @@ public interface ChronoZonedDateTime<D extends ChronoLocalDate>
      */
     @Override
     String toString();
-
+    
+    /**
+     * Checks if this date-time is equal to another date-time.
+     * <p>
+     * The comparison is based on the offset date-time and the zone.
+     * To compare for the same instant on the time-line, use {@link #compareTo}.
+     * Only objects of type {@code ChronoZonedDateTime} are compared, other types return false.
+     *
+     * @param obj the object to check, null returns false
+     *
+     * @return true if this is equal to the other date-time
+     */
+    @Override
+    boolean equals(Object obj);
+    
+    /**
+     * A hash code for this date-time.
+     *
+     * @return a suitable hash code
+     */
+    @Override
+    int hashCode();
+    
 }
