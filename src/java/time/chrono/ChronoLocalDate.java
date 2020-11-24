@@ -61,12 +61,6 @@
  */
 package java.time.chrono;
 
-import static java.time.temporal.ChronoField.EPOCH_DAY;
-import static java.time.temporal.ChronoField.ERA;
-import static java.time.temporal.ChronoField.YEAR;
-import static java.time.temporal.ChronoUnit.DAYS;
-
-import java.io.Serializable;
 import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -84,6 +78,8 @@ import java.time.temporal.TemporalUnit;
 import java.time.temporal.UnsupportedTemporalTypeException;
 import java.util.Comparator;
 import java.util.Objects;
+
+import static java.time.temporal.ChronoUnit.DAYS;
 
 /**
  * A date without time-of-day or time-zone in an arbitrary chronology, intended
@@ -228,41 +224,19 @@ import java.util.Objects;
  * Use {@link TemporalAccessor} if read-only access is required, or use {@link Temporal}
  * if read-write access is required.
  *
- * @implSpec
- * This interface must be implemented with care to ensure other classes operate correctly.
+ * @implSpec This interface must be implemented with care to ensure other classes operate correctly.
  * All implementations that can be instantiated must be final, immutable and thread-safe.
  * Subclasses should be Serializable wherever possible.
  * <p>
  * Additional calendar systems may be added to the system.
  * See {@link Chronology} for more details.
- *
  * @since 1.8
  */
-public interface ChronoLocalDate
-        extends Temporal, TemporalAdjuster, Comparable<ChronoLocalDate> {
-
-    /**
-     * Gets a comparator that compares {@code ChronoLocalDate} in
-     * time-line order ignoring the chronology.
-     * <p>
-     * This comparator differs from the comparison in {@link #compareTo} in that it
-     * only compares the underlying date and not the chronology.
-     * This allows dates in different calendar systems to be compared based
-     * on the position of the date on the local time-line.
-     * The underlying comparison is equivalent to comparing the epoch-day.
-     *
-     * @return a comparator that compares in time-line order ignoring the chronology
-     * @see #isAfter
-     * @see #isBefore
-     * @see #isEqual
-     */
-    static Comparator<ChronoLocalDate> timeLineOrder() {
-        return (Comparator<ChronoLocalDate> & Serializable) (date1, date2) -> {
-            return Long.compare(date1.toEpochDay(), date2.toEpochDay());
-        };
-    }
-
-    //-----------------------------------------------------------------------
+// "本地日期"接口，允许在子类中将"日期"部件绑定到某种历法系统
+public interface ChronoLocalDate extends Temporal, TemporalAdjuster, Comparable<ChronoLocalDate> {
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Obtains an instance of {@code ChronoLocalDate} from a temporal object.
      * <p>
@@ -279,90 +253,199 @@ public interface ChronoLocalDate
      * This method matches the signature of the functional interface {@link TemporalQuery}
      * allowing it to be used as a query via method reference, {@code ChronoLocalDate::from}.
      *
-     * @param temporal  the temporal object to convert, not null
+     * @param temporal the temporal object to convert, not null
+     *
      * @return the date, not null
+     *
      * @throws DateTimeException if unable to convert to a {@code ChronoLocalDate}
      * @see Chronology#date(TemporalAccessor)
      */
+    // 从temporal中获取/构造ChronoLocalDate对象
     static ChronoLocalDate from(TemporalAccessor temporal) {
-        if (temporal instanceof ChronoLocalDate) {
+        Objects.requireNonNull(temporal, "temporal");
+    
+        if(temporal instanceof ChronoLocalDate) {
             return (ChronoLocalDate) temporal;
         }
-        Objects.requireNonNull(temporal, "temporal");
+    
+        // 查询时间量的历法系统
         Chronology chrono = temporal.query(TemporalQueries.chronology());
-        if (chrono == null) {
+        if(chrono == null) {
             throw new DateTimeException("Unable to obtain ChronoLocalDate from TemporalAccessor: " + temporal.getClass());
         }
+    
+        // 使用指定的时间量构造ChronoLocalDate
         return chrono.date(temporal);
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 转换 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Gets the chronology of this date.
+     * Combines this date with a time to create a {@code ChronoLocalDateTime}.
      * <p>
-     * The {@code Chronology} represents the calendar system in use.
-     * The era and other fields in {@link ChronoField} are defined by the chronology.
+     * This returns a {@code ChronoLocalDateTime} formed from this date at the specified time.
+     * All possible combinations of date and time are valid.
      *
-     * @return the chronology, not null
-     */
-    Chronology getChronology();
-
-    /**
-     * Gets the era, as defined by the chronology.
-     * <p>
-     * The era is, conceptually, the largest division of the time-line.
-     * Most calendar systems have a single epoch dividing the time-line into two eras.
-     * However, some have multiple eras, such as one for the reign of each leader.
-     * The exact meaning is determined by the {@code Chronology}.
-     * <p>
-     * All correctly implemented {@code Era} classes are singletons, thus it
-     * is valid code to write {@code date.getEra() == SomeChrono.ERA_NAME)}.
-     * <p>
-     * This default implementation uses {@link Chronology#eraOf(int)}.
+     * @param localTime the local time to use, not null
      *
-     * @return the chronology specific era constant applicable at this date, not null
+     * @return the local date-time formed from this date and the specified time, not null
      */
-    default Era getEra() {
-        return getChronology().eraOf(get(ERA));
+    // 将当前"本地日期"和指定的"本地时间"整合成一个"本地日期-时间"对象后返回
+    @SuppressWarnings("unchecked")
+    default ChronoLocalDateTime<?> atTime(LocalTime localTime) {
+        return ChronoLocalDateTimeImpl.of(this, localTime);
     }
-
+    
     /**
-     * Checks if the year is a leap year, as defined by the calendar system.
+     * Converts this date to the Epoch Day.
      * <p>
-     * A leap-year is a year of a longer length than normal.
-     * The exact meaning is determined by the chronology with the constraint that
-     * a leap-year must imply a year-length longer than a non leap-year.
+     * The {@link ChronoField#EPOCH_DAY Epoch Day count} is a simple
+     * incrementing count of days where day 0 is 1970-01-01 (ISO).
+     * This definition is the same for all chronologies, enabling conversion.
      * <p>
-     * This default implementation uses {@link Chronology#isLeapYear(long)}.
+     * This default implementation queries the {@code EPOCH_DAY} field.
      *
-     * @return true if this date is in a leap year, false otherwise
+     * @return the Epoch Day equivalent to this date
      */
-    default boolean isLeapYear() {
-        return getChronology().isLeapYear(getLong(YEAR));
+    // 返回当前时间量的纪元天
+    default long toEpochDay() {
+        return getLong(ChronoField.EPOCH_DAY);
     }
-
+    
+    /*▲ 转换 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 增加 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Returns the length of the month represented by this date, as defined by the calendar system.
-     * <p>
-     * This returns the length of the month in days.
+     * {@inheritDoc}
      *
-     * @return the length of the month in days
+     * @throws DateTimeException   {@inheritDoc}
+     * @throws ArithmeticException {@inheritDoc}
      */
-    int lengthOfMonth();
-
-    /**
-     * Returns the length of the year represented by this date, as defined by the calendar system.
-     * <p>
-     * This returns the length of the year in days.
-     * <p>
-     * The default implementation uses {@link #isLeapYear()} and returns 365 or 366.
+    /*
+     * 对当前时间量的值与参数中的"时间段"求和
      *
-     * @return the length of the year in days
+     * 如果求和后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"求和"后的新对象再返回。
      */
-    default int lengthOfYear() {
-        return (isLeapYear() ? 366 : 365);
+    @Override
+    default ChronoLocalDate plus(TemporalAmount amount) {
+        return ChronoLocalDateImpl.ensureValid(getChronology(), Temporal.super.plus(amount));
     }
-
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @throws DateTimeException   {@inheritDoc}
+     * @throws ArithmeticException {@inheritDoc}
+     */
+    /*
+     * 对当前时间量的值累加amountToAdd个unit单位的时间量
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    @Override
+    default ChronoLocalDate plus(long amountToAdd, TemporalUnit unit) {
+        if(unit instanceof ChronoUnit) {
+            throw new UnsupportedTemporalTypeException("Unsupported unit: " + unit);
+        }
+        
+        ChronoLocalDate date = unit.addTo(this, amountToAdd);
+        
+        return ChronoLocalDateImpl.ensureValid(getChronology(), date);
+    }
+    
+    /*▲ 增加 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 减少 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @throws DateTimeException   {@inheritDoc}
+     * @throws ArithmeticException {@inheritDoc}
+     */
+    /*
+     * 对当前时间量的值与参数中的"时间段"求差
+     *
+     * 如果求差后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"求差"后的新对象再返回。
+     */
+    @Override
+    default ChronoLocalDate minus(TemporalAmount amount) {
+        return ChronoLocalDateImpl.ensureValid(getChronology(), Temporal.super.minus(amount));
+    }
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @throws DateTimeException                {@inheritDoc}
+     * @throws UnsupportedTemporalTypeException {@inheritDoc}
+     * @throws ArithmeticException              {@inheritDoc}
+     */
+    /*
+     * 对当前时间量的值减去amountToSubtract个unit单位的时间量
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    @Override
+    default ChronoLocalDate minus(long amountToSubtract, TemporalUnit unit) {
+        Temporal temporal = Temporal.super.minus(amountToSubtract, unit);
+        return ChronoLocalDateImpl.ensureValid(getChronology(), temporal);
+    }
+    
+    /*▲ 减少 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 时间量单位 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Checks if the specified unit is supported.
+     * <p>
+     * This checks if the specified unit can be added to or subtracted from this date.
+     * If false, then calling the {@link #plus(long, TemporalUnit)} and
+     * {@link #minus(long, TemporalUnit) minus} methods will throw an exception.
+     * <p>
+     * The set of supported units is defined by the chronology and normally includes
+     * all {@code ChronoUnit} date units except {@code FOREVER}.
+     * <p>
+     * If the unit is not a {@code ChronoUnit}, then the result of this method
+     * is obtained by invoking {@code TemporalUnit.isSupportedBy(Temporal)}
+     * passing {@code this} as the argument.
+     * Whether the unit is supported is determined by the unit.
+     *
+     * @param unit the unit to check, null returns false
+     *
+     * @return true if the unit can be added/subtracted, false if not
+     */
+    // 判断当前时间量是否支持指定的时间量单位
+    @Override
+    default boolean isSupported(TemporalUnit unit) {
+        if(unit instanceof ChronoUnit) {
+            // "日期"单位都被支持
+            return unit.isDateBased();
+        }
+        
+        return unit != null && unit.isSupportedBy(this);
+    }
+    
+    /*▲ 时间量单位 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 时间量字段操作(TemporalAccessor) ███████████████████████████████████████████████████████┓ */
+    
     /**
      * Checks if the specified field is supported.
      * <p>
@@ -379,114 +462,19 @@ public interface ChronoLocalDate
      * passing {@code this} as the argument.
      * Whether the field is supported is determined by the field.
      *
-     * @param field  the field to check, null returns false
+     * @param field the field to check, null returns false
+     *
      * @return true if the field can be queried, false if not
      */
+    // 判断当前时间量是否支持指定的时间量字段
     @Override
     default boolean isSupported(TemporalField field) {
-        if (field instanceof ChronoField) {
+        if(field instanceof ChronoField) {
             return field.isDateBased();
         }
         return field != null && field.isSupportedBy(this);
     }
-
-    /**
-     * Checks if the specified unit is supported.
-     * <p>
-     * This checks if the specified unit can be added to or subtracted from this date.
-     * If false, then calling the {@link #plus(long, TemporalUnit)} and
-     * {@link #minus(long, TemporalUnit) minus} methods will throw an exception.
-     * <p>
-     * The set of supported units is defined by the chronology and normally includes
-     * all {@code ChronoUnit} date units except {@code FOREVER}.
-     * <p>
-     * If the unit is not a {@code ChronoUnit}, then the result of this method
-     * is obtained by invoking {@code TemporalUnit.isSupportedBy(Temporal)}
-     * passing {@code this} as the argument.
-     * Whether the unit is supported is determined by the unit.
-     *
-     * @param unit  the unit to check, null returns false
-     * @return true if the unit can be added/subtracted, false if not
-     */
-    @Override
-    default boolean isSupported(TemporalUnit unit) {
-        if (unit instanceof ChronoUnit) {
-            return unit.isDateBased();
-        }
-        return unit != null && unit.isSupportedBy(this);
-    }
-
-    //-----------------------------------------------------------------------
-    // override for covariant return type
-    /**
-     * {@inheritDoc}
-     * @throws DateTimeException {@inheritDoc}
-     * @throws ArithmeticException {@inheritDoc}
-     */
-    @Override
-    default ChronoLocalDate with(TemporalAdjuster adjuster) {
-        return ChronoLocalDateImpl.ensureValid(getChronology(), Temporal.super.with(adjuster));
-    }
-
-    /**
-     * {@inheritDoc}
-     * @throws DateTimeException {@inheritDoc}
-     * @throws UnsupportedTemporalTypeException {@inheritDoc}
-     * @throws ArithmeticException {@inheritDoc}
-     */
-    @Override
-    default ChronoLocalDate with(TemporalField field, long newValue) {
-        if (field instanceof ChronoField) {
-            throw new UnsupportedTemporalTypeException("Unsupported field: " + field);
-        }
-        return ChronoLocalDateImpl.ensureValid(getChronology(), field.adjustInto(this, newValue));
-    }
-
-    /**
-     * {@inheritDoc}
-     * @throws DateTimeException {@inheritDoc}
-     * @throws ArithmeticException {@inheritDoc}
-     */
-    @Override
-    default ChronoLocalDate plus(TemporalAmount amount) {
-        return ChronoLocalDateImpl.ensureValid(getChronology(), Temporal.super.plus(amount));
-    }
-
-    /**
-     * {@inheritDoc}
-     * @throws DateTimeException {@inheritDoc}
-     * @throws ArithmeticException {@inheritDoc}
-     */
-    @Override
-    default ChronoLocalDate plus(long amountToAdd, TemporalUnit unit) {
-        if (unit instanceof ChronoUnit) {
-            throw new UnsupportedTemporalTypeException("Unsupported unit: " + unit);
-        }
-        return ChronoLocalDateImpl.ensureValid(getChronology(), unit.addTo(this, amountToAdd));
-    }
-
-    /**
-     * {@inheritDoc}
-     * @throws DateTimeException {@inheritDoc}
-     * @throws ArithmeticException {@inheritDoc}
-     */
-    @Override
-    default ChronoLocalDate minus(TemporalAmount amount) {
-        return ChronoLocalDateImpl.ensureValid(getChronology(), Temporal.super.minus(amount));
-    }
-
-    /**
-     * {@inheritDoc}
-     * @throws DateTimeException {@inheritDoc}
-     * @throws UnsupportedTemporalTypeException {@inheritDoc}
-     * @throws ArithmeticException {@inheritDoc}
-     */
-    @Override
-    default ChronoLocalDate minus(long amountToSubtract, TemporalUnit unit) {
-        return ChronoLocalDateImpl.ensureValid(getChronology(), Temporal.super.minus(amountToSubtract, unit));
-    }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Queries this date using the specified query.
      * <p>
@@ -499,29 +487,93 @@ public interface ChronoLocalDate
      * {@link TemporalQuery#queryFrom(TemporalAccessor)} method on the
      * specified query passing {@code this} as the argument.
      *
-     * @param <R> the type of the result
-     * @param query  the query to invoke, not null
+     * @param <R>   the type of the result
+     * @param query the query to invoke, not null
+     *
      * @return the query result, null may be returned (defined by the query)
-     * @throws DateTimeException if unable to query (defined by the query)
+     *
+     * @throws DateTimeException   if unable to query (defined by the query)
      * @throws ArithmeticException if numeric overflow occurs (defined by the query)
      */
+    // 使用指定的时间量查询器，从当前时间量中查询目标信息
     @SuppressWarnings("unchecked")
     @Override
     default <R> R query(TemporalQuery<R> query) {
-        if (query == TemporalQueries.zoneId() || query == TemporalQueries.zone() || query == TemporalQueries.offset()) {
-            return null;
-        } else if (query == TemporalQueries.localTime()) {
-            return null;
-        } else if (query == TemporalQueries.chronology()) {
-            return (R) getChronology();
-        } else if (query == TemporalQueries.precision()) {
+        // 查询时间量支持的最小时间量单位
+        if(query == TemporalQueries.precision()) {
             return (R) DAYS;
         }
-        // inline TemporalAccessor.super.query(query) as an optimization
-        // non-JDK classes are not permitted to make this optimization
+    
+        // 查询时间量的历法系统
+        if(query == TemporalQueries.chronology()) {
+            return (R) getChronology();
+        }
+    
+        // 一些优化操作，即当前时间量不支持下面这些查询操作
+        if(query == TemporalQueries.zoneId() || query == TemporalQueries.zone() || query == TemporalQueries.offset() || query == TemporalQueries.localTime()) {
+            return null;
+        }
+    
+        /*
+         * inline TemporalAccessor.super.query(query) as an optimization
+         * non-JDK classes are not permitted to make this optimization
+         */
         return query.queryFrom(this);
     }
-
+    
+    /*▲ 时间量字段操作(TemporalAccessor) ███████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 整合 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @throws DateTimeException   {@inheritDoc}
+     * @throws ArithmeticException {@inheritDoc}
+     */
+    /*
+     * 使用指定的时间量整合器adjuster来构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     */
+    @Override
+    default ChronoLocalDate with(TemporalAdjuster adjuster) {
+        Temporal temporal = Temporal.super.with(adjuster);
+        return ChronoLocalDateImpl.ensureValid(getChronology(), temporal);
+    }
+    
+    /**
+     * {@inheritDoc}
+     *
+     * @throws DateTimeException                {@inheritDoc}
+     * @throws UnsupportedTemporalTypeException {@inheritDoc}
+     * @throws ArithmeticException              {@inheritDoc}
+     */
+    /*
+     * 通过整合指定类型的字段和当前时间量中的其他类型的字段来构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * field   : 待整合的字段(类型)
+     * newValue: field的原始值，需要根据filed的类型进行放缩
+     *
+     * 默认是不支持ChronoField类型的字段的，但是子类的实现中可以支持它
+     */
+    @Override
+    default ChronoLocalDate with(TemporalField field, long newValue) {
+        if(field instanceof ChronoField) {
+            throw new UnsupportedTemporalTypeException("Unsupported field: " + field);
+        }
+        
+        ChronoLocalDate chronoLocalDate = field.adjustInto(this, newValue);
+        
+        return ChronoLocalDateImpl.ensureValid(getChronology(), chronoLocalDate);
+    }
+    
     /**
      * Adjusts the specified temporal object to have the same date as this object.
      * <p>
@@ -541,16 +593,45 @@ public interface ChronoLocalDate
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param temporal  the target object to be adjusted, not null
+     * @param temporal the target object to be adjusted, not null
+     *
      * @return the adjusted object, not null
-     * @throws DateTimeException if unable to make the adjustment
+     *
+     * @throws DateTimeException   if unable to make the adjustment
      * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 拿当前时间量中的特定字段与时间量temporal中的其他字段进行整合。
+     *
+     * 如果整合后的值与temporal中原有的值相等，则可以直接使用temporal本身；否则，会返回新构造的时间量对象。
+     *
+     * 注：通常，这会用到当前时间量的所有部件信息
+     *
+     *
+     * 当前时间量参与整合字段包括：
+     * ChronoField.EPOCH_DAY - 当前时间量中包含的纪元天
+     *
+     * 目标时间量temporal的默认取值可以是：
+     * LocalDateTime
+     * OffsetDateTime
+     * ZonedDateTime
+     * ChronoLocalDateTimeImpl
+     * ChronoZonedDateTimeImpl
      */
     @Override
     default Temporal adjustInto(Temporal temporal) {
-        return temporal.with(EPOCH_DAY, toEpochDay());
+        // 获取当前时间量中包含的纪元天
+        long epochDay = toEpochDay();
+        
+        return temporal.with(ChronoField.EPOCH_DAY, epochDay);
     }
-
+    
+    /*▲ 整合 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Calculates the amount of time until another date in terms of the specified unit.
      * <p>
@@ -588,18 +669,21 @@ public interface ChronoLocalDate
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param endExclusive  the end date, exclusive, which is converted to a
-     *  {@code ChronoLocalDate} in the same chronology, not null
-     * @param unit  the unit to measure the amount in, not null
+     * @param endExclusive the end date, exclusive, which is converted to a
+     *                     {@code ChronoLocalDate} in the same chronology, not null
+     * @param unit         the unit to measure the amount in, not null
+     *
      * @return the amount of time between this date and the end date
-     * @throws DateTimeException if the amount cannot be calculated, or the end
-     *  temporal cannot be converted to a {@code ChronoLocalDate}
+     *
+     * @throws DateTimeException                if the amount cannot be calculated, or the end
+     *                                          temporal cannot be converted to a {@code ChronoLocalDate}
      * @throws UnsupportedTemporalTypeException if the unit is not supported
-     * @throws ArithmeticException if numeric overflow occurs
+     * @throws ArithmeticException              if numeric overflow occurs
      */
-    @Override  // override for Javadoc
+    // 计算当前时间量到目标时间量endExclusive之间相差多少个unit单位的时间值
+    @Override
     long until(Temporal endExclusive, TemporalUnit unit);
-
+    
     /**
      * Calculates the period between this date and another date as a {@code ChronoPeriod}.
      * <p>
@@ -616,13 +700,173 @@ public interface ChronoLocalDate
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param endDateExclusive  the end date, exclusive, which may be in any chronology, not null
+     * @param endDateExclusive the end date, exclusive, which may be in any chronology, not null
+     *
      * @return the period between this date and the end date, not null
-     * @throws DateTimeException if the period cannot be calculated
+     *
+     * @throws DateTimeException   if the period cannot be calculated
      * @throws ArithmeticException if numeric overflow occurs
      */
+    // 计算当前时间量到目标时间量之间相差的"时间段"
     ChronoPeriod until(ChronoLocalDate endDateExclusive);
-
+    
+    /**
+     * Returns the length of the year represented by this date, as defined by the calendar system.
+     * <p>
+     * This returns the length of the year in days.
+     * <p>
+     * The default implementation uses {@link #isLeapYear()} and returns 365 or 366.
+     *
+     * @return the length of the year in days
+     */
+    // 返回当前日期的年份包含的天数
+    default int lengthOfYear() {
+        return (isLeapYear() ? 366 : 365);
+    }
+    
+    /**
+     * Returns the length of the month represented by this date, as defined by the calendar system.
+     * <p>
+     * This returns the length of the month in days.
+     *
+     * @return the length of the month in days
+     */
+    // 返回当前日期的月份包含的天数
+    int lengthOfMonth();
+    
+    /**
+     * Checks if the year is a leap year, as defined by the calendar system.
+     * <p>
+     * A leap-year is a year of a longer length than normal.
+     * The exact meaning is determined by the chronology with the constraint that
+     * a leap-year must imply a year-length longer than a non leap-year.
+     * <p>
+     * This default implementation uses {@link Chronology#isLeapYear(long)}.
+     *
+     * @return true if this date is in a leap year, false otherwise
+     */
+    // 判断当前日期的年份是否为"闰年"
+    default boolean isLeapYear() {
+        return getChronology().isLeapYear(getLong(ChronoField.YEAR));
+    }
+    
+    /**
+     * Gets the chronology of this date.
+     * <p>
+     * The {@code Chronology} represents the calendar system in use.
+     * The era and other fields in {@link ChronoField} are defined by the chronology.
+     *
+     * @return the chronology, not null
+     */
+    // 返回当前日期所用的历法系统
+    Chronology getChronology();
+    
+    /**
+     * Gets the era, as defined by the chronology.
+     * <p>
+     * The era is, conceptually, the largest division of the time-line.
+     * Most calendar systems have a single epoch dividing the time-line into two eras.
+     * However, some have multiple eras, such as one for the reign of each leader.
+     * The exact meaning is determined by the {@code Chronology}.
+     * <p>
+     * All correctly implemented {@code Era} classes are singletons, thus it
+     * is valid code to write {@code date.getEra() == SomeChrono.ERA_NAME)}.
+     * <p>
+     * This default implementation uses {@link Chronology#eraOf(int)}.
+     *
+     * @return the chronology specific era constant applicable at this date, not null
+     */
+    // 返回当前日期所属的纪元
+    default Era getEra() {
+        return getChronology().eraOf(get(ChronoField.ERA));
+    }
+    
+    /**
+     * Checks if this date is after the specified date ignoring the chronology.
+     * <p>
+     * This method differs from the comparison in {@link #compareTo} in that it
+     * only compares the underlying date and not the chronology.
+     * This allows dates in different calendar systems to be compared based
+     * on the time-line position.
+     * This is equivalent to using {@code date1.toEpochDay() > date2.toEpochDay()}.
+     * <p>
+     * This default implementation performs the comparison based on the epoch-day.
+     *
+     * @param other the other date to compare to, not null
+     *
+     * @return true if this is after the specified date
+     */
+    // 判断当前日期是否晚于参数中指定的日期
+    default boolean isAfter(ChronoLocalDate other) {
+        return this.toEpochDay()>other.toEpochDay();
+    }
+    
+    /**
+     * Checks if this date is before the specified date ignoring the chronology.
+     * <p>
+     * This method differs from the comparison in {@link #compareTo} in that it
+     * only compares the underlying date and not the chronology.
+     * This allows dates in different calendar systems to be compared based
+     * on the time-line position.
+     * This is equivalent to using {@code date1.toEpochDay() < date2.toEpochDay()}.
+     * <p>
+     * This default implementation performs the comparison based on the epoch-day.
+     *
+     * @param other the other date to compare to, not null
+     *
+     * @return true if this is before the specified date
+     */
+    // 判断当前日期是否早于参数中指定的日期
+    default boolean isBefore(ChronoLocalDate other) {
+        return this.toEpochDay()<other.toEpochDay();
+    }
+    
+    /**
+     * Checks if this date is equal to the specified date ignoring the chronology.
+     * <p>
+     * This method differs from the comparison in {@link #compareTo} in that it
+     * only compares the underlying date and not the chronology.
+     * This allows dates in different calendar systems to be compared based
+     * on the time-line position.
+     * This is equivalent to using {@code date1.toEpochDay() == date2.toEpochDay()}.
+     * <p>
+     * This default implementation performs the comparison based on the epoch-day.
+     *
+     * @param other the other date to compare to, not null
+     *
+     * @return true if the underlying date is equal to the specified date
+     */
+    // 判断当前日期与参数中指定的日期是否相等
+    default boolean isEqual(ChronoLocalDate other) {
+        return this.toEpochDay() == other.toEpochDay();
+    }
+    
+    /**
+     * Gets a comparator that compares {@code ChronoLocalDate} in
+     * time-line order ignoring the chronology.
+     * <p>
+     * This comparator differs from the comparison in {@link #compareTo} in that it
+     * only compares the underlying date and not the chronology.
+     * This allows dates in different calendar systems to be compared based
+     * on the position of the date on the local time-line.
+     * The underlying comparison is equivalent to comparing the epoch-day.
+     *
+     * @return a comparator that compares in time-line order ignoring the chronology
+     *
+     * @see #isAfter
+     * @see #isBefore
+     * @see #isEqual
+     */
+    // 返回一个外部比较器，以比较两个"本地日期"的早晚
+    static Comparator<ChronoLocalDate> timeLineOrder() {
+        return new Comparator<ChronoLocalDate>() {
+            @Override
+            public int compare(ChronoLocalDate date1, ChronoLocalDate date2) {
+                return Long.compare(date1.toEpochDay(), date2.toEpochDay());
+            }
+        };
+    }
+    
     /**
      * Formats this date using the specified formatter.
      * <p>
@@ -633,47 +877,21 @@ public interface ChronoLocalDate
      *  return formatter.format(this);
      * </pre>
      *
-     * @param formatter  the formatter to use, not null
+     * @param formatter the formatter to use, not null
+     *
      * @return the formatted date string, not null
+     *
      * @throws DateTimeException if an error occurs during printing
      */
+    // 将当前日期转换为一个指定格式的字符串后返回
     default String format(DateTimeFormatter formatter) {
         Objects.requireNonNull(formatter, "formatter");
         return formatter.format(this);
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Combines this date with a time to create a {@code ChronoLocalDateTime}.
-     * <p>
-     * This returns a {@code ChronoLocalDateTime} formed from this date at the specified time.
-     * All possible combinations of date and time are valid.
-     *
-     * @param localTime  the local time to use, not null
-     * @return the local date-time formed from this date and the specified time, not null
-     */
-    @SuppressWarnings("unchecked")
-    default ChronoLocalDateTime<?> atTime(LocalTime localTime) {
-        return ChronoLocalDateTimeImpl.of(this, localTime);
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Converts this date to the Epoch Day.
-     * <p>
-     * The {@link ChronoField#EPOCH_DAY Epoch Day count} is a simple
-     * incrementing count of days where day 0 is 1970-01-01 (ISO).
-     * This definition is the same for all chronologies, enabling conversion.
-     * <p>
-     * This default implementation queries the {@code EPOCH_DAY} field.
-     *
-     * @return the Epoch Day equivalent to this date
-     */
-    default long toEpochDay() {
-        return getLong(EPOCH_DAY);
-    }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
     /**
      * Compares this date to another date, including the chronology.
      * <p>
@@ -699,96 +917,19 @@ public interface ChronoLocalDate
      * <p>
      * This default implementation performs the comparison defined above.
      *
-     * @param other  the other date to compare to, not null
+     * @param other the other date to compare to, not null
+     *
      * @return the comparator value, negative if less, positive if greater
      */
     @Override
     default int compareTo(ChronoLocalDate other) {
         int cmp = Long.compare(toEpochDay(), other.toEpochDay());
-        if (cmp == 0) {
+        if(cmp == 0) {
             cmp = getChronology().compareTo(other.getChronology());
         }
         return cmp;
     }
-
-    /**
-     * Checks if this date is after the specified date ignoring the chronology.
-     * <p>
-     * This method differs from the comparison in {@link #compareTo} in that it
-     * only compares the underlying date and not the chronology.
-     * This allows dates in different calendar systems to be compared based
-     * on the time-line position.
-     * This is equivalent to using {@code date1.toEpochDay() > date2.toEpochDay()}.
-     * <p>
-     * This default implementation performs the comparison based on the epoch-day.
-     *
-     * @param other  the other date to compare to, not null
-     * @return true if this is after the specified date
-     */
-    default boolean isAfter(ChronoLocalDate other) {
-        return this.toEpochDay() > other.toEpochDay();
-    }
-
-    /**
-     * Checks if this date is before the specified date ignoring the chronology.
-     * <p>
-     * This method differs from the comparison in {@link #compareTo} in that it
-     * only compares the underlying date and not the chronology.
-     * This allows dates in different calendar systems to be compared based
-     * on the time-line position.
-     * This is equivalent to using {@code date1.toEpochDay() < date2.toEpochDay()}.
-     * <p>
-     * This default implementation performs the comparison based on the epoch-day.
-     *
-     * @param other  the other date to compare to, not null
-     * @return true if this is before the specified date
-     */
-    default boolean isBefore(ChronoLocalDate other) {
-        return this.toEpochDay() < other.toEpochDay();
-    }
-
-    /**
-     * Checks if this date is equal to the specified date ignoring the chronology.
-     * <p>
-     * This method differs from the comparison in {@link #compareTo} in that it
-     * only compares the underlying date and not the chronology.
-     * This allows dates in different calendar systems to be compared based
-     * on the time-line position.
-     * This is equivalent to using {@code date1.toEpochDay() == date2.toEpochDay()}.
-     * <p>
-     * This default implementation performs the comparison based on the epoch-day.
-     *
-     * @param other  the other date to compare to, not null
-     * @return true if the underlying date is equal to the specified date
-     */
-    default boolean isEqual(ChronoLocalDate other) {
-        return this.toEpochDay() == other.toEpochDay();
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Checks if this date is equal to another date, including the chronology.
-     * <p>
-     * Compares this date with another ensuring that the date and chronology are the same.
-     * <p>
-     * To compare the dates of two {@code TemporalAccessor} instances, including dates
-     * in two different chronologies, use {@link ChronoField#EPOCH_DAY} as a comparator.
-     *
-     * @param obj  the object to check, null returns false
-     * @return true if this is equal to the other date
-     */
-    @Override
-    boolean equals(Object obj);
-
-    /**
-     * A hash code for this date.
-     *
-     * @return a suitable hash code
-     */
-    @Override
-    int hashCode();
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Outputs this date as a {@code String}.
      * <p>
@@ -798,5 +939,28 @@ public interface ChronoLocalDate
      */
     @Override
     String toString();
-
+    
+    /**
+     * Checks if this date is equal to another date, including the chronology.
+     * <p>
+     * Compares this date with another ensuring that the date and chronology are the same.
+     * <p>
+     * To compare the dates of two {@code TemporalAccessor} instances, including dates
+     * in two different chronologies, use {@link ChronoField#EPOCH_DAY} as a comparator.
+     *
+     * @param obj the object to check, null returns false
+     *
+     * @return true if this is equal to the other date
+     */
+    @Override
+    boolean equals(Object obj);
+    
+    /**
+     * A hash code for this date.
+     *
+     * @return a suitable hash code
+     */
+    @Override
+    int hashCode();
+    
 }
