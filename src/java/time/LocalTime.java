@@ -61,15 +61,6 @@
  */
 package java.time;
 
-import static java.time.temporal.ChronoField.HOUR_OF_DAY;
-import static java.time.temporal.ChronoField.MICRO_OF_DAY;
-import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
-import static java.time.temporal.ChronoField.NANO_OF_DAY;
-import static java.time.temporal.ChronoField.NANO_OF_SECOND;
-import static java.time.temporal.ChronoField.SECOND_OF_DAY;
-import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
-import static java.time.temporal.ChronoUnit.NANOS;
-
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -90,7 +81,10 @@ import java.time.temporal.TemporalQuery;
 import java.time.temporal.TemporalUnit;
 import java.time.temporal.UnsupportedTemporalTypeException;
 import java.time.temporal.ValueRange;
+import java.time.zone.ZoneRules;
 import java.util.Objects;
+
+import static java.time.temporal.ChronoUnit.NANOS;
 
 /**
  * A time without a time-zone in the ISO-8601 calendar system,
@@ -117,38 +111,113 @@ import java.util.Objects;
  * {@code LocalTime} may have unpredictable results and should be avoided.
  * The {@code equals} method should be used for comparisons.
  *
- * @implSpec
- * This class is immutable and thread-safe.
- *
+ * @implSpec This class is immutable and thread-safe.
  * @since 1.8
  */
-public final class LocalTime
-        implements Temporal, TemporalAdjuster, Comparable<LocalTime>, Serializable {
-
+// "本地时间"，"时间"[未关联]所属时区ID
+public final class LocalTime implements Temporal, TemporalAdjuster, Comparable<LocalTime>, Serializable {
+    
     /**
      * The minimum supported {@code LocalTime}, '00:00'.
      * This is the time of midnight at the start of the day.
      */
-    public static final LocalTime MIN;
+    public static final LocalTime MIN;      // 00:00
     /**
      * The maximum supported {@code LocalTime}, '23:59:59.999999999'.
      * This is the time just before midnight at the end of the day.
      */
-    public static final LocalTime MAX;
+    public static final LocalTime MAX;      // 23:59:59.999999999
     /**
      * The time of midnight at the start of the day, '00:00'.
      */
-    public static final LocalTime MIDNIGHT;
+    public static final LocalTime MIDNIGHT; // 00:00
     /**
      * The time of noon in the middle of the day, '12:00'.
      */
-    public static final LocalTime NOON;
+    public static final LocalTime NOON;     // 12:00
+    
+    /**
+     * Hours per day.
+     */
+    static final int HOURS_PER_DAY = 24; // 每天24小时
+    
+    /**
+     * Minutes per hour.
+     */
+    static final int MINUTES_PER_HOUR = 60;                              // 每小时60分
+    /**
+     * Minutes per day.
+     */
+    static final int MINUTES_PER_DAY = MINUTES_PER_HOUR * HOURS_PER_DAY; // 每天24*60分
+    
+    /**
+     * Seconds per minute.
+     */
+    static final int SECONDS_PER_MINUTE = 60;                                  // 每分60秒
+    /**
+     * Seconds per hour.
+     */
+    static final int SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR; // 每小时60*60秒
+    /**
+     * Seconds per day.
+     */
+    static final int SECONDS_PER_DAY = SECONDS_PER_HOUR * HOURS_PER_DAY;       // 每天60*60*24秒
+    
+    /**
+     * Milliseconds per day.
+     */
+    static final long MILLIS_PER_DAY = SECONDS_PER_DAY * 1000L;     // 每天60*60*24*1000毫秒
+    /**
+     * Microseconds per day.
+     */
+    static final long MICROS_PER_DAY = SECONDS_PER_DAY * 1000_000L; // 每天60*60*24*1000微秒
+    
+    /**
+     * Nanos per millisecond.
+     */
+    static final long NANOS_PER_MILLI = 1000_000L;                              // 每毫秒是1000_000纳秒
+    /**
+     * Nanos per second.
+     */
+    static final long NANOS_PER_SECOND = 1000_000_000L;                         // 每秒是1000_000_000纳秒
+    /**
+     * Nanos per minute.
+     */
+    static final long NANOS_PER_MINUTE = NANOS_PER_SECOND * SECONDS_PER_MINUTE; // 每分钟是60*1000_000_000纳秒
+    /**
+     * Nanos per hour.
+     */
+    static final long NANOS_PER_HOUR = NANOS_PER_MINUTE * MINUTES_PER_HOUR;     // 每小时是60*60*1000_000_000纳秒
+    /**
+     * Nanos per day.
+     */
+    static final long NANOS_PER_DAY = NANOS_PER_HOUR * HOURS_PER_DAY;           // 每天是24*60*60*1000_000_000纳秒
+    
     /**
      * Constants for the local time of each hour.
      */
     private static final LocalTime[] HOURS = new LocalTime[24];
+    
+    /**
+     * The hour.
+     */
+    private final byte hour;   // "小时"部件[0, 23]
+    /**
+     * The minute.
+     */
+    private final byte minute; // "分钟"部件[0, 59]
+    /**
+     * The second.
+     */
+    private final byte second; // "秒"部件[0, 59]
+    /**
+     * The nanosecond.
+     */
+    private final int nano;    // "纳秒"部件[0, 999999999]
+    
+    
     static {
-        for (int i = 0; i < HOURS.length; i++) {
+        for(int i = 0; i<HOURS.length; i++) {
             HOURS[i] = new LocalTime(i, 0, 0, 0);
         }
         MIDNIGHT = HOURS[0];
@@ -156,83 +225,32 @@ public final class LocalTime
         MIN = HOURS[0];
         MAX = new LocalTime(23, 59, 59, 999_999_999);
     }
-
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Hours per day.
+     * Constructor, previously validated.
+     *
+     * @param hour         the hour-of-day to represent, validated from 0 to 23
+     * @param minute       the minute-of-hour to represent, validated from 0 to 59
+     * @param second       the second-of-minute to represent, validated from 0 to 59
+     * @param nanoOfSecond the nano-of-second to represent, validated from 0 to 999,999,999
      */
-    static final int HOURS_PER_DAY = 24;
-    /**
-     * Minutes per hour.
-     */
-    static final int MINUTES_PER_HOUR = 60;
-    /**
-     * Minutes per day.
-     */
-    static final int MINUTES_PER_DAY = MINUTES_PER_HOUR * HOURS_PER_DAY;
-    /**
-     * Seconds per minute.
-     */
-    static final int SECONDS_PER_MINUTE = 60;
-    /**
-     * Seconds per hour.
-     */
-    static final int SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR;
-    /**
-     * Seconds per day.
-     */
-    static final int SECONDS_PER_DAY = SECONDS_PER_HOUR * HOURS_PER_DAY;
-    /**
-     * Milliseconds per day.
-     */
-    static final long MILLIS_PER_DAY = SECONDS_PER_DAY * 1000L;
-    /**
-     * Microseconds per day.
-     */
-    static final long MICROS_PER_DAY = SECONDS_PER_DAY * 1000_000L;
-    /**
-     * Nanos per millisecond.
-     */
-    static final long NANOS_PER_MILLI = 1000_000L;
-    /**
-     * Nanos per second.
-     */
-    static final long NANOS_PER_SECOND =  1000_000_000L;
-    /**
-     * Nanos per minute.
-     */
-    static final long NANOS_PER_MINUTE = NANOS_PER_SECOND * SECONDS_PER_MINUTE;
-    /**
-     * Nanos per hour.
-     */
-    static final long NANOS_PER_HOUR = NANOS_PER_MINUTE * MINUTES_PER_HOUR;
-    /**
-     * Nanos per day.
-     */
-    static final long NANOS_PER_DAY = NANOS_PER_HOUR * HOURS_PER_DAY;
-
-    /**
-     * Serialization version.
-     */
-    private static final long serialVersionUID = 6414437269572265201L;
-
-    /**
-     * The hour.
-     */
-    private final byte hour;
-    /**
-     * The minute.
-     */
-    private final byte minute;
-    /**
-     * The second.
-     */
-    private final byte second;
-    /**
-     * The nanosecond.
-     */
-    private final int nano;
-
-    //-----------------------------------------------------------------------
+    private LocalTime(int hour, int minute, int second, int nanoOfSecond) {
+        this.hour = (byte) hour;
+        this.minute = (byte) minute;
+        this.second = (byte) second;
+        this.nano = nanoOfSecond;
+    }
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Obtains the current time from the system clock in the default time-zone.
      * <p>
@@ -244,10 +262,13 @@ public final class LocalTime
      *
      * @return the current time using the system clock and default time-zone, not null
      */
+    // 基于此刻的UTC时间，构造属于系统默认时区的"本地时间"对象
     public static LocalTime now() {
-        return now(Clock.systemDefaultZone());
+        // 获取一个系统时钟，其预设的时区ID为系统默认的时区ID
+        Clock clock = Clock.systemDefaultZone();
+        return now(clock);
     }
-
+    
     /**
      * Obtains the current time from the system clock in the specified time-zone.
      * <p>
@@ -257,13 +278,17 @@ public final class LocalTime
      * Using this method will prevent the ability to use an alternate clock for testing
      * because the clock is hard-coded.
      *
-     * @param zone  the zone ID to use, not null
+     * @param zone the zone ID to use, not null
+     *
      * @return the current time using the system clock, not null
      */
+    // 基于此刻的UTC时间，构造属于zone时区的"本地时间"对象
     public static LocalTime now(ZoneId zone) {
-        return now(Clock.system(zone));
+        // 获取一个系统时钟，其预设的时区ID为zone
+        Clock clock = Clock.system(zone);
+        return now(clock);
     }
-
+    
     /**
      * Obtains the current time from the specified clock.
      * <p>
@@ -271,78 +296,156 @@ public final class LocalTime
      * Using this method allows the use of an alternate clock for testing.
      * The alternate clock may be introduced using {@link Clock dependency injection}.
      *
-     * @param clock  the clock to use, not null
+     * @param clock the clock to use, not null
+     *
      * @return the current time, not null
      */
+    // 基于clock提供的时间戳和时区ID构造"本地时间"对象
     public static LocalTime now(Clock clock) {
         Objects.requireNonNull(clock, "clock");
-        final Instant now = clock.instant();  // called once
-        return ofInstant(now, clock.getZone());
+    
+        // 获取clock时钟提供的时间戳
+        final Instant instant = clock.instant();
+        // 获取clock时钟提供的时区ID
+        ZoneId zoneId = clock.getZone();
+    
+        return ofInstant(instant, zoneId);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains an instance of {@code LocalTime} from an hour and minute.
      * <p>
      * This returns a {@code LocalTime} with the specified hour and minute.
      * The second and nanosecond fields will be set to zero.
      *
-     * @param hour  the hour-of-day to represent, from 0 to 23
-     * @param minute  the minute-of-hour to represent, from 0 to 59
+     * @param hour   the hour-of-day to represent, from 0 to 23
+     * @param minute the minute-of-hour to represent, from 0 to 59
+     *
      * @return the local time, not null
+     *
      * @throws DateTimeException if the value of any field is out of range
      */
+    // 根据指定的时间部件构造"本地时间"对象
     public static LocalTime of(int hour, int minute) {
-        HOUR_OF_DAY.checkValidValue(hour);
-        if (minute == 0) {
-            return HOURS[hour];  // for performance
+        ChronoField.HOUR_OF_DAY.checkValidValue(hour);
+        if(minute == 0) {
+            return HOURS[hour];
         }
-        MINUTE_OF_HOUR.checkValidValue(minute);
+    
+        ChronoField.MINUTE_OF_HOUR.checkValidValue(minute);
+    
         return new LocalTime(hour, minute, 0, 0);
     }
-
+    
     /**
      * Obtains an instance of {@code LocalTime} from an hour, minute and second.
      * <p>
      * This returns a {@code LocalTime} with the specified hour, minute and second.
      * The nanosecond field will be set to zero.
      *
-     * @param hour  the hour-of-day to represent, from 0 to 23
-     * @param minute  the minute-of-hour to represent, from 0 to 59
-     * @param second  the second-of-minute to represent, from 0 to 59
+     * @param hour   the hour-of-day to represent, from 0 to 23
+     * @param minute the minute-of-hour to represent, from 0 to 59
+     * @param second the second-of-minute to represent, from 0 to 59
+     *
      * @return the local time, not null
+     *
      * @throws DateTimeException if the value of any field is out of range
      */
+    // 根据指定的时间部件构造"本地时间"对象
     public static LocalTime of(int hour, int minute, int second) {
-        HOUR_OF_DAY.checkValidValue(hour);
-        if ((minute | second) == 0) {
+        ChronoField.HOUR_OF_DAY.checkValidValue(hour);
+        if((minute | second) == 0) {
             return HOURS[hour];  // for performance
         }
-        MINUTE_OF_HOUR.checkValidValue(minute);
-        SECOND_OF_MINUTE.checkValidValue(second);
+    
+        ChronoField.MINUTE_OF_HOUR.checkValidValue(minute);
+        ChronoField.SECOND_OF_MINUTE.checkValidValue(second);
+    
         return new LocalTime(hour, minute, second, 0);
     }
-
+    
     /**
      * Obtains an instance of {@code LocalTime} from an hour, minute, second and nanosecond.
      * <p>
      * This returns a {@code LocalTime} with the specified hour, minute, second and nanosecond.
      *
-     * @param hour  the hour-of-day to represent, from 0 to 23
-     * @param minute  the minute-of-hour to represent, from 0 to 59
-     * @param second  the second-of-minute to represent, from 0 to 59
-     * @param nanoOfSecond  the nano-of-second to represent, from 0 to 999,999,999
+     * @param hour         the hour-of-day to represent, from 0 to 23
+     * @param minute       the minute-of-hour to represent, from 0 to 59
+     * @param second       the second-of-minute to represent, from 0 to 59
+     * @param nanoOfSecond the nano-of-second to represent, from 0 to 999,999,999
+     *
      * @return the local time, not null
+     *
      * @throws DateTimeException if the value of any field is out of range
      */
+    // 根据指定的时间部件构造"本地时间"对象
     public static LocalTime of(int hour, int minute, int second, int nanoOfSecond) {
-        HOUR_OF_DAY.checkValidValue(hour);
-        MINUTE_OF_HOUR.checkValidValue(minute);
-        SECOND_OF_MINUTE.checkValidValue(second);
-        NANO_OF_SECOND.checkValidValue(nanoOfSecond);
+        ChronoField.HOUR_OF_DAY.checkValidValue(hour);
+        ChronoField.MINUTE_OF_HOUR.checkValidValue(minute);
+        ChronoField.SECOND_OF_MINUTE.checkValidValue(second);
+        ChronoField.NANO_OF_SECOND.checkValidValue(nanoOfSecond);
+    
         return create(hour, minute, second, nanoOfSecond);
     }
-
+    
+    /**
+     * Obtains an instance of {@code LocalTime} from a second-of-day value.
+     * <p>
+     * This returns a {@code LocalTime} with the specified second-of-day.
+     * The nanosecond field will be set to zero.
+     *
+     * @param secondOfDay the second-of-day, from {@code 0} to {@code 24 * 60 * 60 - 1}
+     *
+     * @return the local time, not null
+     *
+     * @throws DateTimeException if the second-of-day value is invalid
+     */
+    // 使用指定的秒数(不超过一天)构造"本地时间"对象
+    public static LocalTime ofSecondOfDay(long secondOfDay) {
+        ChronoField.SECOND_OF_DAY.checkValidValue(secondOfDay);
+    
+        // 计算小时部件
+        int hours = (int) (secondOfDay / SECONDS_PER_HOUR);
+        secondOfDay -= hours * SECONDS_PER_HOUR;
+    
+        // 计算分钟部件
+        int minutes = (int) (secondOfDay / SECONDS_PER_MINUTE);
+        secondOfDay -= minutes * SECONDS_PER_MINUTE;
+    
+        return create(hours, minutes, (int) secondOfDay, 0);
+    }
+    
+    /**
+     * Obtains an instance of {@code LocalTime} from a nanos-of-day value.
+     * <p>
+     * This returns a {@code LocalTime} with the specified nanosecond-of-day.
+     *
+     * @param nanoOfDay the nano of day, from {@code 0} to {@code 24 * 60 * 60 * 1,000,000,000 - 1}
+     *
+     * @return the local time, not null
+     *
+     * @throws DateTimeException if the nanos of day value is invalid
+     */
+    // 使用指定的纳秒数(不超过一天)构造"本地时间"对象
+    public static LocalTime ofNanoOfDay(long nanoOfDay) {
+        ChronoField.NANO_OF_DAY.checkValidValue(nanoOfDay);
+    
+        // 计算小时部件
+        int hours = (int) (nanoOfDay / NANOS_PER_HOUR);
+        nanoOfDay -= hours * NANOS_PER_HOUR;
+    
+        // 计算分钟部件
+        int minutes = (int) (nanoOfDay / NANOS_PER_MINUTE);
+        nanoOfDay -= minutes * NANOS_PER_MINUTE;
+    
+        // 计算秒部件
+        int seconds = (int) (nanoOfDay / NANOS_PER_SECOND);
+        // 剩下纳秒部件
+        nanoOfDay -= seconds * NANOS_PER_SECOND;
+    
+        return create(hours, minutes, seconds, (int) nanoOfDay);
+    }
+    
     /**
      * Obtains an instance of {@code LocalTime} from an {@code Instant} and zone ID.
      * <p>
@@ -351,61 +454,39 @@ public final class LocalTime
      * which is simple as there is only one valid offset for each instant.
      * Then, the instant and offset are used to calculate the local time.
      *
-     * @param instant  the instant to create the time from, not null
-     * @param zone  the time-zone, which may be an offset, not null
+     * @param instant the instant to create the time from, not null
+     * @param zone    the time-zone, which may be an offset, not null
+     *
      * @return the local time, not null
+     *
      * @since 9
      */
+    // 使用指定的时间戳和时区ID构造属于zone时区的"本地日期"对象
     public static LocalTime ofInstant(Instant instant, ZoneId zone) {
         Objects.requireNonNull(instant, "instant");
         Objects.requireNonNull(zone, "zone");
-        ZoneOffset offset = zone.getRules().getOffset(instant);
+        
+        // 获取与zone对应的"时区规则集"
+        ZoneRules rules = zone.getRules();
+        /*
+         * 获取zone时区在instant时刻的"实际偏移"。
+         * 这里可以返回一个准确的"实际偏移"。
+         */
+        ZoneOffset offset = rules.getOffset(instant);
+        
+        // 计算instant在zone时区的纪元秒
         long localSecond = instant.getEpochSecond() + offset.getTotalSeconds();
+        
+        // 获取localSecond中不足一天的秒数，即会忽略"日期"部件中包含的秒
         int secsOfDay = Math.floorMod(localSecond, SECONDS_PER_DAY);
-        return ofNanoOfDay(secsOfDay * NANOS_PER_SECOND + instant.getNano());
+        
+        // 获取时间戳中的纳秒偏移部件
+        int nano = instant.getNano();
+        
+        // 使用指定的纳秒数(不超过一天)构造"本地时间"
+        return ofNanoOfDay(secsOfDay * NANOS_PER_SECOND + nano);
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Obtains an instance of {@code LocalTime} from a second-of-day value.
-     * <p>
-     * This returns a {@code LocalTime} with the specified second-of-day.
-     * The nanosecond field will be set to zero.
-     *
-     * @param secondOfDay  the second-of-day, from {@code 0} to {@code 24 * 60 * 60 - 1}
-     * @return the local time, not null
-     * @throws DateTimeException if the second-of-day value is invalid
-     */
-    public static LocalTime ofSecondOfDay(long secondOfDay) {
-        SECOND_OF_DAY.checkValidValue(secondOfDay);
-        int hours = (int) (secondOfDay / SECONDS_PER_HOUR);
-        secondOfDay -= hours * SECONDS_PER_HOUR;
-        int minutes = (int) (secondOfDay / SECONDS_PER_MINUTE);
-        secondOfDay -= minutes * SECONDS_PER_MINUTE;
-        return create(hours, minutes, (int) secondOfDay, 0);
-    }
-
-    /**
-     * Obtains an instance of {@code LocalTime} from a nanos-of-day value.
-     * <p>
-     * This returns a {@code LocalTime} with the specified nanosecond-of-day.
-     *
-     * @param nanoOfDay  the nano of day, from {@code 0} to {@code 24 * 60 * 60 * 1,000,000,000 - 1}
-     * @return the local time, not null
-     * @throws DateTimeException if the nanos of day value is invalid
-     */
-    public static LocalTime ofNanoOfDay(long nanoOfDay) {
-        NANO_OF_DAY.checkValidValue(nanoOfDay);
-        int hours = (int) (nanoOfDay / NANOS_PER_HOUR);
-        nanoOfDay -= hours * NANOS_PER_HOUR;
-        int minutes = (int) (nanoOfDay / NANOS_PER_MINUTE);
-        nanoOfDay -= minutes * NANOS_PER_MINUTE;
-        int seconds = (int) (nanoOfDay / NANOS_PER_SECOND);
-        nanoOfDay -= seconds * NANOS_PER_SECOND;
-        return create(hours, minutes, seconds, (int) nanoOfDay);
-    }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains an instance of {@code LocalTime} from a temporal object.
      * <p>
@@ -419,85 +500,689 @@ public final class LocalTime
      * This method matches the signature of the functional interface {@link TemporalQuery}
      * allowing it to be used as a query via method reference, {@code LocalTime::from}.
      *
-     * @param temporal  the temporal object to convert, not null
+     * @param temporal the temporal object to convert, not null
+     *
      * @return the local time, not null
+     *
      * @throws DateTimeException if unable to convert to a {@code LocalTime}
+     */
+    /*
+     * 从temporal中查询LocalTime部件。
+     *
+     * 如果没有现成的部件，通常需要从指定的时间量中解析出包含的纳秒数，
+     * 然后使用该时间量包含的纳秒数构造LocalTime后返回。
      */
     public static LocalTime from(TemporalAccessor temporal) {
         Objects.requireNonNull(temporal, "temporal");
+        
         LocalTime time = temporal.query(TemporalQueries.localTime());
-        if (time == null) {
-            throw new DateTimeException("Unable to obtain LocalTime from TemporalAccessor: " +
-                    temporal + " of type " + temporal.getClass().getName());
+        if(time == null) {
+            throw new DateTimeException("Unable to obtain LocalTime from TemporalAccessor: " + temporal + " of type " + temporal.getClass().getName());
         }
+        
         return time;
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains an instance of {@code LocalTime} from a text string such as {@code 10:15}.
      * <p>
      * The string must represent a valid time and is parsed using
      * {@link java.time.format.DateTimeFormatter#ISO_LOCAL_TIME}.
      *
-     * @param text  the text to parse such as "10:15:30", not null
+     * @param text the text to parse such as "10:15:30", not null
+     *
      * @return the parsed local time, not null
+     *
      * @throws DateTimeParseException if the text cannot be parsed
      */
+    // 从指定的文本中解析出LocalTime信息，要求该文本符合ISO规范，即类似：08:20:53
     public static LocalTime parse(CharSequence text) {
         return parse(text, DateTimeFormatter.ISO_LOCAL_TIME);
     }
-
+    
     /**
      * Obtains an instance of {@code LocalTime} from a text string using a specific formatter.
      * <p>
      * The text is parsed using the formatter, returning a time.
      *
-     * @param text  the text to parse, not null
-     * @param formatter  the formatter to use, not null
+     * @param text      the text to parse, not null
+     * @param formatter the formatter to use, not null
+     *
      * @return the parsed local time, not null
+     *
      * @throws DateTimeParseException if the text cannot be parsed
      */
+    // 从指定的文本中解析出LocalTime信息，要求该文本符合指定的格式规范
     public static LocalTime parse(CharSequence text, DateTimeFormatter formatter) {
         Objects.requireNonNull(formatter, "formatter");
-        return formatter.parse(text, LocalTime::from);
+        
+        return formatter.parse(text, new TemporalQuery<LocalTime>() {
+            @Override
+            public LocalTime queryFrom(TemporalAccessor temporal) {
+                return from(temporal);
+            }
+        });
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 转换 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Creates a local time from the hour, minute, second and nanosecond fields.
+     * Combines this time with a date to create a {@code LocalDateTime}.
      * <p>
-     * This factory may return a cached value, but applications must not rely on this.
+     * This returns a {@code LocalDateTime} formed from this time at the specified date.
+     * All possible combinations of date and time are valid.
      *
-     * @param hour  the hour-of-day to represent, validated from 0 to 23
-     * @param minute  the minute-of-hour to represent, validated from 0 to 59
-     * @param second  the second-of-minute to represent, validated from 0 to 59
-     * @param nanoOfSecond  the nano-of-second to represent, validated from 0 to 999,999,999
-     * @return the local time, not null
+     * @param date the date to combine with, not null
+     *
+     * @return the local date-time formed from this time and the specified date, not null
      */
-    private static LocalTime create(int hour, int minute, int second, int nanoOfSecond) {
-        if ((minute | second | nanoOfSecond) == 0) {
-            return HOURS[hour];
-        }
-        return new LocalTime(hour, minute, second, nanoOfSecond);
+    // 将当前"本地时间"和指定的"本地日期"整合成一个"本地日期-时间"对象后返回
+    public LocalDateTime atDate(LocalDate date) {
+        return LocalDateTime.of(date, this);
     }
-
+    
     /**
-     * Constructor, previously validated.
+     * Combines this time with an offset to create an {@code OffsetTime}.
+     * <p>
+     * This returns an {@code OffsetTime} formed from this time at the specified offset.
+     * All possible combinations of time and offset are valid.
      *
-     * @param hour  the hour-of-day to represent, validated from 0 to 23
-     * @param minute  the minute-of-hour to represent, validated from 0 to 59
-     * @param second  the second-of-minute to represent, validated from 0 to 59
-     * @param nanoOfSecond  the nano-of-second to represent, validated from 0 to 999,999,999
+     * @param offset the offset to combine with, not null
+     *
+     * @return the offset time formed from this time and the specified offset, not null
      */
-    private LocalTime(int hour, int minute, int second, int nanoOfSecond) {
-        this.hour = (byte) hour;
-        this.minute = (byte) minute;
-        this.second = (byte) second;
-        this.nano = nanoOfSecond;
+    // 将当前"本地时间"和指定的时区ID整合成一个属于offset时区的"本地时间"对象后返回
+    public OffsetTime atOffset(ZoneOffset offset) {
+        return OffsetTime.of(this, offset);
     }
-
-    //-----------------------------------------------------------------------
+    
+    /**
+     * Extracts the time as seconds of day,
+     * from {@code 0} to {@code 24 * 60 * 60 - 1}.
+     *
+     * @return the second-of-day equivalent to this time
+     */
+    // 计算当前"本地时间"包含的秒数
+    public int toSecondOfDay() {
+        int total = hour * SECONDS_PER_HOUR;
+        total += minute * SECONDS_PER_MINUTE;
+        total += second;
+        return total;
+    }
+    
+    /**
+     * Extracts the time as nanos of day,
+     * from {@code 0} to {@code 24 * 60 * 60 * 1,000,000,000 - 1}.
+     *
+     * @return the nano of day equivalent to this time
+     */
+    // 计算当前"本地时间"包含的纳秒数
+    public long toNanoOfDay() {
+        long total = hour * NANOS_PER_HOUR;
+        total += minute * NANOS_PER_MINUTE;
+        total += second * NANOS_PER_SECOND;
+        total += nano;
+        return total;
+    }
+    
+    /**
+     * Converts this {@code LocalTime} to the number of seconds since the epoch
+     * of 1970-01-01T00:00:00Z.
+     * <p>
+     * This combines this local time with the specified date and
+     * offset to calculate the epoch-second value, which is the
+     * number of elapsed seconds from 1970-01-01T00:00:00Z.
+     * Instants on the time-line after the epoch are positive, earlier
+     * are negative.
+     *
+     * @param date   the local date, not null
+     * @param offset the zone offset, not null
+     *
+     * @return the number of seconds since the epoch of 1970-01-01T00:00:00Z, may be negative
+     *
+     * @since 9
+     */
+    // 将位于offset时区的date与当前本地时间捆绑为一个"时间点"，并计算该本地时间点下，UTC时区的纪元秒
+    public long toEpochSecond(LocalDate date, ZoneOffset offset) {
+        Objects.requireNonNull(date, "date");
+        Objects.requireNonNull(offset, "offset");
+        
+        // 返回时间量date的纪元天
+        long epochDay = date.toEpochDay();
+        // 将当前"本地时间"转换为一天中的秒数
+        int seconds = toSecondOfDay();
+        
+        // 计算出(date+本地时间)代表的纪元秒
+        long epochSec = epochDay * SECONDS_PER_DAY + seconds;
+        
+        // 减去时区偏移秒数
+        epochSec -= offset.getTotalSeconds();
+        
+        return epochSec;
+    }
+    
+    /*▲ 转换 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 部件 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Gets the hour-of-day field.
+     *
+     * @return the hour-of-day, from 0 to 23
+     */
+    // (几时)返回"小时"部件[0, 23]
+    public int getHour() {
+        return hour;
+    }
+    
+    /**
+     * Gets the minute-of-hour field.
+     *
+     * @return the minute-of-hour, from 0 to 59
+     */
+    // (几分)返回"分钟"部件[0, 59]
+    public int getMinute() {
+        return minute;
+    }
+    
+    /**
+     * Gets the second-of-minute field.
+     *
+     * @return the second-of-minute, from 0 to 59
+     */
+    // (几秒)返回"秒"部件[0, 59]
+    public int getSecond() {
+        return second;
+    }
+    
+    /**
+     * Gets the nano-of-second field.
+     *
+     * @return the nano-of-second, from 0 to 999,999,999
+     */
+    // (几纳秒)返回"纳秒"部件[0, 999999999]
+    public int getNano() {
+        return nano;
+    }
+    
+    /*▲ 部件 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 增加 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a copy of this time with the specified amount added.
+     * <p>
+     * This returns a {@code LocalTime}, based on this one, with the specified amount added.
+     * The amount is typically {@link Duration} but may be any other type implementing
+     * the {@link TemporalAmount} interface.
+     * <p>
+     * The calculation is delegated to the amount object by calling
+     * {@link TemporalAmount#addTo(Temporal)}. The amount implementation is free
+     * to implement the addition in any way it wishes, however it typically
+     * calls back to {@link #plus(long, TemporalUnit)}. Consult the documentation
+     * of the amount implementation to determine if it can be successfully added.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param amountToAdd the amount to add, not null
+     *
+     * @return a {@code LocalTime} based on this time with the addition made, not null
+     *
+     * @throws DateTimeException   if the addition cannot be made
+     * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 对当前时间量的值与参数中的"时间段"求和
+     *
+     * 如果求和后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"求和"后的新对象再返回。
+     */
+    @Override
+    public LocalTime plus(TemporalAmount amountToAdd) {
+        return (LocalTime) amountToAdd.addTo(this);
+    }
+    
+    /**
+     * Returns a copy of this time with the specified amount added.
+     * <p>
+     * This returns a {@code LocalTime}, based on this one, with the amount
+     * in terms of the unit added. If it is not possible to add the amount, because the
+     * unit is not supported or for some other reason, an exception is thrown.
+     * <p>
+     * If the field is a {@link ChronoUnit} then the addition is implemented here.
+     * The supported fields behave as follows:
+     * <ul>
+     * <li>{@code NANOS} -
+     *  Returns a {@code LocalTime} with the specified number of nanoseconds added.
+     *  This is equivalent to {@link #plusNanos(long)}.
+     * <li>{@code MICROS} -
+     *  Returns a {@code LocalTime} with the specified number of microseconds added.
+     *  This is equivalent to {@link #plusNanos(long)} with the amount
+     *  multiplied by 1,000.
+     * <li>{@code MILLIS} -
+     *  Returns a {@code LocalTime} with the specified number of milliseconds added.
+     *  This is equivalent to {@link #plusNanos(long)} with the amount
+     *  multiplied by 1,000,000.
+     * <li>{@code SECONDS} -
+     *  Returns a {@code LocalTime} with the specified number of seconds added.
+     *  This is equivalent to {@link #plusSeconds(long)}.
+     * <li>{@code MINUTES} -
+     *  Returns a {@code LocalTime} with the specified number of minutes added.
+     *  This is equivalent to {@link #plusMinutes(long)}.
+     * <li>{@code HOURS} -
+     *  Returns a {@code LocalTime} with the specified number of hours added.
+     *  This is equivalent to {@link #plusHours(long)}.
+     * <li>{@code HALF_DAYS} -
+     *  Returns a {@code LocalTime} with the specified number of half-days added.
+     *  This is equivalent to {@link #plusHours(long)} with the amount
+     *  multiplied by 12.
+     * </ul>
+     * <p>
+     * All other {@code ChronoUnit} instances will throw an {@code UnsupportedTemporalTypeException}.
+     * <p>
+     * If the field is not a {@code ChronoUnit}, then the result of this method
+     * is obtained by invoking {@code TemporalUnit.addTo(Temporal, long)}
+     * passing {@code this} as the argument. In this case, the unit determines
+     * whether and how to perform the addition.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param amountToAdd the amount of the unit to add to the result, may be negative
+     * @param unit        the unit of the amount to add, not null
+     *
+     * @return a {@code LocalTime} based on this time with the specified amount added, not null
+     *
+     * @throws DateTimeException                if the addition cannot be made
+     * @throws UnsupportedTemporalTypeException if the unit is not supported
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 对当前时间量的值累加amountToAdd个unit单位的时间量
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    @Override
+    public LocalTime plus(long amountToAdd, TemporalUnit unit) {
+        if(unit instanceof ChronoUnit) {
+            switch((ChronoUnit) unit) {
+                case NANOS:
+                    return plusNanos(amountToAdd);
+                case MICROS:
+                    return plusNanos((amountToAdd % MICROS_PER_DAY) * 1000);
+                case MILLIS:
+                    return plusNanos((amountToAdd % MILLIS_PER_DAY) * 1000_000);
+                case SECONDS:
+                    return plusSeconds(amountToAdd);
+                case MINUTES:
+                    return plusMinutes(amountToAdd);
+                case HOURS:
+                    return plusHours(amountToAdd);
+                case HALF_DAYS:
+                    return plusHours((amountToAdd % 2) * 12);
+            }
+            
+            throw new UnsupportedTemporalTypeException("Unsupported unit: " + unit);
+        }
+        
+        return unit.addTo(this, amountToAdd);
+    }
+    
+    /**
+     * Returns a copy of this {@code LocalTime} with the specified number of hours added.
+     * <p>
+     * This adds the specified number of hours to this time, returning a new time.
+     * The calculation wraps around midnight.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param hoursToAdd the hours to add, may be negative
+     *
+     * @return a {@code LocalTime} based on this time with the hours added, not null
+     */
+    /*
+     * 在当前时间量的值上累加hoursToAdd小时
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    public LocalTime plusHours(long hoursToAdd) {
+        if(hoursToAdd == 0) {
+            return this;
+        }
+        
+        int newHour = ((int) (hoursToAdd % HOURS_PER_DAY) + hour + HOURS_PER_DAY) % HOURS_PER_DAY;
+        
+        return create(newHour, minute, second, nano);
+    }
+    
+    /**
+     * Returns a copy of this {@code LocalTime} with the specified number of minutes added.
+     * <p>
+     * This adds the specified number of minutes to this time, returning a new time.
+     * The calculation wraps around midnight.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param minutesToAdd the minutes to add, may be negative
+     *
+     * @return a {@code LocalTime} based on this time with the minutes added, not null
+     */
+    /*
+     * 在当前时间量的值上累加minutesToAdd分钟
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    public LocalTime plusMinutes(long minutesToAdd) {
+        if(minutesToAdd == 0) {
+            return this;
+        }
+        
+        int mofd = hour * MINUTES_PER_HOUR + minute;
+        int newMofd = ((int) (minutesToAdd % MINUTES_PER_DAY) + mofd + MINUTES_PER_DAY) % MINUTES_PER_DAY;
+        if(mofd == newMofd) {
+            return this;
+        }
+        int newHour = newMofd / MINUTES_PER_HOUR;
+        int newMinute = newMofd % MINUTES_PER_HOUR;
+        
+        return create(newHour, newMinute, second, nano);
+    }
+    
+    /**
+     * Returns a copy of this {@code LocalTime} with the specified number of seconds added.
+     * <p>
+     * This adds the specified number of seconds to this time, returning a new time.
+     * The calculation wraps around midnight.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param secondstoAdd the seconds to add, may be negative
+     *
+     * @return a {@code LocalTime} based on this time with the seconds added, not null
+     */
+    /*
+     * 在当前时间量的值上累加secondstoAdd秒
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    public LocalTime plusSeconds(long secondstoAdd) {
+        if(secondstoAdd == 0) {
+            return this;
+        }
+        
+        int sofd = hour * SECONDS_PER_HOUR + minute * SECONDS_PER_MINUTE + second;
+        int newSofd = ((int) (secondstoAdd % SECONDS_PER_DAY) + sofd + SECONDS_PER_DAY) % SECONDS_PER_DAY;
+        if(sofd == newSofd) {
+            return this;
+        }
+        int newHour = newSofd / SECONDS_PER_HOUR;
+        int newMinute = (newSofd / SECONDS_PER_MINUTE) % MINUTES_PER_HOUR;
+        int newSecond = newSofd % SECONDS_PER_MINUTE;
+        
+        return create(newHour, newMinute, newSecond, nano);
+    }
+    
+    /**
+     * Returns a copy of this {@code LocalTime} with the specified number of nanoseconds added.
+     * <p>
+     * This adds the specified number of nanoseconds to this time, returning a new time.
+     * The calculation wraps around midnight.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param nanosToAdd the nanos to add, may be negative
+     *
+     * @return a {@code LocalTime} based on this time with the nanoseconds added, not null
+     */
+    /*
+     * 在当前时间量的值上累加nanosToAdd纳秒
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    public LocalTime plusNanos(long nanosToAdd) {
+        if(nanosToAdd == 0) {
+            return this;
+        }
+        
+        long nofd = toNanoOfDay();
+        long newNofd = ((nanosToAdd % NANOS_PER_DAY) + nofd + NANOS_PER_DAY) % NANOS_PER_DAY;
+        if(nofd == newNofd) {
+            return this;
+        }
+        int newHour = (int) (newNofd / NANOS_PER_HOUR);
+        int newMinute = (int) ((newNofd / NANOS_PER_MINUTE) % MINUTES_PER_HOUR);
+        int newSecond = (int) ((newNofd / NANOS_PER_SECOND) % SECONDS_PER_MINUTE);
+        int newNano = (int) (newNofd % NANOS_PER_SECOND);
+        
+        return create(newHour, newMinute, newSecond, newNano);
+    }
+    
+    /*▲ 增加 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 减少 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a copy of this time with the specified amount subtracted.
+     * <p>
+     * This returns a {@code LocalTime}, based on this one, with the specified amount subtracted.
+     * The amount is typically {@link Duration} but may be any other type implementing
+     * the {@link TemporalAmount} interface.
+     * <p>
+     * The calculation is delegated to the amount object by calling
+     * {@link TemporalAmount#subtractFrom(Temporal)}. The amount implementation is free
+     * to implement the subtraction in any way it wishes, however it typically
+     * calls back to {@link #minus(long, TemporalUnit)}. Consult the documentation
+     * of the amount implementation to determine if it can be successfully subtracted.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param amountToSubtract the amount to subtract, not null
+     *
+     * @return a {@code LocalTime} based on this time with the subtraction made, not null
+     *
+     * @throws DateTimeException   if the subtraction cannot be made
+     * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 对当前时间量的值与参数中的"时间段"求差
+     *
+     * 如果求差后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"求差"后的新对象再返回。
+     */
+    @Override
+    public LocalTime minus(TemporalAmount amountToSubtract) {
+        return (LocalTime) amountToSubtract.subtractFrom(this);
+    }
+    
+    /**
+     * Returns a copy of this time with the specified amount subtracted.
+     * <p>
+     * This returns a {@code LocalTime}, based on this one, with the amount
+     * in terms of the unit subtracted. If it is not possible to subtract the amount,
+     * because the unit is not supported or for some other reason, an exception is thrown.
+     * <p>
+     * This method is equivalent to {@link #plus(long, TemporalUnit)} with the amount negated.
+     * See that method for a full description of how addition, and thus subtraction, works.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param amountToSubtract the amount of the unit to subtract from the result, may be negative
+     * @param unit             the unit of the amount to subtract, not null
+     *
+     * @return a {@code LocalTime} based on this time with the specified amount subtracted, not null
+     *
+     * @throws DateTimeException                if the subtraction cannot be made
+     * @throws UnsupportedTemporalTypeException if the unit is not supported
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 对当前时间量的值减去amountToSubtract个unit单位的时间量
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    @Override
+    public LocalTime minus(long amountToSubtract, TemporalUnit unit) {
+        if(amountToSubtract == Long.MIN_VALUE) {
+            return plus(Long.MAX_VALUE, unit).plus(1, unit);
+        }
+        
+        return plus(-amountToSubtract, unit);
+    }
+    
+    /**
+     * Returns a copy of this {@code LocalTime} with the specified number of hours subtracted.
+     * <p>
+     * This subtracts the specified number of hours from this time, returning a new time.
+     * The calculation wraps around midnight.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param hoursToSubtract the hours to subtract, may be negative
+     *
+     * @return a {@code LocalTime} based on this time with the hours subtracted, not null
+     */
+    /*
+     * 在当前时间量的值上减去hoursToSubtract小时
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    public LocalTime minusHours(long hoursToSubtract) {
+        return plusHours(-(hoursToSubtract % HOURS_PER_DAY));
+    }
+    
+    /**
+     * Returns a copy of this {@code LocalTime} with the specified number of minutes subtracted.
+     * <p>
+     * This subtracts the specified number of minutes from this time, returning a new time.
+     * The calculation wraps around midnight.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param minutesToSubtract the minutes to subtract, may be negative
+     *
+     * @return a {@code LocalTime} based on this time with the minutes subtracted, not null
+     */
+    /*
+     * 在当前时间量的值上减去minutesToSubtract分钟
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    public LocalTime minusMinutes(long minutesToSubtract) {
+        return plusMinutes(-(minutesToSubtract % MINUTES_PER_DAY));
+    }
+    
+    /**
+     * Returns a copy of this {@code LocalTime} with the specified number of seconds subtracted.
+     * <p>
+     * This subtracts the specified number of seconds from this time, returning a new time.
+     * The calculation wraps around midnight.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param secondsToSubtract the seconds to subtract, may be negative
+     *
+     * @return a {@code LocalTime} based on this time with the seconds subtracted, not null
+     */
+    /*
+     * 在当前时间量的值上减去secondsToSubtract秒
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    public LocalTime minusSeconds(long secondsToSubtract) {
+        return plusSeconds(-(secondsToSubtract % SECONDS_PER_DAY));
+    }
+    
+    /**
+     * Returns a copy of this {@code LocalTime} with the specified number of nanoseconds subtracted.
+     * <p>
+     * This subtracts the specified number of nanoseconds from this time, returning a new time.
+     * The calculation wraps around midnight.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param nanosToSubtract the nanos to subtract, may be negative
+     *
+     * @return a {@code LocalTime} based on this time with the nanoseconds subtracted, not null
+     */
+    /*
+     * 在当前时间量的值上减去nanosToSubtract纳秒
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    public LocalTime minusNanos(long nanosToSubtract) {
+        return plusNanos(-(nanosToSubtract % NANOS_PER_DAY));
+    }
+    
+    /*▲ 减少 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 时间量单位 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Checks if the specified unit is supported.
+     * <p>
+     * This checks if the specified unit can be added to, or subtracted from, this time.
+     * If false, then calling the {@link #plus(long, TemporalUnit)} and
+     * {@link #minus(long, TemporalUnit) minus} methods will throw an exception.
+     * <p>
+     * If the unit is a {@link ChronoUnit} then the query is implemented here.
+     * The supported units are:
+     * <ul>
+     * <li>{@code NANOS}
+     * <li>{@code MICROS}
+     * <li>{@code MILLIS}
+     * <li>{@code SECONDS}
+     * <li>{@code MINUTES}
+     * <li>{@code HOURS}
+     * <li>{@code HALF_DAYS}
+     * </ul>
+     * All other {@code ChronoUnit} instances will return false.
+     * <p>
+     * If the unit is not a {@code ChronoUnit}, then the result of this method
+     * is obtained by invoking {@code TemporalUnit.isSupportedBy(Temporal)}
+     * passing {@code this} as the argument.
+     * Whether the unit is supported is determined by the unit.
+     *
+     * @param unit the unit to check, null returns false
+     *
+     * @return true if the unit can be added/subtracted, false if not
+     */
+    // 判断当前时间量是否支持指定的时间量单位
+    @Override
+    public boolean isSupported(TemporalUnit unit) {
+        if(unit instanceof ChronoUnit) {
+            return unit.isTimeBased();
+        }
+        
+        return unit != null && unit.isSupportedBy(this);
+    }
+    
+    /*▲ 时间量单位 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 时间量字段操作(TemporalAccessor) ███████████████████████████████████████████████████████┓ */
+    
     /**
      * Checks if the specified field is supported.
      * <p>
@@ -532,54 +1217,20 @@ public final class LocalTime
      * passing {@code this} as the argument.
      * Whether the field is supported is determined by the field.
      *
-     * @param field  the field to check, null returns false
+     * @param field the field to check, null returns false
+     *
      * @return true if the field is supported on this time, false if not
      */
+    // 判断当前时间量是否支持指定的时间量字段
     @Override
     public boolean isSupported(TemporalField field) {
-        if (field instanceof ChronoField) {
+        if(field instanceof ChronoField) {
             return field.isTimeBased();
         }
+    
         return field != null && field.isSupportedBy(this);
     }
-
-    /**
-     * Checks if the specified unit is supported.
-     * <p>
-     * This checks if the specified unit can be added to, or subtracted from, this time.
-     * If false, then calling the {@link #plus(long, TemporalUnit)} and
-     * {@link #minus(long, TemporalUnit) minus} methods will throw an exception.
-     * <p>
-     * If the unit is a {@link ChronoUnit} then the query is implemented here.
-     * The supported units are:
-     * <ul>
-     * <li>{@code NANOS}
-     * <li>{@code MICROS}
-     * <li>{@code MILLIS}
-     * <li>{@code SECONDS}
-     * <li>{@code MINUTES}
-     * <li>{@code HOURS}
-     * <li>{@code HALF_DAYS}
-     * </ul>
-     * All other {@code ChronoUnit} instances will return false.
-     * <p>
-     * If the unit is not a {@code ChronoUnit}, then the result of this method
-     * is obtained by invoking {@code TemporalUnit.isSupportedBy(Temporal)}
-     * passing {@code this} as the argument.
-     * Whether the unit is supported is determined by the unit.
-     *
-     * @param unit  the unit to check, null returns false
-     * @return true if the unit can be added/subtracted, false if not
-     */
-    @Override  // override for Javadoc
-    public boolean isSupported(TemporalUnit unit) {
-        if (unit instanceof ChronoUnit) {
-            return unit.isTimeBased();
-        }
-        return unit != null && unit.isSupportedBy(this);
-    }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Gets the range of valid values for the specified field.
      * <p>
@@ -598,16 +1249,19 @@ public final class LocalTime
      * passing {@code this} as the argument.
      * Whether the range can be obtained is determined by the field.
      *
-     * @param field  the field to query the range for, not null
+     * @param field the field to query the range for, not null
+     *
      * @return the range of valid values for the field, not null
-     * @throws DateTimeException if the range for the field cannot be obtained
+     *
+     * @throws DateTimeException                if the range for the field cannot be obtained
      * @throws UnsupportedTemporalTypeException if the field is not supported
      */
-    @Override  // override for Javadoc
+    // 返回时间量字段field的取值区间，通常要求当前时间量支持该时间量字段
+    @Override
     public ValueRange range(TemporalField field) {
         return Temporal.super.range(field);
     }
-
+    
     /**
      * Gets the value of the specified field from this time as an {@code int}.
      * <p>
@@ -627,22 +1281,48 @@ public final class LocalTime
      * passing {@code this} as the argument. Whether the value can be obtained,
      * and what the value represents, is determined by the field.
      *
-     * @param field  the field to get, not null
+     * @param field the field to get, not null
+     *
      * @return the value for the field
-     * @throws DateTimeException if a value for the field cannot be obtained or
-     *         the value is outside the range of valid values for the field
+     *
+     * @throws DateTimeException                if a value for the field cannot be obtained or
+     *                                          the value is outside the range of valid values for the field
      * @throws UnsupportedTemporalTypeException if the field is not supported or
-     *         the range of values exceeds an {@code int}
-     * @throws ArithmeticException if numeric overflow occurs
+     *                                          the range of values exceeds an {@code int}
+     * @throws ArithmeticException              if numeric overflow occurs
      */
-    @Override  // override for Javadoc and performance
+    /*
+     * 以int形式返回时间量字段field的值
+     *
+     * 目前支持的字段包括：
+     *
+     * ChronoField.HOUR_OF_DAY        - 返回小时部件(几时)
+     * ChronoField.MINUTE_OF_HOUR     - 返回分钟部件(几分)
+     * ChronoField.SECOND_OF_MINUTE   - 返回秒部件(几秒)
+     * ChronoField.NANO_OF_SECOND     - 返回纳秒部件(几纳秒)
+     * ..........................................................................................
+     * ChronoField.MICRO_OF_SECOND    - 从纳秒部件中计算出包含的微秒数（不要与纳秒部件同时展示）
+     * ChronoField.MILLI_OF_SECOND    - 从纳秒部件中计算出包含的毫秒数（不要与纳秒部件同时展示）
+     * ChronoField.NANO_OF_DAY        ×
+     * ChronoField.MICRO_OF_DAY       ×
+     * ChronoField.MILLI_OF_DAY       - 计算当前"本地时间"包含的毫秒数
+     * ChronoField.SECOND_OF_DAY      - 计算当前"本地时间"包含的秒数
+     * ChronoField.MINUTE_OF_DAY      - 计算当前"本地时间"包含的分钟数
+     * ChronoField.HOUR_OF_AMPM       - 计算当前"本地时间"包含的小时是12小时制中的哪个[小时](计数从0~11)
+     * ChronoField.CLOCK_HOUR_OF_AMPM - 计算当前"本地时间"包含的小时是12小时制中的哪个[钟点](计数从1~12)
+     * ChronoField.CLOCK_HOUR_OF_DAY  - 计算当前"本地时间"包含的小时是24小时制中的哪个[钟点](计数从1~24)
+     * ChronoField.AMPM_OF_DAY        - 计算当前"本地时间"位于上午(0)还是下午(1)
+     */
+    @Override
     public int get(TemporalField field) {
-        if (field instanceof ChronoField) {
+        if(field instanceof ChronoField) {
+            // 处理ChronoField中的"时间"字段(只处理可以返回int值的)
             return get0(field);
         }
+        
         return Temporal.super.get(field);
     }
-
+    
     /**
      * Gets the value of the specified field from this time as a {@code long}.
      * <p>
@@ -660,85 +1340,106 @@ public final class LocalTime
      * passing {@code this} as the argument. Whether the value can be obtained,
      * and what the value represents, is determined by the field.
      *
-     * @param field  the field to get, not null
+     * @param field the field to get, not null
+     *
      * @return the value for the field
-     * @throws DateTimeException if a value for the field cannot be obtained
+     *
+     * @throws DateTimeException                if a value for the field cannot be obtained
      * @throws UnsupportedTemporalTypeException if the field is not supported
-     * @throws ArithmeticException if numeric overflow occurs
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 以long形式返回时间量字段field的值
+     *
+     * 目前支持的字段包括：
+     *
+     * ChronoField.HOUR_OF_DAY        - 返回小时部件(几时)
+     * ChronoField.MINUTE_OF_HOUR     - 返回分钟部件(几分)
+     * ChronoField.SECOND_OF_MINUTE   - 返回秒部件(几秒)
+     * ChronoField.NANO_OF_SECOND     - 返回纳秒部件(几纳秒)
+     * ..........................................................................................
+     * ChronoField.MICRO_OF_SECOND    - 从纳秒部件中计算出包含的微秒数（不要与纳秒部件同时展示）
+     * ChronoField.MILLI_OF_SECOND    - 从纳秒部件中计算出包含的毫秒数（不要与纳秒部件同时展示）
+     * ChronoField.NANO_OF_DAY        = 计算当前"本地时间"包含的纳秒数
+     * ChronoField.MICRO_OF_DAY       = 计算当前"本地时间"包含的微秒数
+     * ChronoField.MILLI_OF_DAY       - 计算当前"本地时间"包含的毫秒数
+     * ChronoField.SECOND_OF_DAY      - 计算当前"本地时间"包含的秒数
+     * ChronoField.MINUTE_OF_DAY      - 计算当前"本地时间"包含的分钟数
+     * ChronoField.HOUR_OF_AMPM       - 计算当前"本地时间"包含的小时是12小时制中的哪个[小时](计数从0~11)
+     * ChronoField.CLOCK_HOUR_OF_AMPM - 计算当前"本地时间"包含的小时是12小时制中的哪个[钟点](计数从1~12)
+     * ChronoField.CLOCK_HOUR_OF_DAY  - 计算当前"本地时间"包含的小时是24小时制中的哪个[钟点](计数从1~24)
+     * ChronoField.AMPM_OF_DAY        - 计算当前"本地时间"位于上午(0)还是下午(1)
      */
     @Override
     public long getLong(TemporalField field) {
-        if (field instanceof ChronoField) {
-            if (field == NANO_OF_DAY) {
+        if(field instanceof ChronoField) {
+            if(field == ChronoField.NANO_OF_DAY) {
+                // 计算当前"本地时间"包含的纳秒数
                 return toNanoOfDay();
             }
-            if (field == MICRO_OF_DAY) {
+            
+            if(field == ChronoField.MICRO_OF_DAY) {
+                // 计算当前"本地时间"包含的微秒数
                 return toNanoOfDay() / 1000;
             }
+            
+            // 处理ChronoField中的"时间"字段(只处理可以返回int值的)
             return get0(field);
         }
+        
         return field.getFrom(this);
     }
-
-    private int get0(TemporalField field) {
-        switch ((ChronoField) field) {
-            case NANO_OF_SECOND: return nano;
-            case NANO_OF_DAY: throw new UnsupportedTemporalTypeException("Invalid field 'NanoOfDay' for get() method, use getLong() instead");
-            case MICRO_OF_SECOND: return nano / 1000;
-            case MICRO_OF_DAY: throw new UnsupportedTemporalTypeException("Invalid field 'MicroOfDay' for get() method, use getLong() instead");
-            case MILLI_OF_SECOND: return nano / 1000_000;
-            case MILLI_OF_DAY: return (int) (toNanoOfDay() / 1000_000);
-            case SECOND_OF_MINUTE: return second;
-            case SECOND_OF_DAY: return toSecondOfDay();
-            case MINUTE_OF_HOUR: return minute;
-            case MINUTE_OF_DAY: return hour * 60 + minute;
-            case HOUR_OF_AMPM: return hour % 12;
-            case CLOCK_HOUR_OF_AMPM: int ham = hour % 12; return (ham % 12 == 0 ? 12 : ham);
-            case HOUR_OF_DAY: return hour;
-            case CLOCK_HOUR_OF_DAY: return (hour == 0 ? 24 : hour);
-            case AMPM_OF_DAY: return hour / 12;
+    
+    /**
+     * Queries this time using the specified query.
+     * <p>
+     * This queries this time using the specified query strategy object.
+     * The {@code TemporalQuery} object defines the logic to be used to
+     * obtain the result. Read the documentation of the query to understand
+     * what the result of this method will be.
+     * <p>
+     * The result of this method is obtained by invoking the
+     * {@link TemporalQuery#queryFrom(TemporalAccessor)} method on the
+     * specified query passing {@code this} as the argument.
+     *
+     * @param <R>   the type of the result
+     * @param query the query to invoke, not null
+     *
+     * @return the query result, null may be returned (defined by the query)
+     *
+     * @throws DateTimeException   if unable to query (defined by the query)
+     * @throws ArithmeticException if numeric overflow occurs (defined by the query)
+     */
+    // 使用指定的时间量查询器，从当前时间量中查询目标信息
+    @SuppressWarnings("unchecked")
+    @Override
+    public <R> R query(TemporalQuery<R> query) {
+        if(query == TemporalQueries.precision()) {
+            return (R) NANOS;
         }
-        throw new UnsupportedTemporalTypeException("Unsupported field: " + field);
+        
+        if(query == TemporalQueries.localTime()) {
+            return (R) this;
+        }
+        
+        // 一些优化操作，即当前时间量不支持下面这些查询操作
+        if(query == TemporalQueries.chronology() || query == TemporalQueries.zoneId() || query == TemporalQueries.zone() || query == TemporalQueries.offset() || query == TemporalQueries.localDate()) {
+            return null;
+        }
+        
+        /*
+         * inline TemporalAccessor.super.query(query) as an optimization
+         * non-JDK classes are not permitted to make this optimization
+         */
+        return query.queryFrom(this);
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Gets the hour-of-day field.
-     *
-     * @return the hour-of-day, from 0 to 23
-     */
-    public int getHour() {
-        return hour;
-    }
-
-    /**
-     * Gets the minute-of-hour field.
-     *
-     * @return the minute-of-hour, from 0 to 59
-     */
-    public int getMinute() {
-        return minute;
-    }
-
-    /**
-     * Gets the second-of-minute field.
-     *
-     * @return the second-of-minute, from 0 to 59
-     */
-    public int getSecond() {
-        return second;
-    }
-
-    /**
-     * Gets the nano-of-second field.
-     *
-     * @return the nano-of-second, from 0 to 999,999,999
-     */
-    public int getNano() {
-        return nano;
-    }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 时间量字段操作(TemporalAccessor) ███████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 整合 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns an adjusted copy of this time.
      * <p>
@@ -756,19 +1457,27 @@ public final class LocalTime
      * This instance is immutable and unaffected by this method call.
      *
      * @param adjuster the adjuster to use, not null
+     *
      * @return a {@code LocalTime} based on {@code this} with the adjustment made, not null
-     * @throws DateTimeException if the adjustment cannot be made
+     *
+     * @throws DateTimeException   if the adjustment cannot be made
      * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 使用指定的时间量整合器adjuster来构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
      */
     @Override
     public LocalTime with(TemporalAdjuster adjuster) {
-        // optimizations
-        if (adjuster instanceof LocalTime) {
+        if(adjuster instanceof LocalTime) {
             return (LocalTime) adjuster;
         }
+        
         return (LocalTime) adjuster.adjustInto(this);
     }
-
+    
     /**
      * Returns a copy of this time with the specified field set to a new value.
      * <p>
@@ -844,488 +1553,216 @@ public final class LocalTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param field  the field to set in the result, not null
-     * @param newValue  the new value of the field in the result
+     * @param field    the field to set in the result, not null
+     * @param newValue the new value of the field in the result
+     *
      * @return a {@code LocalTime} based on {@code this} with the specified field set, not null
-     * @throws DateTimeException if the field cannot be set
+     *
+     * @throws DateTimeException                if the field cannot be set
      * @throws UnsupportedTemporalTypeException if the field is not supported
-     * @throws ArithmeticException if numeric overflow occurs
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 通过整合指定类型的字段和当前时间量中的其他类型的字段来构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * field   : 待整合的字段(类型)
+     * newValue: field的原始值，需要根据filed的类型进行放缩
+     *
+     * 目前支持传入的字段值包括：
+     *
+     * ChronoField.HOUR_OF_DAY        - 与24小时制中的[小时](0, 23)整合，只会覆盖当前时间量的"小时"组件
+     * ChronoField.MINUTE_OF_HOUR     - 与一小时内的[分钟](0, 59)整合，只会覆盖当前时间量的"分钟"组件
+     * ChronoField.SECOND_OF_MINUTE   - 与一分内的[秒](0, 59)整合，只会覆盖当前时间量的"秒"组件
+     * ChronoField.NANO_OF_SECOND     - 与一秒内的[纳秒](0, 999_999_999)整合，只会覆盖当前时间量的"纳秒"组件
+     * .............................................................................................................
+     * ChronoField.MICRO_OF_SECOND    - 与一秒内的[微秒](0, 999_999)整合，会将其转换为纳秒，然后去覆盖当前时间量的"纳秒"组件
+     * ChronoField.MILLI_OF_SECOND    - 与一秒内的[毫秒](0, 999)整合，会将其转换为纳秒，然后去覆盖当前时间量的"纳秒"组件
+     * ChronoField.NANO_OF_DAY        - 与一天内的[纳秒](0, 86400L * 1000_000_000L - 1)整合，这会完全地构造一个新的"本地时间"
+     * ChronoField.MICRO_OF_DAY       - 与一天内的[微秒](0, 86400L * 1000_000L - 1)整合，这会完全地构造一个新的"本地时间"
+     * ChronoField.MILLI_OF_DAY       - 与一天内的[毫秒](0, 86400L * 1000L - 1)整合，这会完全地构造一个新的"本地时间"
+     * ChronoField.SECOND_OF_DAY      - 与一天内的[秒](0, 86400L - 1)整合，这会在当前时间量的基础上增/减一定的秒数，以达到给定的字段值表示的时间
+     * ChronoField.MINUTE_OF_DAY      - 与一天内的[分钟](0, (24 * 60) - 1)整合，这会在当前时间量的基础上增/减一定的分钟数，以达到给定的字段值表示的时间
+     * ChronoField.HOUR_OF_AMPM       - 与12小时制中的[小时](0, 11)整合，这会在当前时间量的基础上增/减一定的小时数，以达到给定的字段值表示的时间
+     * ChronoField.CLOCK_HOUR_OF_AMPM - 与12小时制中的[钟点](1, 12)整合，这会在当前时间量的基础上增/减一定的小时数，以达到给定的字段值表示的时间
+     * ChronoField.CLOCK_HOUR_OF_DAY  - 与24小时制中的[钟点](1, 24)整合，会将其转换为24小时制的[小时]，然后覆盖当前时间量的"小时"组件
+     * ChronoField.AMPM_OF_DAY        - 与一天中的[上午/下午](0, 1)整合，即在当前时间量的基础上增/减12个小时，进行上下午的切换
      */
     @Override
     public LocalTime with(TemporalField field, long newValue) {
-        if (field instanceof ChronoField) {
+        if(field instanceof ChronoField) {
             ChronoField f = (ChronoField) field;
             f.checkValidValue(newValue);
-            switch (f) {
-                case NANO_OF_SECOND: return withNano((int) newValue);
-                case NANO_OF_DAY: return LocalTime.ofNanoOfDay(newValue);
-                case MICRO_OF_SECOND: return withNano((int) newValue * 1000);
-                case MICRO_OF_DAY: return LocalTime.ofNanoOfDay(newValue * 1000);
-                case MILLI_OF_SECOND: return withNano((int) newValue * 1000_000);
-                case MILLI_OF_DAY: return LocalTime.ofNanoOfDay(newValue * 1000_000);
-                case SECOND_OF_MINUTE: return withSecond((int) newValue);
-                case SECOND_OF_DAY: return plusSeconds(newValue - toSecondOfDay());
-                case MINUTE_OF_HOUR: return withMinute((int) newValue);
-                case MINUTE_OF_DAY: return plusMinutes(newValue - (hour * 60 + minute));
-                case HOUR_OF_AMPM: return plusHours(newValue - (hour % 12));
-                case CLOCK_HOUR_OF_AMPM: return plusHours((newValue == 12 ? 0 : newValue) - (hour % 12));
-                case HOUR_OF_DAY: return withHour((int) newValue);
-                case CLOCK_HOUR_OF_DAY: return withHour((int) (newValue == 24 ? 0 : newValue));
-                case AMPM_OF_DAY: return plusHours((newValue - (hour / 12)) * 12);
+            
+            switch(f) {
+                case NANO_OF_SECOND:
+                    return withNano((int) newValue);
+                case NANO_OF_DAY:
+                    return LocalTime.ofNanoOfDay(newValue);
+                case MICRO_OF_SECOND:
+                    return withNano((int) newValue * 1000);
+                case MICRO_OF_DAY:
+                    return LocalTime.ofNanoOfDay(newValue * 1000);
+                case MILLI_OF_SECOND:
+                    return withNano((int) newValue * 1000_000);
+                case MILLI_OF_DAY:
+                    return LocalTime.ofNanoOfDay(newValue * 1000_000);
+                case SECOND_OF_MINUTE:
+                    return withSecond((int) newValue);
+                case SECOND_OF_DAY:
+                    return plusSeconds(newValue - toSecondOfDay());
+                case MINUTE_OF_HOUR:
+                    return withMinute((int) newValue);
+                case MINUTE_OF_DAY:
+                    return plusMinutes(newValue - (hour * 60 + minute));
+                case HOUR_OF_AMPM:
+                    return plusHours(newValue - (hour % 12));
+                case CLOCK_HOUR_OF_AMPM:
+                    return plusHours((newValue == 12 ? 0 : newValue) - (hour % 12));
+                case HOUR_OF_DAY:
+                    return withHour((int) newValue);
+                case CLOCK_HOUR_OF_DAY:
+                    return withHour((int) (newValue == 24 ? 0 : newValue));
+                case AMPM_OF_DAY:
+                    return plusHours((newValue - (hour / 12)) * 12);
             }
+            
             throw new UnsupportedTemporalTypeException("Unsupported field: " + field);
         }
+        
         return field.adjustInto(this, newValue);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Returns a copy of this {@code LocalTime} with the hour-of-day altered.
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param hour  the hour-of-day to set in the result, from 0 to 23
+     * @param hour the hour-of-day to set in the result, from 0 to 23
+     *
      * @return a {@code LocalTime} based on this time with the requested hour, not null
+     *
      * @throws DateTimeException if the hour value is invalid
      */
+    /*
+     * 将指定的"小时"整合到当前时间量中以构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：小时
+     */
     public LocalTime withHour(int hour) {
-        if (this.hour == hour) {
+        if(this.hour == hour) {
             return this;
         }
-        HOUR_OF_DAY.checkValidValue(hour);
+        
+        ChronoField.HOUR_OF_DAY.checkValidValue(hour);
+        
         return create(hour, minute, second, nano);
     }
-
+    
     /**
      * Returns a copy of this {@code LocalTime} with the minute-of-hour altered.
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param minute  the minute-of-hour to set in the result, from 0 to 59
+     * @param minute the minute-of-hour to set in the result, from 0 to 59
+     *
      * @return a {@code LocalTime} based on this time with the requested minute, not null
+     *
      * @throws DateTimeException if the minute value is invalid
      */
+    /*
+     * 将指定的"分钟"整合到当前时间量中以构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：分钟
+     */
     public LocalTime withMinute(int minute) {
-        if (this.minute == minute) {
+        if(this.minute == minute) {
             return this;
         }
-        MINUTE_OF_HOUR.checkValidValue(minute);
+        
+        ChronoField.MINUTE_OF_HOUR.checkValidValue(minute);
+        
         return create(hour, minute, second, nano);
     }
-
+    
     /**
      * Returns a copy of this {@code LocalTime} with the second-of-minute altered.
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param second  the second-of-minute to set in the result, from 0 to 59
+     * @param second the second-of-minute to set in the result, from 0 to 59
+     *
      * @return a {@code LocalTime} based on this time with the requested second, not null
+     *
      * @throws DateTimeException if the second value is invalid
      */
+    /*
+     * 将指定的"秒"整合到当前时间量中以构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：秒
+     */
     public LocalTime withSecond(int second) {
-        if (this.second == second) {
+        if(this.second == second) {
             return this;
         }
-        SECOND_OF_MINUTE.checkValidValue(second);
+        
+        ChronoField.SECOND_OF_MINUTE.checkValidValue(second);
+        
         return create(hour, minute, second, nano);
     }
-
+    
     /**
      * Returns a copy of this {@code LocalTime} with the nano-of-second altered.
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param nanoOfSecond  the nano-of-second to set in the result, from 0 to 999,999,999
+     * @param nanoOfSecond the nano-of-second to set in the result, from 0 to 999,999,999
+     *
      * @return a {@code LocalTime} based on this time with the requested nanosecond, not null
+     *
      * @throws DateTimeException if the nanos value is invalid
      */
+    /*
+     * 将指定的"纳秒"整合到当前时间量中以构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：纳秒
+     */
     public LocalTime withNano(int nanoOfSecond) {
-        if (this.nano == nanoOfSecond) {
+        if(this.nano == nanoOfSecond) {
             return this;
         }
-        NANO_OF_SECOND.checkValidValue(nanoOfSecond);
+        
+        ChronoField.NANO_OF_SECOND.checkValidValue(nanoOfSecond);
+        
         return create(hour, minute, second, nanoOfSecond);
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Returns a copy of this {@code LocalTime} with the time truncated.
-     * <p>
-     * Truncation returns a copy of the original time with fields
-     * smaller than the specified unit set to zero.
-     * For example, truncating with the {@link ChronoUnit#MINUTES minutes} unit
-     * will set the second-of-minute and nano-of-second field to zero.
-     * <p>
-     * The unit must have a {@linkplain TemporalUnit#getDuration() duration}
-     * that divides into the length of a standard day without remainder.
-     * This includes all supplied time units on {@link ChronoUnit} and
-     * {@link ChronoUnit#DAYS DAYS}. Other units throw an exception.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param unit  the unit to truncate to, not null
-     * @return a {@code LocalTime} based on this time with the time truncated, not null
-     * @throws DateTimeException if unable to truncate
-     * @throws UnsupportedTemporalTypeException if the unit is not supported
-     */
-    public LocalTime truncatedTo(TemporalUnit unit) {
-        if (unit == ChronoUnit.NANOS) {
-            return this;
-        }
-        Duration unitDur = unit.getDuration();
-        if (unitDur.getSeconds() > SECONDS_PER_DAY) {
-            throw new UnsupportedTemporalTypeException("Unit is too large to be used for truncation");
-        }
-        long dur = unitDur.toNanos();
-        if ((NANOS_PER_DAY % dur) != 0) {
-            throw new UnsupportedTemporalTypeException("Unit must divide into a standard day without remainder");
-        }
-        long nod = toNanoOfDay();
-        return ofNanoOfDay((nod / dur) * dur);
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Returns a copy of this time with the specified amount added.
-     * <p>
-     * This returns a {@code LocalTime}, based on this one, with the specified amount added.
-     * The amount is typically {@link Duration} but may be any other type implementing
-     * the {@link TemporalAmount} interface.
-     * <p>
-     * The calculation is delegated to the amount object by calling
-     * {@link TemporalAmount#addTo(Temporal)}. The amount implementation is free
-     * to implement the addition in any way it wishes, however it typically
-     * calls back to {@link #plus(long, TemporalUnit)}. Consult the documentation
-     * of the amount implementation to determine if it can be successfully added.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param amountToAdd  the amount to add, not null
-     * @return a {@code LocalTime} based on this time with the addition made, not null
-     * @throws DateTimeException if the addition cannot be made
-     * @throws ArithmeticException if numeric overflow occurs
-     */
-    @Override
-    public LocalTime plus(TemporalAmount amountToAdd) {
-        return (LocalTime) amountToAdd.addTo(this);
-    }
-
-    /**
-     * Returns a copy of this time with the specified amount added.
-     * <p>
-     * This returns a {@code LocalTime}, based on this one, with the amount
-     * in terms of the unit added. If it is not possible to add the amount, because the
-     * unit is not supported or for some other reason, an exception is thrown.
-     * <p>
-     * If the field is a {@link ChronoUnit} then the addition is implemented here.
-     * The supported fields behave as follows:
-     * <ul>
-     * <li>{@code NANOS} -
-     *  Returns a {@code LocalTime} with the specified number of nanoseconds added.
-     *  This is equivalent to {@link #plusNanos(long)}.
-     * <li>{@code MICROS} -
-     *  Returns a {@code LocalTime} with the specified number of microseconds added.
-     *  This is equivalent to {@link #plusNanos(long)} with the amount
-     *  multiplied by 1,000.
-     * <li>{@code MILLIS} -
-     *  Returns a {@code LocalTime} with the specified number of milliseconds added.
-     *  This is equivalent to {@link #plusNanos(long)} with the amount
-     *  multiplied by 1,000,000.
-     * <li>{@code SECONDS} -
-     *  Returns a {@code LocalTime} with the specified number of seconds added.
-     *  This is equivalent to {@link #plusSeconds(long)}.
-     * <li>{@code MINUTES} -
-     *  Returns a {@code LocalTime} with the specified number of minutes added.
-     *  This is equivalent to {@link #plusMinutes(long)}.
-     * <li>{@code HOURS} -
-     *  Returns a {@code LocalTime} with the specified number of hours added.
-     *  This is equivalent to {@link #plusHours(long)}.
-     * <li>{@code HALF_DAYS} -
-     *  Returns a {@code LocalTime} with the specified number of half-days added.
-     *  This is equivalent to {@link #plusHours(long)} with the amount
-     *  multiplied by 12.
-     * </ul>
-     * <p>
-     * All other {@code ChronoUnit} instances will throw an {@code UnsupportedTemporalTypeException}.
-     * <p>
-     * If the field is not a {@code ChronoUnit}, then the result of this method
-     * is obtained by invoking {@code TemporalUnit.addTo(Temporal, long)}
-     * passing {@code this} as the argument. In this case, the unit determines
-     * whether and how to perform the addition.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param amountToAdd  the amount of the unit to add to the result, may be negative
-     * @param unit  the unit of the amount to add, not null
-     * @return a {@code LocalTime} based on this time with the specified amount added, not null
-     * @throws DateTimeException if the addition cannot be made
-     * @throws UnsupportedTemporalTypeException if the unit is not supported
-     * @throws ArithmeticException if numeric overflow occurs
-     */
-    @Override
-    public LocalTime plus(long amountToAdd, TemporalUnit unit) {
-        if (unit instanceof ChronoUnit) {
-            switch ((ChronoUnit) unit) {
-                case NANOS: return plusNanos(amountToAdd);
-                case MICROS: return plusNanos((amountToAdd % MICROS_PER_DAY) * 1000);
-                case MILLIS: return plusNanos((amountToAdd % MILLIS_PER_DAY) * 1000_000);
-                case SECONDS: return plusSeconds(amountToAdd);
-                case MINUTES: return plusMinutes(amountToAdd);
-                case HOURS: return plusHours(amountToAdd);
-                case HALF_DAYS: return plusHours((amountToAdd % 2) * 12);
-            }
-            throw new UnsupportedTemporalTypeException("Unsupported unit: " + unit);
-        }
-        return unit.addTo(this, amountToAdd);
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Returns a copy of this {@code LocalTime} with the specified number of hours added.
-     * <p>
-     * This adds the specified number of hours to this time, returning a new time.
-     * The calculation wraps around midnight.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param hoursToAdd  the hours to add, may be negative
-     * @return a {@code LocalTime} based on this time with the hours added, not null
-     */
-    public LocalTime plusHours(long hoursToAdd) {
-        if (hoursToAdd == 0) {
-            return this;
-        }
-        int newHour = ((int) (hoursToAdd % HOURS_PER_DAY) + hour + HOURS_PER_DAY) % HOURS_PER_DAY;
-        return create(newHour, minute, second, nano);
-    }
-
-    /**
-     * Returns a copy of this {@code LocalTime} with the specified number of minutes added.
-     * <p>
-     * This adds the specified number of minutes to this time, returning a new time.
-     * The calculation wraps around midnight.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param minutesToAdd  the minutes to add, may be negative
-     * @return a {@code LocalTime} based on this time with the minutes added, not null
-     */
-    public LocalTime plusMinutes(long minutesToAdd) {
-        if (minutesToAdd == 0) {
-            return this;
-        }
-        int mofd = hour * MINUTES_PER_HOUR + minute;
-        int newMofd = ((int) (minutesToAdd % MINUTES_PER_DAY) + mofd + MINUTES_PER_DAY) % MINUTES_PER_DAY;
-        if (mofd == newMofd) {
-            return this;
-        }
-        int newHour = newMofd / MINUTES_PER_HOUR;
-        int newMinute = newMofd % MINUTES_PER_HOUR;
-        return create(newHour, newMinute, second, nano);
-    }
-
-    /**
-     * Returns a copy of this {@code LocalTime} with the specified number of seconds added.
-     * <p>
-     * This adds the specified number of seconds to this time, returning a new time.
-     * The calculation wraps around midnight.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param secondstoAdd  the seconds to add, may be negative
-     * @return a {@code LocalTime} based on this time with the seconds added, not null
-     */
-    public LocalTime plusSeconds(long secondstoAdd) {
-        if (secondstoAdd == 0) {
-            return this;
-        }
-        int sofd = hour * SECONDS_PER_HOUR +
-                    minute * SECONDS_PER_MINUTE + second;
-        int newSofd = ((int) (secondstoAdd % SECONDS_PER_DAY) + sofd + SECONDS_PER_DAY) % SECONDS_PER_DAY;
-        if (sofd == newSofd) {
-            return this;
-        }
-        int newHour = newSofd / SECONDS_PER_HOUR;
-        int newMinute = (newSofd / SECONDS_PER_MINUTE) % MINUTES_PER_HOUR;
-        int newSecond = newSofd % SECONDS_PER_MINUTE;
-        return create(newHour, newMinute, newSecond, nano);
-    }
-
-    /**
-     * Returns a copy of this {@code LocalTime} with the specified number of nanoseconds added.
-     * <p>
-     * This adds the specified number of nanoseconds to this time, returning a new time.
-     * The calculation wraps around midnight.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param nanosToAdd  the nanos to add, may be negative
-     * @return a {@code LocalTime} based on this time with the nanoseconds added, not null
-     */
-    public LocalTime plusNanos(long nanosToAdd) {
-        if (nanosToAdd == 0) {
-            return this;
-        }
-        long nofd = toNanoOfDay();
-        long newNofd = ((nanosToAdd % NANOS_PER_DAY) + nofd + NANOS_PER_DAY) % NANOS_PER_DAY;
-        if (nofd == newNofd) {
-            return this;
-        }
-        int newHour = (int) (newNofd / NANOS_PER_HOUR);
-        int newMinute = (int) ((newNofd / NANOS_PER_MINUTE) % MINUTES_PER_HOUR);
-        int newSecond = (int) ((newNofd / NANOS_PER_SECOND) % SECONDS_PER_MINUTE);
-        int newNano = (int) (newNofd % NANOS_PER_SECOND);
-        return create(newHour, newMinute, newSecond, newNano);
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Returns a copy of this time with the specified amount subtracted.
-     * <p>
-     * This returns a {@code LocalTime}, based on this one, with the specified amount subtracted.
-     * The amount is typically {@link Duration} but may be any other type implementing
-     * the {@link TemporalAmount} interface.
-     * <p>
-     * The calculation is delegated to the amount object by calling
-     * {@link TemporalAmount#subtractFrom(Temporal)}. The amount implementation is free
-     * to implement the subtraction in any way it wishes, however it typically
-     * calls back to {@link #minus(long, TemporalUnit)}. Consult the documentation
-     * of the amount implementation to determine if it can be successfully subtracted.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param amountToSubtract  the amount to subtract, not null
-     * @return a {@code LocalTime} based on this time with the subtraction made, not null
-     * @throws DateTimeException if the subtraction cannot be made
-     * @throws ArithmeticException if numeric overflow occurs
-     */
-    @Override
-    public LocalTime minus(TemporalAmount amountToSubtract) {
-        return (LocalTime) amountToSubtract.subtractFrom(this);
-    }
-
-    /**
-     * Returns a copy of this time with the specified amount subtracted.
-     * <p>
-     * This returns a {@code LocalTime}, based on this one, with the amount
-     * in terms of the unit subtracted. If it is not possible to subtract the amount,
-     * because the unit is not supported or for some other reason, an exception is thrown.
-     * <p>
-     * This method is equivalent to {@link #plus(long, TemporalUnit)} with the amount negated.
-     * See that method for a full description of how addition, and thus subtraction, works.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param amountToSubtract  the amount of the unit to subtract from the result, may be negative
-     * @param unit  the unit of the amount to subtract, not null
-     * @return a {@code LocalTime} based on this time with the specified amount subtracted, not null
-     * @throws DateTimeException if the subtraction cannot be made
-     * @throws UnsupportedTemporalTypeException if the unit is not supported
-     * @throws ArithmeticException if numeric overflow occurs
-     */
-    @Override
-    public LocalTime minus(long amountToSubtract, TemporalUnit unit) {
-        return (amountToSubtract == Long.MIN_VALUE ? plus(Long.MAX_VALUE, unit).plus(1, unit) : plus(-amountToSubtract, unit));
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Returns a copy of this {@code LocalTime} with the specified number of hours subtracted.
-     * <p>
-     * This subtracts the specified number of hours from this time, returning a new time.
-     * The calculation wraps around midnight.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param hoursToSubtract  the hours to subtract, may be negative
-     * @return a {@code LocalTime} based on this time with the hours subtracted, not null
-     */
-    public LocalTime minusHours(long hoursToSubtract) {
-        return plusHours(-(hoursToSubtract % HOURS_PER_DAY));
-    }
-
-    /**
-     * Returns a copy of this {@code LocalTime} with the specified number of minutes subtracted.
-     * <p>
-     * This subtracts the specified number of minutes from this time, returning a new time.
-     * The calculation wraps around midnight.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param minutesToSubtract  the minutes to subtract, may be negative
-     * @return a {@code LocalTime} based on this time with the minutes subtracted, not null
-     */
-    public LocalTime minusMinutes(long minutesToSubtract) {
-        return plusMinutes(-(minutesToSubtract % MINUTES_PER_DAY));
-    }
-
-    /**
-     * Returns a copy of this {@code LocalTime} with the specified number of seconds subtracted.
-     * <p>
-     * This subtracts the specified number of seconds from this time, returning a new time.
-     * The calculation wraps around midnight.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param secondsToSubtract  the seconds to subtract, may be negative
-     * @return a {@code LocalTime} based on this time with the seconds subtracted, not null
-     */
-    public LocalTime minusSeconds(long secondsToSubtract) {
-        return plusSeconds(-(secondsToSubtract % SECONDS_PER_DAY));
-    }
-
-    /**
-     * Returns a copy of this {@code LocalTime} with the specified number of nanoseconds subtracted.
-     * <p>
-     * This subtracts the specified number of nanoseconds from this time, returning a new time.
-     * The calculation wraps around midnight.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param nanosToSubtract  the nanos to subtract, may be negative
-     * @return a {@code LocalTime} based on this time with the nanoseconds subtracted, not null
-     */
-    public LocalTime minusNanos(long nanosToSubtract) {
-        return plusNanos(-(nanosToSubtract % NANOS_PER_DAY));
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Queries this time using the specified query.
-     * <p>
-     * This queries this time using the specified query strategy object.
-     * The {@code TemporalQuery} object defines the logic to be used to
-     * obtain the result. Read the documentation of the query to understand
-     * what the result of this method will be.
-     * <p>
-     * The result of this method is obtained by invoking the
-     * {@link TemporalQuery#queryFrom(TemporalAccessor)} method on the
-     * specified query passing {@code this} as the argument.
-     *
-     * @param <R> the type of the result
-     * @param query  the query to invoke, not null
-     * @return the query result, null may be returned (defined by the query)
-     * @throws DateTimeException if unable to query (defined by the query)
-     * @throws ArithmeticException if numeric overflow occurs (defined by the query)
-     */
-    @SuppressWarnings("unchecked")
-    @Override
-    public <R> R query(TemporalQuery<R> query) {
-        if (query == TemporalQueries.chronology() || query == TemporalQueries.zoneId() ||
-                query == TemporalQueries.zone() || query == TemporalQueries.offset()) {
-            return null;
-        } else if (query == TemporalQueries.localTime()) {
-            return (R) this;
-        } else if (query == TemporalQueries.localDate()) {
-            return null;
-        } else if (query == TemporalQueries.precision()) {
-            return (R) NANOS;
-        }
-        // inline TemporalAccessor.super.query(query) as an optimization
-        // non-JDK classes are not permitted to make this optimization
-        return query.queryFrom(this);
-    }
-
+    
     /**
      * Adjusts the specified temporal object to have the same time as this object.
      * <p>
@@ -1345,16 +1782,47 @@ public final class LocalTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param temporal  the target object to be adjusted, not null
+     * @param temporal the target object to be adjusted, not null
+     *
      * @return the adjusted object, not null
-     * @throws DateTimeException if unable to make the adjustment
+     *
+     * @throws DateTimeException   if unable to make the adjustment
      * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 拿当前时间量中的特定字段与时间量temporal中的其他字段进行整合。
+     *
+     * 如果整合后的值与temporal中原有的值相等，则可以直接使用temporal本身；否则，会返回新构造的时间量对象。
+     *
+     * 注：通常，这会用到当前时间量的所有部件信息
+     *
+     *
+     * 当前时间量参与整合字段包括：
+     * ChronoField.NANO_OF_DAY - 当前时间量中包含的纳秒数
+     *
+     * 目标时间量temporal的取值可以是：
+     * LocalTime
+     * OffsetTime
+     * LocalDateTime
+     * OffsetDateTime
+     * ZonedDateTime
+     * ChronoLocalDateTimeImpl
+     * ChronoZonedDateTimeImpl
      */
     @Override
     public Temporal adjustInto(Temporal temporal) {
-        return temporal.with(NANO_OF_DAY, toNanoOfDay());
+        // 获取当前时间量中包含的纳秒数
+        long nano = toNanoOfDay();
+        
+        return temporal.with(ChronoField.NANO_OF_DAY, nano);
     }
-
+    
+    /*▲ 整合 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Calculates the amount of time until another time in terms of the specified unit.
      * <p>
@@ -1394,213 +1862,259 @@ public final class LocalTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param endExclusive  the end time, exclusive, which is converted to a {@code LocalTime}, not null
-     * @param unit  the unit to measure the amount in, not null
+     * @param endExclusive the end time, exclusive, which is converted to a {@code LocalTime}, not null
+     * @param unit         the unit to measure the amount in, not null
+     *
      * @return the amount of time between this time and the end time
-     * @throws DateTimeException if the amount cannot be calculated, or the end
-     *  temporal cannot be converted to a {@code LocalTime}
+     *
+     * @throws DateTimeException                if the amount cannot be calculated, or the end
+     *                                          temporal cannot be converted to a {@code LocalTime}
      * @throws UnsupportedTemporalTypeException if the unit is not supported
-     * @throws ArithmeticException if numeric overflow occurs
+     * @throws ArithmeticException              if numeric overflow occurs
      */
+    // 计算当前时间量到目标时间量endExclusive之间相差多少个unit单位的时间值
     @Override
     public long until(Temporal endExclusive, TemporalUnit unit) {
         LocalTime end = LocalTime.from(endExclusive);
-        if (unit instanceof ChronoUnit) {
-            long nanosUntil = end.toNanoOfDay() - toNanoOfDay();  // no overflow
-            switch ((ChronoUnit) unit) {
-                case NANOS: return nanosUntil;
-                case MICROS: return nanosUntil / 1000;
-                case MILLIS: return nanosUntil / 1000_000;
-                case SECONDS: return nanosUntil / NANOS_PER_SECOND;
-                case MINUTES: return nanosUntil / NANOS_PER_MINUTE;
-                case HOURS: return nanosUntil / NANOS_PER_HOUR;
-                case HALF_DAYS: return nanosUntil / (12 * NANOS_PER_HOUR);
+    
+        if(unit instanceof ChronoUnit) {
+            long nanosUntil = end.toNanoOfDay() - toNanoOfDay();
+        
+            switch((ChronoUnit) unit) {
+                case NANOS:
+                    return nanosUntil;
+                case MICROS:
+                    return nanosUntil / 1000;
+                case MILLIS:
+                    return nanosUntil / 1000_000;
+                case SECONDS:
+                    return nanosUntil / NANOS_PER_SECOND;
+                case MINUTES:
+                    return nanosUntil / NANOS_PER_MINUTE;
+                case HOURS:
+                    return nanosUntil / NANOS_PER_HOUR;
+                case HALF_DAYS:
+                    return nanosUntil / (12 * NANOS_PER_HOUR);
             }
+        
             throw new UnsupportedTemporalTypeException("Unsupported unit: " + unit);
         }
+    
         return unit.between(this, end);
     }
-
+    
+    /**
+     * Returns a copy of this {@code LocalTime} with the time truncated.
+     * <p>
+     * Truncation returns a copy of the original time with fields
+     * smaller than the specified unit set to zero.
+     * For example, truncating with the {@link ChronoUnit#MINUTES minutes} unit
+     * will set the second-of-minute and nano-of-second field to zero.
+     * <p>
+     * The unit must have a {@linkplain TemporalUnit#getDuration() duration}
+     * that divides into the length of a standard day without remainder.
+     * This includes all supplied time units on {@link ChronoUnit} and
+     * {@link ChronoUnit#DAYS DAYS}. Other units throw an exception.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param unit the unit to truncate to, not null
+     *
+     * @return a {@code LocalTime} based on this time with the time truncated, not null
+     *
+     * @throws DateTimeException                if unable to truncate
+     * @throws UnsupportedTemporalTypeException if the unit is not supported
+     */
+    /*
+     * 截断(对齐)
+     *
+     * 将当前时间量按照unit单位进行截断(对齐)，返回截断(对齐)后的新对象。
+     *
+     * 注：要求unit为"时间"单位
+     */
+    public LocalTime truncatedTo(TemporalUnit unit) {
+        if(unit == ChronoUnit.NANOS) {
+            return this;
+        }
+        
+        // 将时间量单位unit转换为对应的"时间段"后返回
+        Duration unitDur = unit.getDuration();
+        
+        // unitDur超过一天则抛异常
+        if(unitDur.getSeconds()>SECONDS_PER_DAY) {
+            throw new UnsupportedTemporalTypeException("Unit is too large to be used for truncation");
+        }
+        
+        // 返回unitDur"时间段"包含的纳秒数
+        long dur = unitDur.toNanos();
+        
+        // 要求dur能整除一天的纳秒数
+        if((NANOS_PER_DAY % dur) != 0) {
+            throw new UnsupportedTemporalTypeException("Unit must divide into a standard day without remainder");
+        }
+        
+        // 计算当前"本地时间"包含的纳秒数
+        long nod = toNanoOfDay();
+        
+        // 使用指定的纳秒数(不超过一天)构造"本地时间"
+        return ofNanoOfDay((nod / dur) * dur);
+    }
+    
+    /**
+     * Checks if this time is after the specified time.
+     * <p>
+     * The comparison is based on the time-line position of the time within a day.
+     *
+     * @param other the other time to compare to, not null
+     *
+     * @return true if this is after the specified time
+     */
+    // 判断当前时间是否晚于参数中指定的时间
+    public boolean isAfter(LocalTime other) {
+        return compareTo(other)>0;
+    }
+    
+    /**
+     * Checks if this time is before the specified time.
+     * <p>
+     * The comparison is based on the time-line position of the time within a day.
+     *
+     * @param other the other time to compare to, not null
+     *
+     * @return true if this point is before the specified time
+     */
+    // 判断当前时间是否早于参数中指定的时间
+    public boolean isBefore(LocalTime other) {
+        return compareTo(other)<0;
+    }
+    
     /**
      * Formats this time using the specified formatter.
      * <p>
      * This time will be passed to the formatter to produce a string.
      *
-     * @param formatter  the formatter to use, not null
+     * @param formatter the formatter to use, not null
+     *
      * @return the formatted time string, not null
+     *
      * @throws DateTimeException if an error occurs during printing
      */
+    // 将当前时间转换为一个指定格式的字符串后返回
     public String format(DateTimeFormatter formatter) {
         Objects.requireNonNull(formatter, "formatter");
         return formatter.format(this);
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
     /**
-     * Combines this time with a date to create a {@code LocalDateTime}.
+     * Creates a local time from the hour, minute, second and nanosecond fields.
      * <p>
-     * This returns a {@code LocalDateTime} formed from this time at the specified date.
-     * All possible combinations of date and time are valid.
+     * This factory may return a cached value, but applications must not rely on this.
      *
-     * @param date  the date to combine with, not null
-     * @return the local date-time formed from this time and the specified date, not null
-     */
-    public LocalDateTime atDate(LocalDate date) {
-        return LocalDateTime.of(date, this);
-    }
-
-    /**
-     * Combines this time with an offset to create an {@code OffsetTime}.
-     * <p>
-     * This returns an {@code OffsetTime} formed from this time at the specified offset.
-     * All possible combinations of time and offset are valid.
+     * @param hour         the hour-of-day to represent, validated from 0 to 23
+     * @param minute       the minute-of-hour to represent, validated from 0 to 59
+     * @param second       the second-of-minute to represent, validated from 0 to 59
+     * @param nanoOfSecond the nano-of-second to represent, validated from 0 to 999,999,999
      *
-     * @param offset  the offset to combine with, not null
-     * @return the offset time formed from this time and the specified offset, not null
+     * @return the local time, not null
      */
-    public OffsetTime atOffset(ZoneOffset offset) {
-        return OffsetTime.of(this, offset);
+    // 根据指定的时间部件构造"本地时间"对象
+    private static LocalTime create(int hour, int minute, int second, int nanoOfSecond) {
+        if((minute | second | nanoOfSecond) == 0) {
+            return HOURS[hour];
+        }
+        
+        return new LocalTime(hour, minute, second, nanoOfSecond);
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Extracts the time as seconds of day,
-     * from {@code 0} to {@code 24 * 60 * 60 - 1}.
+    
+    /*
+     * 处理ChronoField中的"时间"字段(只处理可以返回int值的)
      *
-     * @return the second-of-day equivalent to this time
-     */
-    public int toSecondOfDay() {
-        int total = hour * SECONDS_PER_HOUR;
-        total += minute * SECONDS_PER_MINUTE;
-        total += second;
-        return total;
-    }
-
-    /**
-     * Extracts the time as nanos of day,
-     * from {@code 0} to {@code 24 * 60 * 60 * 1,000,000,000 - 1}.
+     * 目前支持的字段包括：
      *
-     * @return the nano of day equivalent to this time
+     * ChronoField.HOUR_OF_DAY        - 返回小时部件(几时)
+     * ChronoField.MINUTE_OF_HOUR     - 返回分钟部件(几分)
+     * ChronoField.SECOND_OF_MINUTE   - 返回秒部件(几秒)
+     * ChronoField.NANO_OF_SECOND     - 返回纳秒部件(几纳秒)
+     * ..........................................................................................
+     * ChronoField.MICRO_OF_SECOND    - 从纳秒部件中计算出包含的微秒数（不要与纳秒部件同时展示）
+     * ChronoField.MILLI_OF_SECOND    - 从纳秒部件中计算出包含的毫秒数（不要与纳秒部件同时展示）
+     * ChronoField.NANO_OF_DAY        ×
+     * ChronoField.MICRO_OF_DAY       ×
+     * ChronoField.MILLI_OF_DAY       - 计算当前"本地时间"包含的毫秒数
+     * ChronoField.SECOND_OF_DAY      - 计算当前"本地时间"包含的秒数
+     * ChronoField.MINUTE_OF_DAY      - 计算当前"本地时间"包含的分钟数
+     * ChronoField.HOUR_OF_AMPM       - 计算当前"本地时间"包含的小时是12小时制中的哪个[小时](计数从0~11)
+     * ChronoField.CLOCK_HOUR_OF_AMPM - 计算当前"本地时间"包含的小时是12小时制中的哪个[钟点](计数从1~12)
+     * ChronoField.CLOCK_HOUR_OF_DAY  - 计算当前"本地时间"包含的小时是24小时制中的哪个[钟点](计数从1~24)
+     * ChronoField.AMPM_OF_DAY        - 计算当前"本地时间"位于上午(0)还是下午(1)
      */
-    public long toNanoOfDay() {
-        long total = hour * NANOS_PER_HOUR;
-        total += minute * NANOS_PER_MINUTE;
-        total += second * NANOS_PER_SECOND;
-        total += nano;
-        return total;
+    private int get0(TemporalField field) {
+        switch((ChronoField) field) {
+            case NANO_OF_SECOND:
+                return nano;
+            case NANO_OF_DAY:
+                throw new UnsupportedTemporalTypeException("Invalid field 'NanoOfDay' for get() method, use getLong() instead");
+            case MICRO_OF_SECOND:
+                return nano / 1000;
+            case MICRO_OF_DAY:
+                throw new UnsupportedTemporalTypeException("Invalid field 'MicroOfDay' for get() method, use getLong() instead");
+            case MILLI_OF_SECOND:
+                return nano / 1000_000;
+            case MILLI_OF_DAY:
+                return (int) (toNanoOfDay() / 1000_000);
+            case SECOND_OF_MINUTE:
+                return second;
+            case SECOND_OF_DAY:
+                return toSecondOfDay();
+            case MINUTE_OF_HOUR:
+                return minute;
+            case MINUTE_OF_DAY:
+                return hour * 60 + minute;
+            case HOUR_OF_AMPM:
+                return hour % 12;
+            case CLOCK_HOUR_OF_AMPM:
+                int ham = hour % 12;
+                return (ham % 12 == 0 ? 12 : ham);
+            case HOUR_OF_DAY:
+                return hour;
+            case CLOCK_HOUR_OF_DAY:
+                return (hour == 0 ? 24 : hour);
+            case AMPM_OF_DAY:
+                return hour / 12;
+        }
+        
+        throw new UnsupportedTemporalTypeException("Unsupported field: " + field);
     }
-
-    /**
-     * Converts this {@code LocalTime} to the number of seconds since the epoch
-     * of 1970-01-01T00:00:00Z.
-     * <p>
-     * This combines this local time with the specified date and
-     * offset to calculate the epoch-second value, which is the
-     * number of elapsed seconds from 1970-01-01T00:00:00Z.
-     * Instants on the time-line after the epoch are positive, earlier
-     * are negative.
-     *
-     * @param date the local date, not null
-     * @param offset the zone offset, not null
-     * @return the number of seconds since the epoch of 1970-01-01T00:00:00Z, may be negative
-     * @since 9
-     */
-    public long toEpochSecond(LocalDate date, ZoneOffset offset) {
-        Objects.requireNonNull(date, "date");
-        Objects.requireNonNull(offset, "offset");
-        long epochDay = date.toEpochDay();
-        long secs = epochDay * 86400 + toSecondOfDay();
-        secs -= offset.getTotalSeconds();
-        return secs;
-    }
-
-    //-----------------------------------------------------------------------
+    
+    
     /**
      * Compares this time to another time.
      * <p>
      * The comparison is based on the time-line position of the local times within a day.
      * It is "consistent with equals", as defined by {@link Comparable}.
      *
-     * @param other  the other time to compare to, not null
+     * @param other the other time to compare to, not null
+     *
      * @return the comparator value, negative if less, positive if greater
      */
     @Override
     public int compareTo(LocalTime other) {
         int cmp = Integer.compare(hour, other.hour);
-        if (cmp == 0) {
+        if(cmp == 0) {
             cmp = Integer.compare(minute, other.minute);
-            if (cmp == 0) {
+            if(cmp == 0) {
                 cmp = Integer.compare(second, other.second);
-                if (cmp == 0) {
+                if(cmp == 0) {
                     cmp = Integer.compare(nano, other.nano);
                 }
             }
         }
         return cmp;
     }
-
-    /**
-     * Checks if this time is after the specified time.
-     * <p>
-     * The comparison is based on the time-line position of the time within a day.
-     *
-     * @param other  the other time to compare to, not null
-     * @return true if this is after the specified time
-     */
-    public boolean isAfter(LocalTime other) {
-        return compareTo(other) > 0;
-    }
-
-    /**
-     * Checks if this time is before the specified time.
-     * <p>
-     * The comparison is based on the time-line position of the time within a day.
-     *
-     * @param other  the other time to compare to, not null
-     * @return true if this point is before the specified time
-     */
-    public boolean isBefore(LocalTime other) {
-        return compareTo(other) < 0;
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Checks if this time is equal to another time.
-     * <p>
-     * The comparison is based on the time-line position of the time within a day.
-     * <p>
-     * Only objects of type {@code LocalTime} are compared, other types return false.
-     * To compare the date of two {@code TemporalAccessor} instances, use
-     * {@link ChronoField#NANO_OF_DAY} as a comparator.
-     *
-     * @param obj  the object to check, null returns false
-     * @return true if this is equal to the other time
-     */
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj instanceof LocalTime) {
-            LocalTime other = (LocalTime) obj;
-            return hour == other.hour && minute == other.minute &&
-                    second == other.second && nano == other.nano;
-        }
-        return false;
-    }
-
-    /**
-     * A hash code for this time.
-     *
-     * @return a suitable hash code
-     */
-    @Override
-    public int hashCode() {
-        long nod = toNanoOfDay();
-        return (int) (nod ^ (nod >>> 32));
-    }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Outputs this time as a {@code String}, such as {@code 10:15}.
      * <p>
@@ -1624,15 +2138,14 @@ public final class LocalTime
         int minuteValue = minute;
         int secondValue = second;
         int nanoValue = nano;
-        buf.append(hourValue < 10 ? "0" : "").append(hourValue)
-            .append(minuteValue < 10 ? ":0" : ":").append(minuteValue);
-        if (secondValue > 0 || nanoValue > 0) {
-            buf.append(secondValue < 10 ? ":0" : ":").append(secondValue);
-            if (nanoValue > 0) {
+        buf.append(hourValue<10 ? "0" : "").append(hourValue).append(minuteValue<10 ? ":0" : ":").append(minuteValue);
+        if(secondValue>0 || nanoValue>0) {
+            buf.append(secondValue<10 ? ":0" : ":").append(secondValue);
+            if(nanoValue>0) {
                 buf.append('.');
-                if (nanoValue % 1000_000 == 0) {
+                if(nanoValue % 1000_000 == 0) {
                     buf.append(Integer.toString((nanoValue / 1000_000) + 1000).substring(1));
-                } else if (nanoValue % 1000 == 0) {
+                } else if(nanoValue % 1000 == 0) {
                     buf.append(Integer.toString((nanoValue / 1000) + 1000_000).substring(1));
                 } else {
                     buf.append(Integer.toString((nanoValue) + 1000_000_000).substring(1));
@@ -1641,13 +2154,72 @@ public final class LocalTime
         }
         return buf.toString();
     }
-
-    //-----------------------------------------------------------------------
+    
+    /**
+     * Checks if this time is equal to another time.
+     * <p>
+     * The comparison is based on the time-line position of the time within a day.
+     * <p>
+     * Only objects of type {@code LocalTime} are compared, other types return false.
+     * To compare the date of two {@code TemporalAccessor} instances, use
+     * {@link ChronoField#NANO_OF_DAY} as a comparator.
+     *
+     * @param obj the object to check, null returns false
+     *
+     * @return true if this is equal to the other time
+     */
+    @Override
+    public boolean equals(Object obj) {
+        if(this == obj) {
+            return true;
+        }
+        
+        if(obj instanceof LocalTime) {
+            LocalTime other = (LocalTime) obj;
+            return hour == other.hour && minute == other.minute && second == other.second && nano == other.nano;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * A hash code for this time.
+     *
+     * @return a suitable hash code
+     */
+    @Override
+    public int hashCode() {
+        long nod = toNanoOfDay();
+        return (int) (nod ^ (nod >>> 32));
+    }
+    
+    
+    
+    /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Serialization version.
+     */
+    private static final long serialVersionUID = 6414437269572265201L;
+    
+    /**
+     * Defend against malicious streams.
+     *
+     * @param s the stream to read
+     *
+     * @throws InvalidObjectException always
+     */
+    private void readObject(ObjectInputStream s) throws InvalidObjectException {
+        throw new InvalidObjectException("Deserialization via serialization delegate");
+    }
+    
     /**
      * Writes the object using a
      * <a href="../../serialized-form.html#java.time.Ser">dedicated serialized form</a>.
-     * @serialData
-     * A twos-complement value indicates the remaining values are not in the stream
+     *
+     * @return the instance of {@code Ser}, not null
+     *
+     * @serialData A twos-complement value indicates the remaining values are not in the stream
      * and should be set to zero.
      * <pre>
      *  out.writeByte(4);  // identifies a LocalTime
@@ -1671,27 +2243,38 @@ public final class LocalTime
      *    out.writeInt(nano);
      *  }
      * </pre>
-     *
-     * @return the instance of {@code Ser}, not null
      */
     private Object writeReplace() {
         return new Ser(Ser.LOCAL_TIME_TYPE, this);
     }
-
-    /**
-     * Defend against malicious streams.
-     *
-     * @param s the stream to read
-     * @throws InvalidObjectException always
-     */
-    private void readObject(ObjectInputStream s) throws InvalidObjectException {
-        throw new InvalidObjectException("Deserialization via serialization delegate");
+    
+    static LocalTime readExternal(DataInput in) throws IOException {
+        int hour = in.readByte();
+        int minute = 0;
+        int second = 0;
+        int nano = 0;
+        if(hour<0) {
+            hour = ~hour;
+        } else {
+            minute = in.readByte();
+            if(minute<0) {
+                minute = ~minute;
+            } else {
+                second = in.readByte();
+                if(second<0) {
+                    second = ~second;
+                } else {
+                    nano = in.readInt();
+                }
+            }
+        }
+        return LocalTime.of(hour, minute, second, nano);
     }
-
+    
     void writeExternal(DataOutput out) throws IOException {
-        if (nano == 0) {
-            if (second == 0) {
-                if (minute == 0) {
+        if(nano == 0) {
+            if(second == 0) {
+                if(minute == 0) {
                     out.writeByte(~hour);
                 } else {
                     out.writeByte(hour);
@@ -1709,28 +2292,7 @@ public final class LocalTime
             out.writeInt(nano);
         }
     }
-
-    static LocalTime readExternal(DataInput in) throws IOException {
-        int hour = in.readByte();
-        int minute = 0;
-        int second = 0;
-        int nano = 0;
-        if (hour < 0) {
-            hour = ~hour;
-        } else {
-            minute = in.readByte();
-            if (minute < 0) {
-                minute = ~minute;
-            } else {
-                second = in.readByte();
-                if (second < 0) {
-                    second = ~second;
-                } else {
-                    nano = in.readInt();
-                }
-            }
-        }
-        return LocalTime.of(hour, minute, second, nano);
-    }
-
+    
+    /*▲ 序列化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }
