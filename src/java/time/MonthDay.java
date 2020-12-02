@@ -61,9 +61,6 @@
  */
 package java.time;
 
-import static java.time.temporal.ChronoField.DAY_OF_MONTH;
-import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
-
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -85,6 +82,9 @@ import java.time.temporal.TemporalQuery;
 import java.time.temporal.UnsupportedTemporalTypeException;
 import java.time.temporal.ValueRange;
 import java.util.Objects;
+
+import static java.time.temporal.ChronoField.DAY_OF_MONTH;
+import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
 
 /**
  * A month-day in the ISO-8601 calendar system, such as {@code --12-03}.
@@ -119,38 +119,48 @@ import java.util.Objects;
  * {@code MonthDay} may have unpredictable results and should be avoided.
  * The {@code equals} method should be used for comparisons.
  *
- * @implSpec
- * This class is immutable and thread-safe.
- *
+ * @implSpec This class is immutable and thread-safe.
  * @since 1.8
  */
-public final class MonthDay
-        implements TemporalAccessor, TemporalAdjuster, Comparable<MonthDay>, Serializable {
-
-    /**
-     * Serialization version.
-     */
-    private static final long serialVersionUID = -939150713474957432L;
+// x月x日
+public final class MonthDay implements TemporalAccessor, TemporalAdjuster, Comparable<MonthDay>, Serializable {
+    
     /**
      * Parser.
      */
-    private static final DateTimeFormatter PARSER = new DateTimeFormatterBuilder()
-        .appendLiteral("--")
-        .appendValue(MONTH_OF_YEAR, 2)
-        .appendLiteral('-')
-        .appendValue(DAY_OF_MONTH, 2)
-        .toFormatter();
-
+    private static final DateTimeFormatter PARSER = new DateTimeFormatterBuilder().appendLiteral("--").appendValue(ChronoField.MONTH_OF_YEAR, 2).appendLiteral('-').appendValue(ChronoField.DAY_OF_MONTH, 2).toFormatter();
+    
     /**
      * The month-of-year, not null.
      */
-    private final int month;
+    private final int month; // "月"部件
+    
     /**
      * The day-of-month.
      */
-    private final int day;
-
-    //-----------------------------------------------------------------------
+    private final int day;   // "天"部件，即month月中的day日
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Constructor, previously validated.
+     *
+     * @param month      the month-of-year to represent, validated from 1 to 12
+     * @param dayOfMonth the day-of-month to represent, validated from 1 to 29-31
+     */
+    private MonthDay(int month, int dayOfMonth) {
+        this.month = month;
+        this.day = dayOfMonth;
+    }
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Obtains the current month-day from the system clock in the default time-zone.
      * <p>
@@ -162,10 +172,11 @@ public final class MonthDay
      *
      * @return the current month-day using the system clock and default time-zone, not null
      */
+    // 基于此刻的UTC时间，构造属于系统默认时区的MonthDay对象
     public static MonthDay now() {
         return now(Clock.systemDefaultZone());
     }
-
+    
     /**
      * Obtains the current month-day from the system clock in the specified time-zone.
      * <p>
@@ -175,13 +186,15 @@ public final class MonthDay
      * Using this method will prevent the ability to use an alternate clock for testing
      * because the clock is hard-coded.
      *
-     * @param zone  the zone ID to use, not null
+     * @param zone the zone ID to use, not null
+     *
      * @return the current month-day using the system clock, not null
      */
+    // 基于此刻的UTC时间，构造属于zone时区的MonthDay对象
     public static MonthDay now(ZoneId zone) {
         return now(Clock.system(zone));
     }
-
+    
     /**
      * Obtains the current month-day from the specified clock.
      * <p>
@@ -189,15 +202,16 @@ public final class MonthDay
      * Using this method allows the use of an alternate clock for testing.
      * The alternate clock may be introduced using {@link Clock dependency injection}.
      *
-     * @param clock  the clock to use, not null
+     * @param clock the clock to use, not null
+     *
      * @return the current month-day, not null
      */
+    // 基于clock提供的时间戳和时区ID构造MonthDay对象
     public static MonthDay now(Clock clock) {
-        final LocalDate now = LocalDate.now(clock);  // called once
+        final LocalDate now = LocalDate.now(clock);
         return MonthDay.of(now.getMonth(), now.getDayOfMonth());
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains an instance of {@code MonthDay}.
      * <p>
@@ -208,22 +222,26 @@ public final class MonthDay
      * there can never be April 31st in any year. By contrast, passing in
      * February 29th is permitted, as that month-day can sometimes be valid.
      *
-     * @param month  the month-of-year to represent, not null
-     * @param dayOfMonth  the day-of-month to represent, from 1 to 31
+     * @param month      the month-of-year to represent, not null
+     * @param dayOfMonth the day-of-month to represent, from 1 to 31
+     *
      * @return the month-day, not null
+     *
      * @throws DateTimeException if the value of any field is out of range,
-     *  or if the day-of-month is invalid for the month
+     *                           or if the day-of-month is invalid for the month
      */
+    // 用指定的月份和天数构造MonthDay对象
     public static MonthDay of(Month month, int dayOfMonth) {
         Objects.requireNonNull(month, "month");
-        DAY_OF_MONTH.checkValidValue(dayOfMonth);
-        if (dayOfMonth > month.maxLength()) {
-            throw new DateTimeException("Illegal value for DayOfMonth field, value " + dayOfMonth +
-                    " is not valid for month " + month.name());
+    
+        ChronoField.DAY_OF_MONTH.checkValidValue(dayOfMonth);
+        if(dayOfMonth>month.maxLength()) {
+            throw new DateTimeException("Illegal value for DayOfMonth field, value " + dayOfMonth + " is not valid for month " + month.name());
         }
+    
         return new MonthDay(month.getValue(), dayOfMonth);
     }
-
+    
     /**
      * Obtains an instance of {@code MonthDay}.
      * <p>
@@ -234,17 +252,19 @@ public final class MonthDay
      * there can never be April 31st in any year. By contrast, passing in
      * February 29th is permitted, as that month-day can sometimes be valid.
      *
-     * @param month  the month-of-year to represent, from 1 (January) to 12 (December)
-     * @param dayOfMonth  the day-of-month to represent, from 1 to 31
+     * @param month      the month-of-year to represent, from 1 (January) to 12 (December)
+     * @param dayOfMonth the day-of-month to represent, from 1 to 31
+     *
      * @return the month-day, not null
+     *
      * @throws DateTimeException if the value of any field is out of range,
-     *  or if the day-of-month is invalid for the month
+     *                           or if the day-of-month is invalid for the month
      */
+    // 用指定的月份和天数构造MonthDay对象
     public static MonthDay of(int month, int dayOfMonth) {
         return of(Month.of(month), dayOfMonth);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains an instance of {@code MonthDay} from a temporal object.
      * <p>
@@ -260,68 +280,148 @@ public final class MonthDay
      * This method matches the signature of the functional interface {@link TemporalQuery}
      * allowing it to be used as a query via method reference, {@code MonthDay::from}.
      *
-     * @param temporal  the temporal object to convert, not null
+     * @param temporal the temporal object to convert, not null
+     *
      * @return the month-day, not null
+     *
      * @throws DateTimeException if unable to convert to a {@code MonthDay}
      */
+    // 从temporal中查询MonthDay对象
     public static MonthDay from(TemporalAccessor temporal) {
-        if (temporal instanceof MonthDay) {
+        if(temporal instanceof MonthDay) {
             return (MonthDay) temporal;
         }
+    
         try {
-            if (IsoChronology.INSTANCE.equals(Chronology.from(temporal)) == false) {
+            if(!IsoChronology.INSTANCE.equals(Chronology.from(temporal))) {
                 temporal = LocalDate.from(temporal);
             }
-            return of(temporal.get(MONTH_OF_YEAR), temporal.get(DAY_OF_MONTH));
-        } catch (DateTimeException ex) {
-            throw new DateTimeException("Unable to obtain MonthDay from TemporalAccessor: " +
-                    temporal + " of type " + temporal.getClass().getName(), ex);
+        
+            return of(temporal.get(ChronoField.MONTH_OF_YEAR), temporal.get(ChronoField.DAY_OF_MONTH));
+        } catch(DateTimeException ex) {
+            throw new DateTimeException("Unable to obtain MonthDay from TemporalAccessor: " + temporal + " of type " + temporal.getClass().getName(), ex);
         }
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains an instance of {@code MonthDay} from a text string such as {@code --12-03}.
      * <p>
      * The string must represent a valid month-day.
      * The format is {@code --MM-dd}.
      *
-     * @param text  the text to parse such as "--12-03", not null
+     * @param text the text to parse such as "--12-03", not null
+     *
      * @return the parsed month-day, not null
+     *
      * @throws DateTimeParseException if the text cannot be parsed
      */
+    // 从指定的文本中解析出MonthDay信息，要求该文本符合ISO规范，即类似：--01-15
     public static MonthDay parse(CharSequence text) {
         return parse(text, PARSER);
     }
-
+    
     /**
      * Obtains an instance of {@code MonthDay} from a text string using a specific formatter.
      * <p>
      * The text is parsed using the formatter, returning a month-day.
      *
-     * @param text  the text to parse, not null
-     * @param formatter  the formatter to use, not null
+     * @param text      the text to parse, not null
+     * @param formatter the formatter to use, not null
+     *
      * @return the parsed month-day, not null
+     *
      * @throws DateTimeParseException if the text cannot be parsed
      */
+    // 从指定的文本中解析出MonthDay信息，要求该文本符合指定的格式规范
     public static MonthDay parse(CharSequence text, DateTimeFormatter formatter) {
         Objects.requireNonNull(formatter, "formatter");
         return formatter.parse(text, MonthDay::from);
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 转换 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Constructor, previously validated.
+     * Combines this month-day with a year to create a {@code LocalDate}.
+     * <p>
+     * This returns a {@code LocalDate} formed from this month-day and the specified year.
+     * <p>
+     * A month-day of February 29th will be adjusted to February 28th in the resulting
+     * date if the year is not a leap year.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
      *
-     * @param month  the month-of-year to represent, validated from 1 to 12
-     * @param dayOfMonth  the day-of-month to represent, validated from 1 to 29-31
+     * @param year the year to use, from MIN_YEAR to MAX_YEAR
+     *
+     * @return the local date formed from this month-day and the specified year, not null
+     *
+     * @throws DateTimeException if the year is outside the valid range of years
      */
-    private MonthDay(int month, int dayOfMonth) {
-        this.month = month;
-        this.day = dayOfMonth;
+    // 将当前日期和指定的年份整合成一个"本地日期"对象后返回
+    public LocalDate atYear(int year) {
+        return LocalDate.of(year, month, isValidYear(year) ? day : 28);
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 转换 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 部件 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Gets the month-of-year field from 1 to 12.
+     * <p>
+     * This method returns the month as an {@code int} from 1 to 12.
+     * Application code is frequently clearer if the enum {@link Month}
+     * is used by calling {@link #getMonth()}.
+     *
+     * @return the month-of-year, from 1 to 12
+     *
+     * @see #getMonth()
+     */
+    // 返回"月份"部件
+    public int getMonthValue() {
+        return month;
+    }
+    
+    /**
+     * Gets the month-of-year field using the {@code Month} enum.
+     * <p>
+     * This method returns the enum {@link Month} for the month.
+     * This avoids confusion as to what {@code int} values mean.
+     * If you need access to the primitive {@code int} value then the enum
+     * provides the {@link Month#getValue() int value}.
+     *
+     * @return the month-of-year, not null
+     *
+     * @see #getMonthValue()
+     */
+    // 返回"月份"部件
+    public Month getMonth() {
+        return Month.of(month);
+    }
+    
+    /**
+     * Gets the day-of-month field.
+     * <p>
+     * This method returns the primitive {@code int} value for the day-of-month.
+     *
+     * @return the day-of-month, from 1 to 31
+     */
+    // 返回"天"部件
+    public int getDayOfMonth() {
+        return day;
+    }
+    
+    /*▲ 部件 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 时间量字段操作(TemporalAccessor) ███████████████████████████████████████████████████████┓ */
+    
     /**
      * Checks if the specified field is supported.
      * <p>
@@ -342,17 +442,20 @@ public final class MonthDay
      * passing {@code this} as the argument.
      * Whether the field is supported is determined by the field.
      *
-     * @param field  the field to check, null returns false
+     * @param field the field to check, null returns false
+     *
      * @return true if the field is supported on this month-day, false if not
      */
+    // 判断当前时间量是否支持指定的时间量字段
     @Override
     public boolean isSupported(TemporalField field) {
-        if (field instanceof ChronoField) {
-            return field == MONTH_OF_YEAR || field == DAY_OF_MONTH;
+        if(field instanceof ChronoField) {
+            return field == ChronoField.MONTH_OF_YEAR || field == ChronoField.DAY_OF_MONTH;
         }
+    
         return field != null && field.isSupportedBy(this);
     }
-
+    
     /**
      * Gets the range of valid values for the specified field.
      * <p>
@@ -371,21 +474,27 @@ public final class MonthDay
      * passing {@code this} as the argument.
      * Whether the range can be obtained is determined by the field.
      *
-     * @param field  the field to query the range for, not null
+     * @param field the field to query the range for, not null
+     *
      * @return the range of valid values for the field, not null
-     * @throws DateTimeException if the range for the field cannot be obtained
+     *
+     * @throws DateTimeException                if the range for the field cannot be obtained
      * @throws UnsupportedTemporalTypeException if the field is not supported
      */
+    // 返回时间量字段field的取值区间，通常要求当前时间量支持该时间量字段
     @Override
     public ValueRange range(TemporalField field) {
-        if (field == MONTH_OF_YEAR) {
+        if(field == ChronoField.MONTH_OF_YEAR) {
             return field.range();
-        } else if (field == DAY_OF_MONTH) {
+        }
+    
+        if(field == ChronoField.DAY_OF_MONTH) {
             return ValueRange.of(1, getMonth().minLength(), getMonth().maxLength());
         }
+    
         return TemporalAccessor.super.range(field);
     }
-
+    
     /**
      * Gets the value of the specified field from this month-day as an {@code int}.
      * <p>
@@ -404,19 +513,28 @@ public final class MonthDay
      * passing {@code this} as the argument. Whether the value can be obtained,
      * and what the value represents, is determined by the field.
      *
-     * @param field  the field to get, not null
+     * @param field the field to get, not null
+     *
      * @return the value for the field
-     * @throws DateTimeException if a value for the field cannot be obtained or
-     *         the value is outside the range of valid values for the field
+     *
+     * @throws DateTimeException                if a value for the field cannot be obtained or
+     *                                          the value is outside the range of valid values for the field
      * @throws UnsupportedTemporalTypeException if the field is not supported or
-     *         the range of values exceeds an {@code int}
-     * @throws ArithmeticException if numeric overflow occurs
+     *                                          the range of values exceeds an {@code int}
+     * @throws ArithmeticException              if numeric overflow occurs
      */
-    @Override  // override for Javadoc
+    /*
+     * 以int形式返回时间量字段field的值
+     *
+     * 目前支持的字段包括：
+     * ChronoField.MONTH_OF_YEAR - 月
+     * ChronoField.DAY_OF_MONTH  - 日
+     */
+    @Override
     public int get(TemporalField field) {
         return range(field).checkValidIntValue(getLong(field), field);
     }
-
+    
     /**
      * Gets the value of the specified field from this month-day as a {@code long}.
      * <p>
@@ -434,141 +552,38 @@ public final class MonthDay
      * passing {@code this} as the argument. Whether the value can be obtained,
      * and what the value represents, is determined by the field.
      *
-     * @param field  the field to get, not null
+     * @param field the field to get, not null
+     *
      * @return the value for the field
-     * @throws DateTimeException if a value for the field cannot be obtained
+     *
+     * @throws DateTimeException                if a value for the field cannot be obtained
      * @throws UnsupportedTemporalTypeException if the field is not supported
-     * @throws ArithmeticException if numeric overflow occurs
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 以long形式返回时间量字段field的值
+     *
+     * 目前支持的字段包括：
+     * ChronoField.MONTH_OF_YEAR - 月
+     * ChronoField.DAY_OF_MONTH  - 日
      */
     @Override
     public long getLong(TemporalField field) {
-        if (field instanceof ChronoField) {
-            switch ((ChronoField) field) {
+        if(field instanceof ChronoField) {
+            switch((ChronoField) field) {
                 // alignedDOW and alignedWOM not supported because they cannot be set in with()
-                case DAY_OF_MONTH: return day;
-                case MONTH_OF_YEAR: return month;
+                case DAY_OF_MONTH:
+                    return day;
+                case MONTH_OF_YEAR:
+                    return month;
             }
+            
             throw new UnsupportedTemporalTypeException("Unsupported field: " + field);
         }
+        
         return field.getFrom(this);
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Gets the month-of-year field from 1 to 12.
-     * <p>
-     * This method returns the month as an {@code int} from 1 to 12.
-     * Application code is frequently clearer if the enum {@link Month}
-     * is used by calling {@link #getMonth()}.
-     *
-     * @return the month-of-year, from 1 to 12
-     * @see #getMonth()
-     */
-    public int getMonthValue() {
-        return month;
-    }
-
-    /**
-     * Gets the month-of-year field using the {@code Month} enum.
-     * <p>
-     * This method returns the enum {@link Month} for the month.
-     * This avoids confusion as to what {@code int} values mean.
-     * If you need access to the primitive {@code int} value then the enum
-     * provides the {@link Month#getValue() int value}.
-     *
-     * @return the month-of-year, not null
-     * @see #getMonthValue()
-     */
-    public Month getMonth() {
-        return Month.of(month);
-    }
-
-    /**
-     * Gets the day-of-month field.
-     * <p>
-     * This method returns the primitive {@code int} value for the day-of-month.
-     *
-     * @return the day-of-month, from 1 to 31
-     */
-    public int getDayOfMonth() {
-        return day;
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Checks if the year is valid for this month-day.
-     * <p>
-     * This method checks whether this month and day and the input year form
-     * a valid date. This can only return false for February 29th.
-     *
-     * @param year  the year to validate
-     * @return true if the year is valid for this month-day
-     * @see Year#isValidMonthDay(MonthDay)
-     */
-    public boolean isValidYear(int year) {
-        return (day == 29 && month == 2 && Year.isLeap(year) == false) == false;
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Returns a copy of this {@code MonthDay} with the month-of-year altered.
-     * <p>
-     * This returns a month-day with the specified month.
-     * If the day-of-month is invalid for the specified month, the day will
-     * be adjusted to the last valid day-of-month.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param month  the month-of-year to set in the returned month-day, from 1 (January) to 12 (December)
-     * @return a {@code MonthDay} based on this month-day with the requested month, not null
-     * @throws DateTimeException if the month-of-year value is invalid
-     */
-    public MonthDay withMonth(int month) {
-        return with(Month.of(month));
-    }
-
-    /**
-     * Returns a copy of this {@code MonthDay} with the month-of-year altered.
-     * <p>
-     * This returns a month-day with the specified month.
-     * If the day-of-month is invalid for the specified month, the day will
-     * be adjusted to the last valid day-of-month.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param month  the month-of-year to set in the returned month-day, not null
-     * @return a {@code MonthDay} based on this month-day with the requested month, not null
-     */
-    public MonthDay with(Month month) {
-        Objects.requireNonNull(month, "month");
-        if (month.getValue() == this.month) {
-            return this;
-        }
-        int day = Math.min(this.day, month.maxLength());
-        return new MonthDay(month.getValue(), day);
-    }
-
-    /**
-     * Returns a copy of this {@code MonthDay} with the day-of-month altered.
-     * <p>
-     * This returns a month-day with the specified day-of-month.
-     * If the day-of-month is invalid for the month, an exception is thrown.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param dayOfMonth  the day-of-month to set in the return month-day, from 1 to 31
-     * @return a {@code MonthDay} based on this month-day with the requested day, not null
-     * @throws DateTimeException if the day-of-month value is invalid,
-     *  or if the day-of-month is invalid for the month
-     */
-    public MonthDay withDayOfMonth(int dayOfMonth) {
-        if (dayOfMonth == this.day) {
-            return this;
-        }
-        return of(month, dayOfMonth);
-    }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Queries this month-day using the specified query.
      * <p>
@@ -581,21 +596,129 @@ public final class MonthDay
      * {@link TemporalQuery#queryFrom(TemporalAccessor)} method on the
      * specified query passing {@code this} as the argument.
      *
-     * @param <R> the type of the result
-     * @param query  the query to invoke, not null
+     * @param <R>   the type of the result
+     * @param query the query to invoke, not null
+     *
      * @return the query result, null may be returned (defined by the query)
-     * @throws DateTimeException if unable to query (defined by the query)
+     *
+     * @throws DateTimeException   if unable to query (defined by the query)
      * @throws ArithmeticException if numeric overflow occurs (defined by the query)
      */
+    // 使用指定的时间量查询器，从当前时间量中查询目标信息
     @SuppressWarnings("unchecked")
     @Override
     public <R> R query(TemporalQuery<R> query) {
-        if (query == TemporalQueries.chronology()) {
+        if(query == TemporalQueries.chronology()) {
             return (R) IsoChronology.INSTANCE;
         }
+        
         return TemporalAccessor.super.query(query);
     }
-
+    
+    /*▲ 时间量字段操作(TemporalAccessor) ███████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 整合 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a copy of this {@code MonthDay} with the month-of-year altered.
+     * <p>
+     * This returns a month-day with the specified month.
+     * If the day-of-month is invalid for the specified month, the day will
+     * be adjusted to the last valid day-of-month.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param month the month-of-year to set in the returned month-day, from 1 (January) to 12 (December)
+     *
+     * @return a {@code MonthDay} based on this month-day with the requested month, not null
+     *
+     * @throws DateTimeException if the month-of-year value is invalid
+     */
+    /*
+     * 将指定的"月"整合到当前时间量中以构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：月份
+     */
+    public MonthDay withMonth(int month) {
+        return with(Month.of(month));
+    }
+    
+    /**
+     * Returns a copy of this {@code MonthDay} with the month-of-year altered.
+     * <p>
+     * This returns a month-day with the specified month.
+     * If the day-of-month is invalid for the specified month, the day will
+     * be adjusted to the last valid day-of-month.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param month the month-of-year to set in the returned month-day, not null
+     *
+     * @return a {@code MonthDay} based on this month-day with the requested month, not null
+     */
+    /*
+     * 将指定的"月"整合到当前时间量中以构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：月份
+     */
+    public MonthDay with(Month month) {
+        Objects.requireNonNull(month, "month");
+        
+        if(month.getValue() == this.month) {
+            return this;
+        }
+        int day = Math.min(this.day, month.maxLength());
+        return new MonthDay(month.getValue(), day);
+    }
+    
+    /**
+     * Returns a copy of this {@code MonthDay} with the day-of-month altered.
+     * <p>
+     * This returns a month-day with the specified day-of-month.
+     * If the day-of-month is invalid for the month, an exception is thrown.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param dayOfMonth the day-of-month to set in the return month-day, from 1 to 31
+     *
+     * @return a {@code MonthDay} based on this month-day with the requested day, not null
+     *
+     * @throws DateTimeException if the day-of-month value is invalid,
+     *                           or if the day-of-month is invalid for the month
+     */
+    /*
+     * 将"一月中的天"整合到当前时间量中以构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：天
+     */
+    public MonthDay withDayOfMonth(int dayOfMonth) {
+        if(dayOfMonth == this.day) {
+            return this;
+        }
+        
+        return of(month, dayOfMonth);
+    }
+    
     /**
      * Adjusts the specified temporal object to have this month-day.
      * <p>
@@ -618,124 +741,141 @@ public final class MonthDay
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param temporal  the target object to be adjusted, not null
+     * @param temporal the target object to be adjusted, not null
+     *
      * @return the adjusted object, not null
-     * @throws DateTimeException if unable to make the adjustment
+     *
+     * @throws DateTimeException   if unable to make the adjustment
      * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 拿当前时间量中的特定字段与时间量temporal中的其他字段进行整合。
+     *
+     * 如果整合后的值与temporal中原有的值相等，则可以直接使用temporal本身；否则，会返回新构造的时间量对象。
+     *
+     * 注：通常，这会用到当前时间量的所有部件信息
+     *
+     *
+     * 当前时间量参与整合字段包括：
+     * ChronoField.MONTH_OF_YEAR - 当前时间量的"月"部件
+     * ChronoField.DAY_OF_MONTH  - 当前时间量的"日"部件
+     *
+     * 目标时间量temporal的取值可以是：
+     * LocalDate
+     * LocalDateTime
+     * OffsetDateTime
+     * ZonedDateTime
+     * ChronoLocalDateTimeImpl
+     * ChronoZonedDateTimeImpl
      */
     @Override
     public Temporal adjustInto(Temporal temporal) {
-        if (Chronology.from(temporal).equals(IsoChronology.INSTANCE) == false) {
+        if(!Chronology.from(temporal).equals(IsoChronology.INSTANCE)) {
             throw new DateTimeException("Adjustment only supported on ISO date-time");
         }
+        
+        // 当前时间量先提供"月"部件去参与整合
         temporal = temporal.with(MONTH_OF_YEAR, month);
-        return temporal.with(DAY_OF_MONTH, Math.min(temporal.range(DAY_OF_MONTH).getMaximum(), day));
+        
+        /*
+         * 获取ChronoField.DAY_OF_MONTH字段的上区间最大值
+         * 在公历系统中，其值应当是31，因为每月最多31天
+         */
+        long maximum = temporal.range(DAY_OF_MONTH).getMaximum();
+        
+        // 确保"日"部件的值不超范围
+        long min = Math.min(maximum, day);
+        
+        // 当前时间量再提供"日"部件去参与整合
+        return temporal.with(DAY_OF_MONTH, min);
     }
-
+    
+    /*▲ 整合 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Checks if this month-day is after the specified month-day.
+     *
+     * @param other the other month-day to compare to, not null
+     *
+     * @return true if this is after the specified month-day
+     */
+    // 判断当前日期是否晚于参数中指定的日期
+    public boolean isAfter(MonthDay other) {
+        return compareTo(other)>0;
+    }
+    
+    /**
+     * Checks if this month-day is before the specified month-day.
+     *
+     * @param other the other month-day to compare to, not null
+     *
+     * @return true if this point is before the specified month-day
+     */
+    // 判断当前日期是否早于参数中指定的日期
+    public boolean isBefore(MonthDay other) {
+        return compareTo(other)<0;
+    }
+    
+    /**
+     * Checks if the year is valid for this month-day.
+     * <p>
+     * This method checks whether this month and day and the input year form
+     * a valid date. This can only return false for February 29th.
+     *
+     * @param year the year to validate
+     *
+     * @return true if the year is valid for this month-day
+     *
+     * @see Year#isValidMonthDay(MonthDay)
+     */
+    // 判断当前日期是否处于指定的年份中
+    public boolean isValidYear(int year) {
+        return day != 29 || month != 2 || Year.isLeap(year);
+    }
+    
     /**
      * Formats this month-day using the specified formatter.
      * <p>
      * This month-day will be passed to the formatter to produce a string.
      *
-     * @param formatter  the formatter to use, not null
+     * @param formatter the formatter to use, not null
+     *
      * @return the formatted month-day string, not null
+     *
      * @throws DateTimeException if an error occurs during printing
      */
+    // 将当前日期转换为一个指定格式的字符串后返回
     public String format(DateTimeFormatter formatter) {
         Objects.requireNonNull(formatter, "formatter");
         return formatter.format(this);
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Combines this month-day with a year to create a {@code LocalDate}.
-     * <p>
-     * This returns a {@code LocalDate} formed from this month-day and the specified year.
-     * <p>
-     * A month-day of February 29th will be adjusted to February 28th in the resulting
-     * date if the year is not a leap year.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param year  the year to use, from MIN_YEAR to MAX_YEAR
-     * @return the local date formed from this month-day and the specified year, not null
-     * @throws DateTimeException if the year is outside the valid range of years
-     */
-    public LocalDate atYear(int year) {
-        return LocalDate.of(year, month, isValidYear(year) ? day : 28);
-    }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
     /**
      * Compares this month-day to another month-day.
      * <p>
      * The comparison is based first on value of the month, then on the value of the day.
      * It is "consistent with equals", as defined by {@link Comparable}.
      *
-     * @param other  the other month-day to compare to, not null
+     * @param other the other month-day to compare to, not null
+     *
      * @return the comparator value, negative if less, positive if greater
      */
     @Override
     public int compareTo(MonthDay other) {
         int cmp = (month - other.month);
-        if (cmp == 0) {
+        if(cmp == 0) {
             cmp = (day - other.day);
         }
         return cmp;
     }
-
-    /**
-     * Checks if this month-day is after the specified month-day.
-     *
-     * @param other  the other month-day to compare to, not null
-     * @return true if this is after the specified month-day
-     */
-    public boolean isAfter(MonthDay other) {
-        return compareTo(other) > 0;
-    }
-
-    /**
-     * Checks if this month-day is before the specified month-day.
-     *
-     * @param other  the other month-day to compare to, not null
-     * @return true if this point is before the specified month-day
-     */
-    public boolean isBefore(MonthDay other) {
-        return compareTo(other) < 0;
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Checks if this month-day is equal to another month-day.
-     * <p>
-     * The comparison is based on the time-line position of the month-day within a year.
-     *
-     * @param obj  the object to check, null returns false
-     * @return true if this is equal to the other month-day
-     */
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj instanceof MonthDay) {
-            MonthDay other = (MonthDay) obj;
-            return month == other.month && day == other.day;
-        }
-        return false;
-    }
-
-    /**
-     * A hash code for this month-day.
-     *
-     * @return a suitable hash code
-     */
-    @Override
-    public int hashCode() {
-        return (month << 6) + day;
-    }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Outputs this month-day as a {@code String}, such as {@code --12-03}.
      * <p>
@@ -745,48 +885,87 @@ public final class MonthDay
      */
     @Override
     public String toString() {
-        return new StringBuilder(10).append("--")
-            .append(month < 10 ? "0" : "").append(month)
-            .append(day < 10 ? "-0" : "-").append(day)
-            .toString();
+        return "--" + (month<10 ? "0" : "") + month + (day<10 ? "-0" : "-") + day;
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
-     * Writes the object using a
-     * <a href="../../serialized-form.html#java.time.Ser">dedicated serialized form</a>.
-     * @serialData
-     * <pre>
-     *  out.writeByte(13);  // identifies a MonthDay
-     *  out.writeByte(month);
-     *  out.writeByte(day);
-     * </pre>
+     * Checks if this month-day is equal to another month-day.
+     * <p>
+     * The comparison is based on the time-line position of the month-day within a year.
      *
-     * @return the instance of {@code Ser}, not null
+     * @param obj the object to check, null returns false
+     *
+     * @return true if this is equal to the other month-day
      */
-    private Object writeReplace() {
-        return new Ser(Ser.MONTH_DAY_TYPE, this);
+    @Override
+    public boolean equals(Object obj) {
+        if(this == obj) {
+            return true;
+        }
+        if(obj instanceof MonthDay) {
+            MonthDay other = (MonthDay) obj;
+            return month == other.month && day == other.day;
+        }
+        return false;
     }
-
+    
+    /**
+     * A hash code for this month-day.
+     *
+     * @return a suitable hash code
+     */
+    @Override
+    public int hashCode() {
+        return (month << 6) + day;
+    }
+    
+    
+    
+    /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Serialization version.
+     */
+    private static final long serialVersionUID = -939150713474957432L;
+    
     /**
      * Defend against malicious streams.
      *
      * @param s the stream to read
+     *
      * @throws InvalidObjectException always
      */
     private void readObject(ObjectInputStream s) throws InvalidObjectException {
         throw new InvalidObjectException("Deserialization via serialization delegate");
     }
-
-    void writeExternal(DataOutput out) throws IOException {
-        out.writeByte(month);
-        out.writeByte(day);
+    
+    /**
+     * Writes the object using a
+     * <a href="../../serialized-form.html#java.time.Ser">dedicated serialized form</a>.
+     *
+     * @return the instance of {@code Ser}, not null
+     *
+     * @serialData <pre>
+     *  out.writeByte(13);  // identifies a MonthDay
+     *  out.writeByte(month);
+     *  out.writeByte(day);
+     * </pre>
+     */
+    private Object writeReplace() {
+        return new Ser(Ser.MONTH_DAY_TYPE, this);
     }
-
+    
     static MonthDay readExternal(DataInput in) throws IOException {
         byte month = in.readByte();
         byte day = in.readByte();
         return MonthDay.of(month, day);
     }
-
+    
+    void writeExternal(DataOutput out) throws IOException {
+        out.writeByte(month);
+        out.writeByte(day);
+    }
+    
+    /*▲ 序列化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }
