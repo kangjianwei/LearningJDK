@@ -61,9 +61,6 @@
  */
 package java.time;
 
-import static java.time.temporal.ChronoField.DAY_OF_WEEK;
-import static java.time.temporal.ChronoUnit.DAYS;
-
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.TextStyle;
 import java.time.temporal.ChronoField;
@@ -77,6 +74,8 @@ import java.time.temporal.UnsupportedTemporalTypeException;
 import java.time.temporal.ValueRange;
 import java.time.temporal.WeekFields;
 import java.util.Locale;
+
+import static java.time.temporal.ChronoUnit.DAYS;
 
 /**
  * A day-of-week, such as 'Tuesday'.
@@ -101,54 +100,57 @@ import java.util.Locale;
  * As such, this enum may be used by any calendar system that has the day-of-week
  * concept defined exactly equivalent to the ISO calendar system.
  *
- * @implSpec
- * This is an immutable and thread-safe enum.
- *
+ * @implSpec This is an immutable and thread-safe enum.
  * @since 1.8
  */
+// 周x
 public enum DayOfWeek implements TemporalAccessor, TemporalAdjuster {
-
+    
     /**
      * The singleton instance for the day-of-week of Monday.
      * This has the numeric value of {@code 1}.
      */
-    MONDAY,
+    MONDAY,    // 周一
     /**
      * The singleton instance for the day-of-week of Tuesday.
      * This has the numeric value of {@code 2}.
      */
-    TUESDAY,
+    TUESDAY,   // 周二
     /**
      * The singleton instance for the day-of-week of Wednesday.
      * This has the numeric value of {@code 3}.
      */
-    WEDNESDAY,
+    WEDNESDAY, // 周三
     /**
      * The singleton instance for the day-of-week of Thursday.
      * This has the numeric value of {@code 4}.
      */
-    THURSDAY,
+    THURSDAY,  // 周四
     /**
      * The singleton instance for the day-of-week of Friday.
      * This has the numeric value of {@code 5}.
      */
-    FRIDAY,
+    FRIDAY,    // 周五
     /**
      * The singleton instance for the day-of-week of Saturday.
      * This has the numeric value of {@code 6}.
      */
-    SATURDAY,
+    SATURDAY,  // 周六
     /**
      * The singleton instance for the day-of-week of Sunday.
      * This has the numeric value of {@code 7}.
      */
-    SUNDAY;
+    SUNDAY;    // 周日
+    
     /**
      * Private cache of all the constants.
      */
     private static final DayOfWeek[] ENUMS = DayOfWeek.values();
-
-    //-----------------------------------------------------------------------
+    
+    
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Obtains an instance of {@code DayOfWeek} from an {@code int} value.
      * <p>
@@ -156,18 +158,21 @@ public enum DayOfWeek implements TemporalAccessor, TemporalAdjuster {
      * This factory allows the enum to be obtained from the {@code int} value.
      * The {@code int} value follows the ISO-8601 standard, from 1 (Monday) to 7 (Sunday).
      *
-     * @param dayOfWeek  the day-of-week to represent, from 1 (Monday) to 7 (Sunday)
+     * @param dayOfWeek the day-of-week to represent, from 1 (Monday) to 7 (Sunday)
+     *
      * @return the day-of-week singleton, not null
+     *
      * @throws DateTimeException if the day-of-week is invalid
      */
+    // 用指定的天数构造DayOfWeek对象
     public static DayOfWeek of(int dayOfWeek) {
-        if (dayOfWeek < 1 || dayOfWeek > 7) {
+        if(dayOfWeek<1 || dayOfWeek>7) {
             throw new DateTimeException("Invalid value for DayOfWeek: " + dayOfWeek);
         }
+    
         return ENUMS[dayOfWeek - 1];
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains an instance of {@code DayOfWeek} from a temporal object.
      * <p>
@@ -180,23 +185,31 @@ public enum DayOfWeek implements TemporalAccessor, TemporalAdjuster {
      * This method matches the signature of the functional interface {@link TemporalQuery}
      * allowing it to be used as a query via method reference, {@code DayOfWeek::from}.
      *
-     * @param temporal  the temporal object to convert, not null
+     * @param temporal the temporal object to convert, not null
+     *
      * @return the day-of-week, not null
+     *
      * @throws DateTimeException if unable to convert to a {@code DayOfWeek}
      */
+    // 从temporal中查询DayOfWeek对象
     public static DayOfWeek from(TemporalAccessor temporal) {
-        if (temporal instanceof DayOfWeek) {
+        if(temporal instanceof DayOfWeek) {
             return (DayOfWeek) temporal;
         }
+    
         try {
-            return of(temporal.get(DAY_OF_WEEK));
-        } catch (DateTimeException ex) {
-            throw new DateTimeException("Unable to obtain DayOfWeek from TemporalAccessor: " +
-                    temporal + " of type " + temporal.getClass().getName(), ex);
+            return of(temporal.get(ChronoField.DAY_OF_WEEK));
+        } catch(DateTimeException ex) {
+            throw new DateTimeException("Unable to obtain DayOfWeek from TemporalAccessor: " + temporal + " of type " + temporal.getClass().getName(), ex);
         }
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 部件 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Gets the day-of-week {@code int} value.
      * <p>
@@ -205,29 +218,74 @@ public enum DayOfWeek implements TemporalAccessor, TemporalAdjuster {
      *
      * @return the day-of-week, from 1 (Monday) to 7 (Sunday)
      */
+    // 返回当前时间量在一周中的天数，即周几
     public int getValue() {
         return ordinal() + 1;
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 部件 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 增加 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Gets the textual representation, such as 'Mon' or 'Friday'.
+     * Returns the day-of-week that is the specified number of days after this one.
      * <p>
-     * This returns the textual name used to identify the day-of-week,
-     * suitable for presentation to the user.
-     * The parameters control the style of the returned text and the locale.
+     * The calculation rolls around the end of the week from Sunday to Monday.
+     * The specified period may be negative.
      * <p>
-     * If no textual mapping is found then the {@link #getValue() numeric value} is returned.
+     * This instance is immutable and unaffected by this method call.
      *
-     * @param style  the length of the text required, not null
-     * @param locale  the locale to use, not null
-     * @return the text value of the day-of-week, not null
+     * @param days the days to add, positive or negative
+     *
+     * @return the resulting day-of-week, not null
      */
-    public String getDisplayName(TextStyle style, Locale locale) {
-        return new DateTimeFormatterBuilder().appendText(DAY_OF_WEEK, style).toFormatter(locale).format(this);
+    /*
+     * 在当前时间量的值上累加days天
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    public DayOfWeek plus(long days) {
+        int amount = (int) (days % 7);
+        return ENUMS[(ordinal() + (amount + 7)) % 7];
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 增加 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 减少 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the day-of-week that is the specified number of days before this one.
+     * <p>
+     * The calculation rolls around the start of the year from Monday to Sunday.
+     * The specified period may be negative.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param days the days to subtract, positive or negative
+     *
+     * @return the resulting day-of-week, not null
+     */
+    /*
+     * 在当前时间量的值上减去days天
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    public DayOfWeek minus(long days) {
+        return plus(-(days % 7));
+    }
+    
+    /*▲ 减少 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 时间量字段操作(TemporalAccessor) ███████████████████████████████████████████████████████┓ */
+    
     /**
      * Checks if the specified field is supported.
      * <p>
@@ -244,17 +302,19 @@ public enum DayOfWeek implements TemporalAccessor, TemporalAdjuster {
      * passing {@code this} as the argument.
      * Whether the field is supported is determined by the field.
      *
-     * @param field  the field to check, null returns false
+     * @param field the field to check, null returns false
+     *
      * @return true if the field is supported on this day-of-week, false if not
      */
+    // 判断当前时间量是否支持指定的时间量字段
     @Override
     public boolean isSupported(TemporalField field) {
-        if (field instanceof ChronoField) {
-            return field == DAY_OF_WEEK;
+        if(field instanceof ChronoField) {
+            return field == ChronoField.DAY_OF_WEEK;
         }
         return field != null && field.isSupportedBy(this);
     }
-
+    
     /**
      * Gets the range of valid values for the specified field.
      * <p>
@@ -272,19 +332,23 @@ public enum DayOfWeek implements TemporalAccessor, TemporalAdjuster {
      * passing {@code this} as the argument.
      * Whether the range can be obtained is determined by the field.
      *
-     * @param field  the field to query the range for, not null
+     * @param field the field to query the range for, not null
+     *
      * @return the range of valid values for the field, not null
-     * @throws DateTimeException if the range for the field cannot be obtained
+     *
+     * @throws DateTimeException                if the range for the field cannot be obtained
      * @throws UnsupportedTemporalTypeException if the field is not supported
      */
+    // 返回时间量字段field的取值区间，通常要求当前时间量支持该时间量字段
     @Override
     public ValueRange range(TemporalField field) {
-        if (field == DAY_OF_WEEK) {
+        if(field == ChronoField.DAY_OF_WEEK) {
             return field.range();
         }
+    
         return TemporalAccessor.super.range(field);
     }
-
+    
     /**
      * Gets the value of the specified field from this day-of-week as an {@code int}.
      * <p>
@@ -302,22 +366,31 @@ public enum DayOfWeek implements TemporalAccessor, TemporalAdjuster {
      * passing {@code this} as the argument. Whether the value can be obtained,
      * and what the value represents, is determined by the field.
      *
-     * @param field  the field to get, not null
+     * @param field the field to get, not null
+     *
      * @return the value for the field, within the valid range of values
-     * @throws DateTimeException if a value for the field cannot be obtained or
-     *         the value is outside the range of valid values for the field
+     *
+     * @throws DateTimeException                if a value for the field cannot be obtained or
+     *                                          the value is outside the range of valid values for the field
      * @throws UnsupportedTemporalTypeException if the field is not supported or
-     *         the range of values exceeds an {@code int}
-     * @throws ArithmeticException if numeric overflow occurs
+     *                                          the range of values exceeds an {@code int}
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 以int形式返回时间量字段field的值
+     *
+     * 目前支持的字段包括：
+     * ChronoField.DAY_OF_WEEK - 周几
      */
     @Override
     public int get(TemporalField field) {
-        if (field == DAY_OF_WEEK) {
+        if(field == ChronoField.DAY_OF_WEEK) {
             return getValue();
         }
+        
         return TemporalAccessor.super.get(field);
     }
-
+    
     /**
      * Gets the value of the specified field from this day-of-week as a {@code long}.
      * <p>
@@ -334,55 +407,33 @@ public enum DayOfWeek implements TemporalAccessor, TemporalAdjuster {
      * passing {@code this} as the argument. Whether the value can be obtained,
      * and what the value represents, is determined by the field.
      *
-     * @param field  the field to get, not null
+     * @param field the field to get, not null
+     *
      * @return the value for the field
-     * @throws DateTimeException if a value for the field cannot be obtained
+     *
+     * @throws DateTimeException                if a value for the field cannot be obtained
      * @throws UnsupportedTemporalTypeException if the field is not supported
-     * @throws ArithmeticException if numeric overflow occurs
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 以long形式返回时间量字段field的值
+     *
+     * 目前支持的字段包括：
+     * ChronoField.DAY_OF_WEEK - 周几
      */
     @Override
     public long getLong(TemporalField field) {
-        if (field == DAY_OF_WEEK) {
-            return getValue();
-        } else if (field instanceof ChronoField) {
+        if(field instanceof ChronoField) {
+            if(field == ChronoField.DAY_OF_WEEK) {
+                return getValue();
+            }
+            
             throw new UnsupportedTemporalTypeException("Unsupported field: " + field);
         }
+        
         return field.getFrom(this);
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Returns the day-of-week that is the specified number of days after this one.
-     * <p>
-     * The calculation rolls around the end of the week from Sunday to Monday.
-     * The specified period may be negative.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param days  the days to add, positive or negative
-     * @return the resulting day-of-week, not null
-     */
-    public DayOfWeek plus(long days) {
-        int amount = (int) (days % 7);
-        return ENUMS[(ordinal() + (amount + 7)) % 7];
-    }
-
-    /**
-     * Returns the day-of-week that is the specified number of days before this one.
-     * <p>
-     * The calculation rolls around the start of the year from Monday to Sunday.
-     * The specified period may be negative.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param days  the days to subtract, positive or negative
-     * @return the resulting day-of-week, not null
-     */
-    public DayOfWeek minus(long days) {
-        return plus(-(days % 7));
-    }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Queries this day-of-week using the specified query.
      * <p>
@@ -395,21 +446,31 @@ public enum DayOfWeek implements TemporalAccessor, TemporalAdjuster {
      * {@link TemporalQuery#queryFrom(TemporalAccessor)} method on the
      * specified query passing {@code this} as the argument.
      *
-     * @param <R> the type of the result
-     * @param query  the query to invoke, not null
+     * @param <R>   the type of the result
+     * @param query the query to invoke, not null
+     *
      * @return the query result, null may be returned (defined by the query)
-     * @throws DateTimeException if unable to query (defined by the query)
+     *
+     * @throws DateTimeException   if unable to query (defined by the query)
      * @throws ArithmeticException if numeric overflow occurs (defined by the query)
      */
+    // 使用指定的时间量查询器，从当前时间量中查询目标信息
     @SuppressWarnings("unchecked")
     @Override
     public <R> R query(TemporalQuery<R> query) {
-        if (query == TemporalQueries.precision()) {
+        if(query == TemporalQueries.precision()) {
             return (R) DAYS;
         }
+        
         return TemporalAccessor.super.query(query);
     }
-
+    
+    /*▲ 时间量字段操作(TemporalAccessor) ███████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 整合 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Adjusts the specified temporal object to have this day-of-week.
      * <p>
@@ -444,14 +505,65 @@ public enum DayOfWeek implements TemporalAccessor, TemporalAdjuster {
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param temporal  the target object to be adjusted, not null
+     * @param temporal the target object to be adjusted, not null
+     *
      * @return the adjusted object, not null
-     * @throws DateTimeException if unable to make the adjustment
+     *
+     * @throws DateTimeException   if unable to make the adjustment
      * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 拿当前时间量中的特定字段与时间量temporal中的其他字段进行整合。
+     *
+     * 如果整合后的值与temporal中原有的值相等，则可以直接使用temporal本身；否则，会返回新构造的时间量对象。
+     *
+     * 注：通常，这会用到当前时间量的所有部件信息
+     *
+     *
+     * 当前时间量参与整合字段包括：
+     * ChronoField.DAY_OF_WEEK - 当前时间量在一周中的天数，即周几
+     *
+     * 目标时间量temporal的取值可以是：
+     * LocalDate
+     * LocalDateTime
+     * OffsetDateTime
+     * ZonedDateTime
+     * ChronoLocalDateTimeImpl
+     * ChronoZonedDateTimeImpl
      */
     @Override
     public Temporal adjustInto(Temporal temporal) {
-        return temporal.with(DAY_OF_WEEK, getValue());
+        // 获取当前时间量在一周中的天数，即周几
+        int value = getValue();
+        
+        return temporal.with(ChronoField.DAY_OF_WEEK, value);
     }
-
+    
+    /*▲ 整合 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Gets the textual representation, such as 'Mon' or 'Friday'.
+     * <p>
+     * This returns the textual name used to identify the day-of-week,
+     * suitable for presentation to the user.
+     * The parameters control the style of the returned text and the locale.
+     * <p>
+     * If no textual mapping is found then the {@link #getValue() numeric value} is returned.
+     *
+     * @param style  the length of the text required, not null
+     * @param locale the locale to use, not null
+     *
+     * @return the text value of the day-of-week, not null
+     */
+    // 返回当前时间量在本地的显示名称
+    public String getDisplayName(TextStyle style, Locale locale) {
+        return new DateTimeFormatterBuilder().appendText(ChronoField.DAY_OF_WEEK, style).toFormatter(locale).format(this);
+    }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }
