@@ -62,7 +62,6 @@
 package java.time.temporal;
 
 import java.time.DateTimeException;
-import java.time.chrono.Chronology;
 import java.time.format.ResolverStyle;
 import java.util.Locale;
 import java.util.Map;
@@ -91,6 +90,7 @@ import java.util.Objects;
  *
  * @since 1.8
  */
+// 时间量字段，这些字段也包含"单位"的含义
 public interface TemporalField {
 
     /**
@@ -104,6 +104,7 @@ public interface TemporalField {
      * @param locale  the locale to use, not null
      * @return the display name for the locale or a suitable default, not null
      */
+    // 返回该字段的本地名称(如果有的话)
     default String getDisplayName(Locale locale) {
         Objects.requireNonNull(locale, "locale");
         return toString();
@@ -118,6 +119,7 @@ public interface TemporalField {
      *
      * @return the unit defining the base unit of the field, not null
      */
+    // 返回基础单位
     TemporalUnit getBaseUnit();
 
     /**
@@ -132,6 +134,7 @@ public interface TemporalField {
      *
      * @return the unit defining the range of the field, not null
      */
+    // 返回范围上限的单位，比如"月"的范围上限是"年"
     TemporalUnit getRangeUnit();
 
     /**
@@ -147,9 +150,9 @@ public interface TemporalField {
      *
      * @return the range of valid values for the field, not null
      */
+    // 返回当前字段的取值区间
     ValueRange range();
 
-    //-----------------------------------------------------------------------
     /**
      * Checks if this field represents a component of a date.
      * <p>
@@ -160,6 +163,7 @@ public interface TemporalField {
      *
      * @return true if this field is a component of a date
      */
+    // 判断当前字段是否为"日期"字段
     boolean isDateBased();
 
     /**
@@ -172,9 +176,9 @@ public interface TemporalField {
      *
      * @return true if this field is a component of a time
      */
+    // 判断当前字段是否为"时间"字段
     boolean isTimeBased();
 
-    //-----------------------------------------------------------------------
     /**
      * Checks if this field is supported by the temporal object.
      * <p>
@@ -198,6 +202,7 @@ public interface TemporalField {
      * @param temporal  the temporal object to query, not null
      * @return true if the date-time can be queried for this field, false if not
      */
+    // 判断当前时间量字段是否被指定的时间量所支持
     boolean isSupportedBy(TemporalAccessor temporal);
 
     /**
@@ -231,6 +236,7 @@ public interface TemporalField {
      * @throws DateTimeException if the range for the field cannot be obtained
      * @throws UnsupportedTemporalTypeException if the field is not supported by the temporal
      */
+    // 返回当前时间量字段的取值区间，通常要求当前时间量字段被时间量temporal所支持
     ValueRange rangeRefinedBy(TemporalAccessor temporal);
 
     /**
@@ -260,6 +266,7 @@ public interface TemporalField {
      * @throws UnsupportedTemporalTypeException if the field is not supported by the temporal
      * @throws ArithmeticException if numeric overflow occurs
      */
+    // 以long形式返回当前时间量字段的值；temporal是当前字段所属的时间量
     long getFrom(TemporalAccessor temporal);
 
     /**
@@ -303,8 +310,16 @@ public interface TemporalField {
      * @throws UnsupportedTemporalTypeException if the field is not supported by the temporal
      * @throws ArithmeticException if numeric overflow occurs
      */
+    /*
+     * 通过整合当前字段和temporal中的其他类型的字段来构造时间量对象。
+     *
+     * 如果整合后的值与temporal中的值相等，则直接返回temporal。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * newValue: 当前字段的原始值，需要根据字段的类型进行放缩
+     */
     <R extends Temporal> R adjustInto(R temporal, long newValue);
-
+    
     /**
      * Resolves this field to provide a simpler alternative or a date.
      * <p>
@@ -314,8 +329,18 @@ public interface TemporalField {
      * <p>
      * Applications should not normally invoke this method directly.
      *
-     * @implSpec
-     * If an implementation represents a field that can be simplified, or
+     * @param fieldValues     the map of fields to values, which can be updated, not null
+     * @param partialTemporal the partially complete temporal to query for zone and
+     *                        chronology; querying for other things is undefined and not recommended, not null
+     * @param resolverStyle   the requested type of resolve, not null
+     *
+     * @return the resolved temporal object; null if resolving only
+     * changed the map, or no resolve occurred
+     *
+     * @throws ArithmeticException if numeric overflow occurs
+     * @throws DateTimeException   if resolving results in an error. This must not be thrown
+     *                             by querying a field on the temporal without first checking if it is supported
+     * @implSpec If an implementation represents a field that can be simplified, or
      * combined with others, then this method must be implemented.
      * <p>
      * The specified map contains the current state of the parse.
@@ -360,24 +385,12 @@ public interface TemporalField {
      * {@code ChronoLocalDateTime}, {@code ChronoZonedDateTime} and {@code LocalTime}.
      * <p>
      * The default implementation must return null.
-     *
-     * @param fieldValues  the map of fields to values, which can be updated, not null
-     * @param partialTemporal  the partially complete temporal to query for zone and
-     *  chronology; querying for other things is undefined and not recommended, not null
-     * @param resolverStyle  the requested type of resolve, not null
-     * @return the resolved temporal object; null if resolving only
-     *  changed the map, or no resolve occurred
-     * @throws ArithmeticException if numeric overflow occurs
-     * @throws DateTimeException if resolving results in an error. This must not be thrown
-     *  by querying a field on the temporal without first checking if it is supported
      */
-    default TemporalAccessor resolve(
-            Map<TemporalField, Long> fieldValues,
-            TemporalAccessor partialTemporal,
-            ResolverStyle resolverStyle) {
+    // 从fieldValues中解析处字段的值，结合给定的时间量，构造新的时间量对象
+    default TemporalAccessor resolve(Map<TemporalField, Long> fieldValues, TemporalAccessor partialTemporal, ResolverStyle resolverStyle) {
         return null;
     }
-
+    
     /**
      * Gets a descriptive name for the field.
      * <p>
@@ -389,6 +402,5 @@ public interface TemporalField {
      */
     @Override
     String toString();
-
-
+    
 }
