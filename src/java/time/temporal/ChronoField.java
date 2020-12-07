@@ -56,6 +56,19 @@
  */
 package java.time.temporal;
 
+import java.time.DayOfWeek;
+import java.time.Instant;
+import java.time.Year;
+import java.time.ZoneOffset;
+import java.time.chrono.ChronoLocalDate;
+import java.time.chrono.Chronology;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.ResourceBundle;
+import sun.util.locale.provider.CalendarDataUtility;
+import sun.util.locale.provider.LocaleProviderAdapter;
+import sun.util.locale.provider.LocaleResources;
+
 import static java.time.temporal.ChronoUnit.DAYS;
 import static java.time.temporal.ChronoUnit.ERAS;
 import static java.time.temporal.ChronoUnit.FOREVER;
@@ -69,19 +82,6 @@ import static java.time.temporal.ChronoUnit.NANOS;
 import static java.time.temporal.ChronoUnit.SECONDS;
 import static java.time.temporal.ChronoUnit.WEEKS;
 import static java.time.temporal.ChronoUnit.YEARS;
-
-import java.time.DayOfWeek;
-import java.time.Instant;
-import java.time.Year;
-import java.time.ZoneOffset;
-import java.time.chrono.ChronoLocalDate;
-import java.time.chrono.Chronology;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.ResourceBundle;
-import sun.util.locale.provider.CalendarDataUtility;
-import sun.util.locale.provider.LocaleProviderAdapter;
-import sun.util.locale.provider.LocaleResources;
 
 /**
  * A standard set of fields.
@@ -99,6 +99,7 @@ import sun.util.locale.provider.LocaleResources;
  *
  * @since 1.8
  */
+// 标准时间量字段集
 public enum ChronoField implements TemporalField {
 
     /**
@@ -121,6 +122,7 @@ public enum ChronoField implements TemporalField {
      * The value is validated in strict and smart mode but not in lenient mode.
      * The field is resolved in combination with {@code MILLI_OF_SECOND} and {@code MICRO_OF_SECOND}.
      */
+    // 位于秒中的[纳秒]
     NANO_OF_SECOND("NanoOfSecond", NANOS, SECONDS, ValueRange.of(0, 999_999_999)),
     /**
      * The nano-of-day.
@@ -137,6 +139,7 @@ public enum ChronoField implements TemporalField {
      * The value is split to form {@code NANO_OF_SECOND}, {@code SECOND_OF_MINUTE},
      * {@code MINUTE_OF_HOUR} and {@code HOUR_OF_DAY} fields.
      */
+    // 位于天中的[纳秒]
     NANO_OF_DAY("NanoOfDay", NANOS, DAYS, ValueRange.of(0, 86400L * 1000_000_000L - 1)),
     /**
      * The micro-of-second.
@@ -157,6 +160,7 @@ public enum ChronoField implements TemporalField {
      * The field is resolved in combination with {@code MILLI_OF_SECOND} to produce
      * {@code NANO_OF_SECOND}.
      */
+    // 位于秒中的[微秒]
     MICRO_OF_SECOND("MicroOfSecond", MICROS, SECONDS, ValueRange.of(0, 999_999)),
     /**
      * The micro-of-day.
@@ -176,6 +180,7 @@ public enum ChronoField implements TemporalField {
      * The value is split to form {@code MICRO_OF_SECOND}, {@code SECOND_OF_MINUTE},
      * {@code MINUTE_OF_HOUR} and {@code HOUR_OF_DAY} fields.
      */
+    // 位于天中的[微秒]
     MICRO_OF_DAY("MicroOfDay", MICROS, DAYS, ValueRange.of(0, 86400L * 1000_000L - 1)),
     /**
      * The milli-of-second.
@@ -196,6 +201,7 @@ public enum ChronoField implements TemporalField {
      * The field is resolved in combination with {@code MICRO_OF_SECOND} to produce
      * {@code NANO_OF_SECOND}.
      */
+    // 位于秒中的[毫秒]
     MILLI_OF_SECOND("MilliOfSecond", MILLIS, SECONDS, ValueRange.of(0, 999)),
     /**
      * The milli-of-day.
@@ -215,6 +221,7 @@ public enum ChronoField implements TemporalField {
      * The value is split to form {@code MILLI_OF_SECOND}, {@code SECOND_OF_MINUTE},
      * {@code MINUTE_OF_HOUR} and {@code HOUR_OF_DAY} fields.
      */
+    // 位于天中的[毫秒]
     MILLI_OF_DAY("MilliOfDay", MILLIS, DAYS, ValueRange.of(0, 86400L * 1000L - 1)),
     /**
      * The second-of-minute.
@@ -225,6 +232,7 @@ public enum ChronoField implements TemporalField {
      * When parsing this field it behaves equivalent to the following:
      * The value is validated in strict and smart mode but not in lenient mode.
      */
+    // 位于分钟中的[秒]
     SECOND_OF_MINUTE("SecondOfMinute", SECONDS, MINUTES, ValueRange.of(0, 59), "second"),
     /**
      * The second-of-day.
@@ -237,6 +245,7 @@ public enum ChronoField implements TemporalField {
      * The value is split to form {@code SECOND_OF_MINUTE}, {@code MINUTE_OF_HOUR}
      * and {@code HOUR_OF_DAY} fields.
      */
+    // 位于天中的[秒]
     SECOND_OF_DAY("SecondOfDay", SECONDS, DAYS, ValueRange.of(0, 86400L - 1)),
     /**
      * The minute-of-hour.
@@ -247,6 +256,7 @@ public enum ChronoField implements TemporalField {
      * When parsing this field it behaves equivalent to the following:
      * The value is validated in strict and smart mode but not in lenient mode.
      */
+    // 位于小时中的[分钟]
     MINUTE_OF_HOUR("MinuteOfHour", MINUTES, HOURS, ValueRange.of(0, 59), "minute"),
     /**
      * The minute-of-day.
@@ -258,6 +268,7 @@ public enum ChronoField implements TemporalField {
      * The value is validated in strict and smart mode but not in lenient mode.
      * The value is split to form {@code MINUTE_OF_HOUR} and {@code HOUR_OF_DAY} fields.
      */
+    // 位于天中的[分钟]
     MINUTE_OF_DAY("MinuteOfDay", MINUTES, DAYS, ValueRange.of(0, (24 * 60) - 1)),
     /**
      * The hour-of-am-pm.
@@ -274,6 +285,7 @@ public enum ChronoField implements TemporalField {
      * <p>
      * See {@link #CLOCK_HOUR_OF_AMPM} for the related field that counts hours from 1 to 12.
      */
+    // 位于12小时制中的[小时]
     HOUR_OF_AMPM("HourOfAmPm", HOURS, HALF_DAYS, ValueRange.of(0, 11)),
     /**
      * The clock-hour-of-am-pm.
@@ -290,6 +302,7 @@ public enum ChronoField implements TemporalField {
      * <p>
      * See {@link #HOUR_OF_AMPM} for the related field that counts hours from 0 to 11.
      */
+    // 位于12小时制中的[钟点]
     CLOCK_HOUR_OF_AMPM("ClockHourOfAmPm", HOURS, HALF_DAYS, ValueRange.of(1, 12)),
     /**
      * The hour-of-day.
@@ -307,6 +320,7 @@ public enum ChronoField implements TemporalField {
      * <p>
      * See {@link #CLOCK_HOUR_OF_DAY} for the related field that counts hours from 1 to 24.
      */
+    // 位于24小时制中的[小时]
     HOUR_OF_DAY("HourOfDay", HOURS, DAYS, ValueRange.of(0, 23), "hour"),
     /**
      * The clock-hour-of-day.
@@ -323,6 +337,7 @@ public enum ChronoField implements TemporalField {
      * <p>
      * See {@link #HOUR_OF_DAY} for the related field that counts hours from 0 to 23.
      */
+    // 位于24小时制中的[钟点]
     CLOCK_HOUR_OF_DAY("ClockHourOfDay", HOURS, DAYS, ValueRange.of(1, 24)),
     /**
      * The am-pm-of-day.
@@ -336,7 +351,11 @@ public enum ChronoField implements TemporalField {
      * {@code HOUR_OF_AMPM} to form {@code HOUR_OF_DAY} by multiplying
      * the {AMPM_OF_DAY} value by 12.
      */
+    // 位于天中的[上午/下午]
     AMPM_OF_DAY("AmPmOfDay", HALF_DAYS, DAYS, ValueRange.of(0, 1), "dayperiod"),
+    
+    /* ====================================================================================================================================== */
+    
     /**
      * The day-of-week, such as Tuesday.
      * <p>
@@ -352,6 +371,7 @@ public enum ChronoField implements TemporalField {
      * if they have a similar concept of named or numbered days within a period similar
      * to a week. It is recommended that the numbering starts from 1.
      */
+    // 位于周中的[天]，即周几
     DAY_OF_WEEK("DayOfWeek", DAYS, WEEKS, ValueRange.of(1, 7), "weekday"),
     /**
      * The aligned day-of-week within a month.
@@ -370,6 +390,7 @@ public enum ChronoField implements TemporalField {
      * Calendar systems that do not have a seven day week should typically implement this
      * field in the same way, but using the alternate week length.
      */
+    // 位于月周对齐中的[天]，即假设当月第一天是周一，依次推算本月其它天是周几
     ALIGNED_DAY_OF_WEEK_IN_MONTH("AlignedDayOfWeekInMonth", DAYS, WEEKS, ValueRange.of(1, 7)),
     /**
      * The aligned day-of-week within a year.
@@ -388,6 +409,7 @@ public enum ChronoField implements TemporalField {
      * Calendar systems that do not have a seven day week should typically implement this
      * field in the same way, but using the alternate week length.
      */
+    // 位于年周对齐中的[天]，即假设当年第一天是周一，依次推算本年其它天是周几
     ALIGNED_DAY_OF_WEEK_IN_YEAR("AlignedDayOfWeekInYear", DAYS, WEEKS, ValueRange.of(1, 7)),
     /**
      * The day-of-month.
@@ -401,6 +423,7 @@ public enum ChronoField implements TemporalField {
      * day-of-month values for users of the calendar system.
      * Normally, this is a count of days from 1 to the length of the month.
      */
+    // 位于月中的[天]
     DAY_OF_MONTH("DayOfMonth", DAYS, MONTHS, ValueRange.of(1, 28, 31), "day"),
     /**
      * The day-of-year.
@@ -419,6 +442,7 @@ public enum ChronoField implements TemporalField {
      * the year number to 1, can happen on any date. The era and year reset also cause
      * the day-of-year to be reset to 1, but not the month-of-year or day-of-month.
      */
+    // 位于年中的[天]
     DAY_OF_YEAR("DayOfYear", DAYS, YEARS, ValueRange.of(1, 365, 366)),
     /**
      * The epoch-day, based on the Java epoch of 1970-01-01 (ISO).
@@ -432,6 +456,7 @@ public enum ChronoField implements TemporalField {
      * Range of EpochDay is between (LocalDate.MIN.toEpochDay(), LocalDate.MAX.toEpochDay())
      * both inclusive.
      */
+    // 位于纪元中的[天]
     EPOCH_DAY("EpochDay", DAYS, FOREVER, ValueRange.of(-365243219162L, 365241780471L)),
     /**
      * The aligned week within a month.
@@ -448,6 +473,7 @@ public enum ChronoField implements TemporalField {
      * Calendar systems that do not have a seven day week should typically implement this
      * field in the same way, but using the alternate week length.
      */
+    // 位于月周对齐中的[第几周]，即假设当月第一天位于第1周，依次推算本月其它天位于第几周
     ALIGNED_WEEK_OF_MONTH("AlignedWeekOfMonth", WEEKS, MONTHS, ValueRange.of(1, 4, 5)),
     /**
      * The aligned week within a year.
@@ -464,6 +490,7 @@ public enum ChronoField implements TemporalField {
      * Calendar systems that do not have a seven day week should typically implement this
      * field in the same way, but using the alternate week length.
      */
+    // 位于年周对齐中的[第几周]，即假设当年第一天位于第1周，依次推算本年其它天位于第几周
     ALIGNED_WEEK_OF_YEAR("AlignedWeekOfYear", WEEKS, YEARS, ValueRange.of(1, 53)),
     /**
      * The month-of-year, such as March.
@@ -475,6 +502,7 @@ public enum ChronoField implements TemporalField {
      * month-of-year values for users of the calendar system.
      * Normally, this is a count of months starting from 1.
      */
+    // 位于年中的[月]
     MONTH_OF_YEAR("MonthOfYear", MONTHS, YEARS, ValueRange.of(1, 12), "month"),
     /**
      * The proleptic-month based, counting months sequentially from year 0.
@@ -494,6 +522,13 @@ public enum ChronoField implements TemporalField {
      * All calendar systems with a full proleptic-year definition will have a year zero.
      * If the calendar system has a minimum year that excludes year zero, then one must
      * be extrapolated in order for this method to be defined.
+     */
+    /*
+     * [Proleptic-月]
+     *
+     * Proleptic月反映的是一种累积关系，表示当前月距离Proleptic年的0年1月的距离。
+     *
+     * 假如当前是公历year年month月，将其转换为Proleptic月是：12*year+month-1
      */
     PROLEPTIC_MONTH("ProlepticMonth", MONTHS, FOREVER, ValueRange.of(Year.MIN_VALUE * 12L, Year.MAX_VALUE * 12L + 11)),
     /**
@@ -530,6 +565,7 @@ public enum ChronoField implements TemporalField {
      * will typically be the same as that used by the ISO calendar system.
      * The year-of-era value should typically always be positive, however this is not required.
      */
+    // 位于纪元中的[年]；在公历系统中，就是指公历前的年和公历(后)的年
     YEAR_OF_ERA("YearOfEra", YEARS, FOREVER, ValueRange.of(1, Year.MAX_VALUE, Year.MAX_VALUE + 1)),
     /**
      * The proleptic year, such as 2012.
@@ -554,6 +590,20 @@ public enum ChronoField implements TemporalField {
      * defined with any appropriate value, although defining it to be the same as ISO may be
      * the best option.
      */
+    /*
+     * [Proleptic-年]
+     *
+     * 以公历系统为例，Proleptic年与公历年的对应关系为：
+     * Proleptic年   公历年
+     *      -2      公元前3年
+     *      -1      公元前2年
+     *       0      公元前1年
+     *       1      公元　1年
+     *       2      公元　2年
+     *
+     * 即当公历年>=1时，Proleptic年与公历年的表示法一致，
+     * 当公历年<1时，Proleptic年 = 1- 公历年。
+     */
     YEAR("Year", YEARS, FOREVER, ValueRange.of(Year.MIN_VALUE, Year.MAX_VALUE), "year"),
     /**
      * The era.
@@ -571,6 +621,7 @@ public enum ChronoField implements TemporalField {
      * Earlier eras must have sequentially smaller values.
      * Later eras must have sequentially larger values,
      */
+    // [纪元]；在公历系统中，0是公元前，1是公元(后)
     ERA("Era", ERAS, FOREVER, ValueRange.of(0, 1), "era"),
     /**
      * The instant epoch-seconds.
@@ -586,6 +637,7 @@ public enum ChronoField implements TemporalField {
      * This field is strictly defined to have the same meaning in all calendar systems.
      * This is necessary to ensure interoperation between calendars.
      */
+    // 位于时间戳中的[秒]
     INSTANT_SECONDS("InstantSeconds", SECONDS, FOREVER, ValueRange.of(Long.MIN_VALUE, Long.MAX_VALUE)),
     /**
      * The offset from UTC/Greenwich.
@@ -600,14 +652,15 @@ public enum ChronoField implements TemporalField {
      * This field is strictly defined to have the same meaning in all calendar systems.
      * This is necessary to ensure interoperation between calendars.
      */
+    // 位于时区偏移中的[秒]
     OFFSET_SECONDS("OffsetSeconds", SECONDS, FOREVER, ValueRange.of(-18 * 3600, 18 * 3600));
-
-    private final String name;
-    private final TemporalUnit baseUnit;
-    private final TemporalUnit rangeUnit;
-    private final ValueRange range;
-    private final String displayNameKey;
-
+    
+    private final String name;              // 字段名称
+    private final TemporalUnit baseUnit;    // 基础单位
+    private final TemporalUnit rangeUnit;   // 范围上限的单位，比如"月"的范围上限是"年"
+    private final ValueRange range;         // 字段取值范围
+    private final String displayNameKey;    // 与name关联的key，如果name为空，则需要通过该key查询在指定区域下对应的字段名称
+    
     private ChronoField(String name, TemporalUnit baseUnit, TemporalUnit rangeUnit, ValueRange range) {
         this.name = name;
         this.baseUnit = baseUnit;
@@ -615,42 +668,42 @@ public enum ChronoField implements TemporalField {
         this.range = range;
         this.displayNameKey = null;
     }
-
-    private ChronoField(String name, TemporalUnit baseUnit, TemporalUnit rangeUnit,
-            ValueRange range, String displayNameKey) {
+    
+    private ChronoField(String name, TemporalUnit baseUnit, TemporalUnit rangeUnit, ValueRange range, String displayNameKey) {
         this.name = name;
         this.baseUnit = baseUnit;
         this.rangeUnit = rangeUnit;
         this.range = range;
         this.displayNameKey = displayNameKey;
     }
-
+    
+    // 返回该字段的本地名称(如果有的话)
     @Override
     public String getDisplayName(Locale locale) {
         Objects.requireNonNull(locale, "locale");
-        if (displayNameKey == null) {
+        
+        if(displayNameKey == null) {
             return name;
         }
-
-        LocaleResources lr = LocaleProviderAdapter.getResourceBundleBased()
-                                    .getLocaleResources(
-                                        CalendarDataUtility
-                                            .findRegionOverride(locale));
+        
+        LocaleResources lr = LocaleProviderAdapter.getResourceBundleBased().getLocaleResources(CalendarDataUtility.findRegionOverride(locale));
         ResourceBundle rb = lr.getJavaTimeFormatData();
         String key = "field." + displayNameKey;
         return rb.containsKey(key) ? rb.getString(key) : name;
     }
-
+    
+    // 返回基础单位
     @Override
     public TemporalUnit getBaseUnit() {
         return baseUnit;
     }
-
+    
+    // 返回范围上限的单位，比如"月"的范围上限是"年"
     @Override
     public TemporalUnit getRangeUnit() {
         return rangeUnit;
     }
-
+    
     /**
      * Gets the range of valid values for the field.
      * <p>
@@ -668,12 +721,12 @@ public enum ChronoField implements TemporalField {
      *
      * @return the range of valid values for the field, not null
      */
+    // 返回当前字段的取值区间
     @Override
     public ValueRange range() {
         return range;
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Checks if this field represents a component of a date.
      * <p>
@@ -681,6 +734,7 @@ public enum ChronoField implements TemporalField {
      *
      * @return true if it is a component of a date
      */
+    // 判断当前字段是否为"日期"字段
     @Override
     public boolean isDateBased() {
         return ordinal() >= DAY_OF_WEEK.ordinal() && ordinal() <= ERA.ordinal();
@@ -693,12 +747,12 @@ public enum ChronoField implements TemporalField {
      *
      * @return true if it is a component of a time
      */
+    // 判断当前字段是否为"时间"字段
     @Override
     public boolean isTimeBased() {
         return ordinal() < DAY_OF_WEEK.ordinal();
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Checks that the specified value is valid for this field.
      * <p>
@@ -713,6 +767,7 @@ public enum ChronoField implements TemporalField {
      * @param value  the value to check
      * @return the value that was passed in
      */
+    // 确保给定的值落在当前字段的取值区间中，否则抛异常
     public long checkValidValue(long value) {
         return range().checkValidValue(value, this);
     }
@@ -732,33 +787,43 @@ public enum ChronoField implements TemporalField {
      * @param value  the value to check
      * @return the value that was passed in
      */
+    // 确保当前字段的取值区间在int的范围内，且给定的值value落在当前字段的取值区间中，否则抛异常
     public int checkValidIntValue(long value) {
         return range().checkValidIntValue(value, this);
     }
-
-    //-----------------------------------------------------------------------
+    
+    // 判断当前时间量字段是否被指定的时间量所支持
     @Override
     public boolean isSupportedBy(TemporalAccessor temporal) {
         return temporal.isSupported(this);
     }
-
+    
+    // 返回当前时间量字段的取值区间，通常要求当前时间量字段被时间量temporal所支持
     @Override
     public ValueRange rangeRefinedBy(TemporalAccessor temporal) {
         return temporal.range(this);
     }
-
+    
+    // 以long形式返回当前时间量字段的值；temporal是当前字段所属的时间量
     @Override
     public long getFrom(TemporalAccessor temporal) {
         return temporal.getLong(this);
     }
-
+    
+    /*
+     * 通过整合当前字段和temporal中的其他类型的字段来构造时间量对象。
+     *
+     * 如果整合后的值与temporal中的值相等，则直接返回temporal。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * newValue: 当前字段的原始值，需要根据字段的类型进行放缩
+     */
     @SuppressWarnings("unchecked")
     @Override
     public <R extends Temporal> R adjustInto(R temporal, long newValue) {
         return (R) temporal.with(this, newValue);
     }
-
-    //-----------------------------------------------------------------------
+    
     @Override
     public String toString() {
         return name;
