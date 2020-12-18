@@ -87,97 +87,161 @@ import java.util.Objects;
  *
  * @since 1.8
  */
+// 基于地理时区的时区ID，可以处理夏令时
 final class ZoneRegion extends ZoneId implements Serializable {
-
-    /**
-     * Serialization version.
-     */
-    private static final long serialVersionUID = 8386373296231747096L;
+    
     /**
      * The time-zone ID, not null.
      */
+    /*
+     * 时区ID的字符串表示
+     *
+     * 此处的ID是基于地理时区的，比如：
+     * Asia/Shanghai（并不等同于GMT/UTC+8时区）
+     * America/Los_Angeles（有夏令时的时区）
+     * GMT0
+     * GMT
+     * UTC
+     * Etc/UTC
+     * Etc/GMT0
+     * Etc/GMT
+     * Etc/GMT+0
+     * Etc/GMT-0
+     * Etc/GMT-8（相当于GMT/UTC+8）
+     * Etc/GMT+8（相当于GMT/UTC-8）
+     *
+     * 参见：ZoneId#getAvailableZoneIds()
+     */
     private final String id;
+    
     /**
      * The time-zone rules, null if zone ID was loaded leniently.
      */
+    // 时区规则集
     private final transient ZoneRules rules;
-
-    /**
-     * Obtains an instance of {@code ZoneId} from an identifier.
-     *
-     * @param zoneId  the time-zone ID, not null
-     * @param checkAvailable  whether to check if the zone ID is available
-     * @return the zone ID, not null
-     * @throws DateTimeException if the ID format is invalid
-     * @throws ZoneRulesException if checking availability and the ID cannot be found
-     */
-    static ZoneRegion ofId(String zoneId, boolean checkAvailable) {
-        Objects.requireNonNull(zoneId, "zoneId");
-        checkName(zoneId);
-        ZoneRules rules = null;
-        try {
-            // always attempt load for better behavior after deserialization
-            rules = ZoneRulesProvider.getRules(zoneId, true);
-        } catch (ZoneRulesException ex) {
-            if (checkAvailable) {
-                throw ex;
-            }
-        }
-        return new ZoneRegion(zoneId, rules);
-    }
-
-    /**
-     * Checks that the given string is a legal ZondId name.
-     *
-     * @param zoneId  the time-zone ID, not null
-     * @throws DateTimeException if the ID format is invalid
-     */
-    private static void checkName(String zoneId) {
-        int n = zoneId.length();
-        if (n < 2) {
-           throw new DateTimeException("Invalid ID for region-based ZoneId, invalid format: " + zoneId);
-        }
-        for (int i = 0; i < n; i++) {
-            char c = zoneId.charAt(i);
-            if (c >= 'a' && c <= 'z') continue;
-            if (c >= 'A' && c <= 'Z') continue;
-            if (c == '/' && i != 0) continue;
-            if (c >= '0' && c <= '9' && i != 0) continue;
-            if (c == '~' && i != 0) continue;
-            if (c == '.' && i != 0) continue;
-            if (c == '_' && i != 0) continue;
-            if (c == '+' && i != 0) continue;
-            if (c == '-' && i != 0) continue;
-            throw new DateTimeException("Invalid ID for region-based ZoneId, invalid format: " + zoneId);
-        }
-    }
-
-    //-------------------------------------------------------------------------
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Constructor.
      *
-     * @param id  the time-zone ID, not null
-     * @param rules  the rules, null for lazy lookup
+     * @param id    the time-zone ID, not null
+     * @param rules the rules, null for lazy lookup
      */
     ZoneRegion(String id, ZoneRules rules) {
         this.id = id;
         this.rules = rules;
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Obtains an instance of {@code ZoneId} from an identifier.
+     *
+     * @param zoneId         the time-zone ID, not null
+     * @param checkAvailable whether to check if the zone ID is available
+     *
+     * @return the zone ID, not null
+     *
+     * @throws DateTimeException  if the ID format is invalid
+     * @throws ZoneRulesException if checking availability and the ID cannot be found
+     */
+    /*
+     * 根据指定的地理时区ID来构造ZoneRegion对象。
+     *
+     * checkAvailable: 当无法找到zoneId对应的时区规则集时是否抛异常
+     */
+    static ZoneRegion ofId(String zoneId, boolean checkAvailable) {
+        Objects.requireNonNull(zoneId, "zoneId");
+        checkName(zoneId);
+        
+        ZoneRules rules = null;
+        try {
+            /* always attempt load for better behavior after deserialization */
+            // 加载时区规则集
+            rules = ZoneRulesProvider.getRules(zoneId, true);
+        } catch(ZoneRulesException ex) {
+            if(checkAvailable) {
+                throw ex;
+            }
+        }
+        
+        return new ZoneRegion(zoneId, rules);
+    }
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    /*▼ 部件 ████████████████████████████████████████████████████████████████████████████████┓ */
+    // 返回时区ID的字符串表示
     @Override
     public String getId() {
         return id;
     }
-
+    
+    // 返回与当前时区ID对应的"时区规则集"
     @Override
     public ZoneRules getRules() {
-        // additional query for group provider when null allows for possibility
-        // that the provider was updated after the ZoneId was created
+        /*
+         * additional query for group provider when null allows for possibility
+         * that the provider was updated after the ZoneId was created
+         */
         return (rules != null ? rules : ZoneRulesProvider.getRules(id, false));
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 部件 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    /**
+     * Checks that the given string is a legal ZondId name.
+     *
+     * @param zoneId the time-zone ID, not null
+     *
+     * @throws DateTimeException if the ID format is invalid
+     */
+    private static void checkName(String zoneId) {
+        int n = zoneId.length();
+        if(n<2) {
+            throw new DateTimeException("Invalid ID for region-based ZoneId, invalid format: " + zoneId);
+        }
+        for (int i = 0; i < n; i++) {
+            char c = zoneId.charAt(i);
+            if (c >= 'a' && c <= 'z') continue;
+            if (c >= 'A' && c<='Z')
+                continue;
+            if(c == '/' && i != 0)
+                continue;
+            if(c >= '0' && c<='9' && i != 0)
+                continue;
+            if(c == '~' && i != 0)
+                continue;
+            if(c == '.' && i != 0)
+                continue;
+            if(c == '_' && i != 0)
+                continue;
+            if(c == '+' && i != 0)
+                continue;
+            if(c == '-' && i != 0)
+                continue;
+            throw new DateTimeException("Invalid ID for region-based ZoneId, invalid format: " + zoneId);
+        }
+    }
+    
+    
+    
+    /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Serialization version.
+     */
+    private static final long serialVersionUID = 8386373296231747096L;
+    
     /**
      * Writes the object using a
      * <a href="../../serialized-form.html#java.time.Ser">dedicated serialized form</a>.
@@ -208,14 +272,16 @@ final class ZoneRegion extends ZoneId implements Serializable {
         out.writeByte(Ser.ZONE_REGION_TYPE);
         writeExternal(out);
     }
-
+    
     void writeExternal(DataOutput out) throws IOException {
         out.writeUTF(id);
     }
-
+    
     static ZoneId readExternal(DataInput in) throws IOException {
         String id = in.readUTF();
         return ZoneId.of(id, false);
     }
-
+    
+    /*▲ 序列化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }
