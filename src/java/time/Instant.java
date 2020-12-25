@@ -61,17 +61,6 @@
  */
 package java.time;
 
-import static java.time.LocalTime.NANOS_PER_SECOND;
-import static java.time.LocalTime.SECONDS_PER_DAY;
-import static java.time.LocalTime.SECONDS_PER_HOUR;
-import static java.time.LocalTime.SECONDS_PER_MINUTE;
-import static java.time.temporal.ChronoField.INSTANT_SECONDS;
-import static java.time.temporal.ChronoField.MICRO_OF_SECOND;
-import static java.time.temporal.ChronoField.MILLI_OF_SECOND;
-import static java.time.temporal.ChronoField.NANO_OF_SECOND;
-import static java.time.temporal.ChronoUnit.DAYS;
-import static java.time.temporal.ChronoUnit.NANOS;
-
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -199,26 +188,34 @@ import java.util.Objects;
  * {@code Instant} may have unpredictable results and should be avoided.
  * The {@code equals} method should be used for comparisons.
  *
- * @implSpec
- * This class is immutable and thread-safe.
- *
+ * @implSpec This class is immutable and thread-safe.
  * @since 1.8
  */
-public final class Instant
-        implements Temporal, TemporalAdjuster, Comparable<Instant>, Serializable {
-
-    /**
-     * Constant for the 1970-01-01T00:00:00Z epoch instant.
-     */
-    public static final Instant EPOCH = new Instant(0, 0);
+/*
+ * 时间戳，由代表UTC时间点的纪元秒部件和纳秒偏移部件组成，精度为纳秒（具体粒度由底层操作系统决定）。
+ *
+ * 注：
+ * 1.时间戳总是表示基于UTC/GMT"零时区"的时间。
+ * 2.下文提到的纪元是指Unix新纪元时间：UTC/GMT时间1970年1月1日0时0分0秒。
+ *   因此，"纪元秒"就是指距离新纪元时间流逝过的秒数，以此类推。
+ */
+public final class Instant implements Temporal, TemporalAdjuster, Comparable<Instant>, Serializable {
+    
     /**
      * The minimum supported epoch second.
      */
     private static final long MIN_SECOND = -31557014167219200L;
+    
     /**
      * The maximum supported epoch second.
      */
     private static final long MAX_SECOND = 31556889864403199L;
+    
+    /**
+     * Constant for the 1970-01-01T00:00:00Z epoch instant.
+     */
+    public static final Instant EPOCH = new Instant(0, 0);  // 新纪元时间
+    
     /**
      * The minimum supported {@code Instant}, '-1000000000-01-01T00:00Z'.
      * This could be used by an application as a "far past" instant.
@@ -230,6 +227,7 @@ public final class Instant
      * an {@code int}.
      */
     public static final Instant MIN = Instant.ofEpochSecond(MIN_SECOND, 0);
+    
     /**
      * The maximum supported {@code Instant}, '1000000000-12-31T23:59:59.999999999Z'.
      * This could be used by an application as a "far future" instant.
@@ -241,23 +239,41 @@ public final class Instant
      * an {@code int}.
      */
     public static final Instant MAX = Instant.ofEpochSecond(MAX_SECOND, 999_999_999);
-
-    /**
-     * Serialization version.
-     */
-    private static final long serialVersionUID = -665713676816604388L;
-
+    
     /**
      * The number of seconds from the epoch of 1970-01-01T00:00:00Z.
      */
-    private final long seconds;
+    private final long seconds; // 纪元秒部件，从新纪元时间开始算起
+    
     /**
      * The number of nanoseconds, later along the time-line, from the seconds field.
      * This is always positive, and never exceeds 999,999,999.
      */
-    private final int nanos;
-
-    //-----------------------------------------------------------------------
+    private final int nanos;    // 纳秒偏移部件，在纪元秒部件的基础上多出的纳秒数
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Constructs an instance of {@code Instant} using seconds from the epoch of
+     * 1970-01-01T00:00:00Z and nanosecond fraction of second.
+     *
+     * @param epochSecond the number of seconds from 1970-01-01T00:00:00Z
+     * @param nanos       the nanoseconds within the second, must be positive
+     */
+    private Instant(long epochSecond, int nanos) {
+        super();
+        this.seconds = epochSecond;
+        this.nanos = nanos;
+    }
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Obtains the current instant from the system clock.
      * <p>
@@ -269,10 +285,12 @@ public final class Instant
      *
      * @return the current instant using the system clock, not null
      */
+    // 返回由系统时钟提供的时间戳
     public static Instant now() {
-        return Clock.systemUTC().instant();
+        Clock clock = Clock.systemUTC();
+        return clock.instant();
     }
-
+    
     /**
      * Obtains the current instant from the specified clock.
      * <p>
@@ -281,29 +299,33 @@ public final class Instant
      * Using this method allows the use of an alternate clock for testing.
      * The alternate clock may be introduced using {@link Clock dependency injection}.
      *
-     * @param clock  the clock to use, not null
+     * @param clock the clock to use, not null
+     *
      * @return the current instant, not null
      */
+    // 返回由指定的时钟提供的时间戳
     public static Instant now(Clock clock) {
         Objects.requireNonNull(clock, "clock");
         return clock.instant();
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains an instance of {@code Instant} using seconds from the
      * epoch of 1970-01-01T00:00:00Z.
      * <p>
      * The nanosecond field is set to zero.
      *
-     * @param epochSecond  the number of seconds from 1970-01-01T00:00:00Z
+     * @param epochSecond the number of seconds from 1970-01-01T00:00:00Z
+     *
      * @return an instant, not null
+     *
      * @throws DateTimeException if the instant exceeds the maximum or minimum instant
      */
+    // 根据给定的纪元秒构造一个时间戳
     public static Instant ofEpochSecond(long epochSecond) {
         return create(epochSecond, 0);
     }
-
+    
     /**
      * Obtains an instance of {@code Instant} using seconds from the
      * epoch of 1970-01-01T00:00:00Z and nanosecond fraction of second.
@@ -318,35 +340,40 @@ public final class Instant
      *  Instant.ofEpochSecond(2, 1000_000_001);
      * </pre>
      *
-     * @param epochSecond  the number of seconds from 1970-01-01T00:00:00Z
-     * @param nanoAdjustment  the nanosecond adjustment to the number of seconds, positive or negative
+     * @param epochSecond    the number of seconds from 1970-01-01T00:00:00Z
+     * @param nanoAdjustment the nanosecond adjustment to the number of seconds, positive or negative
+     *
      * @return an instant, not null
-     * @throws DateTimeException if the instant exceeds the maximum or minimum instant
+     *
+     * @throws DateTimeException   if the instant exceeds the maximum or minimum instant
      * @throws ArithmeticException if numeric overflow occurs
      */
+    // 根据给定的纪元秒与纳秒偏移构造一个时间戳
     public static Instant ofEpochSecond(long epochSecond, long nanoAdjustment) {
-        long secs = Math.addExact(epochSecond, Math.floorDiv(nanoAdjustment, NANOS_PER_SECOND));
-        int nos = (int)Math.floorMod(nanoAdjustment, NANOS_PER_SECOND);
+        long secs = Math.addExact(epochSecond, Math.floorDiv(nanoAdjustment, LocalTime.NANOS_PER_SECOND));
+        int nos = (int) Math.floorMod(nanoAdjustment, LocalTime.NANOS_PER_SECOND);
         return create(secs, nos);
     }
-
+    
     /**
      * Obtains an instance of {@code Instant} using milliseconds from the
      * epoch of 1970-01-01T00:00:00Z.
      * <p>
      * The seconds and nanoseconds are extracted from the specified milliseconds.
      *
-     * @param epochMilli  the number of milliseconds from 1970-01-01T00:00:00Z
+     * @param epochMilli the number of milliseconds from 1970-01-01T00:00:00Z
+     *
      * @return an instant, not null
+     *
      * @throws DateTimeException if the instant exceeds the maximum or minimum instant
      */
+    // 根据给定的纪元毫秒构造一个时间戳
     public static Instant ofEpochMilli(long epochMilli) {
         long secs = Math.floorDiv(epochMilli, 1000);
         int mos = Math.floorMod(epochMilli, 1000);
         return create(secs, mos * 1000_000);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains an instance of {@code Instant} from a temporal object.
      * <p>
@@ -360,26 +387,39 @@ public final class Instant
      * This method matches the signature of the functional interface {@link TemporalQuery}
      * allowing it to be used as a query via method reference, {@code Instant::from}.
      *
-     * @param temporal  the temporal object to convert, not null
+     * @param temporal the temporal object to convert, not null
+     *
      * @return the instant, not null
+     *
      * @throws DateTimeException if unable to convert to an {@code Instant}
      */
+    /*
+     * 从时间量temporal中获取纪元秒部件和纳秒偏移部件的信息，以构造一个时间戳
+     *
+     * 要求temporal支持以下时间量字段：
+     * - ChronoField.INSTANT_SECONDS
+     * - ChronoField.NANO_OF_SECOND
+     */
     public static Instant from(TemporalAccessor temporal) {
-        if (temporal instanceof Instant) {
+        Objects.requireNonNull(temporal, "temporal");
+        
+        if(temporal instanceof Instant) {
             return (Instant) temporal;
         }
-        Objects.requireNonNull(temporal, "temporal");
+        
         try {
-            long instantSecs = temporal.getLong(INSTANT_SECONDS);
-            int nanoOfSecond = temporal.get(NANO_OF_SECOND);
+            // 以long形式返回时间量temporal中包含的秒
+            long instantSecs = temporal.getLong(ChronoField.INSTANT_SECONDS);
+            // 以int形式返回时间量temporal中包含的纳秒
+            int nanoOfSecond = temporal.get(ChronoField.NANO_OF_SECOND);
+            
+            // 根据给定的纪元秒与纳秒偏移构造一个时间戳
             return Instant.ofEpochSecond(instantSecs, nanoOfSecond);
-        } catch (DateTimeException ex) {
-            throw new DateTimeException("Unable to obtain Instant from TemporalAccessor: " +
-                    temporal + " of type " + temporal.getClass().getName(), ex);
+        } catch(DateTimeException ex) {
+            throw new DateTimeException("Unable to obtain Instant from TemporalAccessor: " + temporal + " of type " + temporal.getClass().getName(), ex);
         }
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains an instance of {@code Instant} from a text string such as
      * {@code 2007-12-03T10:15:30.00Z}.
@@ -387,224 +427,113 @@ public final class Instant
      * The string must represent a valid instant in UTC and is parsed using
      * {@link DateTimeFormatter#ISO_INSTANT}.
      *
-     * @param text  the text to parse, not null
+     * @param text the text to parse, not null
+     *
      * @return the parsed instant, not null
+     *
      * @throws DateTimeParseException if the text cannot be parsed
      */
+    /*
+     * 从指定的文本中解析出时间戳实例。
+     *
+     * 文本格式形如：
+     * 2007-12-03T10:15:30.00Z
+     */
     public static Instant parse(final CharSequence text) {
-        return DateTimeFormatter.ISO_INSTANT.parse(text, Instant::from);
+        return DateTimeFormatter.ISO_INSTANT.parse(text, new TemporalQuery<Instant>() {
+            // 从时间量temporal中查询出目标对象
+            @Override
+            public Instant queryFrom(TemporalAccessor temporal) {
+                // 从时间量temporal中获取纪元秒部件和纳秒偏移部件的信息，以构造一个时间戳
+                return from(temporal);
+            }
+        });
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 转换 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Obtains an instance of {@code Instant} using seconds and nanoseconds.
+     * Combines this instant with an offset to create an {@code OffsetDateTime}.
+     * <p>
+     * This returns an {@code OffsetDateTime} formed from this instant at the
+     * specified offset from UTC/Greenwich. An exception will be thrown if the
+     * instant is too large to fit into an offset date-time.
+     * <p>
+     * This method is equivalent to
+     * {@link OffsetDateTime#ofInstant(Instant, ZoneId) OffsetDateTime.ofInstant(this, offset)}.
      *
-     * @param seconds  the length of the duration in seconds
-     * @param nanoOfSecond  the nano-of-second, from 0 to 999,999,999
-     * @throws DateTimeException if the instant exceeds the maximum or minimum instant
+     * @param offset the offset to combine with, not null
+     *
+     * @return the offset date-time formed from this instant and the specified offset, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported range
      */
-    private static Instant create(long seconds, int nanoOfSecond) {
-        if ((seconds | nanoOfSecond) == 0) {
-            return EPOCH;
-        }
-        if (seconds < MIN_SECOND || seconds > MAX_SECOND) {
-            throw new DateTimeException("Instant exceeds minimum or maximum instant");
-        }
-        return new Instant(seconds, nanoOfSecond);
+    // 使用当前时间戳构造属于zone时区的"本地日期-时间"对象(时区偏移时间准确)
+    public OffsetDateTime atOffset(ZoneOffset offset) {
+        return OffsetDateTime.ofInstant(this, offset);
     }
-
+    
     /**
-     * Constructs an instance of {@code Instant} using seconds from the epoch of
-     * 1970-01-01T00:00:00Z and nanosecond fraction of second.
+     * Combines this instant with a time-zone to create a {@code ZonedDateTime}.
+     * <p>
+     * This returns an {@code ZonedDateTime} formed from this instant at the
+     * specified time-zone. An exception will be thrown if the instant is too
+     * large to fit into a zoned date-time.
+     * <p>
+     * This method is equivalent to
+     * {@link ZonedDateTime#ofInstant(Instant, ZoneId) ZonedDateTime.ofInstant(this, zone)}.
      *
-     * @param epochSecond  the number of seconds from 1970-01-01T00:00:00Z
-     * @param nanos  the nanoseconds within the second, must be positive
+     * @param zone the zone to combine with, not null
+     *
+     * @return the zoned date-time formed from this instant and the specified zone, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported range
      */
-    private Instant(long epochSecond, int nanos) {
-        super();
-        this.seconds = epochSecond;
-        this.nanos = nanos;
+    // 转换为属于zone时区的"本地日期-时间"(时区偏移时间准确)
+    public ZonedDateTime atZone(ZoneId zone) {
+        return ZonedDateTime.ofInstant(this, zone);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
-     * Checks if the specified field is supported.
+     * Converts this instant to the number of milliseconds from the epoch
+     * of 1970-01-01T00:00:00Z.
      * <p>
-     * This checks if this instant can be queried for the specified field.
-     * If false, then calling the {@link #range(TemporalField) range},
-     * {@link #get(TemporalField) get} and {@link #with(TemporalField, long)}
-     * methods will throw an exception.
+     * If this instant represents a point on the time-line too far in the future
+     * or past to fit in a {@code long} milliseconds, then an exception is thrown.
      * <p>
-     * If the field is a {@link ChronoField} then the query is implemented here.
-     * The supported fields are:
-     * <ul>
-     * <li>{@code NANO_OF_SECOND}
-     * <li>{@code MICRO_OF_SECOND}
-     * <li>{@code MILLI_OF_SECOND}
-     * <li>{@code INSTANT_SECONDS}
-     * </ul>
-     * All other {@code ChronoField} instances will return false.
-     * <p>
-     * If the field is not a {@code ChronoField}, then the result of this method
-     * is obtained by invoking {@code TemporalField.isSupportedBy(TemporalAccessor)}
-     * passing {@code this} as the argument.
-     * Whether the field is supported is determined by the field.
+     * If this instant has greater than millisecond precision, then the conversion
+     * will drop any excess precision information as though the amount in nanoseconds
+     * was subject to integer division by one million.
      *
-     * @param field  the field to check, null returns false
-     * @return true if the field is supported on this instant, false if not
-     */
-    @Override
-    public boolean isSupported(TemporalField field) {
-        if (field instanceof ChronoField) {
-            return field == INSTANT_SECONDS || field == NANO_OF_SECOND || field == MICRO_OF_SECOND || field == MILLI_OF_SECOND;
-        }
-        return field != null && field.isSupportedBy(this);
-    }
-
-    /**
-     * Checks if the specified unit is supported.
-     * <p>
-     * This checks if the specified unit can be added to, or subtracted from, this date-time.
-     * If false, then calling the {@link #plus(long, TemporalUnit)} and
-     * {@link #minus(long, TemporalUnit) minus} methods will throw an exception.
-     * <p>
-     * If the unit is a {@link ChronoUnit} then the query is implemented here.
-     * The supported units are:
-     * <ul>
-     * <li>{@code NANOS}
-     * <li>{@code MICROS}
-     * <li>{@code MILLIS}
-     * <li>{@code SECONDS}
-     * <li>{@code MINUTES}
-     * <li>{@code HOURS}
-     * <li>{@code HALF_DAYS}
-     * <li>{@code DAYS}
-     * </ul>
-     * All other {@code ChronoUnit} instances will return false.
-     * <p>
-     * If the unit is not a {@code ChronoUnit}, then the result of this method
-     * is obtained by invoking {@code TemporalUnit.isSupportedBy(Temporal)}
-     * passing {@code this} as the argument.
-     * Whether the unit is supported is determined by the unit.
+     * @return the number of milliseconds since the epoch of 1970-01-01T00:00:00Z
      *
-     * @param unit  the unit to check, null returns false
-     * @return true if the unit can be added/subtracted, false if not
-     */
-    @Override
-    public boolean isSupported(TemporalUnit unit) {
-        if (unit instanceof ChronoUnit) {
-            return unit.isTimeBased() || unit == DAYS;
-        }
-        return unit != null && unit.isSupportedBy(this);
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Gets the range of valid values for the specified field.
-     * <p>
-     * The range object expresses the minimum and maximum valid values for a field.
-     * This instant is used to enhance the accuracy of the returned range.
-     * If it is not possible to return the range, because the field is not supported
-     * or for some other reason, an exception is thrown.
-     * <p>
-     * If the field is a {@link ChronoField} then the query is implemented here.
-     * The {@link #isSupported(TemporalField) supported fields} will return
-     * appropriate range instances.
-     * All other {@code ChronoField} instances will throw an {@code UnsupportedTemporalTypeException}.
-     * <p>
-     * If the field is not a {@code ChronoField}, then the result of this method
-     * is obtained by invoking {@code TemporalField.rangeRefinedBy(TemporalAccessor)}
-     * passing {@code this} as the argument.
-     * Whether the range can be obtained is determined by the field.
-     *
-     * @param field  the field to query the range for, not null
-     * @return the range of valid values for the field, not null
-     * @throws DateTimeException if the range for the field cannot be obtained
-     * @throws UnsupportedTemporalTypeException if the field is not supported
-     */
-    @Override  // override for Javadoc
-    public ValueRange range(TemporalField field) {
-        return Temporal.super.range(field);
-    }
-
-    /**
-     * Gets the value of the specified field from this instant as an {@code int}.
-     * <p>
-     * This queries this instant for the value of the specified field.
-     * The returned value will always be within the valid range of values for the field.
-     * If it is not possible to return the value, because the field is not supported
-     * or for some other reason, an exception is thrown.
-     * <p>
-     * If the field is a {@link ChronoField} then the query is implemented here.
-     * The {@link #isSupported(TemporalField) supported fields} will return valid
-     * values based on this date-time, except {@code INSTANT_SECONDS} which is too
-     * large to fit in an {@code int} and throws a {@code DateTimeException}.
-     * All other {@code ChronoField} instances will throw an {@code UnsupportedTemporalTypeException}.
-     * <p>
-     * If the field is not a {@code ChronoField}, then the result of this method
-     * is obtained by invoking {@code TemporalField.getFrom(TemporalAccessor)}
-     * passing {@code this} as the argument. Whether the value can be obtained,
-     * and what the value represents, is determined by the field.
-     *
-     * @param field  the field to get, not null
-     * @return the value for the field
-     * @throws DateTimeException if a value for the field cannot be obtained or
-     *         the value is outside the range of valid values for the field
-     * @throws UnsupportedTemporalTypeException if the field is not supported or
-     *         the range of values exceeds an {@code int}
      * @throws ArithmeticException if numeric overflow occurs
      */
-    @Override  // override for Javadoc and performance
-    public int get(TemporalField field) {
-        if (field instanceof ChronoField) {
-            switch ((ChronoField) field) {
-                case NANO_OF_SECOND: return nanos;
-                case MICRO_OF_SECOND: return nanos / 1000;
-                case MILLI_OF_SECOND: return nanos / 1000_000;
-            }
-            throw new UnsupportedTemporalTypeException("Unsupported field: " + field);
+    // 将当前时间戳转换为纪元毫秒后返回
+    public long toEpochMilli() {
+        // 先转换为实际需要减去的时间量
+        if(seconds<0 && nanos>0) {
+            // 加一秒
+            long millis = Math.multiplyExact(seconds + 1, 1000);
+            // 减一秒
+            long adjustment = nanos / 1000_000 - 1000;
+            return Math.addExact(millis, adjustment);
+        } else {
+            long millis = Math.multiplyExact(seconds, 1000);
+            return Math.addExact(millis, nanos / 1000_000);
         }
-        return range(field).checkValidIntValue(field.getFrom(this), field);
     }
-
-    /**
-     * Gets the value of the specified field from this instant as a {@code long}.
-     * <p>
-     * This queries this instant for the value of the specified field.
-     * If it is not possible to return the value, because the field is not supported
-     * or for some other reason, an exception is thrown.
-     * <p>
-     * If the field is a {@link ChronoField} then the query is implemented here.
-     * The {@link #isSupported(TemporalField) supported fields} will return valid
-     * values based on this date-time.
-     * All other {@code ChronoField} instances will throw an {@code UnsupportedTemporalTypeException}.
-     * <p>
-     * If the field is not a {@code ChronoField}, then the result of this method
-     * is obtained by invoking {@code TemporalField.getFrom(TemporalAccessor)}
-     * passing {@code this} as the argument. Whether the value can be obtained,
-     * and what the value represents, is determined by the field.
-     *
-     * @param field  the field to get, not null
-     * @return the value for the field
-     * @throws DateTimeException if a value for the field cannot be obtained
-     * @throws UnsupportedTemporalTypeException if the field is not supported
-     * @throws ArithmeticException if numeric overflow occurs
-     */
-    @Override
-    public long getLong(TemporalField field) {
-        if (field instanceof ChronoField) {
-            switch ((ChronoField) field) {
-                case NANO_OF_SECOND: return nanos;
-                case MICRO_OF_SECOND: return nanos / 1000;
-                case MILLI_OF_SECOND: return nanos / 1000_000;
-                case INSTANT_SECONDS: return seconds;
-            }
-            throw new UnsupportedTemporalTypeException("Unsupported field: " + field);
-        }
-        return field.getFrom(this);
-    }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 转换 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 部件 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Gets the number of seconds from the Java epoch of 1970-01-01T00:00:00Z.
      * <p>
@@ -614,10 +543,11 @@ public final class Instant
      *
      * @return the seconds from the epoch of 1970-01-01T00:00:00Z
      */
+    // 返回纪元秒部件
     public long getEpochSecond() {
         return seconds;
     }
-
+    
     /**
      * Gets the number of nanoseconds, later along the time-line, from the start
      * of the second.
@@ -627,141 +557,17 @@ public final class Instant
      *
      * @return the nanoseconds within the second, always positive, never exceeds 999,999,999
      */
+    // 返回纳秒偏移部件
     public int getNano() {
         return nanos;
     }
-
-    //-------------------------------------------------------------------------
-    /**
-     * Returns an adjusted copy of this instant.
-     * <p>
-     * This returns an {@code Instant}, based on this one, with the instant adjusted.
-     * The adjustment takes place using the specified adjuster strategy object.
-     * Read the documentation of the adjuster to understand what adjustment will be made.
-     * <p>
-     * The result of this method is obtained by invoking the
-     * {@link TemporalAdjuster#adjustInto(Temporal)} method on the
-     * specified adjuster passing {@code this} as the argument.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param adjuster the adjuster to use, not null
-     * @return an {@code Instant} based on {@code this} with the adjustment made, not null
-     * @throws DateTimeException if the adjustment cannot be made
-     * @throws ArithmeticException if numeric overflow occurs
-     */
-    @Override
-    public Instant with(TemporalAdjuster adjuster) {
-        return (Instant) adjuster.adjustInto(this);
-    }
-
-    /**
-     * Returns a copy of this instant with the specified field set to a new value.
-     * <p>
-     * This returns an {@code Instant}, based on this one, with the value
-     * for the specified field changed.
-     * If it is not possible to set the value, because the field is not supported or for
-     * some other reason, an exception is thrown.
-     * <p>
-     * If the field is a {@link ChronoField} then the adjustment is implemented here.
-     * The supported fields behave as follows:
-     * <ul>
-     * <li>{@code NANO_OF_SECOND} -
-     *  Returns an {@code Instant} with the specified nano-of-second.
-     *  The epoch-second will be unchanged.
-     * <li>{@code MICRO_OF_SECOND} -
-     *  Returns an {@code Instant} with the nano-of-second replaced by the specified
-     *  micro-of-second multiplied by 1,000. The epoch-second will be unchanged.
-     * <li>{@code MILLI_OF_SECOND} -
-     *  Returns an {@code Instant} with the nano-of-second replaced by the specified
-     *  milli-of-second multiplied by 1,000,000. The epoch-second will be unchanged.
-     * <li>{@code INSTANT_SECONDS} -
-     *  Returns an {@code Instant} with the specified epoch-second.
-     *  The nano-of-second will be unchanged.
-     * </ul>
-     * <p>
-     * In all cases, if the new value is outside the valid range of values for the field
-     * then a {@code DateTimeException} will be thrown.
-     * <p>
-     * All other {@code ChronoField} instances will throw an {@code UnsupportedTemporalTypeException}.
-     * <p>
-     * If the field is not a {@code ChronoField}, then the result of this method
-     * is obtained by invoking {@code TemporalField.adjustInto(Temporal, long)}
-     * passing {@code this} as the argument. In this case, the field determines
-     * whether and how to adjust the instant.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param field  the field to set in the result, not null
-     * @param newValue  the new value of the field in the result
-     * @return an {@code Instant} based on {@code this} with the specified field set, not null
-     * @throws DateTimeException if the field cannot be set
-     * @throws UnsupportedTemporalTypeException if the field is not supported
-     * @throws ArithmeticException if numeric overflow occurs
-     */
-    @Override
-    public Instant with(TemporalField field, long newValue) {
-        if (field instanceof ChronoField) {
-            ChronoField f = (ChronoField) field;
-            f.checkValidValue(newValue);
-            switch (f) {
-                case MILLI_OF_SECOND: {
-                    int nval = (int) newValue * 1000_000;
-                    return (nval != nanos ? create(seconds, nval) : this);
-                }
-                case MICRO_OF_SECOND: {
-                    int nval = (int) newValue * 1000;
-                    return (nval != nanos ? create(seconds, nval) : this);
-                }
-                case NANO_OF_SECOND: return (newValue != nanos ? create(seconds, (int) newValue) : this);
-                case INSTANT_SECONDS: return (newValue != seconds ? create(newValue, nanos) : this);
-            }
-            throw new UnsupportedTemporalTypeException("Unsupported field: " + field);
-        }
-        return field.adjustInto(this, newValue);
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Returns a copy of this {@code Instant} truncated to the specified unit.
-     * <p>
-     * Truncating the instant returns a copy of the original with fields
-     * smaller than the specified unit set to zero.
-     * The fields are calculated on the basis of using a UTC offset as seen
-     * in {@code toString}.
-     * For example, truncating with the {@link ChronoUnit#MINUTES MINUTES} unit will
-     * round down to the nearest minute, setting the seconds and nanoseconds to zero.
-     * <p>
-     * The unit must have a {@linkplain TemporalUnit#getDuration() duration}
-     * that divides into the length of a standard day without remainder.
-     * This includes all supplied time units on {@link ChronoUnit} and
-     * {@link ChronoUnit#DAYS DAYS}. Other units throw an exception.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param unit  the unit to truncate to, not null
-     * @return an {@code Instant} based on this instant with the time truncated, not null
-     * @throws DateTimeException if the unit is invalid for truncation
-     * @throws UnsupportedTemporalTypeException if the unit is not supported
-     */
-    public Instant truncatedTo(TemporalUnit unit) {
-        if (unit == ChronoUnit.NANOS) {
-            return this;
-        }
-        Duration unitDur = unit.getDuration();
-        if (unitDur.getSeconds() > LocalTime.SECONDS_PER_DAY) {
-            throw new UnsupportedTemporalTypeException("Unit is too large to be used for truncation");
-        }
-        long dur = unitDur.toNanos();
-        if ((LocalTime.NANOS_PER_DAY % dur) != 0) {
-            throw new UnsupportedTemporalTypeException("Unit must divide into a standard day without remainder");
-        }
-        long nod = (seconds % LocalTime.SECONDS_PER_DAY) * LocalTime.NANOS_PER_SECOND + nanos;
-        long result = Math.floorDiv(nod, dur) * dur;
-        return plusNanos(result - nod);
-    }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 部件 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 增加 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns a copy of this instant with the specified amount added.
      * <p>
@@ -777,16 +583,24 @@ public final class Instant
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param amountToAdd  the amount to add, not null
+     * @param amountToAdd the amount to add, not null
+     *
      * @return an {@code Instant} based on this instant with the addition made, not null
-     * @throws DateTimeException if the addition cannot be made
+     *
+     * @throws DateTimeException   if the addition cannot be made
      * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 对当前时间量的值与参数中的"时间段"求和
+     *
+     * 如果求和后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"求和"后的新对象再返回。
      */
     @Override
     public Instant plus(TemporalAmount amountToAdd) {
         return (Instant) amountToAdd.addTo(this);
     }
-
+    
     /**
      * Returns a copy of this instant with the specified amount added.
      * <p>
@@ -838,97 +652,121 @@ public final class Instant
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param amountToAdd  the amount of the unit to add to the result, may be negative
-     * @param unit  the unit of the amount to add, not null
+     * @param amountToAdd the amount of the unit to add to the result, may be negative
+     * @param unit        the unit of the amount to add, not null
+     *
      * @return an {@code Instant} based on this instant with the specified amount added, not null
-     * @throws DateTimeException if the addition cannot be made
+     *
+     * @throws DateTimeException                if the addition cannot be made
      * @throws UnsupportedTemporalTypeException if the unit is not supported
-     * @throws ArithmeticException if numeric overflow occurs
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 对当前时间量的值累加amountToAdd个unit单位的时间量
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
      */
     @Override
     public Instant plus(long amountToAdd, TemporalUnit unit) {
-        if (unit instanceof ChronoUnit) {
-            switch ((ChronoUnit) unit) {
-                case NANOS: return plusNanos(amountToAdd);
-                case MICROS: return plus(amountToAdd / 1000_000, (amountToAdd % 1000_000) * 1000);
-                case MILLIS: return plusMillis(amountToAdd);
-                case SECONDS: return plusSeconds(amountToAdd);
-                case MINUTES: return plusSeconds(Math.multiplyExact(amountToAdd, SECONDS_PER_MINUTE));
-                case HOURS: return plusSeconds(Math.multiplyExact(amountToAdd, SECONDS_PER_HOUR));
-                case HALF_DAYS: return plusSeconds(Math.multiplyExact(amountToAdd, SECONDS_PER_DAY / 2));
-                case DAYS: return plusSeconds(Math.multiplyExact(amountToAdd, SECONDS_PER_DAY));
+        if(unit instanceof ChronoUnit) {
+            switch((ChronoUnit) unit) {
+                case NANOS:
+                    return plusNanos(amountToAdd);
+                case MICROS:
+                    return plus(amountToAdd / 1000_000, (amountToAdd % 1000_000) * 1000);
+                case MILLIS:
+                    return plusMillis(amountToAdd);
+                case SECONDS:
+                    return plusSeconds(amountToAdd);
+                case MINUTES:
+                    return plusSeconds(Math.multiplyExact(amountToAdd, LocalTime.SECONDS_PER_MINUTE));
+                case HOURS:
+                    return plusSeconds(Math.multiplyExact(amountToAdd, LocalTime.SECONDS_PER_HOUR));
+                case HALF_DAYS:
+                    return plusSeconds(Math.multiplyExact(amountToAdd, LocalTime.SECONDS_PER_DAY / 2));
+                case DAYS:
+                    return plusSeconds(Math.multiplyExact(amountToAdd, LocalTime.SECONDS_PER_DAY));
             }
+            
             throw new UnsupportedTemporalTypeException("Unsupported unit: " + unit);
         }
+        
         return unit.addTo(this, amountToAdd);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Returns a copy of this instant with the specified duration in seconds added.
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param secondsToAdd  the seconds to add, positive or negative
+     * @param secondsToAdd the seconds to add, positive or negative
+     *
      * @return an {@code Instant} based on this instant with the specified seconds added, not null
-     * @throws DateTimeException if the result exceeds the maximum or minimum instant
+     *
+     * @throws DateTimeException   if the result exceeds the maximum or minimum instant
      * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 在当前时间量的值上累加secondsToAdd秒
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
      */
     public Instant plusSeconds(long secondsToAdd) {
         return plus(secondsToAdd, 0);
     }
-
+    
     /**
      * Returns a copy of this instant with the specified duration in milliseconds added.
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param millisToAdd  the milliseconds to add, positive or negative
+     * @param millisToAdd the milliseconds to add, positive or negative
+     *
      * @return an {@code Instant} based on this instant with the specified milliseconds added, not null
-     * @throws DateTimeException if the result exceeds the maximum or minimum instant
+     *
+     * @throws DateTimeException   if the result exceeds the maximum or minimum instant
      * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 在当前时间量的值上累加millisToAdd毫秒
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
      */
     public Instant plusMillis(long millisToAdd) {
         return plus(millisToAdd / 1000, (millisToAdd % 1000) * 1000_000);
     }
-
+    
     /**
      * Returns a copy of this instant with the specified duration in nanoseconds added.
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param nanosToAdd  the nanoseconds to add, positive or negative
+     * @param nanosToAdd the nanoseconds to add, positive or negative
+     *
      * @return an {@code Instant} based on this instant with the specified nanoseconds added, not null
-     * @throws DateTimeException if the result exceeds the maximum or minimum instant
+     *
+     * @throws DateTimeException   if the result exceeds the maximum or minimum instant
      * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 在当前时间量的值上累加nanosToAdd纳秒
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
      */
     public Instant plusNanos(long nanosToAdd) {
         return plus(0, nanosToAdd);
     }
-
-    /**
-     * Returns a copy of this instant with the specified duration added.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param secondsToAdd  the seconds to add, positive or negative
-     * @param nanosToAdd  the nanos to add, positive or negative
-     * @return an {@code Instant} based on this instant with the specified seconds added, not null
-     * @throws DateTimeException if the result exceeds the maximum or minimum instant
-     * @throws ArithmeticException if numeric overflow occurs
-     */
-    private Instant plus(long secondsToAdd, long nanosToAdd) {
-        if ((secondsToAdd | nanosToAdd) == 0) {
-            return this;
-        }
-        long epochSec = Math.addExact(seconds, secondsToAdd);
-        epochSec = Math.addExact(epochSec, nanosToAdd / NANOS_PER_SECOND);
-        nanosToAdd = nanosToAdd % NANOS_PER_SECOND;
-        long nanoAdjustment = nanos + nanosToAdd;  // safe int+NANOS_PER_SECOND
-        return ofEpochSecond(epochSec, nanoAdjustment);
-    }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 增加 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 减少 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns a copy of this instant with the specified amount subtracted.
      * <p>
@@ -944,16 +782,24 @@ public final class Instant
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param amountToSubtract  the amount to subtract, not null
+     * @param amountToSubtract the amount to subtract, not null
+     *
      * @return an {@code Instant} based on this instant with the subtraction made, not null
-     * @throws DateTimeException if the subtraction cannot be made
+     *
+     * @throws DateTimeException   if the subtraction cannot be made
      * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 对当前时间量的值与参数中的"时间段"求差
+     *
+     * 如果求差后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"求差"后的新对象再返回。
      */
     @Override
     public Instant minus(TemporalAmount amountToSubtract) {
         return (Instant) amountToSubtract.subtractFrom(this);
     }
-
+    
     /**
      * Returns a copy of this instant with the specified amount subtracted.
      * <p>
@@ -966,71 +812,340 @@ public final class Instant
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param amountToSubtract  the amount of the unit to subtract from the result, may be negative
-     * @param unit  the unit of the amount to subtract, not null
+     * @param amountToSubtract the amount of the unit to subtract from the result, may be negative
+     * @param unit             the unit of the amount to subtract, not null
+     *
      * @return an {@code Instant} based on this instant with the specified amount subtracted, not null
-     * @throws DateTimeException if the subtraction cannot be made
+     *
+     * @throws DateTimeException                if the subtraction cannot be made
      * @throws UnsupportedTemporalTypeException if the unit is not supported
-     * @throws ArithmeticException if numeric overflow occurs
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 对当前时间量的值减去amountToSubtract个unit单位的时间量
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
      */
     @Override
     public Instant minus(long amountToSubtract, TemporalUnit unit) {
-        return (amountToSubtract == Long.MIN_VALUE ? plus(Long.MAX_VALUE, unit).plus(1, unit) : plus(-amountToSubtract, unit));
+        if(amountToSubtract == Long.MIN_VALUE) {
+            return plus(Long.MAX_VALUE, unit).plus(1, unit);
+        }
+        
+        return plus(-amountToSubtract, unit);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Returns a copy of this instant with the specified duration in seconds subtracted.
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param secondsToSubtract  the seconds to subtract, positive or negative
+     * @param secondsToSubtract the seconds to subtract, positive or negative
+     *
      * @return an {@code Instant} based on this instant with the specified seconds subtracted, not null
-     * @throws DateTimeException if the result exceeds the maximum or minimum instant
+     *
+     * @throws DateTimeException   if the result exceeds the maximum or minimum instant
      * @throws ArithmeticException if numeric overflow occurs
      */
+    /*
+     * 在当前时间量的值上减去secondsToSubtract秒
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
     public Instant minusSeconds(long secondsToSubtract) {
-        if (secondsToSubtract == Long.MIN_VALUE) {
+        if(secondsToSubtract == Long.MIN_VALUE) {
             return plusSeconds(Long.MAX_VALUE).plusSeconds(1);
         }
+        
         return plusSeconds(-secondsToSubtract);
     }
-
+    
     /**
      * Returns a copy of this instant with the specified duration in milliseconds subtracted.
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param millisToSubtract  the milliseconds to subtract, positive or negative
+     * @param millisToSubtract the milliseconds to subtract, positive or negative
+     *
      * @return an {@code Instant} based on this instant with the specified milliseconds subtracted, not null
-     * @throws DateTimeException if the result exceeds the maximum or minimum instant
+     *
+     * @throws DateTimeException   if the result exceeds the maximum or minimum instant
      * @throws ArithmeticException if numeric overflow occurs
      */
+    /*
+     * 在当前时间量的值上减去millisToSubtract毫秒
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
     public Instant minusMillis(long millisToSubtract) {
-        if (millisToSubtract == Long.MIN_VALUE) {
+        if(millisToSubtract == Long.MIN_VALUE) {
             return plusMillis(Long.MAX_VALUE).plusMillis(1);
         }
+        
         return plusMillis(-millisToSubtract);
     }
-
+    
     /**
      * Returns a copy of this instant with the specified duration in nanoseconds subtracted.
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param nanosToSubtract  the nanoseconds to subtract, positive or negative
+     * @param nanosToSubtract the nanoseconds to subtract, positive or negative
+     *
      * @return an {@code Instant} based on this instant with the specified nanoseconds subtracted, not null
-     * @throws DateTimeException if the result exceeds the maximum or minimum instant
+     *
+     * @throws DateTimeException   if the result exceeds the maximum or minimum instant
      * @throws ArithmeticException if numeric overflow occurs
      */
+    /*
+     * 在当前时间量的值上减去nanosToSubtract纳秒
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
     public Instant minusNanos(long nanosToSubtract) {
-        if (nanosToSubtract == Long.MIN_VALUE) {
+        if(nanosToSubtract == Long.MIN_VALUE) {
             return plusNanos(Long.MAX_VALUE).plusNanos(1);
         }
+        
         return plusNanos(-nanosToSubtract);
     }
-
-    //-------------------------------------------------------------------------
+    
+    /*▲ 减少 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 时间量单位 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Checks if the specified unit is supported.
+     * <p>
+     * This checks if the specified unit can be added to, or subtracted from, this date-time.
+     * If false, then calling the {@link #plus(long, TemporalUnit)} and
+     * {@link #minus(long, TemporalUnit) minus} methods will throw an exception.
+     * <p>
+     * If the unit is a {@link ChronoUnit} then the query is implemented here.
+     * The supported units are:
+     * <ul>
+     * <li>{@code NANOS}
+     * <li>{@code MICROS}
+     * <li>{@code MILLIS}
+     * <li>{@code SECONDS}
+     * <li>{@code MINUTES}
+     * <li>{@code HOURS}
+     * <li>{@code HALF_DAYS}
+     * <li>{@code DAYS}
+     * </ul>
+     * All other {@code ChronoUnit} instances will return false.
+     * <p>
+     * If the unit is not a {@code ChronoUnit}, then the result of this method
+     * is obtained by invoking {@code TemporalUnit.isSupportedBy(Temporal)}
+     * passing {@code this} as the argument.
+     * Whether the unit is supported is determined by the unit.
+     *
+     * @param unit the unit to check, null returns false
+     *
+     * @return true if the unit can be added/subtracted, false if not
+     */
+    // 判断当前时间量是否支持指定的时间量单位
+    @Override
+    public boolean isSupported(TemporalUnit unit) {
+        if(unit instanceof ChronoUnit) {
+            return unit.isTimeBased() || unit == ChronoUnit.DAYS;
+        }
+        
+        return unit != null && unit.isSupportedBy(this);
+    }
+    
+    /*▲ 时间量单位 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 时间量字段操作(TemporalAccessor) ███████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Checks if the specified field is supported.
+     * <p>
+     * This checks if this instant can be queried for the specified field.
+     * If false, then calling the {@link #range(TemporalField) range},
+     * {@link #get(TemporalField) get} and {@link #with(TemporalField, long)}
+     * methods will throw an exception.
+     * <p>
+     * If the field is a {@link ChronoField} then the query is implemented here.
+     * The supported fields are:
+     * <ul>
+     * <li>{@code NANO_OF_SECOND}
+     * <li>{@code MICRO_OF_SECOND}
+     * <li>{@code MILLI_OF_SECOND}
+     * <li>{@code INSTANT_SECONDS}
+     * </ul>
+     * All other {@code ChronoField} instances will return false.
+     * <p>
+     * If the field is not a {@code ChronoField}, then the result of this method
+     * is obtained by invoking {@code TemporalField.isSupportedBy(TemporalAccessor)}
+     * passing {@code this} as the argument.
+     * Whether the field is supported is determined by the field.
+     *
+     * @param field the field to check, null returns false
+     *
+     * @return true if the field is supported on this instant, false if not
+     */
+    // 判断当前时间量是否支持指定的时间量字段
+    @Override
+    public boolean isSupported(TemporalField field) {
+        if(field instanceof ChronoField) {
+            return field == ChronoField.INSTANT_SECONDS || field == ChronoField.NANO_OF_SECOND || field == ChronoField.MICRO_OF_SECOND || field == ChronoField.MILLI_OF_SECOND;
+        }
+        
+        return field != null && field.isSupportedBy(this);
+    }
+    
+    /**
+     * Gets the range of valid values for the specified field.
+     * <p>
+     * The range object expresses the minimum and maximum valid values for a field.
+     * This instant is used to enhance the accuracy of the returned range.
+     * If it is not possible to return the range, because the field is not supported
+     * or for some other reason, an exception is thrown.
+     * <p>
+     * If the field is a {@link ChronoField} then the query is implemented here.
+     * The {@link #isSupported(TemporalField) supported fields} will return
+     * appropriate range instances.
+     * All other {@code ChronoField} instances will throw an {@code UnsupportedTemporalTypeException}.
+     * <p>
+     * If the field is not a {@code ChronoField}, then the result of this method
+     * is obtained by invoking {@code TemporalField.rangeRefinedBy(TemporalAccessor)}
+     * passing {@code this} as the argument.
+     * Whether the range can be obtained is determined by the field.
+     *
+     * @param field the field to query the range for, not null
+     *
+     * @return the range of valid values for the field, not null
+     *
+     * @throws DateTimeException                if the range for the field cannot be obtained
+     * @throws UnsupportedTemporalTypeException if the field is not supported
+     */
+    // 返回时间量字段field的取值区间，通常要求当前时间量支持该时间量字段
+    @Override
+    public ValueRange range(TemporalField field) {
+        return Temporal.super.range(field);
+    }
+    
+    /**
+     * Gets the value of the specified field from this instant as an {@code int}.
+     * <p>
+     * This queries this instant for the value of the specified field.
+     * The returned value will always be within the valid range of values for the field.
+     * If it is not possible to return the value, because the field is not supported
+     * or for some other reason, an exception is thrown.
+     * <p>
+     * If the field is a {@link ChronoField} then the query is implemented here.
+     * The {@link #isSupported(TemporalField) supported fields} will return valid
+     * values based on this date-time, except {@code INSTANT_SECONDS} which is too
+     * large to fit in an {@code int} and throws a {@code DateTimeException}.
+     * All other {@code ChronoField} instances will throw an {@code UnsupportedTemporalTypeException}.
+     * <p>
+     * If the field is not a {@code ChronoField}, then the result of this method
+     * is obtained by invoking {@code TemporalField.getFrom(TemporalAccessor)}
+     * passing {@code this} as the argument. Whether the value can be obtained,
+     * and what the value represents, is determined by the field.
+     *
+     * @param field the field to get, not null
+     *
+     * @return the value for the field
+     *
+     * @throws DateTimeException                if a value for the field cannot be obtained or
+     *                                          the value is outside the range of valid values for the field
+     * @throws UnsupportedTemporalTypeException if the field is not supported or
+     *                                          the range of values exceeds an {@code int}
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 以int形式返回时间量字段field的值
+     *
+     * 目前支持的字段包括：
+     *
+     * ChronoField.INSTANT_SECONDS ×
+     * ChronoField.NANO_OF_SECOND  - 纳秒偏移部件，在纪元秒部件的基础上多出的纳秒数
+     * ChronoField.MICRO_OF_SECOND - 微秒偏移，由纳秒部件计算而来（不要与纳秒部件同时展示）
+     * ChronoField.MILLI_OF_SECOND - 毫秒偏移，由纳秒部件计算而来（不要与纳秒部件同时展示）
+     */
+    @Override
+    public int get(TemporalField field) {
+        if(field instanceof ChronoField) {
+            switch((ChronoField) field) {
+                case NANO_OF_SECOND:
+                    return nanos;
+                case MICRO_OF_SECOND:
+                    return nanos / 1000;
+                case MILLI_OF_SECOND:
+                    return nanos / 1000_000;
+            }
+            
+            throw new UnsupportedTemporalTypeException("Unsupported field: " + field);
+        }
+        
+        return range(field).checkValidIntValue(field.getFrom(this), field);
+    }
+    
+    /**
+     * Gets the value of the specified field from this instant as a {@code long}.
+     * <p>
+     * This queries this instant for the value of the specified field.
+     * If it is not possible to return the value, because the field is not supported
+     * or for some other reason, an exception is thrown.
+     * <p>
+     * If the field is a {@link ChronoField} then the query is implemented here.
+     * The {@link #isSupported(TemporalField) supported fields} will return valid
+     * values based on this date-time.
+     * All other {@code ChronoField} instances will throw an {@code UnsupportedTemporalTypeException}.
+     * <p>
+     * If the field is not a {@code ChronoField}, then the result of this method
+     * is obtained by invoking {@code TemporalField.getFrom(TemporalAccessor)}
+     * passing {@code this} as the argument. Whether the value can be obtained,
+     * and what the value represents, is determined by the field.
+     *
+     * @param field the field to get, not null
+     *
+     * @return the value for the field
+     *
+     * @throws DateTimeException                if a value for the field cannot be obtained
+     * @throws UnsupportedTemporalTypeException if the field is not supported
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 以long形式返回时间量字段field的值
+     *
+     * 目前支持的字段包括：
+     *
+     * ChronoField.INSTANT_SECONDS = 纪元秒部件，从新纪元时间开始算起
+     * ChronoField.NANO_OF_SECOND  - 纳秒偏移部件，在纪元秒部件的基础上多出的纳秒数
+     * ChronoField.MICRO_OF_SECOND - 微秒偏移，由纳秒部件计算而来（不要与纳秒部件同时展示）
+     * ChronoField.MILLI_OF_SECOND - 毫秒偏移，由纳秒部件计算而来（不要与纳秒部件同时展示）
+     */
+    @Override
+    public long getLong(TemporalField field) {
+        if(field instanceof ChronoField) {
+            switch((ChronoField) field) {
+                case NANO_OF_SECOND:
+                    return nanos;
+                case MICRO_OF_SECOND:
+                    return nanos / 1000;
+                case MILLI_OF_SECOND:
+                    return nanos / 1000_000;
+                case INSTANT_SECONDS:
+                    return seconds;
+            }
+            
+            throw new UnsupportedTemporalTypeException("Unsupported field: " + field);
+        }
+        
+        return field.getFrom(this);
+    }
+    
     /**
      * Queries this instant using the specified query.
      * <p>
@@ -1043,27 +1158,170 @@ public final class Instant
      * {@link TemporalQuery#queryFrom(TemporalAccessor)} method on the
      * specified query passing {@code this} as the argument.
      *
-     * @param <R> the type of the result
-     * @param query  the query to invoke, not null
+     * @param <R>   the type of the result
+     * @param query the query to invoke, not null
+     *
      * @return the query result, null may be returned (defined by the query)
-     * @throws DateTimeException if unable to query (defined by the query)
+     *
+     * @throws DateTimeException   if unable to query (defined by the query)
      * @throws ArithmeticException if numeric overflow occurs (defined by the query)
      */
+    // 使用指定的时间量查询器，从当前时间量中查询目标信息
     @SuppressWarnings("unchecked")
     @Override
     public <R> R query(TemporalQuery<R> query) {
-        if (query == TemporalQueries.precision()) {
-            return (R) NANOS;
+        // 查询时间量支持的最小时间量单位
+        if(query == TemporalQueries.precision()) {
+            return (R) ChronoUnit.NANOS;
         }
-        // inline TemporalAccessor.super.query(query) as an optimization
-        if (query == TemporalQueries.chronology() || query == TemporalQueries.zoneId() ||
-                query == TemporalQueries.zone() || query == TemporalQueries.offset() ||
-                query == TemporalQueries.localDate() || query == TemporalQueries.localTime()) {
+    
+        /* inline TemporalAccessor.super.query(query) as an optimization */
+        // 一些优化操作，即当前时间量不支持下面这些查询操作
+        if(query == TemporalQueries.chronology() || query == TemporalQueries.zoneId() || query == TemporalQueries.zone() || query == TemporalQueries.offset() || query == TemporalQueries.localDate() || query == TemporalQueries.localTime()) {
             return null;
         }
+    
         return query.queryFrom(this);
     }
-
+    
+    /*▲ 时间量字段操作(TemporalAccessor) ███████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 整合 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns an adjusted copy of this instant.
+     * <p>
+     * This returns an {@code Instant}, based on this one, with the instant adjusted.
+     * The adjustment takes place using the specified adjuster strategy object.
+     * Read the documentation of the adjuster to understand what adjustment will be made.
+     * <p>
+     * The result of this method is obtained by invoking the
+     * {@link TemporalAdjuster#adjustInto(Temporal)} method on the
+     * specified adjuster passing {@code this} as the argument.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param adjuster the adjuster to use, not null
+     *
+     * @return an {@code Instant} based on {@code this} with the adjustment made, not null
+     *
+     * @throws DateTimeException   if the adjustment cannot be made
+     * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 使用指定的时间量整合器adjuster来构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     */
+    @Override
+    public Instant with(TemporalAdjuster adjuster) {
+        return (Instant) adjuster.adjustInto(this);
+    }
+    
+    /**
+     * Returns a copy of this instant with the specified field set to a new value.
+     * <p>
+     * This returns an {@code Instant}, based on this one, with the value
+     * for the specified field changed.
+     * If it is not possible to set the value, because the field is not supported or for
+     * some other reason, an exception is thrown.
+     * <p>
+     * If the field is a {@link ChronoField} then the adjustment is implemented here.
+     * The supported fields behave as follows:
+     * <ul>
+     * <li>{@code NANO_OF_SECOND} -
+     *  Returns an {@code Instant} with the specified nano-of-second.
+     *  The epoch-second will be unchanged.
+     * <li>{@code MICRO_OF_SECOND} -
+     *  Returns an {@code Instant} with the nano-of-second replaced by the specified
+     *  micro-of-second multiplied by 1,000. The epoch-second will be unchanged.
+     * <li>{@code MILLI_OF_SECOND} -
+     *  Returns an {@code Instant} with the nano-of-second replaced by the specified
+     *  milli-of-second multiplied by 1,000,000. The epoch-second will be unchanged.
+     * <li>{@code INSTANT_SECONDS} -
+     *  Returns an {@code Instant} with the specified epoch-second.
+     *  The nano-of-second will be unchanged.
+     * </ul>
+     * <p>
+     * In all cases, if the new value is outside the valid range of values for the field
+     * then a {@code DateTimeException} will be thrown.
+     * <p>
+     * All other {@code ChronoField} instances will throw an {@code UnsupportedTemporalTypeException}.
+     * <p>
+     * If the field is not a {@code ChronoField}, then the result of this method
+     * is obtained by invoking {@code TemporalField.adjustInto(Temporal, long)}
+     * passing {@code this} as the argument. In this case, the field determines
+     * whether and how to adjust the instant.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param field    the field to set in the result, not null
+     * @param newValue the new value of the field in the result
+     *
+     * @return an {@code Instant} based on {@code this} with the specified field set, not null
+     *
+     * @throws DateTimeException                if the field cannot be set
+     * @throws UnsupportedTemporalTypeException if the field is not supported
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 通过整合指定类型的字段和当前时间量中的其他类型的字段来构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * field   : 待整合的字段(类型)
+     * newValue: field的原始值，需要根据filed的类型进行放缩
+     *
+     * 目前支持传入的字段值包括：
+     *
+     * ChronoField.MILLI_OF_SECOND - 与[毫秒](0, 999)整合，只会覆盖当前时间量的"纳秒"组件
+     * ChronoField.MICRO_OF_SECOND - 与[微秒](0, 999_999)整合，只会覆盖当前时间量的"纳秒"组件
+     * ChronoField.NANO_OF_SECOND  - 与[纳秒](0, 999_999_999)整合，只会覆盖当前时间量的"纳秒"组件
+     * ChronoField.INSTANT_SECONDS - 与[时间戳秒]整合(Long.MIN_VALUE, Long.MAX_VALUE)，只会覆盖当前时间量的"秒"组件
+     */
+    @Override
+    public Instant with(TemporalField field, long newValue) {
+        
+        if(field instanceof ChronoField) {
+            ChronoField f = (ChronoField) field;
+            f.checkValidValue(newValue);
+            
+            switch(f) {
+                // 传入毫秒
+                case MILLI_OF_SECOND: {
+                    // 将毫秒转换为纳秒
+                    int nval = (int) newValue * 1000_000;
+                    return (nval != nanos ? create(seconds, nval) : this);
+                }
+                
+                // 传入微秒
+                case MICRO_OF_SECOND: {
+                    // 将微秒转换为纳秒
+                    int nval = (int) newValue * 1000;
+                    return (nval != nanos ? create(seconds, nval) : this);
+                }
+                
+                // 传入纳秒
+                case NANO_OF_SECOND: {
+                    return (newValue != nanos ? create(seconds, (int) newValue) : this);
+                }
+                
+                // 传入秒
+                case INSTANT_SECONDS: {
+                    return (newValue != seconds ? create(newValue, nanos) : this);
+                }
+            }
+            
+            throw new UnsupportedTemporalTypeException("Unsupported field: " + field);
+        }
+        
+        return field.adjustInto(this, newValue);
+    }
+    
     /**
      * Adjusts the specified temporal object to have this instant.
      * <p>
@@ -1084,16 +1342,42 @@ public final class Instant
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param temporal  the target object to be adjusted, not null
+     * @param temporal the target object to be adjusted, not null
+     *
      * @return the adjusted object, not null
-     * @throws DateTimeException if unable to make the adjustment
+     *
+     * @throws DateTimeException   if unable to make the adjustment
      * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 拿当前时间量中的特定字段与时间量temporal中的其他字段进行整合。
+     *
+     * 如果整合后的值与temporal中原有的值相等，则可以直接使用temporal本身；否则，会返回新构造的时间量对象。
+     *
+     * 注：通常，这会用到当前时间量的所有部件信息
+     *
+     *
+     * 当前时间量参与整合字段包括：
+     * ChronoField.INSTANT_SECONDS - 当前时间量的"纪元秒"部件
+     * ChronoField.NANO_OF_SECOND  - 当前时间量的"纳秒偏移"部件
+     *
+     * 目标时间量temporal的取值可以是：
+     * Instant
+     * OffsetDateTime
+     * ZonedDateTime
+     * ChronoZonedDateTimeImpl
      */
     @Override
     public Temporal adjustInto(Temporal temporal) {
-        return temporal.with(INSTANT_SECONDS, seconds).with(NANO_OF_SECOND, nanos);
+        return temporal.with(ChronoField.INSTANT_SECONDS, seconds).with(ChronoField.NANO_OF_SECOND, nanos);
     }
-
+    
+    /*▲ 整合 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Calculates the amount of time until another instant in terms of the specified unit.
      * <p>
@@ -1130,193 +1414,249 @@ public final class Instant
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param endExclusive  the end date, exclusive, which is converted to an {@code Instant}, not null
-     * @param unit  the unit to measure the amount in, not null
+     * @param endExclusive the end date, exclusive, which is converted to an {@code Instant}, not null
+     * @param unit         the unit to measure the amount in, not null
+     *
      * @return the amount of time between this instant and the end instant
-     * @throws DateTimeException if the amount cannot be calculated, or the end
-     *  temporal cannot be converted to an {@code Instant}
+     *
+     * @throws DateTimeException                if the amount cannot be calculated, or the end
+     *                                          temporal cannot be converted to an {@code Instant}
      * @throws UnsupportedTemporalTypeException if the unit is not supported
-     * @throws ArithmeticException if numeric overflow occurs
+     * @throws ArithmeticException              if numeric overflow occurs
      */
+    // 计算当前时间量到目标时间量endExclusive之间相差多少个unit单位的时间值
     @Override
     public long until(Temporal endExclusive, TemporalUnit unit) {
+        // 从时间量endExclusive中获取纪元秒部件和纳秒偏移部件的信息，以构造一个时间戳
         Instant end = Instant.from(endExclusive);
-        if (unit instanceof ChronoUnit) {
+    
+        // 如果是ChronoUnit类型的单位，则可以直接计算差值
+        if(unit instanceof ChronoUnit) {
             ChronoUnit f = (ChronoUnit) unit;
-            switch (f) {
-                case NANOS: return nanosUntil(end);
-                case MICROS: return nanosUntil(end) / 1000;
-                case MILLIS: return Math.subtractExact(end.toEpochMilli(), toEpochMilli());
-                case SECONDS: return secondsUntil(end);
-                case MINUTES: return secondsUntil(end) / SECONDS_PER_MINUTE;
-                case HOURS: return secondsUntil(end) / SECONDS_PER_HOUR;
-                case HALF_DAYS: return secondsUntil(end) / (12 * SECONDS_PER_HOUR);
-                case DAYS: return secondsUntil(end) / (SECONDS_PER_DAY);
+            switch(f) {
+                case NANOS:
+                    return nanosUntil(end);
+                case MICROS:
+                    return nanosUntil(end) / 1000;
+                case MILLIS:
+                    return Math.subtractExact(end.toEpochMilli(), toEpochMilli());
+                case SECONDS:
+                    return secondsUntil(end);
+                case MINUTES:
+                    return secondsUntil(end) / LocalTime.SECONDS_PER_MINUTE;
+                case HOURS:
+                    return secondsUntil(end) / LocalTime.SECONDS_PER_HOUR;
+                case HALF_DAYS:
+                    return secondsUntil(end) / (12 * LocalTime.SECONDS_PER_HOUR);
+                case DAYS:
+                    return secondsUntil(end) / (LocalTime.SECONDS_PER_DAY);
             }
+        
             throw new UnsupportedTemporalTypeException("Unsupported unit: " + unit);
         }
+    
         return unit.between(this, end);
     }
-
-    private long nanosUntil(Instant end) {
-        long secsDiff = Math.subtractExact(end.seconds, seconds);
-        long totalNanos = Math.multiplyExact(secsDiff, NANOS_PER_SECOND);
-        return Math.addExact(totalNanos, end.nanos - nanos);
+    
+    /**
+     * Returns a copy of this {@code Instant} truncated to the specified unit.
+     * <p>
+     * Truncating the instant returns a copy of the original with fields
+     * smaller than the specified unit set to zero.
+     * The fields are calculated on the basis of using a UTC offset as seen
+     * in {@code toString}.
+     * For example, truncating with the {@link ChronoUnit#MINUTES MINUTES} unit will
+     * round down to the nearest minute, setting the seconds and nanoseconds to zero.
+     * <p>
+     * The unit must have a {@linkplain TemporalUnit#getDuration() duration}
+     * that divides into the length of a standard day without remainder.
+     * This includes all supplied time units on {@link ChronoUnit} and
+     * {@link ChronoUnit#DAYS DAYS}. Other units throw an exception.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param unit the unit to truncate to, not null
+     *
+     * @return an {@code Instant} based on this instant with the time truncated, not null
+     *
+     * @throws DateTimeException                if the unit is invalid for truncation
+     * @throws UnsupportedTemporalTypeException if the unit is not supported
+     */
+    /*
+     * 截断(对齐)
+     *
+     * 将当前时间量按照unit单位进行截断(对齐)，返回截断(对齐)后的新对象。
+     *
+     * 注：要求unit为"时间"单位
+     */
+    public Instant truncatedTo(TemporalUnit unit) {
+        // 截断(对齐)到纳秒的话，可以直接返回，因为最小的计数单位就是纳秒
+        if(unit == ChronoUnit.NANOS) {
+            return this;
+        }
+        
+        // 将时间量单位unit转换为对应的"时间段"后返回
+        Duration unitDur = unit.getDuration();
+        // 如果该"时间段"超过了一天，抛异常
+        if(unitDur.getSeconds()>LocalTime.SECONDS_PER_DAY) {
+            throw new UnsupportedTemporalTypeException("Unit is too large to be used for truncation");
+        }
+        
+        // 获取"时间段"unitDur包含的纳秒数
+        long dur = unitDur.toNanos();
+        /*
+         * 要求该"时间段"反映一天的中某个时间单位，比如毫秒、小时等，不能是随便的一个值...
+         * 当然，系统内置的单位都是有效的单位...
+         */
+        if((LocalTime.NANOS_PER_DAY % dur) != 0) {
+            throw new UnsupportedTemporalTypeException("Unit must divide into a standard day without remainder");
+        }
+        
+        // 计算截断，将超出不足一个时间量单位unit的部分舍去
+        long nod = (seconds % LocalTime.SECONDS_PER_DAY) * LocalTime.NANOS_PER_SECOND + nanos;
+        long result = Math.floorDiv(nod, dur) * dur;
+        
+        /*
+         * 构造一个新的Instant，该Instant在当前Instant的基础上累加了给定的纳秒偏移
+         *
+         * 注：这里的result - nod往往是负数，所以相当于减去的效果
+         */
+        return plusNanos(result - nod);
     }
-
+    
+    /**
+     * Checks if this instant is after the specified instant.
+     * <p>
+     * The comparison is based on the time-line position of the instants.
+     *
+     * @param otherInstant the other instant to compare to, not null
+     *
+     * @return true if this instant is after the specified instant
+     *
+     * @throws NullPointerException if otherInstant is null
+     */
+    // 判断当前时间戳是否晚于otherInstant
+    public boolean isAfter(Instant otherInstant) {
+        return compareTo(otherInstant)>0;
+    }
+    
+    /**
+     * Checks if this instant is before the specified instant.
+     * <p>
+     * The comparison is based on the time-line position of the instants.
+     *
+     * @param otherInstant the other instant to compare to, not null
+     *
+     * @return true if this instant is before the specified instant
+     *
+     * @throws NullPointerException if otherInstant is null
+     */
+    // 判断当前时间戳是否早于otherInstant
+    public boolean isBefore(Instant otherInstant) {
+        return compareTo(otherInstant)<0;
+    }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    /**
+     * Obtains an instance of {@code Instant} using seconds and nanoseconds.
+     *
+     * @param seconds      the length of the duration in seconds
+     * @param nanoOfSecond the nano-of-second, from 0 to 999,999,999
+     *
+     * @throws DateTimeException if the instant exceeds the maximum or minimum instant
+     */
+    // 根据给定的纪元秒与纳秒偏移构造一个时间戳
+    private static Instant create(long seconds, int nanoOfSecond) {
+        if((seconds | nanoOfSecond) == 0) {
+            return EPOCH;
+        }
+        
+        if(seconds<MIN_SECOND || seconds>MAX_SECOND) {
+            throw new DateTimeException("Instant exceeds minimum or maximum instant");
+        }
+        
+        return new Instant(seconds, nanoOfSecond);
+    }
+    
+    /**
+     * Returns a copy of this instant with the specified duration added.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param secondsToAdd the seconds to add, positive or negative
+     * @param nanosToAdd   the nanos to add, positive or negative
+     *
+     * @return an {@code Instant} based on this instant with the specified seconds added, not null
+     *
+     * @throws DateTimeException   if the result exceeds the maximum or minimum instant
+     * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 尝试构造一个新的Instant，该Instant在当前Instant的基础上累加了给定的秒与纳秒。
+     * 如果累加后的值与原值相同，则返回当前Instant自身。
+     */
+    private Instant plus(long secondsToAdd, long nanosToAdd) {
+        if((secondsToAdd | nanosToAdd) == 0) {
+            return this;
+        }
+        
+        // 累加参数中的秒
+        long epochSec = Math.addExact(seconds, secondsToAdd);
+        // 累加纳秒中包含的秒
+        epochSec = Math.addExact(epochSec, nanosToAdd / LocalTime.NANOS_PER_SECOND);
+        
+        // 计算剩余的纳秒
+        nanosToAdd = nanosToAdd % LocalTime.NANOS_PER_SECOND;
+        // 累加纳秒
+        long nanoAdjustment = nanos + nanosToAdd;  // safe int+NANOS_PER_SECOND
+        
+        // 根据给定的纪元秒与纳秒偏移构造一个时间戳
+        return ofEpochSecond(epochSec, nanoAdjustment);
+    }
+    
+    // 返回当前时间戳与目标时间戳end相差的秒数
     private long secondsUntil(Instant end) {
         long secsDiff = Math.subtractExact(end.seconds, seconds);
         long nanosDiff = end.nanos - nanos;
-        if (secsDiff > 0 && nanosDiff < 0) {
+        if(secsDiff>0 && nanosDiff<0) {
             secsDiff--;
-        } else if (secsDiff < 0 && nanosDiff > 0) {
+        } else if(secsDiff<0 && nanosDiff>0) {
             secsDiff++;
         }
         return secsDiff;
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Combines this instant with an offset to create an {@code OffsetDateTime}.
-     * <p>
-     * This returns an {@code OffsetDateTime} formed from this instant at the
-     * specified offset from UTC/Greenwich. An exception will be thrown if the
-     * instant is too large to fit into an offset date-time.
-     * <p>
-     * This method is equivalent to
-     * {@link OffsetDateTime#ofInstant(Instant, ZoneId) OffsetDateTime.ofInstant(this, offset)}.
-     *
-     * @param offset  the offset to combine with, not null
-     * @return the offset date-time formed from this instant and the specified offset, not null
-     * @throws DateTimeException if the result exceeds the supported range
-     */
-    public OffsetDateTime atOffset(ZoneOffset offset) {
-        return OffsetDateTime.ofInstant(this, offset);
+    
+    // 返回当前时间戳与目标时间戳end相差的纳秒数
+    private long nanosUntil(Instant end) {
+        long secsDiff = Math.subtractExact(end.seconds, seconds);
+        long totalNanos = Math.multiplyExact(secsDiff, LocalTime.NANOS_PER_SECOND);
+        return Math.addExact(totalNanos, end.nanos - nanos);
     }
-
-    /**
-     * Combines this instant with a time-zone to create a {@code ZonedDateTime}.
-     * <p>
-     * This returns an {@code ZonedDateTime} formed from this instant at the
-     * specified time-zone. An exception will be thrown if the instant is too
-     * large to fit into a zoned date-time.
-     * <p>
-     * This method is equivalent to
-     * {@link ZonedDateTime#ofInstant(Instant, ZoneId) ZonedDateTime.ofInstant(this, zone)}.
-     *
-     * @param zone  the zone to combine with, not null
-     * @return the zoned date-time formed from this instant and the specified zone, not null
-     * @throws DateTimeException if the result exceeds the supported range
-     */
-    public ZonedDateTime atZone(ZoneId zone) {
-        return ZonedDateTime.ofInstant(this, zone);
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Converts this instant to the number of milliseconds from the epoch
-     * of 1970-01-01T00:00:00Z.
-     * <p>
-     * If this instant represents a point on the time-line too far in the future
-     * or past to fit in a {@code long} milliseconds, then an exception is thrown.
-     * <p>
-     * If this instant has greater than millisecond precision, then the conversion
-     * will drop any excess precision information as though the amount in nanoseconds
-     * was subject to integer division by one million.
-     *
-     * @return the number of milliseconds since the epoch of 1970-01-01T00:00:00Z
-     * @throws ArithmeticException if numeric overflow occurs
-     */
-    public long toEpochMilli() {
-        if (seconds < 0 && nanos > 0) {
-            long millis = Math.multiplyExact(seconds+1, 1000);
-            long adjustment = nanos / 1000_000 - 1000;
-            return Math.addExact(millis, adjustment);
-        } else {
-            long millis = Math.multiplyExact(seconds, 1000);
-            return Math.addExact(millis, nanos / 1000_000);
-        }
-    }
-
-    //-----------------------------------------------------------------------
+    
+    
     /**
      * Compares this instant to the specified instant.
      * <p>
      * The comparison is based on the time-line position of the instants.
      * It is "consistent with equals", as defined by {@link Comparable}.
      *
-     * @param otherInstant  the other instant to compare to, not null
+     * @param otherInstant the other instant to compare to, not null
+     *
      * @return the comparator value, negative if less, positive if greater
+     *
      * @throws NullPointerException if otherInstant is null
      */
     @Override
     public int compareTo(Instant otherInstant) {
         int cmp = Long.compare(seconds, otherInstant.seconds);
-        if (cmp != 0) {
+        if(cmp != 0) {
             return cmp;
         }
         return nanos - otherInstant.nanos;
     }
-
-    /**
-     * Checks if this instant is after the specified instant.
-     * <p>
-     * The comparison is based on the time-line position of the instants.
-     *
-     * @param otherInstant  the other instant to compare to, not null
-     * @return true if this instant is after the specified instant
-     * @throws NullPointerException if otherInstant is null
-     */
-    public boolean isAfter(Instant otherInstant) {
-        return compareTo(otherInstant) > 0;
-    }
-
-    /**
-     * Checks if this instant is before the specified instant.
-     * <p>
-     * The comparison is based on the time-line position of the instants.
-     *
-     * @param otherInstant  the other instant to compare to, not null
-     * @return true if this instant is before the specified instant
-     * @throws NullPointerException if otherInstant is null
-     */
-    public boolean isBefore(Instant otherInstant) {
-        return compareTo(otherInstant) < 0;
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Checks if this instant is equal to the specified instant.
-     * <p>
-     * The comparison is based on the time-line position of the instants.
-     *
-     * @param otherInstant  the other instant, null returns false
-     * @return true if the other instant is equal to this one
-     */
-    @Override
-    public boolean equals(Object otherInstant) {
-        if (this == otherInstant) {
-            return true;
-        }
-        if (otherInstant instanceof Instant) {
-            Instant other = (Instant) otherInstant;
-            return this.seconds == other.seconds &&
-                   this.nanos == other.nanos;
-        }
-        return false;
-    }
-
-    /**
-     * Returns a hash code for this instant.
-     *
-     * @return a suitable hash code
-     */
-    @Override
-    public int hashCode() {
-        return ((int) (seconds ^ (seconds >>> 32))) + 51 * nanos;
-    }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * A string representation of this instant using ISO-8601 representation.
      * <p>
@@ -1328,43 +1668,85 @@ public final class Instant
     public String toString() {
         return DateTimeFormatter.ISO_INSTANT.format(this);
     }
-
-    // -----------------------------------------------------------------------
+    
+    /**
+     * Checks if this instant is equal to the specified instant.
+     * <p>
+     * The comparison is based on the time-line position of the instants.
+     *
+     * @param otherInstant the other instant, null returns false
+     *
+     * @return true if the other instant is equal to this one
+     */
+    @Override
+    public boolean equals(Object otherInstant) {
+        if(this == otherInstant) {
+            return true;
+        }
+        if(otherInstant instanceof Instant) {
+            Instant other = (Instant) otherInstant;
+            return this.seconds == other.seconds && this.nanos == other.nanos;
+        }
+        return false;
+    }
+    
+    /**
+     * Returns a hash code for this instant.
+     *
+     * @return a suitable hash code
+     */
+    @Override
+    public int hashCode() {
+        return ((int) (seconds ^ (seconds >>> 32))) + 51 * nanos;
+    }
+    
+    
+    
+    /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Serialization version.
+     */
+    private static final long serialVersionUID = -665713676816604388L;
+    
     /**
      * Writes the object using a
      * <a href="../../serialized-form.html#java.time.Ser">dedicated serialized form</a>.
-     * @serialData
-     * <pre>
+     *
+     * @return the instance of {@code Ser}, not null
+     *
+     * @serialData <pre>
      *  out.writeByte(2);  // identifies an Instant
      *  out.writeLong(seconds);
      *  out.writeInt(nanos);
      * </pre>
-     *
-     * @return the instance of {@code Ser}, not null
      */
     private Object writeReplace() {
         return new Ser(Ser.INSTANT_TYPE, this);
     }
-
+    
     /**
      * Defend against malicious streams.
      *
      * @param s the stream to read
+     *
      * @throws InvalidObjectException always
      */
     private void readObject(ObjectInputStream s) throws InvalidObjectException {
         throw new InvalidObjectException("Deserialization via serialization delegate");
     }
-
-    void writeExternal(DataOutput out) throws IOException {
-        out.writeLong(seconds);
-        out.writeInt(nanos);
-    }
-
+    
     static Instant readExternal(DataInput in) throws IOException {
         long seconds = in.readLong();
         int nanos = in.readInt();
         return Instant.ofEpochSecond(seconds, nanos);
     }
-
+    
+    void writeExternal(DataOutput out) throws IOException {
+        out.writeLong(seconds);
+        out.writeInt(nanos);
+    }
+    
+    /*▲ 序列化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }
