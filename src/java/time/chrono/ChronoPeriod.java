@@ -84,74 +84,32 @@ import java.util.Objects;
  * The period is modeled as a directed amount of time, meaning that individual
  * parts of the period may be negative.
  *
- * @implSpec
- * This interface must be implemented with care to ensure other classes operate correctly.
+ * @implSpec This interface must be implemented with care to ensure other classes operate correctly.
  * All implementations that can be instantiated must be final, immutable and thread-safe.
  * Subclasses should be Serializable wherever possible.
- *
  * @since 1.8
  */
-public interface ChronoPeriod
-        extends TemporalAmount {
-
+// 时间段，包含年/月/日部件，精确到天；允许在子类中将"日期"部件绑定到某种历法系统
+public interface ChronoPeriod extends TemporalAmount {
+    
+    /*▼ 部件 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Obtains a {@code ChronoPeriod} consisting of amount of time between two dates.
-     * <p>
-     * The start date is included, but the end date is not.
-     * The period is calculated using {@link ChronoLocalDate#until(ChronoLocalDate)}.
-     * As such, the calculation is chronology specific.
-     * <p>
-     * The chronology of the first date is used.
-     * The chronology of the second date is ignored, with the date being converted
-     * to the target chronology system before the calculation starts.
-     * <p>
-     * The result of this method can be a negative period if the end is before the start.
-     * In most cases, the positive/negative sign will be the same in each of the supported fields.
+     * Checks if all the supported units of this period are zero.
      *
-     * @param startDateInclusive  the start date, inclusive, specifying the chronology of the calculation, not null
-     * @param endDateExclusive  the end date, exclusive, in any chronology, not null
-     * @return the period between this date and the end date, not null
-     * @see ChronoLocalDate#until(ChronoLocalDate)
+     * @return true if this period is zero-length
      */
-    public static ChronoPeriod between(ChronoLocalDate startDateInclusive, ChronoLocalDate endDateExclusive) {
-        Objects.requireNonNull(startDateInclusive, "startDateInclusive");
-        Objects.requireNonNull(endDateExclusive, "endDateExclusive");
-        return startDateInclusive.until(endDateExclusive);
+    // 判断当前"时间段"的值是否为0，即该"时间段"内所有计时部件的值为0
+    default boolean isZero() {
+        for(TemporalUnit unit : getUnits()) {
+            if(get(unit) != 0) {
+                return false;
+            }
+        }
+        
+        return true;
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Gets the value of the requested unit.
-     * <p>
-     * The supported units are chronology specific.
-     * They will typically be {@link ChronoUnit#YEARS YEARS},
-     * {@link ChronoUnit#MONTHS MONTHS} and {@link ChronoUnit#DAYS DAYS}.
-     * Requesting an unsupported unit will throw an exception.
-     *
-     * @param unit the {@code TemporalUnit} for which to return the value
-     * @return the long value of the unit
-     * @throws DateTimeException if the unit is not supported
-     * @throws UnsupportedTemporalTypeException if the unit is not supported
-     */
-    @Override
-    long get(TemporalUnit unit);
-
-    /**
-     * Gets the set of units supported by this period.
-     * <p>
-     * The supported units are chronology specific.
-     * They will typically be {@link ChronoUnit#YEARS YEARS},
-     * {@link ChronoUnit#MONTHS MONTHS} and {@link ChronoUnit#DAYS DAYS}.
-     * They are returned in order from largest to smallest.
-     * <p>
-     * This set can be used in conjunction with {@link #get(TemporalUnit)}
-     * to access the entire state of the period.
-     *
-     * @return a list containing the supported units, not null
-     */
-    @Override
-    List<TemporalUnit> getUnits();
-
+    
     /**
      * Gets the chronology that defines the meaning of the supported units.
      * <p>
@@ -161,38 +119,15 @@ public interface ChronoPeriod
      *
      * @return the chronology defining the period, not null
      */
+    // 返回当前"时间段"采用的历法系统
     Chronology getChronology();
-
-    //-----------------------------------------------------------------------
-    /**
-     * Checks if all the supported units of this period are zero.
-     *
-     * @return true if this period is zero-length
-     */
-    default boolean isZero() {
-        for (TemporalUnit unit : getUnits()) {
-            if (get(unit) != 0) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Checks if any of the supported units of this period are negative.
-     *
-     * @return true if any unit of this period is negative
-     */
-    default boolean isNegative() {
-        for (TemporalUnit unit : getUnits()) {
-            if (get(unit) < 0) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 部件 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 基本运算 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns a copy of this period with the specified period added.
      * <p>
@@ -202,12 +137,20 @@ public interface ChronoPeriod
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param amountToAdd  the period to add, not null
+     * @param amountToAdd the period to add, not null
+     *
      * @return a {@code ChronoPeriod} based on this period with the requested period added, not null
+     *
      * @throws ArithmeticException if numeric overflow occurs
      */
+    /*
+     * 对当前"时间段"的值与参数中的"时间段"求和
+     *
+     * 如果求和后的值与当前"时间段"的值相等，则直接返回当前"时间段"对象。
+     * 否则，需要构造"求和"后的新对象再返回。
+     */
     ChronoPeriod plus(TemporalAmount amountToAdd);
-
+    
     /**
      * Returns a copy of this period with the specified period subtracted.
      * <p>
@@ -217,13 +160,20 @@ public interface ChronoPeriod
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param amountToSubtract  the period to subtract, not null
+     * @param amountToSubtract the period to subtract, not null
+     *
      * @return a {@code ChronoPeriod} based on this period with the requested period subtracted, not null
+     *
      * @throws ArithmeticException if numeric overflow occurs
      */
+    /*
+     * 对当前"时间段"的值与参数中的"时间段"求差
+     *
+     * 如果求差后的值与当前"时间段"的值相等，则直接返回当前"时间段"对象。
+     * 否则，需要构造"求差"后的新对象再返回。
+     */
     ChronoPeriod minus(TemporalAmount amountToSubtract);
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Returns a new instance with each amount in this period in this period
      * multiplied by the specified scalar.
@@ -233,13 +183,21 @@ public interface ChronoPeriod
      * 3 will return "6 years, -9 months and 12 days".
      * No normalization is performed.
      *
-     * @param scalar  the scalar to multiply by, not null
+     * @param scalar the scalar to multiply by, not null
+     *
      * @return a {@code ChronoPeriod} based on this period with the amounts multiplied
-     *  by the scalar, not null
+     * by the scalar, not null
+     *
      * @throws ArithmeticException if numeric overflow occurs
      */
+    /*
+     * 在当前"时间段"的值上乘以scalar(即放大scalar倍)
+     *
+     * 如果乘以后的值与当前"时间段"的值相等，则直接返回当前"时间段"对象。
+     * 否则，需要构造"乘以"操作后的新对象再返回。
+     */
     ChronoPeriod multipliedBy(int scalar);
-
+    
     /**
      * Returns a new instance with each amount in this period negated.
      * <p>
@@ -249,31 +207,36 @@ public interface ChronoPeriod
      * No normalization is performed.
      *
      * @return a {@code ChronoPeriod} based on this period with the amounts negated, not null
+     *
      * @throws ArithmeticException if numeric overflow occurs, which only happens if
-     *  one of the units has the value {@code Long.MIN_VALUE}
+     *                             one of the units has the value {@code Long.MIN_VALUE}
      */
+    // 取相反数
     default ChronoPeriod negated() {
         return multipliedBy(-1);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
-     * Returns a copy of this period with the amounts of each unit normalized.
-     * <p>
-     * The process of normalization is specific to each calendar system.
-     * For example, in the ISO calendar system, the years and months are
-     * normalized but the days are not, such that "15 months" would be
-     * normalized to "1 year and 3 months".
-     * <p>
-     * This instance is immutable and unaffected by this method call.
+     * Checks if any of the supported units of this period are negative.
      *
-     * @return a {@code ChronoPeriod} based on this period with the amounts of each
-     *  unit normalized, not null
-     * @throws ArithmeticException if numeric overflow occurs
+     * @return true if any unit of this period is negative
      */
-    ChronoPeriod normalized();
-
-    //-------------------------------------------------------------------------
+    // 判断当前"时间段"是否为负
+    default boolean isNegative() {
+        for(TemporalUnit unit : getUnits()) {
+            if(get(unit)<0) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /*▲ 基本运算 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 增加/减少 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Adds this period to the specified temporal object.
      * <p>
@@ -293,14 +256,22 @@ public interface ChronoPeriod
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param temporal  the temporal object to adjust, not null
+     * @param temporal the temporal object to adjust, not null
+     *
      * @return an object of the same type with the adjustment made, not null
-     * @throws DateTimeException if unable to add
+     *
+     * @throws DateTimeException   if unable to add
      * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 增加目标时间量temporal
+     *
+     * 尝试将当前"时间段"累加到指定的时间量temporal上，
+     * 如果累加后的值与原值相同，则返回temporal自身；否则，会构造一个新对象再返回。
      */
     @Override
     Temporal addTo(Temporal temporal);
-
+    
     /**
      * Subtracts this period from the specified temporal object.
      * <p>
@@ -320,38 +291,120 @@ public interface ChronoPeriod
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param temporal  the temporal object to adjust, not null
+     * @param temporal the temporal object to adjust, not null
+     *
      * @return an object of the same type with the adjustment made, not null
-     * @throws DateTimeException if unable to subtract
+     *
+     * @throws DateTimeException   if unable to subtract
      * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 减少目标时间量temporal
+     *
+     * 尝试从指定的时间量temporal上减去当前"时间段"，
+     * 如果减少后的值与原值相同，则返回temporal自身；否则，会构造一个新对象再返回。
      */
     @Override
     Temporal subtractFrom(Temporal temporal);
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 增加/减少 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 时间量单位 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Checks if this period is equal to another period, including the chronology.
+     * Gets the set of units supported by this period.
      * <p>
-     * Compares this period with another ensuring that the type, each amount and
-     * the chronology are the same.
-     * Note that this means that a period of "15 Months" is not equal to a period
-     * of "1 Year and 3 Months".
+     * The supported units are chronology specific.
+     * They will typically be {@link ChronoUnit#YEARS YEARS},
+     * {@link ChronoUnit#MONTHS MONTHS} and {@link ChronoUnit#DAYS DAYS}.
+     * They are returned in order from largest to smallest.
+     * <p>
+     * This set can be used in conjunction with {@link #get(TemporalUnit)}
+     * to access the entire state of the period.
      *
-     * @param obj  the object to check, null returns false
-     * @return true if this is equal to the other period
+     * @return a list containing the supported units, not null
      */
+    // 返回当前"时间段"上可用的时间量单位，这其实是该"时间段"的组成部件
     @Override
-    boolean equals(Object obj);
-
+    List<TemporalUnit> getUnits();
+    
     /**
-     * A hash code for this period.
+     * Gets the value of the requested unit.
+     * <p>
+     * The supported units are chronology specific.
+     * They will typically be {@link ChronoUnit#YEARS YEARS},
+     * {@link ChronoUnit#MONTHS MONTHS} and {@link ChronoUnit#DAYS DAYS}.
+     * Requesting an unsupported unit will throw an exception.
      *
-     * @return a suitable hash code
+     * @param unit the {@code TemporalUnit} for which to return the value
+     *
+     * @return the long value of the unit
+     *
+     * @throws DateTimeException                if the unit is not supported
+     * @throws UnsupportedTemporalTypeException if the unit is not supported
      */
+    // 返回当前"时间段"中指定的时间量单位unit对应的时间量数值
     @Override
-    int hashCode();
-
-    //-----------------------------------------------------------------------
+    long get(TemporalUnit unit);
+    
+    /*▲ 时间量单位 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Obtains a {@code ChronoPeriod} consisting of amount of time between two dates.
+     * <p>
+     * The start date is included, but the end date is not.
+     * The period is calculated using {@link ChronoLocalDate#until(ChronoLocalDate)}.
+     * As such, the calculation is chronology specific.
+     * <p>
+     * The chronology of the first date is used.
+     * The chronology of the second date is ignored, with the date being converted
+     * to the target chronology system before the calculation starts.
+     * <p>
+     * The result of this method can be a negative period if the end is before the start.
+     * In most cases, the positive/negative sign will be the same in each of the supported fields.
+     *
+     * @param startDateInclusive the start date, inclusive, specifying the chronology of the calculation, not null
+     * @param endDateExclusive   the end date, exclusive, in any chronology, not null
+     *
+     * @return the period between this date and the end date, not null
+     *
+     * @see ChronoLocalDate#until(ChronoLocalDate)
+     */
+    // 计算两个时间量之间相差多少个"时间段"
+    static ChronoPeriod between(ChronoLocalDate startDateInclusive, ChronoLocalDate endDateExclusive) {
+        Objects.requireNonNull(startDateInclusive, "startDateInclusive");
+        Objects.requireNonNull(endDateExclusive, "endDateExclusive");
+        
+        return startDateInclusive.until(endDateExclusive);
+    }
+    
+    /**
+     * Returns a copy of this period with the amounts of each unit normalized.
+     * <p>
+     * The process of normalization is specific to each calendar system.
+     * For example, in the ISO calendar system, the years and months are
+     * normalized but the days are not, such that "15 months" would be
+     * normalized to "1 year and 3 months".
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @return a {@code ChronoPeriod} based on this period with the amounts of each
+     * unit normalized, not null
+     *
+     * @throws ArithmeticException if numeric overflow occurs
+     */
+    // 返回当前"时间段"的一个规范表示：即先从比较大的单位开始填充数据
+    ChronoPeriod normalized();
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
     /**
      * Outputs this period as a {@code String}.
      * <p>
@@ -361,5 +414,28 @@ public interface ChronoPeriod
      */
     @Override
     String toString();
-
+    
+    /**
+     * Checks if this period is equal to another period, including the chronology.
+     * <p>
+     * Compares this period with another ensuring that the type, each amount and
+     * the chronology are the same.
+     * Note that this means that a period of "15 Months" is not equal to a period
+     * of "1 Year and 3 Months".
+     *
+     * @param obj the object to check, null returns false
+     *
+     * @return true if this is equal to the other period
+     */
+    @Override
+    boolean equals(Object obj);
+    
+    /**
+     * A hash code for this period.
+     *
+     * @return a suitable hash code
+     */
+    @Override
+    int hashCode();
+    
 }
