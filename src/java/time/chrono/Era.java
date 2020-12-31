@@ -61,11 +61,7 @@
  */
 package java.time.chrono;
 
-import static java.time.temporal.ChronoField.ERA;
-import static java.time.temporal.ChronoUnit.ERAS;
-
 import java.time.DateTimeException;
-import java.time.temporal.UnsupportedTemporalTypeException;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.TextStyle;
 import java.time.temporal.ChronoField;
@@ -75,8 +71,11 @@ import java.time.temporal.TemporalAdjuster;
 import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalQueries;
 import java.time.temporal.TemporalQuery;
+import java.time.temporal.UnsupportedTemporalTypeException;
 import java.time.temporal.ValueRange;
 import java.util.Locale;
+
+import static java.time.temporal.ChronoUnit.ERAS;
 
 /**
  * An era of the time-line.
@@ -101,8 +100,18 @@ import java.util.Locale;
  *
  * @since 1.8
  */
+/*
+ * 纪元
+ *
+ * Era支持的纪元包括：
+ * IsoEra          - ISO纪元，基于ISO-8601历法系统
+ * HijrahEra       - 伊斯兰历纪元
+ * ThaiBuddhistEra - 泰国佛教历纪元
+ * JapaneseEra     - 日本历纪元
+ * MinguoEra       - 中华民国历纪元
+ */
 public interface Era extends TemporalAccessor, TemporalAdjuster {
-
+    
     /**
      * Gets the numeric value associated with the era as defined by the chronology.
      * Each chronology defines the predefined Eras and methods to list the Eras
@@ -119,9 +128,9 @@ public interface Era extends TemporalAccessor, TemporalAdjuster {
      *
      * @return the numeric era value
      */
+    // 返回纪元标识；在ISO历法系统中，0是公元前，1是公元(后)
     int getValue();
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Checks if the specified field is supported.
      * <p>
@@ -141,14 +150,15 @@ public interface Era extends TemporalAccessor, TemporalAdjuster {
      * @param field  the field to check, null returns false
      * @return true if the field is supported on this era, false if not
      */
+    // 判断当前时间量是否支持指定的时间量字段
     @Override
     default boolean isSupported(TemporalField field) {
         if (field instanceof ChronoField) {
-            return field == ERA;
+            return field == ChronoField.ERA;
         }
         return field != null && field.isSupportedBy(this);
     }
-
+    
     /**
      * Gets the range of valid values for the specified field.
      * <p>
@@ -174,11 +184,12 @@ public interface Era extends TemporalAccessor, TemporalAdjuster {
      * @throws DateTimeException if the range for the field cannot be obtained
      * @throws UnsupportedTemporalTypeException if the unit is not supported
      */
-    @Override  // override for Javadoc
+    // 返回时间量字段field的取值区间，通常要求当前时间量支持该时间量字段
+    @Override
     default ValueRange range(TemporalField field) {
         return TemporalAccessor.super.range(field);
     }
-
+    
     /**
      * Gets the value of the specified field from this era as an {@code int}.
      * <p>
@@ -204,14 +215,21 @@ public interface Era extends TemporalAccessor, TemporalAdjuster {
      *         the range of values exceeds an {@code int}
      * @throws ArithmeticException if numeric overflow occurs
      */
-    @Override  // override for Javadoc and performance
+    /*
+     * 以int形式返回时间量字段field的值
+     *
+     * 目前支持的字段包括：
+     * ChronoField.ERA - [纪元]；在ISO历法系统中，0是公元前，1是公元(后)
+     */
+    @Override
     default int get(TemporalField field) {
-        if (field == ERA) {
+        if(field == ChronoField.ERA) {
             return getValue();
         }
+        
         return TemporalAccessor.super.get(field);
     }
-
+    
     /**
      * Gets the value of the specified field from this era as a {@code long}.
      * <p>
@@ -234,17 +252,25 @@ public interface Era extends TemporalAccessor, TemporalAdjuster {
      * @throws UnsupportedTemporalTypeException if the field is not supported
      * @throws ArithmeticException if numeric overflow occurs
      */
+    /*
+     * 以long形式返回时间量字段field的值
+     *
+     * 目前支持的字段包括：
+     * ChronoField.ERA - [纪元]；在ISO历法系统中，0是公元前，1是公元(后)
+     */
     @Override
     default long getLong(TemporalField field) {
-        if (field == ERA) {
-            return getValue();
-        } else if (field instanceof ChronoField) {
+        if(field instanceof ChronoField) {
+            if(field == ChronoField.ERA) {
+                return getValue();
+            }
+            
             throw new UnsupportedTemporalTypeException("Unsupported field: " + field);
         }
+        
         return field.getFrom(this);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Queries this era using the specified query.
      * <p>
@@ -263,12 +289,14 @@ public interface Era extends TemporalAccessor, TemporalAdjuster {
      * @throws DateTimeException if unable to query (defined by the query)
      * @throws ArithmeticException if numeric overflow occurs (defined by the query)
      */
+    // 使用指定的时间量查询器，从当前时间量中查询目标信息
     @SuppressWarnings("unchecked")
     @Override
     default <R> R query(TemporalQuery<R> query) {
         if (query == TemporalQueries.precision()) {
             return (R) ERAS;
         }
+    
         return TemporalAccessor.super.query(query);
     }
 
@@ -296,12 +324,35 @@ public interface Era extends TemporalAccessor, TemporalAdjuster {
      * @throws DateTimeException if unable to make the adjustment
      * @throws ArithmeticException if numeric overflow occurs
      */
+    /*
+     * 拿当前时间量中的特定字段与时间量temporal中的其他字段进行整合。
+     *
+     * 如果整合后的值与temporal中原有的值相等，则可以直接使用temporal本身；否则，会返回新构造的时间量对象。
+     *
+     * 注：通常，这会用到当前时间量的所有部件信息
+     *
+     *
+     * 当前时间量参与整合字段包括：
+     * ChronoField.ERA - 当前时间量的纪元标识；在ISO历法系统中，0是公元前，1是公元(后)
+     *
+     * 目标时间量temporal的取值可以是：
+     * Year
+     * YearMonth
+     * LocalDate
+     * LocalDateTime
+     * OffsetDateTime
+     * ZonedDateTime
+     * ChronoLocalDateTimeImpl的子类
+     * ChronoZonedDateTimeImpl的子类
+     */
     @Override
     default Temporal adjustInto(Temporal temporal) {
-        return temporal.with(ERA, getValue());
+        // 获取当前时间量的纪元标识；在ISO历法系统中，0是公元前，1是公元(后)
+        int value = getValue();
+    
+        return temporal.with(ChronoField.ERA, value);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Gets the textual representation of this era.
      * <p>
@@ -317,9 +368,11 @@ public interface Era extends TemporalAccessor, TemporalAdjuster {
      * @param locale  the locale to use, not null
      * @return the text value of the era, not null
      */
+    // 返回当前纪元的文本显示
     default String getDisplayName(TextStyle style, Locale locale) {
-        return new DateTimeFormatterBuilder().appendText(ERA, style).toFormatter(locale).format(this);
+        return new DateTimeFormatterBuilder().appendText(ChronoField.ERA, style).toFormatter(locale).format(this);
     }
-
-    // NOTE: methods to convert year-of-era/proleptic-year cannot be here as they may depend on month/day (Japanese)
+    
+    /* NOTE: methods to convert year-of-era/proleptic-year cannot be here as they may depend on month/day (Japanese) */
+    
 }

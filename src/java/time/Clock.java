@@ -63,13 +63,14 @@ package java.time;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
-import static java.time.LocalTime.NANOS_PER_MINUTE;
-import static java.time.LocalTime.NANOS_PER_SECOND;
-import static java.time.LocalTime.NANOS_PER_MILLI;
 import java.io.Serializable;
 import java.util.Objects;
 import java.util.TimeZone;
 import jdk.internal.misc.VM;
+
+import static java.time.LocalTime.NANOS_PER_MILLI;
+import static java.time.LocalTime.NANOS_PER_MINUTE;
+import static java.time.LocalTime.NANOS_PER_SECOND;
 
 /**
  * A clock providing access to the current instant, date and time using a time-zone.
@@ -137,8 +138,48 @@ import jdk.internal.misc.VM;
  *
  * @since 1.8
  */
+/*
+ * 时钟，用来提供预设的时区ID和时间戳。
+ *
+ * 注：不同类型的时钟会以不同的方式提供时间戳，
+ * 　　但相同是，该时间戳与当前UTC/GMT时间的快照相关，而与预设的时区ID无关。
+ */
 public abstract class Clock {
-
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Constructor accessible by subclasses.
+     */
+    protected Clock() {
+    }
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a copy of this clock with a different time-zone.
+     * <p>
+     * A clock will typically obtain the current instant and then convert that
+     * to a date or time using a time-zone. This method returns a clock with
+     * similar properties but using a different time-zone.
+     *
+     * @param zone the time-zone to change to, not null
+     *
+     * @return a clock based on this clock with the specified time-zone, not null
+     */
+    // 返回一个使用指定时区ID的新时钟，新时钟的时间戳与当前时钟一致
+    public abstract Clock withZone(ZoneId zone);
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 系统时钟 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Obtains a clock that returns the current instant using the best available
      * system clock, converting to date and time using the UTC time-zone.
@@ -157,10 +198,11 @@ public abstract class Clock {
      *
      * @return a clock that uses the best available system clock in the UTC zone, not null
      */
+    // 返回一个系统时钟，其预设的时区ID为"Z"，即"零时区"
     public static Clock systemUTC() {
         return SystemClock.UTC;
     }
-
+    
     /**
      * Obtains a clock that returns the current instant using the best available
      * system clock, converting to date and time using the default time-zone.
@@ -178,12 +220,17 @@ public abstract class Clock {
      * It is equivalent to {@code system(ZoneId.systemDefault())}.
      *
      * @return a clock that uses the best available system clock in the default zone, not null
+     *
      * @see ZoneId#systemDefault()
      */
+    // 返回一个系统时钟，其预设的时区ID为系统默认的时区ID
     public static Clock systemDefaultZone() {
-        return new SystemClock(ZoneId.systemDefault());
+        // 获取系统默认的时区ID
+        ZoneId zoneId = ZoneId.systemDefault();
+    
+        return new SystemClock(zoneId);
     }
-
+    
     /**
      * Obtains a clock that returns the current instant using the best available
      * system clock.
@@ -196,18 +243,27 @@ public abstract class Clock {
      * <p>
      * The returned implementation is immutable, thread-safe and {@code Serializable}.
      *
-     * @param zone  the time-zone to use to convert the instant to date-time, not null
+     * @param zone the time-zone to use to convert the instant to date-time, not null
+     *
      * @return a clock that uses the best available system clock in the specified zone, not null
      */
-    public static Clock system(ZoneId zone) {
-        Objects.requireNonNull(zone, "zone");
-        if (zone == ZoneOffset.UTC) {
+    // 返回一个系统时钟，其预设的时区ID为zoneId
+    public static Clock system(ZoneId zoneId) {
+        Objects.requireNonNull(zoneId, "zoneId");
+        
+        if(zoneId == ZoneOffset.UTC) {
             return SystemClock.UTC;
         }
-        return new SystemClock(zone);
+        
+        return new SystemClock(zoneId);
     }
-
-    //-------------------------------------------------------------------------
+    
+    /*▲ 系统时钟 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 滴答时钟 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Obtains a clock that returns the current instant ticking in whole milliseconds
      * using the best available system clock.
@@ -224,15 +280,17 @@ public abstract class Clock {
      * The returned implementation is immutable, thread-safe and {@code Serializable}.
      * It is equivalent to {@code tick(system(zone), Duration.ofMillis(1))}.
      *
-     * @param zone  the time-zone to use to convert the instant to date-time, not null
+     * @param zone the time-zone to use to convert the instant to date-time, not null
+     *
      * @return a clock that ticks in whole milliseconds using the specified zone, not null
+     *
      * @since 9
      */
-    public static Clock tickMillis(ZoneId zone) {
-        return new TickClock(system(zone), NANOS_PER_MILLI);
+    // 返回一个滴答时钟，其预设的时区ID为zoneId，使用的基础时钟是系统时钟，滴答间隔为1毫秒
+    public static Clock tickMillis(ZoneId zoneId) {
+        return new TickClock(system(zoneId), NANOS_PER_MILLI);
     }
-
-    //-------------------------------------------------------------------------
+    
     /**
      * Obtains a clock that returns the current instant ticking in whole seconds
      * using the best available system clock.
@@ -249,13 +307,15 @@ public abstract class Clock {
      * The returned implementation is immutable, thread-safe and {@code Serializable}.
      * It is equivalent to {@code tick(system(zone), Duration.ofSeconds(1))}.
      *
-     * @param zone  the time-zone to use to convert the instant to date-time, not null
+     * @param zone the time-zone to use to convert the instant to date-time, not null
+     *
      * @return a clock that ticks in whole seconds using the specified zone, not null
      */
-    public static Clock tickSeconds(ZoneId zone) {
-        return new TickClock(system(zone), NANOS_PER_SECOND);
+    // 返回一个滴答时钟，其预设的时区ID为zoneId，使用的基础时钟是系统时钟，滴答间隔为1秒
+    public static Clock tickSeconds(ZoneId zoneId) {
+        return new TickClock(system(zoneId), NANOS_PER_SECOND);
     }
-
+    
     /**
      * Obtains a clock that returns the current instant ticking in whole minutes
      * using the best available system clock.
@@ -272,13 +332,15 @@ public abstract class Clock {
      * The returned implementation is immutable, thread-safe and {@code Serializable}.
      * It is equivalent to {@code tick(system(zone), Duration.ofMinutes(1))}.
      *
-     * @param zone  the time-zone to use to convert the instant to date-time, not null
+     * @param zone the time-zone to use to convert the instant to date-time, not null
+     *
      * @return a clock that ticks in whole minutes using the specified zone, not null
      */
-    public static Clock tickMinutes(ZoneId zone) {
-        return new TickClock(system(zone), NANOS_PER_MINUTE);
+    // 返回一个滴答时钟，其预设的时区ID为zoneId，使用的基础时钟是系统时钟，滴答间隔为1分钟
+    public static Clock tickMinutes(ZoneId zoneId) {
+        return new TickClock(system(zoneId), NANOS_PER_MINUTE);
     }
-
+    
     /**
      * Obtains a clock that returns instants from the specified clock truncated
      * to the nearest occurrence of the specified duration.
@@ -302,56 +364,48 @@ public abstract class Clock {
      * The returned implementation is immutable, thread-safe and {@code Serializable}
      * providing that the base clock is.
      *
-     * @param baseClock  the base clock to base the ticking clock on, not null
-     * @param tickDuration  the duration of each visible tick, not negative, not null
+     * @param baseClock    the base clock to base the ticking clock on, not null
+     * @param tickDuration the duration of each visible tick, not negative, not null
+     *
      * @return a clock that ticks in whole units of the duration, not null
+     *
      * @throws IllegalArgumentException if the duration is negative, or has a
-     *  part smaller than a whole millisecond such that the whole duration is not
-     *  divisible into one second
-     * @throws ArithmeticException if the duration is too large to be represented as nanos
+     *                                  part smaller than a whole millisecond such that the whole duration is not
+     *                                  divisible into one second
+     * @throws ArithmeticException      if the duration is too large to be represented as nanos
      */
+    // 返回一个滴答时钟，使用的基础时钟是baseClock，滴答间隔为tickDuration包含的纳秒数
     public static Clock tick(Clock baseClock, Duration tickDuration) {
         Objects.requireNonNull(baseClock, "baseClock");
         Objects.requireNonNull(tickDuration, "tickDuration");
-        if (tickDuration.isNegative()) {
+    
+        if(tickDuration.isNegative()) {
             throw new IllegalArgumentException("Tick duration must not be negative");
         }
+    
+        // 返回当前"时间段"包含的纳秒数
         long tickNanos = tickDuration.toNanos();
-        if (tickNanos % 1000_000 == 0) {
+        if(tickNanos % 1000_000 == 0) {
             // ok, no fraction of millisecond
-        } else if (1000_000_000 % tickNanos == 0) {
+        } else if(1000_000_000 % tickNanos == 0) {
             // ok, divides into one second without remainder
         } else {
             throw new IllegalArgumentException("Invalid tick duration");
         }
-        if (tickNanos <= 1) {
+    
+        if(tickNanos<=1) {
             return baseClock;
         }
+    
         return new TickClock(baseClock, tickNanos);
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Obtains a clock that always returns the same instant.
-     * <p>
-     * This clock simply returns the specified instant.
-     * As such, it is not a clock in the conventional sense.
-     * The main use case for this is in testing, where the fixed clock ensures
-     * tests are not dependent on the current clock.
-     * <p>
-     * The returned implementation is immutable, thread-safe and {@code Serializable}.
-     *
-     * @param fixedInstant  the instant to use as the clock, not null
-     * @param zone  the time-zone to use to convert the instant to date-time, not null
-     * @return a clock that always returns the same instant, not null
-     */
-    public static Clock fixed(Instant fixedInstant, ZoneId zone) {
-        Objects.requireNonNull(fixedInstant, "fixedInstant");
-        Objects.requireNonNull(zone, "zone");
-        return new FixedClock(fixedInstant, zone);
-    }
-
-    //-------------------------------------------------------------------------
+    
+    /*▲ 滴答时钟 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 偏移时钟 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Obtains a clock that returns instants from the specified clock with the
      * specified duration added
@@ -367,27 +421,58 @@ public abstract class Clock {
      * The returned implementation is immutable, thread-safe and {@code Serializable}
      * providing that the base clock is.
      *
-     * @param baseClock  the base clock to add the duration to, not null
-     * @param offsetDuration  the duration to add, not null
+     * @param baseClock      the base clock to add the duration to, not null
+     * @param offsetDuration the duration to add, not null
+     *
      * @return a clock based on the base clock with the duration added, not null
      */
+    // 返回一个偏移时钟，使用的基础时钟是baseClock，偏移时间段为offsetDuration
     public static Clock offset(Clock baseClock, Duration offsetDuration) {
         Objects.requireNonNull(baseClock, "baseClock");
         Objects.requireNonNull(offsetDuration, "offsetDuration");
-        if (offsetDuration.equals(Duration.ZERO)) {
+        
+        if(offsetDuration.equals(Duration.ZERO)) {
             return baseClock;
         }
+        
         return new OffsetClock(baseClock, offsetDuration);
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 偏移时钟 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 固定时钟 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Constructor accessible by subclasses.
+     * Obtains a clock that always returns the same instant.
+     * <p>
+     * This clock simply returns the specified instant.
+     * As such, it is not a clock in the conventional sense.
+     * The main use case for this is in testing, where the fixed clock ensures
+     * tests are not dependent on the current clock.
+     * <p>
+     * The returned implementation is immutable, thread-safe and {@code Serializable}.
+     *
+     * @param fixedInstant the instant to use as the clock, not null
+     * @param zone         the time-zone to use to convert the instant to date-time, not null
+     *
+     * @return a clock that always returns the same instant, not null
      */
-    protected Clock() {
+    // 返回一个固定时钟，预设的时区ID是zone，预设的时间戳是fixedInstant
+    public static Clock fixed(Instant fixedInstant, ZoneId zone) {
+        Objects.requireNonNull(fixedInstant, "fixedInstant");
+        Objects.requireNonNull(zone, "zone");
+        
+        return new FixedClock(fixedInstant, zone);
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 固定时钟 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 部件 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Gets the time-zone being used to create dates and times.
      * <p>
@@ -396,21 +481,21 @@ public abstract class Clock {
      *
      * @return the time-zone being used to interpret instants, not null
      */
+    // 返回当前时钟提供的时区ID
     public abstract ZoneId getZone();
-
+    
     /**
-     * Returns a copy of this clock with a different time-zone.
+     * Gets the current instant of the clock.
      * <p>
-     * A clock will typically obtain the current instant and then convert that
-     * to a date or time using a time-zone. This method returns a clock with
-     * similar properties but using a different time-zone.
+     * This returns an instant representing the current instant as defined by the clock.
      *
-     * @param zone  the time-zone to change to, not null
-     * @return a clock based on this clock with the specified time-zone, not null
+     * @return the current instant from this clock, not null
+     *
+     * @throws DateTimeException if the instant cannot be obtained, not thrown by most implementations
      */
-    public abstract Clock withZone(ZoneId zone);
-
-    //-------------------------------------------------------------------------
+    // 返回当前时钟提供的时间戳
+    public abstract Instant instant();
+    
     /**
      * Gets the current millisecond instant of the clock.
      * <p>
@@ -425,25 +510,18 @@ public abstract class Clock {
      * The default implementation currently calls {@link #instant}.
      *
      * @return the current millisecond instant from this clock, measured from
-     *  the Java epoch of 1970-01-01T00:00Z (UTC), not null
+     * the Java epoch of 1970-01-01T00:00Z (UTC), not null
+     *
      * @throws DateTimeException if the instant cannot be obtained, not thrown by most implementations
      */
+    // 以毫秒形式返回当前时钟提供的时间戳(UTC/GMT时间快照)
     public long millis() {
         return instant().toEpochMilli();
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Gets the current instant of the clock.
-     * <p>
-     * This returns an instant representing the current instant as defined by the clock.
-     *
-     * @return the current instant from this clock, not null
-     * @throws DateTimeException if the instant cannot be obtained, not thrown by most implementations
-     */
-    public abstract Instant instant();
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 部件 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
     /**
      * Checks if this clock is equal to another clock.
      * <p>
@@ -451,14 +529,15 @@ public abstract class Clock {
      * their state and to meet the contract of {@link Object#equals}.
      * If not overridden, the behavior is defined by {@link Object#equals}
      *
-     * @param obj  the object to check, null returns false
+     * @param obj the object to check, null returns false
+     *
      * @return true if this is equal to the other clock
      */
     @Override
     public boolean equals(Object obj) {
         return super.equals(obj);
     }
-
+    
     /**
      * A hash code for this clock.
      * <p>
@@ -469,274 +548,395 @@ public abstract class Clock {
      * @return a suitable hash code
      */
     @Override
-    public  int hashCode() {
+    public int hashCode() {
         return super.hashCode();
     }
-
-    //-----------------------------------------------------------------------
+    
+    
     /**
      * Implementation of a clock that always returns the latest time from
      * {@link System#currentTimeMillis()}.
      */
+    /*
+     * 系统时钟，用来提供一个预设的时区ID，以及提供当前UTC/GMT时间的快照。
+     *
+     * 注：无论预设的时区是多少，该时钟总是提供当UTC/GMT时间的快照，而不是依据时区去返回时间快照。
+     */
     static final class SystemClock extends Clock implements Serializable {
         private static final long serialVersionUID = 6740630888130243051L;
-        private static final long OFFSET_SEED =
-                System.currentTimeMillis()/1000 - 1024; // initial offest
+        
+        // 距离新纪元时间足够远的一个初始偏移量(距离当前时间足够近)
+        private static final long OFFSET_SEED = System.currentTimeMillis() / 1000 - 1024;
+        
+        // 基于"零时区"的系统时钟
         static final SystemClock UTC = new SystemClock(ZoneOffset.UTC);
-
+        
+        // 预设的时区ID
         private final ZoneId zone;
-        // We don't actually need a volatile here.
-        // We don't care if offset is set or read concurrently by multiple
-        // threads - we just need a value which is 'recent enough' - in other
-        // words something that has been updated at least once in the last
-        // 2^32 secs (~136 years). And even if we by chance see an invalid
-        // offset, the worst that can happen is that we will get a -1 value
-        // from getNanoTimeAdjustment, forcing us to update the offset
-        // once again.
+        
+        /**
+         * We don't actually need a volatile here.
+         * We don't care if offset is set or read concurrently by multiple
+         * threads - we just need a value which is 'recent enough' - in other
+         * words something that has been updated at least once in the last
+         * 2^32 secs (~136 years). And even if we by chance see an invalid
+         * offset, the worst that can happen is that we will get a -1 value
+         * from getNanoTimeAdjustment, forcing us to update the offset once again.
+         */
+        // 为构造Instant而预设的一个偏移量
         private transient long offset;
-
+        
         SystemClock(ZoneId zone) {
             this.zone = zone;
             this.offset = OFFSET_SEED;
         }
+        
+        // 返回为时钟预设的时区ID
         @Override
         public ZoneId getZone() {
             return zone;
         }
-        @Override
-        public Clock withZone(ZoneId zone) {
-            if (zone.equals(this.zone)) {  // intentional NPE
-                return this;
-            }
-            return new SystemClock(zone);
-        }
-        @Override
-        public long millis() {
-            // System.currentTimeMillis() and VM.getNanoTimeAdjustment(offset)
-            // use the same time source - System.currentTimeMillis() simply
-            // limits the resolution to milliseconds.
-            // So we take the faster path and call System.currentTimeMillis()
-            // directly - in order to avoid the performance penalty of
-            // VM.getNanoTimeAdjustment(offset) which is less efficient.
-            return System.currentTimeMillis();
-        }
+        
+        // 以Instant形式返回当前UTC/GMT时间的快照，不受预设时区的影响
         @Override
         public Instant instant() {
-            // Take a local copy of offset. offset can be updated concurrently
-            // by other threads (even if we haven't made it volatile) so we will
-            // work with a local copy.
+            /*
+             * Take a local copy of offset. offset can be updated concurrently
+             * by other threads (even if we haven't made it volatile) so we will work with a local copy.
+             */
             long localOffset = offset;
+            
+            // 获取当前时间点与(新纪元时间点+localOffset)之间的纳秒差值
             long adjustment = VM.getNanoTimeAdjustment(localOffset);
-
-            if (adjustment == -1) {
-                // -1 is a sentinel value returned by VM.getNanoTimeAdjustment
-                // when the offset it is given is too far off the current UTC
-                // time. In principle, this should not happen unless the
-                // JVM has run for more than ~136 years (not likely) or
-                // someone is fiddling with the system time, or the offset is
-                // by chance at 1ns in the future (very unlikely).
-                // We can easily recover from all these conditions by bringing
-                // back the offset in range and retry.
-
-                // bring back the offset in range. We use -1024 to make
-                // it more unlikely to hit the 1ns in the future condition.
-                localOffset = System.currentTimeMillis()/1000 - 1024;
-
+            
+            // 通常，不可能返回-1，因为getNanoTimeAdjustment的参数总被设置在当前时间附近
+            if(adjustment == -1) {
+                /*
+                 * -1 is a sentinel value returned by VM.getNanoTimeAdjustment
+                 * when the offset it is given is too far off the current UTC
+                 * time. In principle, this should not happen unless the
+                 * JVM has run for more than ~136 years (not likely) or
+                 * someone is fiddling with the system time, or the offset is
+                 * by chance at 1ns in the future (very unlikely).
+                 * We can easily recover from all these conditions by bringing
+                 * back the offset in range and retry.
+                 */
+                
+                /*
+                 * bring back the offset in range. We use -1024 to make
+                 * it more unlikely to hit the 1ns in the future condition.
+                 */
+                localOffset = System.currentTimeMillis() / 1000 - 1024;
+                
                 // retry
                 adjustment = VM.getNanoTimeAdjustment(localOffset);
-
-                if (adjustment == -1) {
-                    // Should not happen: we just recomputed a new offset.
-                    // It should have fixed the issue.
+                
+                if(adjustment == -1) {
+                    /*
+                     * Should not happen: we just recomputed a new offset.
+                     * It should have fixed the issue.
+                     */
                     throw new InternalError("Offset " + localOffset + " is not in range");
                 } else {
-                    // OK - recovery succeeded. Update the offset for the
-                    // next call...
+                    // OK - recovery succeeded. Update the offset for the next call...
                     offset = localOffset;
                 }
             }
+            
+            // 根据给定的纪元秒与纳秒偏移构造一个时间戳
             return Instant.ofEpochSecond(localOffset, adjustment);
         }
+        
+        // 返回一个使用指定时区ID的新时钟，该新时钟的时间戳与当前时钟一致
         @Override
-        public boolean equals(Object obj) {
-            if (obj instanceof SystemClock) {
-                return zone.equals(((SystemClock) obj).zone);
+        public Clock withZone(ZoneId zone) {
+            if(zone.equals(this.zone)) {
+                return this;
             }
-            return false;
+            
+            return new SystemClock(zone);
         }
+        
+        // 以毫秒形式返回当前时钟提供的时间戳(UTC/GMT时间快照)
         @Override
-        public int hashCode() {
-            return zone.hashCode() + 1;
+        public long millis() {
+            /*
+             * System.currentTimeMillis() and VM.getNanoTimeAdjustment(offset)
+             * use the same time source - System.currentTimeMillis() simply
+             * limits the resolution to milliseconds.
+             * So we take the faster path and call System.currentTimeMillis()
+             * directly - in order to avoid the performance penalty of
+             * VM.getNanoTimeAdjustment(offset) which is less efficient.
+             */
+            return System.currentTimeMillis();
         }
+        
         @Override
         public String toString() {
             return "SystemClock[" + zone + "]";
         }
-        private void readObject(ObjectInputStream is)
-                throws IOException, ClassNotFoundException {
+        
+        @Override
+        public boolean equals(Object obj) {
+            if(obj instanceof SystemClock) {
+                return zone.equals(((SystemClock) obj).zone);
+            }
+            return false;
+        }
+        
+        @Override
+        public int hashCode() {
+            return zone.hashCode() + 1;
+        }
+        
+        private void readObject(ObjectInputStream is) throws IOException, ClassNotFoundException {
             // ensure that offset is initialized
             is.defaultReadObject();
             offset = OFFSET_SEED;
         }
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Implementation of a clock that always returns the same instant.
-     * This is typically used for testing.
-     */
-    static final class FixedClock extends Clock implements Serializable {
-        private static final long serialVersionUID = 7430389292664866958L;
-        private final Instant instant;
-        private final ZoneId zone;
-
-        FixedClock(Instant fixedInstant, ZoneId zone) {
-            this.instant = fixedInstant;
-            this.zone = zone;
-        }
-        @Override
-        public ZoneId getZone() {
-            return zone;
-        }
-        @Override
-        public Clock withZone(ZoneId zone) {
-            if (zone.equals(this.zone)) {  // intentional NPE
-                return this;
-            }
-            return new FixedClock(instant, zone);
-        }
-        @Override
-        public long millis() {
-            return instant.toEpochMilli();
-        }
-        @Override
-        public Instant instant() {
-            return instant;
-        }
-        @Override
-        public boolean equals(Object obj) {
-            if (obj instanceof FixedClock) {
-                FixedClock other = (FixedClock) obj;
-                return instant.equals(other.instant) && zone.equals(other.zone);
-            }
-            return false;
-        }
-        @Override
-        public int hashCode() {
-            return instant.hashCode() ^ zone.hashCode();
-        }
-        @Override
-        public String toString() {
-            return "FixedClock[" + instant + "," + zone + "]";
-        }
-    }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Implementation of a clock that adds an offset to an underlying clock.
      */
-    static final class OffsetClock extends Clock implements Serializable {
-        private static final long serialVersionUID = 2007484719125426256L;
-        private final Clock baseClock;
-        private final Duration offset;
-
-        OffsetClock(Clock baseClock, Duration offset) {
-            this.baseClock = baseClock;
-            this.offset = offset;
-        }
-        @Override
-        public ZoneId getZone() {
-            return baseClock.getZone();
-        }
-        @Override
-        public Clock withZone(ZoneId zone) {
-            if (zone.equals(baseClock.getZone())) {  // intentional NPE
-                return this;
-            }
-            return new OffsetClock(baseClock.withZone(zone), offset);
-        }
-        @Override
-        public long millis() {
-            return Math.addExact(baseClock.millis(), offset.toMillis());
-        }
-        @Override
-        public Instant instant() {
-            return baseClock.instant().plus(offset);
-        }
-        @Override
-        public boolean equals(Object obj) {
-            if (obj instanceof OffsetClock) {
-                OffsetClock other = (OffsetClock) obj;
-                return baseClock.equals(other.baseClock) && offset.equals(other.offset);
-            }
-            return false;
-        }
-        @Override
-        public int hashCode() {
-            return baseClock.hashCode() ^ offset.hashCode();
-        }
-        @Override
-        public String toString() {
-            return "OffsetClock[" + baseClock + "," + offset + "]";
-        }
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Implementation of a clock that adds an offset to an underlying clock.
+    /*
+     * 滴答时钟，用来提供一个预设的时区ID，以及提供对UTC/GMT时间取模处理后的快照。
+     *
+     * 注：滴答时钟由一个基础时钟与滴答间隔组成。
+     * 　　这里提供的时区ID与基础时钟提供的时区ID一致。
+     * 　　而这里提供的UTC/GMT时间快照，需要先经过与滴答间隔的取模处理。
      */
     static final class TickClock extends Clock implements Serializable {
         private static final long serialVersionUID = 6504659149906368850L;
-        private final Clock baseClock;
-        private final long tickNanos;
-
+        
+        private final Clock baseClock;  // 基础时钟
+        private final long tickNanos;   // 滴答间隔
+        
         TickClock(Clock baseClock, long tickNanos) {
             this.baseClock = baseClock;
             this.tickNanos = tickNanos;
         }
+        
+        // 返回为时钟预设的时区ID，这里使用基础时钟的时区ID
         @Override
         public ZoneId getZone() {
             return baseClock.getZone();
         }
+        
+        // 以Instant形式返回对当前UTC/GMT时间取模处理后的快照，不受预设时区的影响，但受滴答间隔的影响
+        @Override
+        public Instant instant() {
+            
+            // 如果tickNanos中没有低于毫秒的数值
+            if((tickNanos % 1000_000) == 0) {
+                
+                // 以毫秒形式返回baseClock提供的时间戳
+                long millis = baseClock.millis();
+                
+                /*
+                 * 从原时间戳中减去不足一个"滴答间隔"的部分
+                 *
+                 * 比如设置"滴答间隔"为5秒，则距离新纪元时间点[0,5)秒的地方都会被识别为第0秒，
+                 * 而距离新纪元时间点[5, 10)秒的地方都会被识别为第5秒。
+                 */
+                millis = millis - Math.floorMod(millis, tickNanos / 1000_000L);
+                
+                // 根据给定的纪元毫秒构造一个时间戳
+                return Instant.ofEpochMilli(millis);
+            } else {
+                
+                // 获取baseClock提供的时间戳
+                Instant instant = baseClock.instant();
+                
+                // 获取instant的纳秒部件
+                long nanos = instant.getNano();
+                
+                // 对纳秒部件取模处理
+                long adjust = Math.floorMod(nanos, tickNanos);
+                
+                // 从原时间戳中减去不足一个"滴答间隔"的部分
+                return instant.minusNanos(adjust);
+            }
+        }
+        
+        // 返回一个使用指定时区ID的新时钟，该新时钟的时间戳与当前时钟一致
         @Override
         public Clock withZone(ZoneId zone) {
-            if (zone.equals(baseClock.getZone())) {  // intentional NPE
+            if(zone.equals(baseClock.getZone())) {
                 return this;
             }
+            
             return new TickClock(baseClock.withZone(zone), tickNanos);
         }
+        
+        // 以毫秒形式返回当前时钟提供的时间戳(UTC/GMT时间快照)，本质上是返回对基础时钟UTC/GMT时间取模处理后的快照
         @Override
         public long millis() {
             long millis = baseClock.millis();
             return millis - Math.floorMod(millis, tickNanos / 1000_000L);
         }
+        
         @Override
-        public Instant instant() {
-            if ((tickNanos % 1000_000) == 0) {
-                long millis = baseClock.millis();
-                return Instant.ofEpochMilli(millis - Math.floorMod(millis, tickNanos / 1000_000L));
-            }
-            Instant instant = baseClock.instant();
-            long nanos = instant.getNano();
-            long adjust = Math.floorMod(nanos, tickNanos);
-            return instant.minusNanos(adjust);
+        public String toString() {
+            return "TickClock[" + baseClock + "," + Duration.ofNanos(tickNanos) + "]";
         }
+        
         @Override
         public boolean equals(Object obj) {
-            if (obj instanceof TickClock) {
+            if(obj instanceof TickClock) {
                 TickClock other = (TickClock) obj;
                 return baseClock.equals(other.baseClock) && tickNanos == other.tickNanos;
             }
             return false;
         }
+        
         @Override
         public int hashCode() {
             return baseClock.hashCode() ^ ((int) (tickNanos ^ (tickNanos >>> 32)));
         }
+    }
+    
+    /**
+     * Implementation of a clock that adds an offset to an underlying clock.
+     */
+    /*
+     * 偏移时钟，用来提供一个预设的时区ID，以及提供对UTC/GMT时间偏移处理后的快照。
+     *
+     * 注：偏移时钟由一个基础时钟与偏移时间段组成。
+     * 　　这里提供的时区ID与基础时钟提供的时区ID一致。
+     * 　　而这里提供的UTC/GMT时间快照，需要先经过与偏移时间段的偏移处理。
+     */
+    static final class OffsetClock extends Clock implements Serializable {
+        private static final long serialVersionUID = 2007484719125426256L;
+        
+        private final Clock baseClock; // 基础时钟
+        private final Duration offset; // 偏移时间段，用来对UTC/GMT时间快照设置偏移
+        
+        OffsetClock(Clock baseClock, Duration offset) {
+            this.baseClock = baseClock;
+            this.offset = offset;
+        }
+        
+        // 返回为时钟预设的时区ID，这里使用基础时钟的时区ID
+        @Override
+        public ZoneId getZone() {
+            return baseClock.getZone();
+        }
+        
+        // 以Instant形式返回对当前UTC/GMT时间偏移处理后的快照，不受预设时区的影响，但受偏移时间段的影响
+        @Override
+        public Instant instant() {
+            // 获取baseClock提供的时间戳
+            Instant instant = baseClock.instant();
+            
+            // 为时间量instant添加"时间段"offset
+            return instant.plus(offset);
+        }
+        
+        // 返回一个使用指定时区ID的新时钟，该新时钟的时间戳与当前时钟一致
+        @Override
+        public Clock withZone(ZoneId zone) {
+            if(zone.equals(baseClock.getZone())) {
+                return this;
+            }
+            
+            return new OffsetClock(baseClock.withZone(zone), offset);
+        }
+        
+        // 以毫秒形式返回当前时钟提供的时间戳(UTC/GMT时间快照)，本质上是返回对基础时钟UTC/GMT时间偏移处理后的快照
+        @Override
+        public long millis() {
+            return Math.addExact(baseClock.millis(), offset.toMillis());
+        }
+        
         @Override
         public String toString() {
-            return "TickClock[" + baseClock + "," + Duration.ofNanos(tickNanos) + "]";
+            return "OffsetClock[" + baseClock + "," + offset + "]";
+        }
+        
+        @Override
+        public boolean equals(Object obj) {
+            if(obj instanceof OffsetClock) {
+                OffsetClock other = (OffsetClock) obj;
+                return baseClock.equals(other.baseClock) && offset.equals(other.offset);
+            }
+            return false;
+        }
+        
+        @Override
+        public int hashCode() {
+            return baseClock.hashCode() ^ offset.hashCode();
         }
     }
-
+    
+    /**
+     * Implementation of a clock that always returns the same instant.
+     * This is typically used for testing.
+     */
+    /*
+     * 固定时钟，用来提供一个预设的时区ID，以及提供预设的时间戳。
+     *
+     * 注：固定时钟由一个预设的时区ID与预设的时间戳组成。
+     * 　　这里所谓固定的含义是，时区ID与时间戳都是预设好的，即每次获取到的Instant与ZoneId都是固定值。
+     * 　　该类型的时钟通常仅用于测试。
+     */
+    static final class FixedClock extends Clock implements Serializable {
+        private static final long serialVersionUID = 7430389292664866958L;
+        
+        private final ZoneId zone;      // 预设的时区ID
+        private final Instant instant;  // 预设的时间戳
+        
+        FixedClock(Instant fixedInstant, ZoneId zone) {
+            this.instant = fixedInstant;
+            this.zone = zone;
+        }
+        
+        // 返回为时钟预设的时区ID
+        @Override
+        public ZoneId getZone() {
+            return zone;
+        }
+        
+        // 返回为时钟预设的时间戳
+        @Override
+        public Instant instant() {
+            return instant;
+        }
+        
+        // 返回一个使用指定时区ID的新时钟，该新时钟的时间戳与当前时钟一致
+        @Override
+        public Clock withZone(ZoneId zone) {
+            if(zone.equals(this.zone)) {
+                return this;
+            }
+            
+            return new FixedClock(instant, zone);
+        }
+        
+        // 以毫秒形式返回当前时钟提供的时间戳(UTC/GMT时间快照)
+        @Override
+        public long millis() {
+            return instant.toEpochMilli();
+        }
+        
+        @Override
+        public String toString() {
+            return "FixedClock[" + instant + "," + zone + "]";
+        }
+        
+        @Override
+        public boolean equals(Object obj) {
+            if(obj instanceof FixedClock) {
+                FixedClock other = (FixedClock) obj;
+                return instant.equals(other.instant) && zone.equals(other.zone);
+            }
+            return false;
+        }
+        
+        @Override
+        public int hashCode() {
+            return instant.hashCode() ^ zone.hashCode();
+        }
+    }
+    
 }

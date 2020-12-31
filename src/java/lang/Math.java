@@ -380,6 +380,15 @@ public final class Math {
         }
     }
     
+    /*
+     * 向下取整除法：
+     *
+     *  11/ 8 =  1.375 ==>  1
+     * -11/ 8 = -1.375 ==> -2
+     *  11/-8 = -1.375 ==> -2
+     * -11/-8 =  1.375 ==>  1
+     */
+    
     /**
      * Returns the largest (closest to positive infinity)
      * {@code int} value that is less than or equal to the algebraic quotient.
@@ -416,7 +425,7 @@ public final class Math {
      * @see #floor(double)
      * @since 1.8
      */
-    // 除法，如果两数符号不同，则向下取整
+    // 向下取整除法
     public static int floorDiv(int x, int y) {
         int r = x / y;
         // if the signs are different and modulo not zero, round down
@@ -453,7 +462,7 @@ public final class Math {
      * @see #floor(double)
      * @since 9
      */
-    // 除法，如果两数符号不同，则向下取整
+    // 向下取整除法
     public static long floorDiv(long x, int y) {
         return floorDiv(x, (long) y);
     }
@@ -485,7 +494,7 @@ public final class Math {
      * @see #floor(double)
      * @since 1.8
      */
-    // 除法，如果两数符号不同，则向下取整
+    // 向下取整除法
     public static long floorDiv(long x, long y) {
         long r = x / y;
         // if the signs are different and modulo not zero, round down
@@ -494,6 +503,29 @@ public final class Math {
         }
         return r;
     }
+    
+    /*
+     * 取模运算:
+     *
+     *  11 MOD  8 => 从0开始，顺时针前进11步，得到3
+     * -11 MOD  8 => 从0开始，逆时针前进11步，得到5
+     *
+     *          0
+     *        7   1
+     *      6       2
+     *        5   3
+     *          4
+     *
+     *
+     *  11 MOD -8 => 从0开始，顺时针前进11步，得到-5
+     * -11 MOD -5 => 从0开始，逆时针前进11步，得到-3
+     *
+     *           0
+     *       -1    -7
+     *     -2        -6
+     *       -3    -5
+     *          -4
+     */
     
     /**
      * Returns the floor modulus of the {@code int} arguments.

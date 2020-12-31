@@ -87,15 +87,14 @@ import java.time.chrono.ChronoZonedDateTime;
  * If it is, then the date-time must handle it.
  * Otherwise, the method call is re-dispatched to the matching method in this interface.
  *
- * @implSpec
- * This interface must be implemented with care to ensure other classes operate correctly.
+ * @implSpec This interface must be implemented with care to ensure other classes operate correctly.
  * All implementations that can be instantiated must be final, immutable and thread-safe.
  * It is recommended to use an enum where possible.
- *
  * @since 1.8
  */
+// 时间量单位
 public interface TemporalUnit {
-
+    
     /**
      * Gets the duration of this unit, which may be an estimate.
      * <p>
@@ -110,8 +109,9 @@ public interface TemporalUnit {
      *
      * @return the duration of this unit, which may be an estimate, not null
      */
+    // 将当前时间量单位转换为对应的"时间段"后返回
     Duration getDuration();
-
+    
     /**
      * Checks if the duration of the unit is an estimate.
      * <p>
@@ -123,9 +123,13 @@ public interface TemporalUnit {
      *
      * @return true if the duration is estimated, false if accurate
      */
+    /*
+     * 判断当前时间量单位代表的"时间段"是否为估计值
+     *
+     * 对于"日期"单位单位来说，其代表的"时间段"都是估计值，因为忽略了闰秒。
+     */
     boolean isDurationEstimated();
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Checks if this unit represents a component of a date.
      * <p>
@@ -137,8 +141,9 @@ public interface TemporalUnit {
      *
      * @return true if this unit is a component of a date
      */
+    // 判断当前时间量单位是否为"日期"单位(>="天"的单位都是"日期"单位)
     boolean isDateBased();
-
+    
     /**
      * Checks if this unit represents a component of a time.
      * <p>
@@ -150,9 +155,9 @@ public interface TemporalUnit {
      *
      * @return true if this unit is a component of a time
      */
+    // 判断当前时间量单位是否为"时间"单位(<"天"的单位都是"时间"单位)
     boolean isTimeBased();
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Checks if this unit is supported by the specified temporal object.
      * <p>
@@ -162,34 +167,39 @@ public interface TemporalUnit {
      * This default implementation derives the value using
      * {@link Temporal#plus(long, TemporalUnit)}.
      *
-     * @param temporal  the temporal object to check, not null
+     * @param temporal the temporal object to check, not null
+     *
      * @return true if the unit is supported
      */
+    // 判断当前时间量单位是否被指定的时间量支持
     default boolean isSupportedBy(Temporal temporal) {
-        if (temporal instanceof LocalTime) {
+        if(temporal instanceof LocalTime) {
             return isTimeBased();
         }
-        if (temporal instanceof ChronoLocalDate) {
+    
+        if(temporal instanceof ChronoLocalDate) {
             return isDateBased();
         }
-        if (temporal instanceof ChronoLocalDateTime || temporal instanceof ChronoZonedDateTime) {
+    
+        if(temporal instanceof ChronoLocalDateTime || temporal instanceof ChronoZonedDateTime) {
             return true;
         }
+    
         try {
             temporal.plus(1, this);
             return true;
-        } catch (UnsupportedTemporalTypeException ex) {
+        } catch(UnsupportedTemporalTypeException ex) {
             return false;
-        } catch (RuntimeException ex) {
+        } catch(RuntimeException ex) {
             try {
                 temporal.plus(-1, this);
                 return true;
-            } catch (RuntimeException ex2) {
+            } catch(RuntimeException ex2) {
                 return false;
             }
         }
     }
-
+    
     /**
      * Returns a copy of the specified temporal object with the specified period added.
      * <p>
@@ -217,16 +227,23 @@ public interface TemporalUnit {
      * Instead, an adjusted copy of the original must be returned.
      * This provides equivalent, safe behavior for immutable and mutable implementations.
      *
-     * @param <R>  the type of the Temporal object
-     * @param temporal  the temporal object to adjust, not null
-     * @param amount  the amount of this unit to add, positive or negative
+     * @param <R>      the type of the Temporal object
+     * @param temporal the temporal object to adjust, not null
+     * @param amount   the amount of this unit to add, positive or negative
+     *
      * @return the adjusted temporal object, not null
-     * @throws DateTimeException if the amount cannot be added
+     *
+     * @throws DateTimeException                if the amount cannot be added
      * @throws UnsupportedTemporalTypeException if the unit is not supported by the temporal
      */
+    /*
+     * 对时间量temporal的值累加amount个当前单位下的时间量
+     *
+     * 如果累加后的值与temporal的值相等，则直接返回temporal对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
     <R extends Temporal> R addTo(R temporal, long amount);
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Calculates the amount of time between two temporal objects.
      * <p>
@@ -266,24 +283,24 @@ public interface TemporalUnit {
      * If the unit is not supported an {@code UnsupportedTemporalTypeException} must be thrown.
      * Implementations must not alter the specified temporal objects.
      *
-     * @implSpec
-     * Implementations must begin by checking to if the two temporals have the
+     * @param temporal1Inclusive the base temporal object, not null
+     * @param temporal2Exclusive the other temporal object, exclusive, not null
+     *
+     * @return the amount of time between temporal1Inclusive and temporal2Exclusive
+     * in terms of this unit; positive if temporal2Exclusive is later than
+     * temporal1Inclusive, negative if earlier
+     *
+     * @throws DateTimeException                if the amount cannot be calculated, or the end
+     *                                          temporal cannot be converted to the same type as the start temporal
+     * @throws UnsupportedTemporalTypeException if the unit is not supported by the temporal
+     * @throws ArithmeticException              if numeric overflow occurs
+     * @implSpec Implementations must begin by checking to if the two temporals have the
      * same type using {@code getClass()}. If they do not, then the result must be
      * obtained by calling {@code temporal1Inclusive.until(temporal2Exclusive, this)}.
-     *
-     * @param temporal1Inclusive  the base temporal object, not null
-     * @param temporal2Exclusive  the other temporal object, exclusive, not null
-     * @return the amount of time between temporal1Inclusive and temporal2Exclusive
-     *  in terms of this unit; positive if temporal2Exclusive is later than
-     *  temporal1Inclusive, negative if earlier
-     * @throws DateTimeException if the amount cannot be calculated, or the end
-     *  temporal cannot be converted to the same type as the start temporal
-     * @throws UnsupportedTemporalTypeException if the unit is not supported by the temporal
-     * @throws ArithmeticException if numeric overflow occurs
      */
+    // 计算两个时间量temporal1Inclusive到temporal2Exclusive之间相差多少时间值(使用当前时间量单位)
     long between(Temporal temporal1Inclusive, Temporal temporal2Exclusive);
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Gets a descriptive name for the unit.
      * <p>
@@ -291,7 +308,8 @@ public interface TemporalUnit {
      *
      * @return the name of this unit, not null
      */
+    // 字符串化
     @Override
     String toString();
-
+    
 }

@@ -61,9 +61,6 @@
  */
 package java.time;
 
-import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
-import static java.time.temporal.ChronoUnit.MONTHS;
-
 import java.time.chrono.Chronology;
 import java.time.chrono.IsoChronology;
 import java.time.format.DateTimeFormatterBuilder;
@@ -78,6 +75,8 @@ import java.time.temporal.TemporalQuery;
 import java.time.temporal.UnsupportedTemporalTypeException;
 import java.time.temporal.ValueRange;
 import java.util.Locale;
+
+import static java.time.temporal.ChronoUnit.MONTHS;
 
 /**
  * A month-of-year, such as 'July'.
@@ -103,74 +102,79 @@ import java.util.Locale;
  *
  * @since 1.8
  */
+// x月
 public enum Month implements TemporalAccessor, TemporalAdjuster {
-
+    
     /**
      * The singleton instance for the month of January with 31 days.
      * This has the numeric value of {@code 1}.
      */
-    JANUARY,
+    JANUARY,   // 1月
     /**
      * The singleton instance for the month of February with 28 days, or 29 in a leap year.
      * This has the numeric value of {@code 2}.
      */
-    FEBRUARY,
+    FEBRUARY,  // 2月
     /**
      * The singleton instance for the month of March with 31 days.
      * This has the numeric value of {@code 3}.
      */
-    MARCH,
+    MARCH,     // 3月
     /**
      * The singleton instance for the month of April with 30 days.
      * This has the numeric value of {@code 4}.
      */
-    APRIL,
+    APRIL,     // 4月
     /**
      * The singleton instance for the month of May with 31 days.
      * This has the numeric value of {@code 5}.
      */
-    MAY,
+    MAY,       // 5月
     /**
      * The singleton instance for the month of June with 30 days.
      * This has the numeric value of {@code 6}.
      */
-    JUNE,
+    JUNE,      // 6月
     /**
      * The singleton instance for the month of July with 31 days.
      * This has the numeric value of {@code 7}.
      */
-    JULY,
+    JULY,      // 7月
     /**
      * The singleton instance for the month of August with 31 days.
      * This has the numeric value of {@code 8}.
      */
-    AUGUST,
+    AUGUST,    // 8月
     /**
      * The singleton instance for the month of September with 30 days.
      * This has the numeric value of {@code 9}.
      */
-    SEPTEMBER,
+    SEPTEMBER, // 9月
     /**
      * The singleton instance for the month of October with 31 days.
      * This has the numeric value of {@code 10}.
      */
-    OCTOBER,
+    OCTOBER,   // 10月
     /**
      * The singleton instance for the month of November with 30 days.
      * This has the numeric value of {@code 11}.
      */
-    NOVEMBER,
+    NOVEMBER,  // 11月
     /**
      * The singleton instance for the month of December with 31 days.
      * This has the numeric value of {@code 12}.
      */
-    DECEMBER;
+    DECEMBER;  // 12月
+    
     /**
      * Private cache of all the constants.
      */
     private static final Month[] ENUMS = Month.values();
-
-    //-----------------------------------------------------------------------
+    
+    
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Obtains an instance of {@code Month} from an {@code int} value.
      * <p>
@@ -182,14 +186,15 @@ public enum Month implements TemporalAccessor, TemporalAdjuster {
      * @return the month-of-year, not null
      * @throws DateTimeException if the month-of-year is invalid
      */
+    // 根据指定的月份构造Month对象
     public static Month of(int month) {
         if (month < 1 || month > 12) {
             throw new DateTimeException("Invalid value for MonthOfYear: " + month);
         }
+    
         return ENUMS[month - 1];
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains an instance of {@code Month} from a temporal object.
      * <p>
@@ -208,22 +213,29 @@ public enum Month implements TemporalAccessor, TemporalAdjuster {
      * @return the month-of-year, not null
      * @throws DateTimeException if unable to convert to a {@code Month}
      */
+    // 从temporal中查询Month部件
     public static Month from(TemporalAccessor temporal) {
         if (temporal instanceof Month) {
             return (Month) temporal;
         }
+    
         try {
-            if (IsoChronology.INSTANCE.equals(Chronology.from(temporal)) == false) {
+            if(!IsoChronology.INSTANCE.equals(Chronology.from(temporal))) {
                 temporal = LocalDate.from(temporal);
             }
-            return of(temporal.get(MONTH_OF_YEAR));
-        } catch (DateTimeException ex) {
-            throw new DateTimeException("Unable to obtain Month from TemporalAccessor: " +
-                    temporal + " of type " + temporal.getClass().getName(), ex);
+        
+            return of(temporal.get(ChronoField.MONTH_OF_YEAR));
+        } catch(DateTimeException ex) {
+            throw new DateTimeException("Unable to obtain Month from TemporalAccessor: " + temporal + " of type " + temporal.getClass().getName(), ex);
         }
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 部件 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Gets the month-of-year {@code int} value.
      * <p>
@@ -232,29 +244,74 @@ public enum Month implements TemporalAccessor, TemporalAdjuster {
      *
      * @return the month-of-year, from 1 (January) to 12 (December)
      */
+    // 返回当前月的"月份"
     public int getValue() {
         return ordinal() + 1;
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 部件 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 增加 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Gets the textual representation, such as 'Jan' or 'December'.
+     * Returns the month-of-year that is the specified number of months after this one.
      * <p>
-     * This returns the textual name used to identify the month-of-year,
-     * suitable for presentation to the user.
-     * The parameters control the style of the returned text and the locale.
+     * The calculation rolls around the end of the year from December to January.
+     * The specified period may be negative.
      * <p>
-     * If no textual mapping is found then the {@link #getValue() numeric value} is returned.
+     * This instance is immutable and unaffected by this method call.
      *
-     * @param style  the length of the text required, not null
-     * @param locale  the locale to use, not null
-     * @return the text value of the month-of-year, not null
+     * @param months the months to add, positive or negative
+     *
+     * @return the resulting month, not null
      */
-    public String getDisplayName(TextStyle style, Locale locale) {
-        return new DateTimeFormatterBuilder().appendText(MONTH_OF_YEAR, style).toFormatter(locale).format(this);
+    /*
+     * 在当前时间量的值上累加months月
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    public Month plus(long months) {
+        int amount = (int) (months % 12);
+        return ENUMS[(ordinal() + (amount + 12)) % 12];
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 增加 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 减少 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns the month-of-year that is the specified number of months before this one.
+     * <p>
+     * The calculation rolls around the start of the year from January to December.
+     * The specified period may be negative.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param months the months to subtract, positive or negative
+     *
+     * @return the resulting month, not null
+     */
+    /*
+     * 在当前时间量的值上减去months月
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    public Month minus(long months) {
+        return plus(-(months % 12));
+    }
+    
+    /*▲ 减少 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 时间量字段操作(TemporalAccessor) ███████████████████████████████████████████████████████┓ */
+    
     /**
      * Checks if the specified field is supported.
      * <p>
@@ -274,10 +331,11 @@ public enum Month implements TemporalAccessor, TemporalAdjuster {
      * @param field  the field to check, null returns false
      * @return true if the field is supported on this month-of-year, false if not
      */
+    // 判断当前时间量是否支持指定的时间量字段
     @Override
     public boolean isSupported(TemporalField field) {
         if (field instanceof ChronoField) {
-            return field == MONTH_OF_YEAR;
+            return field == ChronoField.MONTH_OF_YEAR;
         }
         return field != null && field.isSupportedBy(this);
     }
@@ -304,11 +362,13 @@ public enum Month implements TemporalAccessor, TemporalAdjuster {
      * @throws DateTimeException if the range for the field cannot be obtained
      * @throws UnsupportedTemporalTypeException if the field is not supported
      */
+    // 返回时间量字段field的取值区间，通常要求当前时间量支持该时间量字段
     @Override
     public ValueRange range(TemporalField field) {
-        if (field == MONTH_OF_YEAR) {
+        if(field == ChronoField.MONTH_OF_YEAR) {
             return field.range();
         }
+    
         return TemporalAccessor.super.range(field);
     }
 
@@ -337,11 +397,18 @@ public enum Month implements TemporalAccessor, TemporalAdjuster {
      *         the range of values exceeds an {@code int}
      * @throws ArithmeticException if numeric overflow occurs
      */
+    /*
+     * 以int形式返回时间量字段field的值
+     *
+     * 目前支持的字段包括：
+     * ChronoField.MONTH_OF_YEAR - 月份
+     */
     @Override
     public int get(TemporalField field) {
-        if (field == MONTH_OF_YEAR) {
+        if(field == ChronoField.MONTH_OF_YEAR) {
             return getValue();
         }
+    
         return TemporalAccessor.super.get(field);
     }
 
@@ -367,179 +434,25 @@ public enum Month implements TemporalAccessor, TemporalAdjuster {
      * @throws UnsupportedTemporalTypeException if the field is not supported
      * @throws ArithmeticException if numeric overflow occurs
      */
+    /*
+     * 以long形式返回时间量字段field的值
+     *
+     * 目前支持的字段包括：
+     * ChronoField.MONTH_OF_YEAR - 月份
+     */
     @Override
     public long getLong(TemporalField field) {
-        if (field == MONTH_OF_YEAR) {
-            return getValue();
-        } else if (field instanceof ChronoField) {
+        if(field instanceof ChronoField) {
+            if(field == ChronoField.MONTH_OF_YEAR) {
+                return getValue();
+            }
+        
             throw new UnsupportedTemporalTypeException("Unsupported field: " + field);
         }
+    
         return field.getFrom(this);
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Returns the month-of-year that is the specified number of months after this one.
-     * <p>
-     * The calculation rolls around the end of the year from December to January.
-     * The specified period may be negative.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param months  the months to add, positive or negative
-     * @return the resulting month, not null
-     */
-    public Month plus(long months) {
-        int amount = (int) (months % 12);
-        return ENUMS[(ordinal() + (amount + 12)) % 12];
-    }
-
-    /**
-     * Returns the month-of-year that is the specified number of months before this one.
-     * <p>
-     * The calculation rolls around the start of the year from January to December.
-     * The specified period may be negative.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param months  the months to subtract, positive or negative
-     * @return the resulting month, not null
-     */
-    public Month minus(long months) {
-        return plus(-(months % 12));
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Gets the length of this month in days.
-     * <p>
-     * This takes a flag to determine whether to return the length for a leap year or not.
-     * <p>
-     * February has 28 days in a standard year and 29 days in a leap year.
-     * April, June, September and November have 30 days.
-     * All other months have 31 days.
-     *
-     * @param leapYear  true if the length is required for a leap year
-     * @return the length of this month in days, from 28 to 31
-     */
-    public int length(boolean leapYear) {
-        switch (this) {
-            case FEBRUARY:
-                return (leapYear ? 29 : 28);
-            case APRIL:
-            case JUNE:
-            case SEPTEMBER:
-            case NOVEMBER:
-                return 30;
-            default:
-                return 31;
-        }
-    }
-
-    /**
-     * Gets the minimum length of this month in days.
-     * <p>
-     * February has a minimum length of 28 days.
-     * April, June, September and November have 30 days.
-     * All other months have 31 days.
-     *
-     * @return the minimum length of this month in days, from 28 to 31
-     */
-    public int minLength() {
-        switch (this) {
-            case FEBRUARY:
-                return 28;
-            case APRIL:
-            case JUNE:
-            case SEPTEMBER:
-            case NOVEMBER:
-                return 30;
-            default:
-                return 31;
-        }
-    }
-
-    /**
-     * Gets the maximum length of this month in days.
-     * <p>
-     * February has a maximum length of 29 days.
-     * April, June, September and November have 30 days.
-     * All other months have 31 days.
-     *
-     * @return the maximum length of this month in days, from 29 to 31
-     */
-    public int maxLength() {
-        switch (this) {
-            case FEBRUARY:
-                return 29;
-            case APRIL:
-            case JUNE:
-            case SEPTEMBER:
-            case NOVEMBER:
-                return 30;
-            default:
-                return 31;
-        }
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Gets the day-of-year corresponding to the first day of this month.
-     * <p>
-     * This returns the day-of-year that this month begins on, using the leap
-     * year flag to determine the length of February.
-     *
-     * @param leapYear  true if the length is required for a leap year
-     * @return the day of year corresponding to the first day of this month, from 1 to 336
-     */
-    public int firstDayOfYear(boolean leapYear) {
-        int leap = leapYear ? 1 : 0;
-        switch (this) {
-            case JANUARY:
-                return 1;
-            case FEBRUARY:
-                return 32;
-            case MARCH:
-                return 60 + leap;
-            case APRIL:
-                return 91 + leap;
-            case MAY:
-                return 121 + leap;
-            case JUNE:
-                return 152 + leap;
-            case JULY:
-                return 182 + leap;
-            case AUGUST:
-                return 213 + leap;
-            case SEPTEMBER:
-                return 244 + leap;
-            case OCTOBER:
-                return 274 + leap;
-            case NOVEMBER:
-                return 305 + leap;
-            case DECEMBER:
-            default:
-                return 335 + leap;
-        }
-    }
-
-    /**
-     * Gets the month corresponding to the first month of this quarter.
-     * <p>
-     * The year can be divided into four quarters.
-     * This method returns the first month of the quarter for the base month.
-     * January, February and March return January.
-     * April, May and June return April.
-     * July, August and September return July.
-     * October, November and December return October.
-     *
-     * @return the first month of the quarter corresponding to this month, not null
-     */
-    public Month firstMonthOfQuarter() {
-        return ENUMS[(ordinal() / 3) * 3];
-    }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Queries this month-of-year using the specified query.
      * <p>
@@ -552,23 +465,36 @@ public enum Month implements TemporalAccessor, TemporalAdjuster {
      * {@link TemporalQuery#queryFrom(TemporalAccessor)} method on the
      * specified query passing {@code this} as the argument.
      *
-     * @param <R> the type of the result
-     * @param query  the query to invoke, not null
+     * @param <R>   the type of the result
+     * @param query the query to invoke, not null
+     *
      * @return the query result, null may be returned (defined by the query)
-     * @throws DateTimeException if unable to query (defined by the query)
+     *
+     * @throws DateTimeException   if unable to query (defined by the query)
      * @throws ArithmeticException if numeric overflow occurs (defined by the query)
      */
+    // 使用指定的时间量查询器，从当前时间量中查询目标信息
     @SuppressWarnings("unchecked")
     @Override
     public <R> R query(TemporalQuery<R> query) {
-        if (query == TemporalQueries.chronology()) {
-            return (R) IsoChronology.INSTANCE;
-        } else if (query == TemporalQueries.precision()) {
+        
+        if(query == TemporalQueries.precision()) {
             return (R) MONTHS;
         }
+        
+        if(query == TemporalQueries.chronology()) {
+            return (R) IsoChronology.INSTANCE;
+        }
+        
         return TemporalAccessor.super.query(query);
     }
-
+    
+    /*▲ 时间量字段操作(TemporalAccessor) ███████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 整合 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Adjusts the specified temporal object to have this month-of-year.
      * <p>
@@ -599,17 +525,205 @@ public enum Month implements TemporalAccessor, TemporalAdjuster {
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param temporal  the target object to be adjusted, not null
+     * @param temporal the target object to be adjusted, not null
+     *
      * @return the adjusted object, not null
-     * @throws DateTimeException if unable to make the adjustment
+     *
+     * @throws DateTimeException   if unable to make the adjustment
      * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 拿当前时间量中的特定字段与时间量temporal中的其他字段进行整合。
+     *
+     * 如果整合后的值与temporal中原有的值相等，则可以直接使用temporal本身；否则，会返回新构造的时间量对象。
+     *
+     * 注：通常，这会用到当前时间量的所有部件信息
+     *
+     *
+     * 当前时间量参与整合字段包括：
+     * ChronoField.MONTH_OF_YEAR - 当前时间量的"月"部件
+     *
+     * 目标时间量temporal的取值可以是：
+     * YearMonth
+     * LocalDate
+     * LocalDateTime
+     * OffsetDateTime
+     * ZonedDateTime
+     * ChronoLocalDateTimeImpl
+     * ChronoZonedDateTimeImpl
      */
     @Override
     public Temporal adjustInto(Temporal temporal) {
-        if (Chronology.from(temporal).equals(IsoChronology.INSTANCE) == false) {
+        /// 确保temporal是基于ISO历法系统的时间量
+        if(!Chronology.from(temporal).equals(IsoChronology.INSTANCE)) {
             throw new DateTimeException("Adjustment only supported on ISO date-time");
         }
-        return temporal.with(MONTH_OF_YEAR, getValue());
+        
+        // 当前月的"月份"
+        int value = getValue();
+        
+        return temporal.with(ChronoField.MONTH_OF_YEAR, value);
     }
-
+    
+    /*▲ 整合 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Gets the textual representation, such as 'Jan' or 'December'.
+     * <p>
+     * This returns the textual name used to identify the month-of-year,
+     * suitable for presentation to the user.
+     * The parameters control the style of the returned text and the locale.
+     * <p>
+     * If no textual mapping is found then the {@link #getValue() numeric value} is returned.
+     *
+     * @param style  the length of the text required, not null
+     * @param locale the locale to use, not null
+     *
+     * @return the text value of the month-of-year, not null
+     */
+    // 返回当前月份的本地名称
+    public String getDisplayName(TextStyle style, Locale locale) {
+        return new DateTimeFormatterBuilder().appendText(ChronoField.MONTH_OF_YEAR, style).toFormatter(locale).format(this);
+    }
+    
+    /**
+     * Gets the length of this month in days.
+     * <p>
+     * This takes a flag to determine whether to return the length for a leap year or not.
+     * <p>
+     * February has 28 days in a standard year and 29 days in a leap year.
+     * April, June, September and November have 30 days.
+     * All other months have 31 days.
+     *
+     * @param leapYear  true if the length is required for a leap year
+     * @return the length of this month in days, from 28 to 31
+     */
+    // 返回当前月份包含的天数；leapYear指示是否位于闰年中
+    public int length(boolean leapYear) {
+        switch (this) {
+            case FEBRUARY:
+                return (leapYear ? 29 : 28);
+            case APRIL:
+            case JUNE:
+            case SEPTEMBER:
+            case NOVEMBER:
+                return 30;
+            default:
+                return 31;
+        }
+    }
+    
+    /**
+     * Gets the minimum length of this month in days.
+     * <p>
+     * February has a minimum length of 28 days.
+     * April, June, September and November have 30 days.
+     * All other months have 31 days.
+     *
+     * @return the minimum length of this month in days, from 28 to 31
+     */
+    // 返回当前月份最少包含的天数
+    public int minLength() {
+        switch (this) {
+            case FEBRUARY:
+                return 28;
+            case APRIL:
+            case JUNE:
+            case SEPTEMBER:
+            case NOVEMBER:
+                return 30;
+            default:
+                return 31;
+        }
+    }
+    
+    /**
+     * Gets the maximum length of this month in days.
+     * <p>
+     * February has a maximum length of 29 days.
+     * April, June, September and November have 30 days.
+     * All other months have 31 days.
+     *
+     * @return the maximum length of this month in days, from 29 to 31
+     */
+    // 返回当前月份最多包含的天数
+    public int maxLength() {
+        switch (this) {
+            case FEBRUARY:
+                return 29;
+            case APRIL:
+            case JUNE:
+            case SEPTEMBER:
+            case NOVEMBER:
+                return 30;
+            default:
+                return 31;
+        }
+    }
+    
+    
+    /**
+     * Gets the day-of-year corresponding to the first day of this month.
+     * <p>
+     * This returns the day-of-year that this month begins on, using the leap
+     * year flag to determine the length of February.
+     *
+     * @param leapYear  true if the length is required for a leap year
+     * @return the day of year corresponding to the first day of this month, from 1 to 336
+     */
+    // 返回当前月份的第一天是所在年份的第几天；leapYear指示是否位于闰年中
+    public int firstDayOfYear(boolean leapYear) {
+        int leap = leapYear ? 1 : 0;
+        switch (this) {
+            case JANUARY:
+                return 1;
+            case FEBRUARY:
+                return 32;
+            case MARCH:
+                return 60 + leap;
+            case APRIL:
+                return 91 + leap;
+            case MAY:
+                return 121 + leap;
+            case JUNE:
+                return 152 + leap;
+            case JULY:
+                return 182 + leap;
+            case AUGUST:
+                return 213 + leap;
+            case SEPTEMBER:
+                return 244 + leap;
+            case OCTOBER:
+                return 274 + leap;
+            case NOVEMBER:
+                return 305 + leap;
+            case DECEMBER:
+            default:
+                return 335 + leap;
+        }
+    }
+    
+    /**
+     * Gets the month corresponding to the first month of this quarter.
+     * <p>
+     * The year can be divided into four quarters.
+     * This method returns the first month of the quarter for the base month.
+     * January, February and March return January.
+     * April, May and June return April.
+     * July, August and September return July.
+     * October, November and December return October.
+     *
+     * @return the first month of the quarter corresponding to this month, not null
+     */
+    // 返回当前月份所属季度的第一个月份
+    public Month firstMonthOfQuarter() {
+        return ENUMS[(ordinal() / 3) * 3];
+    }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }

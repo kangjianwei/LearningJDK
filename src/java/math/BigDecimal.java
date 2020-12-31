@@ -226,11 +226,12 @@ import static java.math.BigInteger.LONG_MASK;
  * @since 1.1
  */
 /*
- * 高精度数值运算
+ * 高精度数值
  *
  * 注：该对象本身是不可变的，类似String，在运算之后会产生一个新对象
  */
 public class BigDecimal extends Number implements Comparable<BigDecimal> {
+    
     /**
      * The unscaled value of this BigDecimal, as returned by {@link
      * #unscaledValue}.
@@ -282,11 +283,7 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
     // All 18-digit base ten strings fit into a long; not all 19-digit strings will
     private static final int MAX_COMPACT_DIGITS = 18;
     
-    /* Appease the serialization gods */
-    private static final long serialVersionUID = 6108874887143696463L;
-    
-    private static final ThreadLocal<StringBuilderHelper> threadLocalStringBuilderHelper
-        = new ThreadLocal<StringBuilderHelper>() {
+    private static final ThreadLocal<StringBuilderHelper> threadLocalStringBuilderHelper = new ThreadLocal<StringBuilderHelper>() {
         @Override
         protected StringBuilderHelper initialValue() {
             return new StringBuilderHelper();
@@ -536,41 +533,37 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      * @deprecated Use {@link RoundingMode#UNNECESSARY} instead.
      */
     // 用于诊断该舍入操作的数据是否为整数，如果不是整数，抛异常
-    @Deprecated(since="9")
-    public static final int ROUND_UNNECESSARY =  7;
+    @Deprecated(since = "9")
+    public static final int ROUND_UNNECESSARY = 7;
     
     
-    private static final long[][] LONGLONG_TEN_POWERS_TABLE = {
-        {   0L, 0x8AC7230489E80000L },  //10^19
-        {       0x5L, 0x6bc75e2d63100000L },  //10^20
-        {       0x36L, 0x35c9adc5dea00000L },  //10^21
-        {       0x21eL, 0x19e0c9bab2400000L  },  //10^22
-        {       0x152dL, 0x02c7e14af6800000L  },  //10^23
-        {       0xd3c2L, 0x1bcecceda1000000L  },  //10^24
-        {       0x84595L, 0x161401484a000000L  },  //10^25
-        {       0x52b7d2L, 0xdcc80cd2e4000000L  },  //10^26
-        {       0x33b2e3cL, 0x9fd0803ce8000000L  },  //10^27
-        {       0x204fce5eL, 0x3e25026110000000L  },  //10^28
-        {       0x1431e0faeL, 0x6d7217caa0000000L  },  //10^29
-        {       0xc9f2c9cd0L, 0x4674edea40000000L  },  //10^30
-        {       0x7e37be2022L, 0xc0914b2680000000L  },  //10^31
-        {       0x4ee2d6d415bL, 0x85acef8100000000L  },  //10^32
-        {       0x314dc6448d93L, 0x38c15b0a00000000L  },  //10^33
-        {       0x1ed09bead87c0L, 0x378d8e6400000000L  },  //10^34
-        {       0x13426172c74d82L, 0x2b878fe800000000L  },  //10^35
-        {       0xc097ce7bc90715L, 0xb34b9f1000000000L  },  //10^36
-        {       0x785ee10d5da46d9L, 0x00f436a000000000L  },  //10^37
-        {       0x4b3b4ca85a86c47aL, 0x098a224000000000L  },  //10^38
+    private static final long[][] LONGLONG_TEN_POWERS_TABLE = {{0L, 0x8AC7230489E80000L},  //10^19
+        {0x5L, 0x6bc75e2d63100000L},  //10^20
+        {0x36L, 0x35c9adc5dea00000L},  //10^21
+        {0x21eL, 0x19e0c9bab2400000L},  //10^22
+        {0x152dL, 0x02c7e14af6800000L},  //10^23
+        {0xd3c2L, 0x1bcecceda1000000L},  //10^24
+        {0x84595L, 0x161401484a000000L},  //10^25
+        {0x52b7d2L, 0xdcc80cd2e4000000L},  //10^26
+        {0x33b2e3cL, 0x9fd0803ce8000000L},  //10^27
+        {0x204fce5eL, 0x3e25026110000000L},  //10^28
+        {0x1431e0faeL, 0x6d7217caa0000000L},  //10^29
+        {0xc9f2c9cd0L, 0x4674edea40000000L},  //10^30
+        {0x7e37be2022L, 0xc0914b2680000000L},  //10^31
+        {0x4ee2d6d415bL, 0x85acef8100000000L},  //10^32
+        {0x314dc6448d93L, 0x38c15b0a00000000L},  //10^33
+        {0x1ed09bead87c0L, 0x378d8e6400000000L},  //10^34
+        {0x13426172c74d82L, 0x2b878fe800000000L},  //10^35
+        {0xc097ce7bc90715L, 0xb34b9f1000000000L},  //10^36
+        {0x785ee10d5da46d9L, 0x00f436a000000000L},  //10^37
+        {0x4b3b4ca85a86c47aL, 0x098a224000000000L},  //10^38
     };
     
     /**
      * Powers of 10 which can be represented exactly in {@code
      * double}.
      */
-    private static final double DOUBLE_10_POW[] = {
-        1.0e0,  1.0e1,  1.0e2,  1.0e3,  1.0e4,  1.0e5,
-        1.0e6,  1.0e7,  1.0e8,  1.0e9,  1.0e10, 1.0e11,
-        1.0e12, 1.0e13, 1.0e14, 1.0e15, 1.0e16, 1.0e17,
+    private static final double DOUBLE_10_POW[] = {1.0e0, 1.0e1, 1.0e2, 1.0e3, 1.0e4, 1.0e5, 1.0e6, 1.0e7, 1.0e8, 1.0e9, 1.0e10, 1.0e11, 1.0e12, 1.0e13, 1.0e14, 1.0e15, 1.0e16, 1.0e17,
         1.0e18, 1.0e19, 1.0e20, 1.0e21, 1.0e22
     };
     
@@ -613,16 +606,22 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      * {@code BigDecimal(String)} constructor.
      * @since 1.5
      */
-    // ▶ 1
+    /*
+     * ▶ 1
+     *
+     * 使用in[offset, offset+len-1]范围的字符序列构造BigDecimal，精度由mc给出。
+     */
     public BigDecimal(char[] in, int offset, int len, MathContext mc) {
         // protect against huge length.
-        if(offset + len>in.length || offset<0)
+        if(offset + len>in.length || offset<0) {
             throw new NumberFormatException("Bad offset or len arguments for char[] input.");
+        }
+    
         // This is the primary string to BigDecimal constructor; all
         // incoming strings end up here; it uses explicit (inline)
         // parsing for speed and generates at most one intermediate
         // (temporary) object (a char[] array) for non-compact case.
-        
+    
         // Use locals for all fields values until completion
         int prec = 0;                 // record precision value
         int scl = 0;                  // record scale value
@@ -830,7 +829,11 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      * {@code BigDecimal(String)} constructor.
      * @since 1.5
      */
-    // ▶ 1-1
+    /*
+     * ▶ 1-1
+     *
+     * 使用in[offset, offset+len-1]范围的字符序列构造BigDecimal，不会限制精度。
+     */
     public BigDecimal(char[] in, int offset, int len) {
         this(in, offset, len, MathContext.UNLIMITED);
     }
@@ -851,7 +854,11 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      * {@code BigDecimal(String)} constructor.
      * @since 1.5
      */
-    // ▶ 1-1-1
+    /*
+     * ▶ 1-1-1
+     *
+     * 使用指定的字符序列构造BigDecimal，不会限制精度。
+     */
     public BigDecimal(char[] in) {
         this(in, 0, in.length);
     }
@@ -956,7 +963,18 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      * BigDecimal, as it doesn't suffer from the unpredictability of
      * the {@link #BigDecimal(double)} constructor.
      */
-    // ▶ 1-1-2 （建议使用）
+    /*
+     * ▶ 1-1-2 （建议使用）
+     *
+     * 使用指定的字符串构造BigDecimal，不会限制精度。
+     *
+     * 字符串示例：
+     * "123"          ->  123
+     * "1.23456789"   ->  1.23456789
+     * "-1.234"       ->  -1.234
+     * "1.23456E3"    ->  1234.56
+     * "-1.23456e-3"  ->  -0.00123456
+     */
     public BigDecimal(String val) {
         this(val.toCharArray(), 0, val.length());
     }
@@ -981,7 +999,11 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      * {@code BigDecimal(String)} constructor.
      * @since 1.5
      */
-    // ▶ 1-2
+    /*
+     * ▶ 1-2
+     *
+     * 使用指定的字符序列构造BigDecimal，精度由mc给出。
+     */
     public BigDecimal(char[] in, MathContext mc) {
         this(in, 0, in.length, mc);
     }
@@ -1001,9 +1023,132 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      *                               representation of a BigDecimal.
      * @since 1.5
      */
-    // ▶ 1-3
+    /*
+     * ▶ 1-3
+     *
+     * 使用指定的字符串构造BigDecimal，精度由mc给出。
+     *
+     * 字符串示例：
+     * "123"          ->  123
+     * "1.23456789"   ->  1.23456789
+     * "-1.234"       ->  -1.234
+     * "1.23456E3"    ->  1234.56
+     * "-1.23456e-3"  ->  -0.00123456
+     */
     public BigDecimal(String val, MathContext mc) {
         this(val.toCharArray(), 0, val.length(), mc);
+    }
+    
+    /**
+     * Translates a {@code double} into a {@code BigDecimal}, with
+     * rounding according to the context settings.  The scale of the
+     * {@code BigDecimal} is the smallest value such that
+     * <code>(10<sup>scale</sup> &times; val)</code> is an integer.
+     *
+     * <p>The results of this constructor can be somewhat unpredictable
+     * and its use is generally not recommended; see the notes under
+     * the {@link #BigDecimal(double)} constructor.
+     *
+     * @param val {@code double} value to be converted to
+     *            {@code BigDecimal}.
+     * @param mc  the context to use.
+     *
+     * @throws ArithmeticException   if the result is inexact but the
+     *                               RoundingMode is UNNECESSARY.
+     * @throws NumberFormatException if {@code val} is infinite or NaN.
+     * @since 1.5
+     */
+    /*
+     * ▶ 2
+     *
+     * 使用指定的浮点数构造BigDecimal，精度由mc给出。
+     *
+     * 注：最终得到的数字可能会不准确，因为double本身就可能不准确。
+     */
+    public BigDecimal(double val, MathContext mc) {
+        if(Double.isInfinite(val) || Double.isNaN(val)) {
+            throw new NumberFormatException("Infinite or NaN");
+        }
+    
+        // Translate the double into sign, exponent and significand, according to the formulae in JLS, Section 20.10.22.
+        long valBits = Double.doubleToLongBits(val);
+        int sign = ((valBits >> 63) == 0 ? 1 : -1);
+        int exponent = (int) ((valBits >> 52) & 0x7ffL);
+        long significand = (exponent == 0 ? (valBits & ((1L << 52) - 1)) << 1 : (valBits & ((1L << 52) - 1)) | (1L << 52));
+        exponent -= 1075;
+    
+        // At this point, val == sign * significand * 2**exponent.
+    
+        /*
+         * Special case zero to supress nonterminating normalization and bogus
+         * scale calculation.
+         */
+        if(significand == 0) {
+            this.intVal = BigInteger.ZERO;
+            this.scale = 0;
+            this.intCompact = 0;
+            this.precision = 1;
+            return;
+        }
+    
+        // Normalize
+        while((significand & 1) == 0) { // i.e., significand is even
+            significand >>= 1;
+            exponent++;
+        }
+    
+        int scl = 0;
+        // Calculate intVal and scale
+        BigInteger rb;
+        long compactVal = sign * significand;
+        if(exponent == 0) {
+            rb = (compactVal == INFLATED) ? INFLATED_BIGINT : null;
+        } else {
+            if(exponent<0) {
+                rb = BigInteger.valueOf(5).pow(-exponent).multiply(compactVal);
+                scl = -exponent;
+            } else { //  (exponent > 0)
+                rb = BigInteger.TWO.pow(exponent).multiply(compactVal);
+            }
+            compactVal = compactValFor(rb);
+        }
+        int prec = 0;
+        int mcp = mc.precision;
+        if(mcp>0) { // do rounding
+            int mode = mc.roundingMode.oldMode;
+            int drop;
+            if(compactVal == INFLATED) {
+                prec = bigDigitLength(rb);
+                drop = prec - mcp;
+                while(drop>0) {
+                    scl = checkScaleNonZero((long) scl - drop);
+                    rb = divideAndRoundByTenPow(rb, drop, mode);
+                    compactVal = compactValFor(rb);
+                    if(compactVal != INFLATED) {
+                        break;
+                    }
+                    prec = bigDigitLength(rb);
+                    drop = prec - mcp;
+                }
+            }
+    
+            if(compactVal != INFLATED) {
+                prec = longDigitLength(compactVal);
+                drop = prec - mcp;
+                while(drop>0) {
+                    scl = checkScaleNonZero((long) scl - drop);
+                    compactVal = divideAndRound(compactVal, LONG_TEN_POWERS_TABLE[drop], mc.roundingMode.oldMode);
+                    prec = longDigitLength(compactVal);
+                    drop = prec - mcp;
+                }
+                rb = null;
+            }
+        }
+    
+        this.intVal = rb;
+        this.intCompact = compactVal;
+        this.scale = scl;
+        this.precision = prec;
     }
     
     /**
@@ -1051,127 +1196,15 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      *
      * @throws NumberFormatException if {@code val} is infinite or NaN.
      */
-    // ▶ 2-1
+    /*
+     * ▶ 2-1
+     *
+     * 使用指定的浮点数构造BigDecimal，不会限制精度。
+     *
+     * 注：最终得到的数字可能会不准确，因为double本身就可能不准确。
+     */
     public BigDecimal(double val) {
         this(val, MathContext.UNLIMITED);
-    }
-    
-    /**
-     * Translates a {@code double} into a {@code BigDecimal}, with
-     * rounding according to the context settings.  The scale of the
-     * {@code BigDecimal} is the smallest value such that
-     * <code>(10<sup>scale</sup> &times; val)</code> is an integer.
-     *
-     * <p>The results of this constructor can be somewhat unpredictable
-     * and its use is generally not recommended; see the notes under
-     * the {@link #BigDecimal(double)} constructor.
-     *
-     * @param val {@code double} value to be converted to
-     *            {@code BigDecimal}.
-     * @param mc  the context to use.
-     *
-     * @throws ArithmeticException   if the result is inexact but the
-     *                               RoundingMode is UNNECESSARY.
-     * @throws NumberFormatException if {@code val} is infinite or NaN.
-     * @since 1.5
-     */
-    // ▶ 2
-    public BigDecimal(double val, MathContext mc) {
-        if(Double.isInfinite(val) || Double.isNaN(val))
-            throw new NumberFormatException("Infinite or NaN");
-        // Translate the double into sign, exponent and significand, according
-        // to the formulae in JLS, Section 20.10.22.
-        long valBits = Double.doubleToLongBits(val);
-        int sign = ((valBits >> 63) == 0 ? 1 : -1);
-        int exponent = (int) ((valBits >> 52) & 0x7ffL);
-        long significand = (exponent == 0 ? (valBits & ((1L << 52) - 1)) << 1 : (valBits & ((1L << 52) - 1)) | (1L << 52));
-        exponent -= 1075;
-        // At this point, val == sign * significand * 2**exponent.
-        
-        /*
-         * Special case zero to supress nonterminating normalization and bogus
-         * scale calculation.
-         */
-        if(significand == 0) {
-            this.intVal = BigInteger.ZERO;
-            this.scale = 0;
-            this.intCompact = 0;
-            this.precision = 1;
-            return;
-        }
-        // Normalize
-        while((significand & 1) == 0) { // i.e., significand is even
-            significand >>= 1;
-            exponent++;
-        }
-        int scl = 0;
-        // Calculate intVal and scale
-        BigInteger rb;
-        long compactVal = sign * significand;
-        if(exponent == 0) {
-            rb = (compactVal == INFLATED) ? INFLATED_BIGINT : null;
-        } else {
-            if(exponent<0) {
-                rb = BigInteger.valueOf(5).pow(-exponent).multiply(compactVal);
-                scl = -exponent;
-            } else { //  (exponent > 0)
-                rb = BigInteger.TWO.pow(exponent).multiply(compactVal);
-            }
-            compactVal = compactValFor(rb);
-        }
-        int prec = 0;
-        int mcp = mc.precision;
-        if(mcp>0) { // do rounding
-            int mode = mc.roundingMode.oldMode;
-            int drop;
-            if(compactVal == INFLATED) {
-                prec = bigDigitLength(rb);
-                drop = prec - mcp;
-                while(drop>0) {
-                    scl = checkScaleNonZero((long) scl - drop);
-                    rb = divideAndRoundByTenPow(rb, drop, mode);
-                    compactVal = compactValFor(rb);
-                    if(compactVal != INFLATED) {
-                        break;
-                    }
-                    prec = bigDigitLength(rb);
-                    drop = prec - mcp;
-                }
-            }
-            if(compactVal != INFLATED) {
-                prec = longDigitLength(compactVal);
-                drop = prec - mcp;
-                while(drop>0) {
-                    scl = checkScaleNonZero((long) scl - drop);
-                    compactVal = divideAndRound(compactVal, LONG_TEN_POWERS_TABLE[drop], mc.roundingMode.oldMode);
-                    prec = longDigitLength(compactVal);
-                    drop = prec - mcp;
-                }
-                rb = null;
-            }
-        }
-        this.intVal = rb;
-        this.intCompact = compactVal;
-        this.scale = scl;
-        this.precision = prec;
-    }
-    
-    /**
-     * Translates a {@code BigInteger} into a {@code BigDecimal}
-     * rounding according to the context settings.  The scale of the
-     * {@code BigDecimal} is zero.
-     *
-     * @param val {@code BigInteger} value to be converted to
-     *            {@code BigDecimal}.
-     * @param mc  the context to use.
-     *
-     * @throws ArithmeticException if the result is inexact but the
-     *                             rounding mode is {@code UNNECESSARY}.
-     * @since 1.5
-     */
-    // ▶ 3-1
-    public BigDecimal(BigInteger val, MathContext mc) {
-        this(val, 0, mc);
     }
     
     /**
@@ -1190,12 +1223,23 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      *                             rounding mode is {@code UNNECESSARY}.
      * @since 1.5
      */
-    // ▶ 3
+    /*
+     * ▶ 3
+     *
+     * 使用指定的BigInteger构造BigDecimal，精度由mc给出。
+     *
+     * scale用来设置小数的位数。
+     * scale>0 : 将unscaledVal的小数点向左移动scale位，即增加scale个小数位。
+     * scale<0 : 将unscaledVal的小数点向右移动scale位，即减少scale个小数位。
+     * scale==0: 使用原始的unscaledVal值。
+     */
     public BigDecimal(BigInteger unscaledVal, int scale, MathContext mc) {
         long compactVal = compactValFor(unscaledVal);
         int mcp = mc.precision;
         int prec = 0;
-        if(mcp>0) { // do rounding
+    
+        // do rounding
+        if(mcp>0) {
             int mode = mc.roundingMode.oldMode;
             if(compactVal == INFLATED) {
                 prec = bigDigitLength(unscaledVal);
@@ -1223,10 +1267,33 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
                 unscaledVal = null;
             }
         }
+    
         this.intVal = unscaledVal;
         this.intCompact = compactVal;
         this.scale = scale;
         this.precision = prec;
+    }
+    
+    /**
+     * Translates a {@code BigInteger} into a {@code BigDecimal}
+     * rounding according to the context settings.  The scale of the
+     * {@code BigDecimal} is zero.
+     *
+     * @param val {@code BigInteger} value to be converted to
+     *            {@code BigDecimal}.
+     * @param mc  the context to use.
+     *
+     * @throws ArithmeticException if the result is inexact but the
+     *                             rounding mode is {@code UNNECESSARY}.
+     * @since 1.5
+     */
+    /*
+     * ▶ 3-1
+     *
+     * 使用指定的BigInteger构造BigDecimal，精度由mc给出。
+     */
+    public BigDecimal(BigInteger val, MathContext mc) {
+        this(val, 0, mc);
     }
     
     /**
@@ -1236,7 +1303,11 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      * @param val {@code BigInteger} value to be converted to
      *            {@code BigDecimal}.
      */
-    // ▶ 4
+    /*
+     * ▶ 4
+     *
+     * 使用指定的BigInteger构造BigDecimal，不会限制精度。
+     */
     public BigDecimal(BigInteger val) {
         scale = 0;
         intVal = val;
@@ -1252,7 +1323,16 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      * @param unscaledVal unscaled value of the {@code BigDecimal}.
      * @param scale       scale of the {@code BigDecimal}.
      */
-    // ▶ 5
+    /*
+     * ▶ 5
+     *
+     * 使用指定的BigInteger构造BigDecimal，不会限制精度。
+     *
+     * scale用来设置小数的位数。
+     * scale>0 : 将unscaledVal的小数点向左移动scale位，即增加scale个小数位。
+     * scale<0 : 将unscaledVal的小数点向右移动scale位，即减少scale个小数位。
+     * scale==0: 使用原始的unscaledVal值。
+     */
     public BigDecimal(BigInteger unscaledVal, int scale) {
         // Negative scales are now allowed
         this.intVal = unscaledVal;
@@ -1269,7 +1349,11 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      *
      * @since 1.5
      */
-    // ▶ 6
+    /*
+     * ▶ 6
+     *
+     * 使用指定的整数构造BigDecimal，不会限制精度。
+     */
     public BigDecimal(int val) {
         this.intCompact = val;
         this.scale = 0;
@@ -1288,7 +1372,11 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      *                             rounding mode is {@code UNNECESSARY}.
      * @since 1.5
      */
-    // ▶ 7
+    /*
+     * ▶ 7
+     *
+     * 使用指定的整数构造BigDecimal，精度由mc给出。
+     */
     public BigDecimal(int val, MathContext mc) {
         int mcp = mc.precision;
         long compactVal = val;
@@ -1318,7 +1406,11 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      *
      * @since 1.5
      */
-    // ▶ 8
+    /*
+     * ▶ 8
+     *
+     * 使用指定的整数构造BigDecimal，不会限制精度。
+     */
     public BigDecimal(long val) {
         this.intCompact = val;
         this.intVal = (val == INFLATED) ? INFLATED_BIGINT : null;
@@ -1337,7 +1429,11 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      *                             rounding mode is {@code UNNECESSARY}.
      * @since 1.5
      */
-    // ▶ 9
+    /*
+     * ▶ 9
+     *
+     * 使用指定的整数构造BigDecimal，精度由mc给出。
+     */
     public BigDecimal(long val, MathContext mc) {
         int mcp = mc.precision;
         int mode = mc.roundingMode.oldMode;
@@ -1382,7 +1478,22 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      * Trusted simply means if val is INFLATED, intVal could not be null and
      * if intVal is null, val could not be INFLATED.
      */
-    // ▶ 10
+    /*
+     * ▶ 10
+     *
+     * 使用指定的整数构造BigDecimal，精度由prec给出。
+     *
+     * inVal和val通常只使用一个，
+     * 如果val为INFLATED，则intVal不为null，
+     * 如果intVal为null，则val不能是INFLATED。
+     *
+     * scale用来设置小数的位数。
+     * scale>0 : 将有效数值的小数点向左移动scale位，即增加scale个小数位。
+     * scale<0 : 将有效数值的小数点向右移动scale位，即减少scale个小数位。
+     * scale==0: 使用原始的有效数值。
+     *
+     * prec用来指示允许的有效数字数量，0表示不作限制
+     */
     BigDecimal(BigInteger intVal, long val, int scale, int prec) {
         this.scale = scale;
         this.precision = prec;
@@ -1410,12 +1521,25 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      * to a ({@code long}, {@code int}) constructor because it allows
      * for reuse of frequently used {@code BigDecimal} values.
      */
+    /*
+     * 使用指定的整数构造BigDecimal，不会限制精度。
+     *
+     * scale用来设置小数的位数。
+     * scale>0 : 将unscaledVal的小数点向左移动scale位，即增加scale个小数位。
+     * scale<0 : 将unscaledVal的小数点向右移动scale位，即减少scale个小数位。
+     * scale==0: 使用原始的unscaledVal值。
+     */
     public static BigDecimal valueOf(long unscaledVal, int scale) {
-        if(scale == 0)
+        if(scale == 0) {
+            // 直接转换
             return valueOf(unscaledVal);
-        else if(unscaledVal == 0) {
+        }
+    
+        if(unscaledVal == 0) {
+            // 快捷处理
             return zeroValueOf(scale);
         }
+    
         return new BigDecimal(unscaledVal == INFLATED ? INFLATED_BIGINT : null, unscaledVal, scale, 0);
     }
     
@@ -1431,11 +1555,17 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      * to a ({@code long}) constructor because it allows for reuse of
      * frequently used {@code BigDecimal} values.
      */
+    // 将指定的整数转换为BigDecimal，不会限制精度。
     public static BigDecimal valueOf(long val) {
-        if(val >= 0 && val<ZERO_THROUGH_TEN.length)
+        // 快捷处理
+        if(val >= 0 && val<ZERO_THROUGH_TEN.length) {
             return ZERO_THROUGH_TEN[(int) val];
-        else if(val != INFLATED)
+        }
+    
+        if(val != INFLATED) {
             return new BigDecimal(null, val, 0, 0);
+        }
+    
         return new BigDecimal(INFLATED_BIGINT, val, 0, 0);
     }
     
@@ -1457,38 +1587,19 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      * Double#toString(double)}.
      * @since 1.5
      */
+    /*
+     * 将指定的浮点数转换为BigDecimal，不会限制精度。
+     *
+     * 注：这里虽然也使用了读点数，但最终得到的数字是准确的，
+     * 　　因为这里会先将double转换为字符串。
+     */
     public static BigDecimal valueOf(double val) {
-        // Reminder: a zero double returns '0.0', so we cannot fastpath
-        // to use the constant ZERO.  This might be important enough to
-        // justify a factory approach, a cache, or a few private
-        // constants, later.
+        /*
+         * Reminder: a zero double returns '0.0', so we cannot fastpath
+         * to use the constant ZERO.  This might be important enough to
+         * justify a factory approach, a cache, or a few private constants, later.
+         */
         return new BigDecimal(Double.toString(val));
-    }
-    
-    static BigDecimal valueOf(long unscaledVal, int scale, int prec) {
-        if(scale == 0 && unscaledVal >= 0 && unscaledVal<ZERO_THROUGH_TEN.length) {
-            return ZERO_THROUGH_TEN[(int) unscaledVal];
-        } else if(unscaledVal == 0) {
-            return zeroValueOf(scale);
-        }
-        return new BigDecimal(unscaledVal == INFLATED ? INFLATED_BIGINT : null, unscaledVal, scale, prec);
-    }
-    
-    static BigDecimal valueOf(BigInteger intVal, int scale, int prec) {
-        long val = compactValFor(intVal);
-        if(val == 0) {
-            return zeroValueOf(scale);
-        } else if(scale == 0 && val >= 0 && val<ZERO_THROUGH_TEN.length) {
-            return ZERO_THROUGH_TEN[(int) val];
-        }
-        return new BigDecimal(intVal, val, scale, prec);
-    }
-    
-    static BigDecimal zeroValueOf(int scale) {
-        if(scale >= 0 && scale<ZERO_SCALED_BY.length)
-            return ZERO_SCALED_BY[scale];
-        else
-            return new BigDecimal(BigInteger.ZERO, 0, scale, 1);
     }
     
     /*▲ 类似装箱 ████████████████████████████████████████████████████████████████████████████████┛ */
@@ -1498,58 +1609,47 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
     /*▼ 类似拆箱 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
-     * Converts this {@code BigDecimal} to a {@code long}.
-     * This conversion is analogous to the
-     * <i>narrowing primitive conversion</i> from {@code double} to
-     * {@code short} as defined in
-     * <cite>The Java&trade; Language Specification</cite>:
-     * any fractional part of this
-     * {@code BigDecimal} will be discarded, and if the resulting
-     * "{@code BigInteger}" is too big to fit in a
-     * {@code long}, only the low-order 64 bits are returned.
-     * Note that this conversion can lose information about the
-     * overall magnitude and precision of this {@code BigDecimal} value as well
-     * as return a result with the opposite sign.
+     * Converts this {@code BigDecimal} to a {@code byte}, checking
+     * for lost information.  If this {@code BigDecimal} has a
+     * nonzero fractional part or is out of the possible range for a
+     * {@code byte} result then an {@code ArithmeticException} is
+     * thrown.
      *
-     * @return this {@code BigDecimal} converted to a {@code long}.
+     * @return this {@code BigDecimal} converted to a {@code byte}.
      *
-     * @jls 5.1.3 Narrowing Primitive Conversion
+     * @throws ArithmeticException if {@code this} has a nonzero
+     *                             fractional part, or will not fit in a {@code byte}.
+     * @since 1.5
      */
-    @Override
-    public long longValue() {
-        return (intCompact != INFLATED && scale == 0) ? intCompact : toBigInteger().longValue();
+    // 将当前数值转换为byte；如果当前数值是小数，或者超过了byte的范围，则抛异常
+    public byte byteValueExact() {
+        long num;
+        num = this.longValueExact();     // will check decimal part
+        if((byte) num != num)
+            throw new java.lang.ArithmeticException("Overflow");
+        return (byte) num;
     }
     
     /**
-     * Converts this {@code BigDecimal} to a {@code long}, checking
+     * Converts this {@code BigDecimal} to a {@code short}, checking
      * for lost information.  If this {@code BigDecimal} has a
      * nonzero fractional part or is out of the possible range for a
-     * {@code long} result then an {@code ArithmeticException} is
+     * {@code short} result then an {@code ArithmeticException} is
      * thrown.
      *
-     * @return this {@code BigDecimal} converted to a {@code long}.
+     * @return this {@code BigDecimal} converted to a {@code short}.
      *
      * @throws ArithmeticException if {@code this} has a nonzero
-     *                             fractional part, or will not fit in a {@code long}.
+     *                             fractional part, or will not fit in a {@code short}.
      * @since 1.5
      */
-    public long longValueExact() {
-        if(intCompact != INFLATED && scale == 0)
-            return intCompact;
-        // If more than 19 digits in integer part it cannot possibly fit
-        if((precision() - scale)>19) // [OK for negative scale too]
+    // 将当前数值转换为short；如果当前数值是小数，或者超过了short的范围，则抛异常
+    public short shortValueExact() {
+        long num;
+        num = this.longValueExact();     // will check decimal part
+        if((short) num != num)
             throw new java.lang.ArithmeticException("Overflow");
-        // Fastpath zero and < 1.0 numbers (the latter can be very slow
-        // to round if very small)
-        if(this.signum() == 0)
-            return 0;
-        if((this.precision() - this.scale)<=0)
-            throw new ArithmeticException("Rounding necessary");
-        // round to an integer, with Exception if decimal part non-0
-        BigDecimal num = this.setScale(0, ROUND_UNNECESSARY);
-        if(num.precision() >= 19) // need to check carefully
-            LongOverflow.check(num);
-        return num.inflated().longValue();
+        return (short) num;
     }
     
     /**
@@ -1588,6 +1688,7 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      *                             fractional part, or will not fit in an {@code int}.
      * @since 1.5
      */
+    // 将当前数值转换为int；如果当前数值是小数，或者超过了int的范围，则抛异常
     public int intValueExact() {
         long num;
         num = this.longValueExact();     // will check decimal part
@@ -1597,45 +1698,62 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
     }
     
     /**
-     * Converts this {@code BigDecimal} to a {@code short}, checking
-     * for lost information.  If this {@code BigDecimal} has a
-     * nonzero fractional part or is out of the possible range for a
-     * {@code short} result then an {@code ArithmeticException} is
-     * thrown.
+     * Converts this {@code BigDecimal} to a {@code long}.
+     * This conversion is analogous to the
+     * <i>narrowing primitive conversion</i> from {@code double} to
+     * {@code short} as defined in
+     * <cite>The Java&trade; Language Specification</cite>:
+     * any fractional part of this
+     * {@code BigDecimal} will be discarded, and if the resulting
+     * "{@code BigInteger}" is too big to fit in a
+     * {@code long}, only the low-order 64 bits are returned.
+     * Note that this conversion can lose information about the
+     * overall magnitude and precision of this {@code BigDecimal} value as well
+     * as return a result with the opposite sign.
      *
-     * @return this {@code BigDecimal} converted to a {@code short}.
+     * @return this {@code BigDecimal} converted to a {@code long}.
      *
-     * @throws ArithmeticException if {@code this} has a nonzero
-     *                             fractional part, or will not fit in a {@code short}.
-     * @since 1.5
+     * @jls 5.1.3 Narrowing Primitive Conversion
      */
-    public short shortValueExact() {
-        long num;
-        num = this.longValueExact();     // will check decimal part
-        if((short) num != num)
-            throw new java.lang.ArithmeticException("Overflow");
-        return (short) num;
+    // 将当前数值转换为int；如果当前数值是小数，或者超过了int的范围，则视情形截断
+    @Override
+    public long longValue() {
+        return (intCompact != INFLATED && scale == 0) ? intCompact : toBigInteger().longValue();
     }
     
     /**
-     * Converts this {@code BigDecimal} to a {@code byte}, checking
+     * Converts this {@code BigDecimal} to a {@code long}, checking
      * for lost information.  If this {@code BigDecimal} has a
      * nonzero fractional part or is out of the possible range for a
-     * {@code byte} result then an {@code ArithmeticException} is
+     * {@code long} result then an {@code ArithmeticException} is
      * thrown.
      *
-     * @return this {@code BigDecimal} converted to a {@code byte}.
+     * @return this {@code BigDecimal} converted to a {@code long}.
      *
      * @throws ArithmeticException if {@code this} has a nonzero
-     *                             fractional part, or will not fit in a {@code byte}.
+     *                             fractional part, or will not fit in a {@code long}.
      * @since 1.5
      */
-    public byte byteValueExact() {
-        long num;
-        num = this.longValueExact();     // will check decimal part
-        if((byte) num != num)
+    // 将当前数值转换为long；如果当前数值是小数，或者超过了long的范围，则抛异常
+    public long longValueExact() {
+        if(intCompact != INFLATED && scale == 0) {
+            return intCompact;
+        }
+        
+        // If more than 19 digits in integer part it cannot possibly fit
+        if((precision() - scale)>19) // [OK for negative scale too]
             throw new java.lang.ArithmeticException("Overflow");
-        return (byte) num;
+        // Fastpath zero and < 1.0 numbers (the latter can be very slow
+        // to round if very small)
+        if(this.signum() == 0)
+            return 0;
+        if((this.precision() - this.scale)<=0)
+            throw new ArithmeticException("Rounding necessary");
+        // round to an integer, with Exception if decimal part non-0
+        BigDecimal num = this.setScale(0, ROUND_UNNECESSARY);
+        if(num.precision() >= 19) // need to check carefully
+            LongOverflow.check(num);
+        return num.inflated().longValue();
     }
     
     /**
@@ -1656,6 +1774,7 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      *
      * @jls 5.1.3 Narrowing Primitive Conversion
      */
+    // 将当前数值转换为float；如果当前数值超过了float的范围，则视情形截断或舍入
     @Override
     public float floatValue() {
         if(intCompact != INFLATED) {
@@ -1702,6 +1821,7 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      *
      * @jls 5.1.3 Narrowing Primitive Conversion
      */
+    // 将当前数值转换为double；如果当前数值超过了double的范围，则视情形截断或舍入
     @Override
     public double doubleValue() {
         if(intCompact != INFLATED) {
@@ -2821,7 +2941,7 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
     
     
     
-    /*▼ 舍入 ████████████████████████████████████████████████████████████████████████████████┓ */
+    /*▼ 小数与舍入 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Returns a {@code BigDecimal} whose value is {@code (+this)}, and whose
@@ -2836,7 +2956,7 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      * @see #negate()
      * @since 1.5
      */
-    // 返回原数
+    // 返回当前高精度数
     public BigDecimal plus() {
         return this;
     }
@@ -2860,24 +2980,12 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      */
     // 返回舍入后的数
     public BigDecimal plus(MathContext mc) {
-        if(mc.precision == 0)                 // no rounding please
+        // no rounding please
+        if(mc.precision == 0) {
             return this;
-        return doRound(this, mc);
-    }
+        }
     
-    /**
-     * Returns the <i>scale</i> of this {@code BigDecimal}.  If zero
-     * or positive, the scale is the number of digits to the right of
-     * the decimal point.  If negative, the unscaled value of the
-     * number is multiplied by ten to the power of the negation of the
-     * scale.  For example, a scale of {@code -3} means the unscaled
-     * value is multiplied by 1000.
-     *
-     * @return the scale of this {@code BigDecimal}.
-     */
-    // 保留的小数位
-    public int scale() {
-        return scale;
+        return doRound(this, mc);
     }
     
     /**
@@ -2890,7 +2998,7 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      *
      * @since 1.5
      */
-    // 有效数字位数
+    // 返回有效数字数量
     public int precision() {
         int result = precision;
         if(result == 0) {
@@ -2902,19 +3010,6 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
             precision = result;
         }
         return result;
-    }
-    
-    /**
-     * Returns a {@code BigInteger} whose value is the <i>unscaled
-     * value</i> of this {@code BigDecimal}.  (Computes <code>(this *
-     * 10<sup>this.scale()</sup>)</code>.)
-     *
-     * @return the unscaled value of this {@code BigDecimal}.
-     *
-     * @since 1.2
-     */
-    public BigInteger unscaledValue() {
-        return this.inflated();
     }
     
     /**
@@ -3016,8 +3111,9 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
     // 设置保留的小数位数和舍入模式
     @Deprecated(since="9")
     public BigDecimal setScale(int newScale, int roundingMode) {
-        if (roundingMode < ROUND_UP || roundingMode > ROUND_UNNECESSARY)
+        if(roundingMode<ROUND_UP || roundingMode>ROUND_UNNECESSARY) {
             throw new IllegalArgumentException("Invalid rounding mode");
+        }
         
         int oldScale = this.scale;
         if (newScale == oldScale)        // easy case
@@ -3052,13 +3148,42 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
                 // newScale < oldScale -- drop some digits
                 // Can't predict the precision due to the effect of rounding.
                 int drop = checkScale((long) oldScale - newScale);
-                if (drop < LONG_TEN_POWERS_TABLE.length)
-                    return divideAndRound(this.intVal, LONG_TEN_POWERS_TABLE[drop], newScale, roundingMode,
-                        newScale);
+                if(drop<LONG_TEN_POWERS_TABLE.length)
+                    return divideAndRound(this.intVal, LONG_TEN_POWERS_TABLE[drop], newScale, roundingMode, newScale);
                 else
-                    return divideAndRound(this.intVal,  bigTenToThe(drop), newScale, roundingMode, newScale);
+                    return divideAndRound(this.intVal, bigTenToThe(drop), newScale, roundingMode, newScale);
             }
         }
+    }
+    
+    
+    /**
+     * Returns the <i>scale</i> of this {@code BigDecimal}.  If zero
+     * or positive, the scale is the number of digits to the right of
+     * the decimal point.  If negative, the unscaled value of the
+     * number is multiplied by ten to the power of the negation of the
+     * scale.  For example, a scale of {@code -3} means the unscaled
+     * value is multiplied by 1000.
+     *
+     * @return the scale of this {@code BigDecimal}.
+     */
+    // 返回小数位的数量，需要多于现有的小数点数量
+    public int scale() {
+        return scale;
+    }
+    
+    /**
+     * Returns a {@code BigInteger} whose value is the <i>unscaled
+     * value</i> of this {@code BigDecimal}.  (Computes <code>(this *
+     * 10<sup>this.scale()</sup>)</code>.)
+     *
+     * @return the unscaled value of this {@code BigDecimal}.
+     *
+     * @since 1.2
+     */
+    // 返回去掉小数点后的数值，参见构造器中的scale参数
+    public BigInteger unscaledValue() {
+        return this.inflated();
     }
     
     /**
@@ -3102,11 +3227,7 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
         return setScale(newScale, ROUND_UNNECESSARY);
     }
     
-    /*▲ 舍入 ████████████████████████████████████████████████████████████████████████████████┛ */
     
-    
-    
-    /*▼ 小数点移动 ████████████████████████████████████████████████████████████████████████████████┓ */
     
     /**
      * Returns a {@code BigDecimal} which is equivalent to this one
@@ -3123,7 +3244,7 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      *         decimal point moved {@code n} places to the left.
      * @throws ArithmeticException if scale overflows.
      */
-    // 小数点左移n位
+    // 小数点左移n位，返回新生成的数字
     public BigDecimal movePointLeft(int n) {
         // Cannot use movePointRight(-n) in case of n==Integer.MIN_VALUE
         int newScale = checkScale((long)scale + n);
@@ -3146,7 +3267,7 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      *         with the decimal point moved {@code n} places to the right.
      * @throws ArithmeticException if scale overflows.
      */
-    // 小数点右移n位
+    // 小数点右移n位，返回新生成的数字
     public BigDecimal movePointRight(int n) {
         // Cannot use movePointLeft(-n) in case of n==Integer.MIN_VALUE
         int newScale = checkScale((long)scale - n);
@@ -3190,230 +3311,16 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      */
     // 对于整数部分末尾为0且小数位也为0的数字，表示为科学计数法
     public BigDecimal stripTrailingZeros() {
-        if (intCompact == 0 || (intVal != null && intVal.signum() == 0)) {
+        if(intCompact == 0 || (intVal != null && intVal.signum() == 0)) {
             return BigDecimal.ZERO;
-        } else if (intCompact != INFLATED) {
+        } else if(intCompact != INFLATED) {
             return createAndStripZerosToMatchScale(intCompact, scale, Long.MIN_VALUE);
         } else {
             return createAndStripZerosToMatchScale(intVal, scale, Long.MIN_VALUE);
         }
     }
     
-    /*▲ 小数点移动 ████████████████████████████████████████████████████████████████████████████████┛ */
-    
-    
-    
-    /*▼ 字符串化 ████████████████████████████████████████████████████████████████████████████████┓ */
-    
-    /**
-     * Returns the string representation of this {@code BigDecimal},
-     * using scientific notation if an exponent is needed.
-     *
-     * <p>A standard canonical string form of the {@code BigDecimal}
-     * is created as though by the following steps: first, the
-     * absolute value of the unscaled value of the {@code BigDecimal}
-     * is converted to a string in base ten using the characters
-     * {@code '0'} through {@code '9'} with no leading zeros (except
-     * if its value is zero, in which case a single {@code '0'}
-     * character is used).
-     *
-     * <p>Next, an <i>adjusted exponent</i> is calculated; this is the
-     * negated scale, plus the number of characters in the converted
-     * unscaled value, less one.  That is,
-     * {@code -scale+(ulength-1)}, where {@code ulength} is the
-     * length of the absolute value of the unscaled value in decimal
-     * digits (its <i>precision</i>).
-     *
-     * <p>If the scale is greater than or equal to zero and the
-     * adjusted exponent is greater than or equal to {@code -6}, the
-     * number will be converted to a character form without using
-     * exponential notation.  In this case, if the scale is zero then
-     * no decimal point is added and if the scale is positive a
-     * decimal point will be inserted with the scale specifying the
-     * number of characters to the right of the decimal point.
-     * {@code '0'} characters are added to the left of the converted
-     * unscaled value as necessary.  If no character precedes the
-     * decimal point after this insertion then a conventional
-     * {@code '0'} character is prefixed.
-     *
-     * <p>Otherwise (that is, if the scale is negative, or the
-     * adjusted exponent is less than {@code -6}), the number will be
-     * converted to a character form using exponential notation.  In
-     * this case, if the converted {@code BigInteger} has more than
-     * one digit a decimal point is inserted after the first digit.
-     * An exponent in character form is then suffixed to the converted
-     * unscaled value (perhaps with inserted decimal point); this
-     * comprises the letter {@code 'E'} followed immediately by the
-     * adjusted exponent converted to a character form.  The latter is
-     * in base ten, using the characters {@code '0'} through
-     * {@code '9'} with no leading zeros, and is always prefixed by a
-     * sign character {@code '-'} (<code>'&#92;u002D'</code>) if the
-     * adjusted exponent is negative, {@code '+'}
-     * (<code>'&#92;u002B'</code>) otherwise).
-     *
-     * <p>Finally, the entire string is prefixed by a minus sign
-     * character {@code '-'} (<code>'&#92;u002D'</code>) if the unscaled
-     * value is less than zero.  No sign character is prefixed if the
-     * unscaled value is zero or positive.
-     *
-     * <p><b>Examples:</b>
-     * <p>For each representation [<i>unscaled value</i>, <i>scale</i>]
-     * on the left, the resulting string is shown on the right.
-     * <pre>
-     * [123,0]      "123"
-     * [-123,0]     "-123"
-     * [123,-1]     "1.23E+3"
-     * [123,-3]     "1.23E+5"
-     * [123,1]      "12.3"
-     * [123,5]      "0.00123"
-     * [123,10]     "1.23E-8"
-     * [-123,12]    "-1.23E-10"
-     * </pre>
-     *
-     * <b>Notes:</b>
-     * <ol>
-     *
-     * <li>There is a one-to-one mapping between the distinguishable
-     * {@code BigDecimal} values and the result of this conversion.
-     * That is, every distinguishable {@code BigDecimal} value
-     * (unscaled value and scale) has a unique string representation
-     * as a result of using {@code toString}.  If that string
-     * representation is converted back to a {@code BigDecimal} using
-     * the {@link #BigDecimal(String)} constructor, then the original
-     * value will be recovered.
-     *
-     * <li>The string produced for a given number is always the same;
-     * it is not affected by locale.  This means that it can be used
-     * as a canonical string representation for exchanging decimal
-     * data, or as a key for a Hashtable, etc.  Locale-sensitive
-     * number formatting and parsing is handled by the {@link
-     * java.text.NumberFormat} class and its subclasses.
-     *
-     * <li>The {@link #toEngineeringString} method may be used for
-     * presenting numbers with exponents in engineering notation, and the
-     * {@link #setScale(int,RoundingMode) setScale} method may be used for
-     * rounding a {@code BigDecimal} so it has a known number of digits after
-     * the decimal point.
-     *
-     * <li>The digit-to-character mapping provided by
-     * {@code Character.forDigit} is used.
-     *
-     * </ol>
-     *
-     * @return string representation of this {@code BigDecimal}.
-     * @see    Character#forDigit
-     * @see    #BigDecimal(java.lang.String)
-     */
-    // 对于大整数，可能表示为指数形式
-    @Override
-    public String toString() {
-        String sc = stringCache;
-        if (sc == null) {
-            stringCache = sc = layoutChars(true);
-        }
-        return sc;
-    }
-    
-    /**
-     * Returns a string representation of this {@code BigDecimal},
-     * using engineering notation if an exponent is needed.
-     *
-     * <p>Returns a string that represents the {@code BigDecimal} as
-     * described in the {@link #toString()} method, except that if
-     * exponential notation is used, the power of ten is adjusted to
-     * be a multiple of three (engineering notation) such that the
-     * integer part of nonzero values will be in the range 1 through
-     * 999.  If exponential notation is used for zero values, a
-     * decimal point and one or two fractional zero digits are used so
-     * that the scale of the zero value is preserved.  Note that
-     * unlike the output of {@link #toString()}, the output of this
-     * method is <em>not</em> guaranteed to recover the same [integer,
-     * scale] pair of this {@code BigDecimal} if the output string is
-     * converting back to a {@code BigDecimal} using the {@linkplain
-     * #BigDecimal(String) string constructor}.  The result of this method meets
-     * the weaker constraint of always producing a numerically equal
-     * result from applying the string constructor to the method's output.
-     *
-     * @return string representation of this {@code BigDecimal}, using
-     *         engineering notation if an exponent is needed.
-     * @since  1.5
-     */
-    // 对于大整数，可能表示为指数形式
-    public String toEngineeringString() {
-        return layoutChars(false);
-    }
-    
-    /**
-     * Returns a string representation of this {@code BigDecimal}
-     * without an exponent field.  For values with a positive scale,
-     * the number of digits to the right of the decimal point is used
-     * to indicate scale.  For values with a zero or negative scale,
-     * the resulting string is generated as if the value were
-     * converted to a numerically equal value with zero scale and as
-     * if all the trailing zeros of the zero scale value were present
-     * in the result.
-     *
-     * The entire string is prefixed by a minus sign character '-'
-     * (<code>'&#92;u002D'</code>) if the unscaled value is less than
-     * zero. No sign character is prefixed if the unscaled value is
-     * zero or positive.
-     *
-     * Note that if the result of this method is passed to the
-     * {@linkplain #BigDecimal(String) string constructor}, only the
-     * numerical value of this {@code BigDecimal} will necessarily be
-     * recovered; the representation of the new {@code BigDecimal}
-     * may have a different scale.  In particular, if this
-     * {@code BigDecimal} has a negative scale, the string resulting
-     * from this method will have a scale of zero when processed by
-     * the string constructor.
-     *
-     * (This method behaves analogously to the {@code toString}
-     * method in 1.4 and earlier releases.)
-     *
-     * @return a string representation of this {@code BigDecimal}
-     * without an exponent field.
-     * @since 1.5
-     * @see #toString()
-     * @see #toEngineeringString()
-     */
-    // 对于大整数，也原样输出
-    public String toPlainString() {
-        if(scale==0) {
-            if(intCompact!=INFLATED) {
-                return Long.toString(intCompact);
-            } else {
-                return intVal.toString();
-            }
-        }
-        if(this.scale<0) { // No decimal point
-            if(signum()==0) {
-                return "0";
-            }
-            int trailingZeros = checkScaleNonZero((-(long)scale));
-            StringBuilder buf;
-            if(intCompact!=INFLATED) {
-                buf = new StringBuilder(20+trailingZeros);
-                buf.append(intCompact);
-            } else {
-                String str = intVal.toString();
-                buf = new StringBuilder(str.length()+trailingZeros);
-                buf.append(str);
-            }
-            for (int i = 0; i < trailingZeros; i++) {
-                buf.append('0');
-            }
-            return buf.toString();
-        }
-        String str ;
-        if(intCompact!=INFLATED) {
-            str = Long.toString(Math.abs(intCompact));
-        } else {
-            str = intVal.abs().toString();
-        }
-        return getValueString(signum(), str, scale);
-    }
-    
-    /*▲ 字符串化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    /*▲ 小数与舍入 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     
@@ -3527,6 +3434,225 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
         return BigDecimal.valueOf(1, this.scale(), 1);
     }
     
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 字符串化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a string representation of this {@code BigDecimal},
+     * using engineering notation if an exponent is needed.
+     *
+     * <p>Returns a string that represents the {@code BigDecimal} as
+     * described in the {@link #toString()} method, except that if
+     * exponential notation is used, the power of ten is adjusted to
+     * be a multiple of three (engineering notation) such that the
+     * integer part of nonzero values will be in the range 1 through
+     * 999.  If exponential notation is used for zero values, a
+     * decimal point and one or two fractional zero digits are used so
+     * that the scale of the zero value is preserved.  Note that
+     * unlike the output of {@link #toString()}, the output of this
+     * method is <em>not</em> guaranteed to recover the same [integer,
+     * scale] pair of this {@code BigDecimal} if the output string is
+     * converting back to a {@code BigDecimal} using the {@linkplain
+     * #BigDecimal(String) string constructor}.  The result of this method meets
+     * the weaker constraint of always producing a numerically equal
+     * result from applying the string constructor to the method's output.
+     *
+     * @return string representation of this {@code BigDecimal}, using
+     * engineering notation if an exponent is needed.
+     *
+     * @since 1.5
+     */
+    // 对于大整数，可能表示为指数形式
+    public String toEngineeringString() {
+        return layoutChars(false);
+    }
+    
+    /**
+     * Returns a string representation of this {@code BigDecimal}
+     * without an exponent field.  For values with a positive scale,
+     * the number of digits to the right of the decimal point is used
+     * to indicate scale.  For values with a zero or negative scale,
+     * the resulting string is generated as if the value were
+     * converted to a numerically equal value with zero scale and as
+     * if all the trailing zeros of the zero scale value were present
+     * in the result.
+     *
+     * The entire string is prefixed by a minus sign character '-'
+     * (<code>'&#92;u002D'</code>) if the unscaled value is less than
+     * zero. No sign character is prefixed if the unscaled value is
+     * zero or positive.
+     *
+     * Note that if the result of this method is passed to the
+     * {@linkplain #BigDecimal(String) string constructor}, only the
+     * numerical value of this {@code BigDecimal} will necessarily be
+     * recovered; the representation of the new {@code BigDecimal}
+     * may have a different scale.  In particular, if this
+     * {@code BigDecimal} has a negative scale, the string resulting
+     * from this method will have a scale of zero when processed by
+     * the string constructor.
+     *
+     * (This method behaves analogously to the {@code toString}
+     * method in 1.4 and earlier releases.)
+     *
+     * @return a string representation of this {@code BigDecimal}
+     * without an exponent field.
+     *
+     * @see #toString()
+     * @see #toEngineeringString()
+     * @since 1.5
+     */
+    // 对于大整数，也原样输出
+    public String toPlainString() {
+        if(scale == 0) {
+            if(intCompact != INFLATED) {
+                return Long.toString(intCompact);
+            } else {
+                return intVal.toString();
+            }
+        }
+        if(this.scale<0) { // No decimal point
+            if(signum() == 0) {
+                return "0";
+            }
+            int trailingZeros = checkScaleNonZero((-(long) scale));
+            StringBuilder buf;
+            if(intCompact != INFLATED) {
+                buf = new StringBuilder(20 + trailingZeros);
+                buf.append(intCompact);
+            } else {
+                String str = intVal.toString();
+                buf = new StringBuilder(str.length() + trailingZeros);
+                buf.append(str);
+            }
+            for(int i = 0; i<trailingZeros; i++) {
+                buf.append('0');
+            }
+            return buf.toString();
+        }
+        String str;
+        if(intCompact != INFLATED) {
+            str = Long.toString(Math.abs(intCompact));
+        } else {
+            str = intVal.abs().toString();
+        }
+        return getValueString(signum(), str, scale);
+    }
+    
+    /*▲ 字符串化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    /**
+     * Returns the string representation of this {@code BigDecimal},
+     * using scientific notation if an exponent is needed.
+     *
+     * <p>A standard canonical string form of the {@code BigDecimal}
+     * is created as though by the following steps: first, the
+     * absolute value of the unscaled value of the {@code BigDecimal}
+     * is converted to a string in base ten using the characters
+     * {@code '0'} through {@code '9'} with no leading zeros (except
+     * if its value is zero, in which case a single {@code '0'}
+     * character is used).
+     *
+     * <p>Next, an <i>adjusted exponent</i> is calculated; this is the
+     * negated scale, plus the number of characters in the converted
+     * unscaled value, less one.  That is,
+     * {@code -scale+(ulength-1)}, where {@code ulength} is the
+     * length of the absolute value of the unscaled value in decimal
+     * digits (its <i>precision</i>).
+     *
+     * <p>If the scale is greater than or equal to zero and the
+     * adjusted exponent is greater than or equal to {@code -6}, the
+     * number will be converted to a character form without using
+     * exponential notation.  In this case, if the scale is zero then
+     * no decimal point is added and if the scale is positive a
+     * decimal point will be inserted with the scale specifying the
+     * number of characters to the right of the decimal point.
+     * {@code '0'} characters are added to the left of the converted
+     * unscaled value as necessary.  If no character precedes the
+     * decimal point after this insertion then a conventional
+     * {@code '0'} character is prefixed.
+     *
+     * <p>Otherwise (that is, if the scale is negative, or the
+     * adjusted exponent is less than {@code -6}), the number will be
+     * converted to a character form using exponential notation.  In
+     * this case, if the converted {@code BigInteger} has more than
+     * one digit a decimal point is inserted after the first digit.
+     * An exponent in character form is then suffixed to the converted
+     * unscaled value (perhaps with inserted decimal point); this
+     * comprises the letter {@code 'E'} followed immediately by the
+     * adjusted exponent converted to a character form.  The latter is
+     * in base ten, using the characters {@code '0'} through
+     * {@code '9'} with no leading zeros, and is always prefixed by a
+     * sign character {@code '-'} (<code>'&#92;u002D'</code>) if the
+     * adjusted exponent is negative, {@code '+'}
+     * (<code>'&#92;u002B'</code>) otherwise).
+     *
+     * <p>Finally, the entire string is prefixed by a minus sign
+     * character {@code '-'} (<code>'&#92;u002D'</code>) if the unscaled
+     * value is less than zero.  No sign character is prefixed if the
+     * unscaled value is zero or positive.
+     *
+     * <p><b>Examples:</b>
+     * <p>For each representation [<i>unscaled value</i>, <i>scale</i>]
+     * on the left, the resulting string is shown on the right.
+     * <pre>
+     * [123,0]      "123"
+     * [-123,0]     "-123"
+     * [123,-1]     "1.23E+3"
+     * [123,-3]     "1.23E+5"
+     * [123,1]      "12.3"
+     * [123,5]      "0.00123"
+     * [123,10]     "1.23E-8"
+     * [-123,12]    "-1.23E-10"
+     * </pre>
+     *
+     * <b>Notes:</b>
+     * <ol>
+     *
+     * <li>There is a one-to-one mapping between the distinguishable
+     * {@code BigDecimal} values and the result of this conversion.
+     * That is, every distinguishable {@code BigDecimal} value
+     * (unscaled value and scale) has a unique string representation
+     * as a result of using {@code toString}.  If that string
+     * representation is converted back to a {@code BigDecimal} using
+     * the {@link #BigDecimal(String)} constructor, then the original
+     * value will be recovered.
+     *
+     * <li>The string produced for a given number is always the same;
+     * it is not affected by locale.  This means that it can be used
+     * as a canonical string representation for exchanging decimal
+     * data, or as a key for a Hashtable, etc.  Locale-sensitive
+     * number formatting and parsing is handled by the {@link
+     * java.text.NumberFormat} class and its subclasses.
+     *
+     * <li>The {@link #toEngineeringString} method may be used for
+     * presenting numbers with exponents in engineering notation, and the
+     * {@link #setScale(int,RoundingMode) setScale} method may be used for
+     * rounding a {@code BigDecimal} so it has a known number of digits after
+     * the decimal point.
+     *
+     * <li>The digit-to-character mapping provided by
+     * {@code Character.forDigit} is used.
+     *
+     * </ol>
+     *
+     * @return string representation of this {@code BigDecimal}.
+     * @see    Character#forDigit
+     * @see    #BigDecimal(java.lang.String)
+     */
+    // 对于大整数，可能表示为指数形式
+    @Override
+    public String toString() {
+        String sc = stringCache;
+        if (sc == null) {
+            stringCache = sc = layoutChars(true);
+        }
+        return sc;
+    }
+    
     /**
      * Compares this {@code BigDecimal} with the specified
      * {@code BigDecimal}.  Two {@code BigDecimal} objects that are
@@ -3623,9 +3749,40 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
             return 31 * intVal.hashCode() + scale;
     }
     
-    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
     
+    static BigDecimal valueOf(long unscaledVal, int scale, int prec) {
+        if(scale == 0 && unscaledVal >= 0 && unscaledVal<ZERO_THROUGH_TEN.length) {
+            return ZERO_THROUGH_TEN[(int) unscaledVal];
+        }
+        
+        if(unscaledVal == 0) {
+            return zeroValueOf(scale);
+        }
+        
+        return new BigDecimal(unscaledVal == INFLATED ? INFLATED_BIGINT : null, unscaledVal, scale, prec);
+    }
     
+    static BigDecimal valueOf(BigInteger intVal, int scale, int prec) {
+        long val = compactValFor(intVal);
+        
+        if(val == 0) {
+            return zeroValueOf(scale);
+        }
+        
+        if(scale == 0 && val >= 0 && val<ZERO_THROUGH_TEN.length) {
+            return ZERO_THROUGH_TEN[(int) val];
+        }
+        
+        return new BigDecimal(intVal, val, scale, prec);
+    }
+    
+    static BigDecimal zeroValueOf(int scale) {
+        if(scale >= 0 && scale<ZERO_SCALED_BY.length) {
+            return ZERO_SCALED_BY[scale];
+        }
+        
+        return new BigDecimal(BigInteger.ZERO, 0, scale, 1);
+    }
     
     /**
      * Returns the length of the absolute value of a {@code long}, in decimal
@@ -3842,11 +3999,13 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
     private static long compactValFor(BigInteger b) {
         int[] m = b.mag;
         int len = m.length;
-        if(len == 0)
+        if(len == 0) {
             return 0;
+        }
         int d = m[0];
-        if(len>2 || (len == 2 && d<0))
+        if(len>2 || (len == 2 && d<0)) {
             return INFLATED;
+        }
         
         long u = (len == 2) ? (((long) m[1] & LONG_MASK) + (((long) d) << 32)) : (((long) d) & LONG_MASK);
         return (b.signum<0) ? -u : u;
@@ -5443,13 +5602,15 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
      * Needed mainly to allow special casing to trap zero value
      */
     private BigInteger bigMultiplyPowerTen(int n) {
-        if(n<=0)
+        if(n<=0) {
             return this.inflated();
-        
-        if(intCompact != INFLATED)
+        }
+    
+        if(intCompact != INFLATED) {
             return bigTenToThe(n).multiply(intCompact);
-        else
+        } else {
             return intVal.multiply(bigTenToThe(n));
+        }
     }
     
     /**
@@ -5461,37 +5622,6 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
             return BigInteger.valueOf(intCompact);
         }
         return intVal;
-    }
-    
-    /**
-     * Reconstitute the {@code BigDecimal} instance from a stream (that is,
-     * deserialize it).
-     *
-     * @param s the stream being read.
-     */
-    private void readObject(java.io.ObjectInputStream s) throws java.io.IOException, ClassNotFoundException {
-        // Read in all fields
-        s.defaultReadObject();
-        // validate possibly bad fields
-        if(intVal == null) {
-            String message = "BigDecimal: null intVal in stream";
-            throw new java.io.StreamCorruptedException(message);
-            // [all values of scale are now allowed]
-        }
-        UnsafeHolder.setIntCompact(this, compactValFor(intVal));
-    }
-    
-    /**
-     * Serialize this {@code BigDecimal} to the stream in question
-     *
-     * @param s the stream to serialize to.
-     */
-    private void writeObject(java.io.ObjectOutputStream s) throws java.io.IOException {
-        // Must inflate to maintain compatible serial form.
-        if(this.intVal == null)
-            UnsafeHolder.setIntValVolatile(this, BigInteger.valueOf(this.intCompact));
-        // Could reset intVal back to null if it has to be set.
-        s.defaultWriteObject();
     }
     
     /**
@@ -5512,8 +5642,9 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
         if(asInt != val) {
             asInt = val>Integer.MAX_VALUE ? Integer.MAX_VALUE : Integer.MIN_VALUE;
             BigInteger b;
-            if(intCompact != 0 && ((b = intVal) == null || b.signum() != 0))
+            if(intCompact != 0 && ((b = intVal) == null || b.signum() != 0)) {
                 throw new ArithmeticException(asInt>0 ? "Underflow" : "Overflow");
+            }
         }
         return asInt;
     }
@@ -5564,6 +5695,48 @@ public class BigDecimal extends Number implements Comparable<BigDecimal> {
         }
         return this;
     }
+    
+    
+    
+    /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /* Appease the serialization gods */
+    private static final long serialVersionUID = 6108874887143696463L;
+    
+    /**
+     * Reconstitute the {@code BigDecimal} instance from a stream (that is,
+     * deserialize it).
+     *
+     * @param s the stream being read.
+     */
+    private void readObject(java.io.ObjectInputStream s) throws java.io.IOException, ClassNotFoundException {
+        // Read in all fields
+        s.defaultReadObject();
+        // validate possibly bad fields
+        if(intVal == null) {
+            String message = "BigDecimal: null intVal in stream";
+            throw new java.io.StreamCorruptedException(message);
+            // [all values of scale are now allowed]
+        }
+        UnsafeHolder.setIntCompact(this, compactValFor(intVal));
+    }
+    
+    /**
+     * Serialize this {@code BigDecimal} to the stream in question
+     *
+     * @param s the stream to serialize to.
+     */
+    private void writeObject(java.io.ObjectOutputStream s) throws java.io.IOException {
+        // Must inflate to maintain compatible serial form.
+        if(this.intVal == null) {
+            UnsafeHolder.setIntValVolatile(this, BigInteger.valueOf(this.intCompact));
+        }
+        
+        // Could reset intVal back to null if it has to be set.
+        s.defaultWriteObject();
+    }
+    
+    /*▲ 序列化 ████████████████████████████████████████████████████████████████████████████████┛ */
     
     
     /**

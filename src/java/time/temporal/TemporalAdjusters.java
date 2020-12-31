@@ -61,17 +61,14 @@
  */
 package java.time.temporal;
 
-import static java.time.temporal.ChronoField.DAY_OF_MONTH;
-import static java.time.temporal.ChronoField.DAY_OF_WEEK;
-import static java.time.temporal.ChronoField.DAY_OF_YEAR;
-import static java.time.temporal.ChronoUnit.DAYS;
-import static java.time.temporal.ChronoUnit.MONTHS;
-import static java.time.temporal.ChronoUnit.YEARS;
-
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.Objects;
 import java.util.function.UnaryOperator;
+
+import static java.time.temporal.ChronoUnit.DAYS;
+import static java.time.temporal.ChronoUnit.MONTHS;
+import static java.time.temporal.ChronoUnit.YEARS;
 
 /**
  * Common and useful TemporalAdjusters.
@@ -104,21 +101,19 @@ import java.util.function.UnaryOperator;
  * <li>finding the next or previous day-of-week, such as "next Thursday"
  * </ul>
  *
- * @implSpec
- * All the implementations supplied by the static methods are immutable.
- *
+ * @implSpec All the implementations supplied by the static methods are immutable.
  * @see TemporalAdjuster
  * @since 1.8
  */
+// 时间量整合器工厂，内部预设了多种实用的整合器
 public final class TemporalAdjusters {
-
+    
     /**
      * Private constructor since this is a utility class.
      */
     private TemporalAdjusters() {
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains a {@code TemporalAdjuster} that wraps a date adjuster.
      * <p>
@@ -133,19 +128,34 @@ public final class TemporalAdjusters {
      *       TemporalAdjusters.ofDateAdjuster(date -> date.plusDays(2));
      * }</pre>
      *
-     * @param dateBasedAdjuster  the date-based adjuster, not null
+     * @param dateBasedAdjuster the date-based adjuster, not null
+     *
      * @return the temporal adjuster wrapping on the date adjuster, not null
      */
+    // 返回一个时间量整合器，该整合期支持使用dateBasedAdjuster处理目标时间量中的LocalDate信息
     public static TemporalAdjuster ofDateAdjuster(UnaryOperator<LocalDate> dateBasedAdjuster) {
         Objects.requireNonNull(dateBasedAdjuster, "dateBasedAdjuster");
-        return (temporal) -> {
-            LocalDate input = LocalDate.from(temporal);
-            LocalDate output = dateBasedAdjuster.apply(input);
-            return temporal.with(output);
+    
+        return new TemporalAdjuster() {
+            @Override
+            public Temporal adjustInto(Temporal temporal) {
+                /*
+                 * 从temporal中查询LocalDate部件。
+                 *
+                 * 如果没有现成的部件，通常需要从temporal中解析出纪元天，
+                 * 然后使用纪元天构造LocalDate后返回。
+                 */
+                LocalDate input = LocalDate.from(temporal);
+            
+                // 使用dateBasedAdjuster处理input后返回处理结果
+                LocalDate output = dateBasedAdjuster.apply(input);
+            
+                // 将output与temporal中其他类型的字段整合后返回
+                return temporal.with(output);
+            }
         };
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Returns the "first day of month" adjuster, which returns a new date set to
      * the first day of the current month.
@@ -162,10 +172,16 @@ public final class TemporalAdjusters {
      *
      * @return the first day-of-month adjuster, not null
      */
+    // 返回一个时间量整合器，该整合器通常是用temporal所在月的第一天这个时间点来更新temporal的"天"部件
     public static TemporalAdjuster firstDayOfMonth() {
-        return (temporal) -> temporal.with(DAY_OF_MONTH, 1);
+        return new TemporalAdjuster() {
+            @Override
+            public Temporal adjustInto(Temporal temporal) {
+                return temporal.with(ChronoField.DAY_OF_MONTH, 1);
+            }
+        };
     }
-
+    
     /**
      * Returns the "last day of month" adjuster, which returns a new date set to
      * the last day of the current month.
@@ -185,10 +201,18 @@ public final class TemporalAdjusters {
      *
      * @return the last day-of-month adjuster, not null
      */
+    // 返回一个时间量整合器，该整合器通常是用temporal所在月的最后一天这个时间点来更新temporal的"天"部件
     public static TemporalAdjuster lastDayOfMonth() {
-        return (temporal) -> temporal.with(DAY_OF_MONTH, temporal.range(DAY_OF_MONTH).getMaximum());
+        return new TemporalAdjuster() {
+            @Override
+            public Temporal adjustInto(Temporal temporal) {
+                // 获取ChronoField.DAY_OF_MONTH字段的上区间最大值
+                long max = temporal.range(ChronoField.DAY_OF_MONTH).getMaximum();
+                return temporal.with(ChronoField.DAY_OF_MONTH, max);
+            }
+        };
     }
-
+    
     /**
      * Returns the "first day of next month" adjuster, which returns a new date set to
      * the first day of the next month.
@@ -205,11 +229,16 @@ public final class TemporalAdjusters {
      *
      * @return the first day of next month adjuster, not null
      */
+    // 返回一个时间量整合器，该整合器通常是用temporal所在月的下个月的第一天这个时间点来更新temporal的"天"部件
     public static TemporalAdjuster firstDayOfNextMonth() {
-        return (temporal) -> temporal.with(DAY_OF_MONTH, 1).plus(1, MONTHS);
+        return new TemporalAdjuster() {
+            @Override
+            public Temporal adjustInto(Temporal temporal) {
+                return temporal.with(ChronoField.DAY_OF_MONTH, 1).plus(1, MONTHS);
+            }
+        };
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Returns the "first day of year" adjuster, which returns a new date set to
      * the first day of the current year.
@@ -226,10 +255,16 @@ public final class TemporalAdjusters {
      *
      * @return the first day-of-year adjuster, not null
      */
+    // 返回一个时间量整合器，该整合器通常是用temporal所在年的第一天这个时间点来更新temporal的"天"部件
     public static TemporalAdjuster firstDayOfYear() {
-        return (temporal) -> temporal.with(DAY_OF_YEAR, 1);
+        return new TemporalAdjuster() {
+            @Override
+            public Temporal adjustInto(Temporal temporal) {
+                return temporal.with(ChronoField.DAY_OF_YEAR, 1);
+            }
+        };
     }
-
+    
     /**
      * Returns the "last day of year" adjuster, which returns a new date set to
      * the last day of the current year.
@@ -247,10 +282,18 @@ public final class TemporalAdjusters {
      *
      * @return the last day-of-year adjuster, not null
      */
+    // 返回一个时间量整合器，该整合器通常是用temporal所在年的最后一天这个时间点来更新temporal的"天"部件
     public static TemporalAdjuster lastDayOfYear() {
-        return (temporal) -> temporal.with(DAY_OF_YEAR, temporal.range(DAY_OF_YEAR).getMaximum());
+        return new TemporalAdjuster() {
+            @Override
+            public Temporal adjustInto(Temporal temporal) {
+                // 获取ChronoField.DAY_OF_YEAR字段的上区间最大值
+                long max = temporal.range(ChronoField.DAY_OF_YEAR).getMaximum();
+                return temporal.with(ChronoField.DAY_OF_YEAR, max);
+            }
+        };
     }
-
+    
     /**
      * Returns the "first day of next year" adjuster, which returns a new date set to
      * the first day of the next year.
@@ -266,11 +309,16 @@ public final class TemporalAdjusters {
      *
      * @return the first day of next month adjuster, not null
      */
+    // 返回一个时间量整合器，该整合器通常是用temporal所在年的下一年的第一天这个时间点来更新temporal的"天"部件
     public static TemporalAdjuster firstDayOfNextYear() {
-        return (temporal) -> temporal.with(DAY_OF_YEAR, 1).plus(1, YEARS);
+        return new TemporalAdjuster() {
+            @Override
+            public Temporal adjustInto(Temporal temporal) {
+                return temporal.with(ChronoField.DAY_OF_YEAR, 1).plus(1, YEARS);
+            }
+        };
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Returns the first in month adjuster, which returns a new date
      * in the same month with the first matching day-of-week.
@@ -284,13 +332,15 @@ public final class TemporalAdjusters {
      * It uses the {@code DAY_OF_WEEK} and {@code DAY_OF_MONTH} fields
      * and the {@code DAYS} unit, and assumes a seven day week.
      *
-     * @param dayOfWeek  the day-of-week, not null
+     * @param dayOfWeek the day-of-week, not null
+     *
      * @return the first in month adjuster, not null
      */
+    // 返回一个时间量整合器，该整合器将temporal调节到当月第一天之后的第1个dayOfWeek时间点
     public static TemporalAdjuster firstInMonth(DayOfWeek dayOfWeek) {
         return TemporalAdjusters.dayOfWeekInMonth(1, dayOfWeek);
     }
-
+    
     /**
      * Returns the last in month adjuster, which returns a new date
      * in the same month with the last matching day-of-week.
@@ -304,13 +354,15 @@ public final class TemporalAdjusters {
      * It uses the {@code DAY_OF_WEEK} and {@code DAY_OF_MONTH} fields
      * and the {@code DAYS} unit, and assumes a seven day week.
      *
-     * @param dayOfWeek  the day-of-week, not null
+     * @param dayOfWeek the day-of-week, not null
+     *
      * @return the first in month adjuster, not null
      */
+    // 返回一个时间量整合器，该整合器将temporal调节到当月最后一天之前的第1个dayOfWeek时间点
     public static TemporalAdjuster lastInMonth(DayOfWeek dayOfWeek) {
         return TemporalAdjusters.dayOfWeekInMonth(-1, dayOfWeek);
     }
-
+    
     /**
      * Returns the day-of-week in month adjuster, which returns a new date
      * with the ordinal day-of-week based on the month.
@@ -339,34 +391,70 @@ public final class TemporalAdjusters {
      * It uses the {@code DAY_OF_WEEK} and {@code DAY_OF_MONTH} fields
      * and the {@code DAYS} unit, and assumes a seven day week.
      *
-     * @param ordinal  the week within the month, unbounded but typically from -5 to 5
-     * @param dayOfWeek  the day-of-week, not null
+     * @param ordinal   the week within the month, unbounded but typically from -5 to 5
+     * @param dayOfWeek the day-of-week, not null
+     *
      * @return the day-of-week in month adjuster, not null
+     */
+    /*
+     * 返回一个时间量整合器来调节temporal。
+     *
+     * 如果ordinal>=0：
+     * > 先把temporal调节到当月第一天，
+     * > 再将temporal前进到后面第|ordinal|个dayOfWeek时间点。
+     *   如果ordinal为0，则是将temporal回退到前面第1个dayOfWeek时间点。
+     *
+     * 如果ordinal<0：
+     * > 先把temporal调节到当月最后一天，
+     * > 再将temporal回退到前面第|ordinal|个dayOfWeek时间点。
      */
     public static TemporalAdjuster dayOfWeekInMonth(int ordinal, DayOfWeek dayOfWeek) {
         Objects.requireNonNull(dayOfWeek, "dayOfWeek");
+        
+        // 返回dayOfWeek在一周中的天数，即周几
         int dowValue = dayOfWeek.getValue();
-        if (ordinal >= 0) {
-            return (temporal) -> {
-                Temporal temp = temporal.with(DAY_OF_MONTH, 1);
-                int curDow = temp.get(DAY_OF_WEEK);
-                int dowDiff = (dowValue - curDow + 7) % 7;
-                dowDiff += (ordinal - 1L) * 7L;  // safe from overflow
-                return temp.plus(dowDiff, DAYS);
+        
+        if(ordinal >= 0) {
+            return new TemporalAdjuster() {
+                @Override
+                public Temporal adjustInto(Temporal temporal) {
+                    // 用temporal所在月的第一天这个时间点来更新temporal的"天"部件
+                    Temporal temp = temporal.with(ChronoField.DAY_OF_MONTH, 1);
+                    
+                    // 获取temp当前是周几
+                    int curDow = temp.get(ChronoField.DAY_OF_WEEK);
+                    
+                    // temp到dayOfWeek的天数
+                    int dowDiff = (dowValue - curDow + 7) % 7;
+                    dowDiff += (ordinal - 1L) * 7L;
+                    
+                    return temp.plus(dowDiff, DAYS);
+                }
             };
         } else {
-            return (temporal) -> {
-                Temporal temp = temporal.with(DAY_OF_MONTH, temporal.range(DAY_OF_MONTH).getMaximum());
-                int curDow = temp.get(DAY_OF_WEEK);
-                int daysDiff = dowValue - curDow;
-                daysDiff = (daysDiff == 0 ? 0 : (daysDiff > 0 ? daysDiff - 7 : daysDiff));
-                daysDiff -= (-ordinal - 1L) * 7L;  // safe from overflow
-                return temp.plus(daysDiff, DAYS);
+            return new TemporalAdjuster() {
+                @Override
+                public Temporal adjustInto(Temporal temporal) {
+                    // 获取ChronoField.DAY_OF_MONTH字段的上区间最大值
+                    long max = temporal.range(ChronoField.DAY_OF_MONTH).getMaximum();
+                    
+                    // 用temporal所在月的最后一天这个时间点来更新temporal的"天"部件
+                    Temporal temp = temporal.with(ChronoField.DAY_OF_MONTH, max);
+                    
+                    // 获取temp当前是周几
+                    int curDow = temp.get(ChronoField.DAY_OF_WEEK);
+                    
+                    // temp到dayOfWeek的天数
+                    int daysDiff = dowValue - curDow;
+                    daysDiff = (daysDiff == 0 ? 0 : (daysDiff>0 ? daysDiff - 7 : daysDiff));
+                    daysDiff -= (-ordinal - 1L) * 7L;
+                    
+                    return temp.plus(daysDiff, DAYS);
+                }
             };
         }
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Returns the next day-of-week adjuster, which adjusts the date to the
      * first occurrence of the specified day-of-week after the date being adjusted.
@@ -380,18 +468,33 @@ public final class TemporalAdjusters {
      * It uses the {@code DAY_OF_WEEK} field and the {@code DAYS} unit,
      * and assumes a seven day week.
      *
-     * @param dayOfWeek  the day-of-week to move the date to, not null
+     * @param dayOfWeek the day-of-week to move the date to, not null
+     *
      * @return the next day-of-week adjuster, not null
      */
+    /*
+     * 返回一个时间量整合器，该整合器将temporal前进到下一个dayOfWeek时间点。
+     * 即使temporal已经在dayOfWeek这个时间点，仍需要加上7天进入下周。
+     */
     public static TemporalAdjuster next(DayOfWeek dayOfWeek) {
+        // 返回dayOfWeek在一周中的天数，即周几
         int dowValue = dayOfWeek.getValue();
-        return (temporal) -> {
-            int calDow = temporal.get(DAY_OF_WEEK);
-            int daysDiff = calDow - dowValue;
-            return temporal.plus(daysDiff >= 0 ? 7 - daysDiff : -daysDiff, DAYS);
+        
+        return new TemporalAdjuster() {
+            @Override
+            public Temporal adjustInto(Temporal temporal) {
+                // 计算temporal是一周的第几天(周几)
+                int calDow = temporal.get(ChronoField.DAY_OF_WEEK);
+                
+                // dayOfWeek到temporal的天数
+                int daysDiff = calDow - dowValue;
+                
+                // 加上指定的天数，进入下一周
+                return temporal.plus(daysDiff >= 0 ? 7 - daysDiff : -daysDiff, DAYS);
+            }
         };
     }
-
+    
     /**
      * Returns the next-or-same day-of-week adjuster, which adjusts the date to the
      * first occurrence of the specified day-of-week after the date being adjusted
@@ -406,21 +509,36 @@ public final class TemporalAdjusters {
      * It uses the {@code DAY_OF_WEEK} field and the {@code DAYS} unit,
      * and assumes a seven day week.
      *
-     * @param dayOfWeek  the day-of-week to check for or move the date to, not null
+     * @param dayOfWeek the day-of-week to check for or move the date to, not null
+     *
      * @return the next-or-same day-of-week adjuster, not null
      */
+    /*
+     * 返回一个时间量整合器，该整合器将temporal前进到下一个dayOfWeek时间点。
+     * 如果temporal已经在dayOfWeek这个时间点，则不做任何操作。
+     */
     public static TemporalAdjuster nextOrSame(DayOfWeek dayOfWeek) {
+        // 返回dayOfWeek在一周中的天数，即周几
         int dowValue = dayOfWeek.getValue();
-        return (temporal) -> {
-            int calDow = temporal.get(DAY_OF_WEEK);
-            if (calDow == dowValue) {
-                return temporal;
+        
+        return new TemporalAdjuster() {
+            @Override
+            public Temporal adjustInto(Temporal temporal) {
+                // 计算temporal是一周的第几天(周几)
+                int calDow = temporal.get(ChronoField.DAY_OF_WEEK);
+                if(calDow == dowValue) {
+                    return temporal;
+                }
+                
+                // dayOfWeek到temporal的天数
+                int daysDiff = calDow - dowValue;
+                
+                // 加上指定的天数，进入下一周
+                return temporal.plus(daysDiff >= 0 ? 7 - daysDiff : -daysDiff, DAYS);
             }
-            int daysDiff = calDow - dowValue;
-            return temporal.plus(daysDiff >= 0 ? 7 - daysDiff : -daysDiff, DAYS);
         };
     }
-
+    
     /**
      * Returns the previous day-of-week adjuster, which adjusts the date to the
      * first occurrence of the specified day-of-week before the date being adjusted.
@@ -434,18 +552,33 @@ public final class TemporalAdjusters {
      * It uses the {@code DAY_OF_WEEK} field and the {@code DAYS} unit,
      * and assumes a seven day week.
      *
-     * @param dayOfWeek  the day-of-week to move the date to, not null
+     * @param dayOfWeek the day-of-week to move the date to, not null
+     *
      * @return the previous day-of-week adjuster, not null
      */
+    /*
+     * 返回一个时间量整合器，该整合器将temporal回退到上一个dayOfWeek时间点。
+     * 即使temporal已经在dayOfWeek这个时间点，仍需要减去7天进入上周。
+     */
     public static TemporalAdjuster previous(DayOfWeek dayOfWeek) {
+        // 返回dayOfWeek在一周中的天数，即周几
         int dowValue = dayOfWeek.getValue();
-        return (temporal) -> {
-            int calDow = temporal.get(DAY_OF_WEEK);
-            int daysDiff = dowValue - calDow;
-            return temporal.minus(daysDiff >= 0 ? 7 - daysDiff : -daysDiff, DAYS);
+        
+        return new TemporalAdjuster() {
+            @Override
+            public Temporal adjustInto(Temporal temporal) {
+                // 计算temporal是一周的第几天(周几)
+                int calDow = temporal.get(ChronoField.DAY_OF_WEEK);
+                
+                // temporal到dayOfWeek的天数
+                int daysDiff = dowValue - calDow;
+                
+                // 减去指定的天数，进入上一周
+                return temporal.minus(daysDiff >= 0 ? 7 - daysDiff : -daysDiff, DAYS);
+            }
         };
     }
-
+    
     /**
      * Returns the previous-or-same day-of-week adjuster, which adjusts the date to the
      * first occurrence of the specified day-of-week before the date being adjusted
@@ -460,19 +593,34 @@ public final class TemporalAdjusters {
      * It uses the {@code DAY_OF_WEEK} field and the {@code DAYS} unit,
      * and assumes a seven day week.
      *
-     * @param dayOfWeek  the day-of-week to check for or move the date to, not null
+     * @param dayOfWeek the day-of-week to check for or move the date to, not null
+     *
      * @return the previous-or-same day-of-week adjuster, not null
      */
+    /*
+     * 返回一个时间量整合器，该整合器将temporal回退到上一个dayOfWeek时间点。
+     * 如果temporal已经在dayOfWeek这个时间点，则不做任何操作。
+     */
     public static TemporalAdjuster previousOrSame(DayOfWeek dayOfWeek) {
+        // 返回dayOfWeek在一周中的天数，即周几
         int dowValue = dayOfWeek.getValue();
-        return (temporal) -> {
-            int calDow = temporal.get(DAY_OF_WEEK);
-            if (calDow == dowValue) {
-                return temporal;
+        
+        return new TemporalAdjuster() {
+            @Override
+            public Temporal adjustInto(Temporal temporal) {
+                // 计算temporal是一周的第几天(周几)
+                int calDow = temporal.get(ChronoField.DAY_OF_WEEK);
+                if(calDow == dowValue) {
+                    return temporal;
+                }
+                
+                // temporal到dayOfWeek的天数
+                int daysDiff = dowValue - calDow;
+                
+                // 减去指定的天数，进入上一周
+                return temporal.minus(daysDiff >= 0 ? 7 - daysDiff : -daysDiff, DAYS);
             }
-            int daysDiff = dowValue - calDow;
-            return temporal.minus(daysDiff >= 0 ? 7 - daysDiff : -daysDiff, DAYS);
         };
     }
-
+    
 }

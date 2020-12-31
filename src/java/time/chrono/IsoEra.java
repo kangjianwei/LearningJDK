@@ -98,37 +98,39 @@ import java.time.DateTimeException;
  * <b>Do not use {@code ordinal()} to obtain the numeric representation of {@code IsoEra}.
  * Use {@code getValue()} instead.</b>
  *
- * @implSpec
- * This is an immutable and thread-safe enum.
- *
+ * @implSpec This is an immutable and thread-safe enum.
  * @since 1.8
  */
+// 基于ISO-8601历法系统的纪元，分为公元前和公元(后)两个阶段
 public enum IsoEra implements Era {
-
+    
     /**
      * The singleton instance for the era before the current one, 'Before Current Era',
      * which has the numeric value 0.
      */
-    BCE,
+    BCE, // 公元前
+    
     /**
      * The singleton instance for the current era, 'Current Era',
      * which has the numeric value 1.
      */
-    CE;
-
-    //-----------------------------------------------------------------------
+    CE;  // 公元(后)
+    
     /**
      * Obtains an instance of {@code IsoEra} from an {@code int} value.
      * <p>
      * {@code IsoEra} is an enum representing the ISO eras of BCE/CE.
      * This factory allows the enum to be obtained from the {@code int} value.
      *
-     * @param isoEra  the BCE/CE value to represent, from 0 (BCE) to 1 (CE)
+     * @param isoEra the BCE/CE value to represent, from 0 (BCE) to 1 (CE)
+     *
      * @return the era singleton, not null
+     *
      * @throws DateTimeException if the value is invalid
      */
+    // 将指定的整数转换为纪元枚举
     public static IsoEra of(int isoEra) {
-        switch (isoEra) {
+        switch(isoEra) {
             case 0:
                 return BCE;
             case 1:
@@ -137,8 +139,7 @@ public enum IsoEra implements Era {
                 throw new DateTimeException("Invalid era: " + isoEra);
         }
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Gets the numeric era {@code int} value.
      * <p>
@@ -146,9 +147,10 @@ public enum IsoEra implements Era {
      *
      * @return the era value, from 0 (BCE) to 1 (CE)
      */
+    // 返回枚举实例的值
     @Override
     public int getValue() {
         return ordinal();
     }
-
+    
 }

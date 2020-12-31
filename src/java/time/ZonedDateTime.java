@@ -61,14 +61,10 @@
  */
 package java.time;
 
-import static java.time.temporal.ChronoField.INSTANT_SECONDS;
-import static java.time.temporal.ChronoField.NANO_OF_SECOND;
-import static java.time.temporal.ChronoField.OFFSET_SECONDS;
-
 import java.io.DataOutput;
 import java.io.IOException;
-import java.io.ObjectInput;
 import java.io.InvalidObjectException;
+import java.io.ObjectInput;
 import java.io.ObjectInputStream;
 import java.io.Serializable;
 import java.time.chrono.ChronoZonedDateTime;
@@ -90,6 +86,10 @@ import java.time.zone.ZoneOffsetTransition;
 import java.time.zone.ZoneRules;
 import java.util.List;
 import java.util.Objects;
+
+import static java.time.temporal.ChronoField.INSTANT_SECONDS;
+import static java.time.temporal.ChronoField.NANO_OF_SECOND;
+import static java.time.temporal.ChronoField.OFFSET_SECONDS;
 
 /**
  * A date-time with a time-zone in the ISO-8601 calendar system,
@@ -150,39 +150,76 @@ import java.util.Objects;
  * {@code ZonedDateTime} may have unpredictable results and should be avoided.
  * The {@code equals} method should be used for comparisons.
  *
- * @implSpec
- * A {@code ZonedDateTime} holds state equivalent to three separate objects,
+ * @implSpec A {@code ZonedDateTime} holds state equivalent to three separate objects,
  * a {@code LocalDateTime}, a {@code ZoneId} and the resolved {@code ZoneOffset}.
  * The offset and local date-time are used to define an instant when necessary.
  * The zone ID is used to obtain the rules for how and when the offset changes.
  * The offset cannot be freely set, as the zone controls which offsets are valid.
  * <p>
  * This class is immutable and thread-safe.
- *
  * @since 1.8
  */
-public final class ZonedDateTime
-        implements Temporal, ChronoZonedDateTime<LocalDate>, Serializable {
-
-    /**
-     * Serialization version.
-     */
-    private static final long serialVersionUID = -6260982410461394882L;
-
+/*
+ * "本地日期-时间"，"时间"[关联]了所属的时区ID，"日期"基于[ISO]历法系统。
+ *
+ * 注：这里关联的时区ID可能是基于时间偏移的，也可能是基于地理时区的。
+ */
+public final class ZonedDateTime implements Temporal, ChronoZonedDateTime<LocalDate>, Serializable {
+    
     /**
      * The local date-time.
      */
-    private final LocalDateTime dateTime;
-    /**
-     * The offset from UTC/Greenwich.
+    /*
+     * 本地日期-时间
+     *
+     * 注：这个时间点反映的是zone/offset时区的时间点。
      */
-    private final ZoneOffset offset;
+    private final LocalDateTime dateTime;
+    
     /**
      * The time-zone.
      */
+    /*
+     * 时区ID，用来指示当前"本地日期-时间"所处的时区
+     *
+     * 这可能是[基于时间偏移的时区ID]，也可能是[基于地理时区的时区ID]
+     */
     private final ZoneId zone;
-
-    //-----------------------------------------------------------------------
+    
+    /**
+     * The offset from UTC/Greenwich.
+     */
+    /*
+     * 基于时间偏移的时区ID，用来指示当前"本地日期-时间"所处的时区
+     *
+     * 如果zone是[基于时间偏移的时区ID]，则offset的值与zone的值相等；
+     * 如果zone是[基于地理时区的时区ID]，则需要根据其对应的时区规则集，计算出当前时刻该时区的时间偏移。
+     */
+    private final ZoneOffset offset;
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Constructor.
+     *
+     * @param dateTime the date-time, validated as not null
+     * @param offset   the zone offset, validated as not null
+     * @param zone     the time-zone, validated as not null
+     */
+    private ZonedDateTime(LocalDateTime dateTime, ZoneOffset offset, ZoneId zone) {
+        this.dateTime = dateTime;
+        this.offset = offset;
+        this.zone = zone;
+    }
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Obtains the current date-time from the system clock in the default time-zone.
      * <p>
@@ -195,10 +232,13 @@ public final class ZonedDateTime
      *
      * @return the current date-time using the system clock, not null
      */
+    // 构造属于系统默认时区的"本地日期-时间"(时区偏移时间准确)
     public static ZonedDateTime now() {
-        return now(Clock.systemDefaultZone());
+        // 获取一个系统时钟，其预设的时区ID为系统默认的时区ID
+        Clock clock = Clock.systemDefaultZone();
+        return now(clock);
     }
-
+    
     /**
      * Obtains the current date-time from the system clock in the specified time-zone.
      * <p>
@@ -209,13 +249,17 @@ public final class ZonedDateTime
      * Using this method will prevent the ability to use an alternate clock for testing
      * because the clock is hard-coded.
      *
-     * @param zone  the zone ID to use, not null
+     * @param zone the zone ID to use, not null
+     *
      * @return the current date-time using the system clock, not null
      */
+    // 使用指定的时钟构造属于zone时区的"本地日期-时间"(时区偏移时间准确)
     public static ZonedDateTime now(ZoneId zone) {
-        return now(Clock.system(zone));
+        // 获取一个系统时钟，其预设的时区ID为zone
+        Clock clock = Clock.system(zone);
+        return now(clock);
     }
-
+    
     /**
      * Obtains the current date-time from the specified clock.
      * <p>
@@ -225,16 +269,23 @@ public final class ZonedDateTime
      * Using this method allows the use of an alternate clock for testing.
      * The alternate clock may be introduced using {@link Clock dependency injection}.
      *
-     * @param clock  the clock to use, not null
+     * @param clock the clock to use, not null
+     *
      * @return the current date-time, not null
      */
+    // 使用指定的时钟构造"本地日期-时间"(时区偏移时间准确)
     public static ZonedDateTime now(Clock clock) {
         Objects.requireNonNull(clock, "clock");
-        final Instant now = clock.instant();  // called once
-        return ofInstant(now, clock.getZone());
+    
+        // 获取clock时钟提供的时间戳
+        final Instant instant = clock.instant();
+        // 获取clock时钟提供的时区ID
+        ZoneId zoneId = clock.getZone();
+    
+        // 使用时间戳和时区ID构造一个属于zoneId时区的"本地日期-时间"(时区偏移时间准确)
+        return ofInstant(instant, zoneId);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains an instance of {@code ZonedDateTime} from a local date and time.
      * <p>
@@ -246,7 +297,7 @@ public final class ZonedDateTime
      * The local date-time is then resolved to a single instant on the time-line.
      * This is achieved by finding a valid offset from UTC/Greenwich for the local
      * date-time as defined by the {@link ZoneRules rules} of the zone ID.
-     *<p>
+     * <p>
      * In most cases, there is only one valid offset for a local date-time.
      * In the case of an overlap, when clocks are set back, there are two valid offsets.
      * This method uses the earlier offset typically corresponding to "summer".
@@ -256,15 +307,21 @@ public final class ZonedDateTime
      * For a typical one hour daylight savings change, the local date-time will be
      * moved one hour later into the offset typically corresponding to "summer".
      *
-     * @param date  the local date, not null
-     * @param time  the local time, not null
-     * @param zone  the time-zone, not null
+     * @param date the local date, not null
+     * @param time the local time, not null
+     * @param zone the time-zone, not null
+     *
      * @return the offset date-time, not null
      */
+    /*
+     * 使用给定的"本地日期"部件和"本地时间"部件构造属于zone的"本地日期-时间"对象。
+     * 如果zone不是ZoneOffset类型，则时区偏移时间可能会不准确。
+     */
     public static ZonedDateTime of(LocalDate date, LocalTime time, ZoneId zone) {
-        return of(LocalDateTime.of(date, time), zone);
+        LocalDateTime dateTime = LocalDateTime.of(date, time);
+        return of(dateTime, zone);
     }
-
+    
     /**
      * Obtains an instance of {@code ZonedDateTime} from a local date-time.
      * <p>
@@ -275,7 +332,7 @@ public final class ZonedDateTime
      * The local date-time is resolved to a single instant on the time-line.
      * This is achieved by finding a valid offset from UTC/Greenwich for the local
      * date-time as defined by the {@link ZoneRules rules} of the zone ID.
-     *<p>
+     * <p>
      * In most cases, there is only one valid offset for a local date-time.
      * In the case of an overlap, when clocks are set back, there are two valid offsets.
      * This method uses the earlier offset typically corresponding to "summer".
@@ -285,14 +342,19 @@ public final class ZonedDateTime
      * For a typical one hour daylight savings change, the local date-time will be
      * moved one hour later into the offset typically corresponding to "summer".
      *
-     * @param localDateTime  the local date-time, not null
-     * @param zone  the time-zone, not null
+     * @param localDateTime the local date-time, not null
+     * @param zone          the time-zone, not null
+     *
      * @return the zoned date-time, not null
+     */
+    /*
+     * 使用localDateTime构造属于zone的"本地日期-时间"对象。
+     * 如果zone不是ZoneOffset类型，则时区偏移时间可能会不准确。
      */
     public static ZonedDateTime of(LocalDateTime localDateTime, ZoneId zone) {
         return ofLocal(localDateTime, zone, null);
     }
-
+    
     /**
      * Obtains an instance of {@code ZonedDateTime} from a year, month, day,
      * hour, minute, second, nanosecond and time-zone.
@@ -305,7 +367,7 @@ public final class ZonedDateTime
      * The local date-time is resolved to a single instant on the time-line.
      * This is achieved by finding a valid offset from UTC/Greenwich for the local
      * date-time as defined by the {@link ZoneRules rules} of the zone ID.
-     *<p>
+     * <p>
      * In most cases, there is only one valid offset for a local date-time.
      * In the case of an overlap, when clocks are set back, there are two valid offsets.
      * This method uses the earlier offset typically corresponding to "summer".
@@ -321,25 +383,29 @@ public final class ZonedDateTime
      * equivalent factory method taking fewer arguments.
      * They are not provided here to reduce the footprint of the API.
      *
-     * @param year  the year to represent, from MIN_YEAR to MAX_YEAR
-     * @param month  the month-of-year to represent, from 1 (January) to 12 (December)
-     * @param dayOfMonth  the day-of-month to represent, from 1 to 31
-     * @param hour  the hour-of-day to represent, from 0 to 23
-     * @param minute  the minute-of-hour to represent, from 0 to 59
-     * @param second  the second-of-minute to represent, from 0 to 59
-     * @param nanoOfSecond  the nano-of-second to represent, from 0 to 999,999,999
-     * @param zone  the time-zone, not null
+     * @param year         the year to represent, from MIN_YEAR to MAX_YEAR
+     * @param month        the month-of-year to represent, from 1 (January) to 12 (December)
+     * @param dayOfMonth   the day-of-month to represent, from 1 to 31
+     * @param hour         the hour-of-day to represent, from 0 to 23
+     * @param minute       the minute-of-hour to represent, from 0 to 59
+     * @param second       the second-of-minute to represent, from 0 to 59
+     * @param nanoOfSecond the nano-of-second to represent, from 0 to 999,999,999
+     * @param zone         the time-zone, not null
+     *
      * @return the offset date-time, not null
+     *
      * @throws DateTimeException if the value of any field is out of range, or
-     *  if the day-of-month is invalid for the month-year
+     *                           if the day-of-month is invalid for the month-year
      */
-    public static ZonedDateTime of(
-            int year, int month, int dayOfMonth,
-            int hour, int minute, int second, int nanoOfSecond, ZoneId zone) {
+    /*
+     * 使用给定的日期部件和时间部件构造属于zone的"本地日期-时间"对象
+     * 如果zone不是ZoneOffset类型，则时区偏移时间可能会不准确。
+     */
+    public static ZonedDateTime of(int year, int month, int dayOfMonth, int hour, int minute, int second, int nanoOfSecond, ZoneId zone) {
         LocalDateTime dt = LocalDateTime.of(year, month, dayOfMonth, hour, minute, second, nanoOfSecond);
         return ofLocal(dt, zone, null);
     }
-
+    
     /**
      * Obtains an instance of {@code ZonedDateTime} from a local date-time
      * using the preferred offset if possible.
@@ -347,7 +413,7 @@ public final class ZonedDateTime
      * The local date-time is resolved to a single instant on the time-line.
      * This is achieved by finding a valid offset from UTC/Greenwich for the local
      * date-time as defined by the {@link ZoneRules rules} of the zone ID.
-     *<p>
+     * <p>
      * In most cases, there is only one valid offset for a local date-time.
      * In the case of an overlap, where clocks are set back, there are two valid offsets.
      * If the preferred offset is one of the valid offsets then it is used.
@@ -358,37 +424,109 @@ public final class ZonedDateTime
      * For a typical one hour daylight savings change, the local date-time will be
      * moved one hour later into the offset typically corresponding to "summer".
      *
-     * @param localDateTime  the local date-time, not null
-     * @param zone  the time-zone, not null
-     * @param preferredOffset  the zone offset, null if no preference
+     * @param localDateTime   the local date-time, not null
+     * @param zone            the time-zone, not null
+     * @param preferredOffset the zone offset, null if no preference
+     *
      * @return the zoned date-time, not null
+     */
+    /*
+     * 使用基于zone的localDateTime来构造ZonedDateTime。
+     * 如果zone不是ZoneOffset类型，则时区偏移时间可能会不准确。
+     *
+     * 如果localDateTime处于"正常时间"或"夏令时时间"中，则offset字段可以使用zone时区中唯一的有效偏移。
+     * 如果localDateTime处于"间隙时间"中，则将该时间调到间隙后。
+     * 如果localDateTime处于"重叠时间"中，则如果preferredOffset有效，则offset字段可以直接使用它，否则，默认使用首个时区偏移。
+     *
+     * localDateTime  : 基于zone的"本地日期-时间"
+     * zone           : 新生成的"本地日期-时间"的时区ID
+     * preferredOffset: 当localDateTime位于zone的"重叠时间"中时，使用该参数指定localDateTime应当使用的时区偏移。
+     *
+     * 示例：
+     * LocalDateTime localDateTime = LocalDateTime.of(2020, 11, 1, 1, 30);
+     * ZoneId zone = ZoneId.of("America/Los_Angeles");
+     * ZoneOffset preferredOffset = ZoneOffset.of("-7");
+     * ZonedDateTime zonedDateTime = ZonedDateTime.ofLocal(localDateTime, zone, preferredOffset);
+     *
+     * 洛杉矶地区在2020年11月1日1时30分会进入一个"重叠时间"，即在这个时间点，可能有两个时区偏移，
+     * 可以是位于夏令时中的"-7"小时偏移，也可以是结束夏令时后的"-8"偏移，
+     * 此时，就应该设置一个preferredOffset指示接下来该使用哪个偏移。
+     * 如果不指定preferredOffset，或者设置了preferredOffset，但是超出了有效范围(超出了-7或-8这个范围)
+     * 那么系统默认使用偏移列表中的第一个有效偏移，即"-7"。
      */
     public static ZonedDateTime ofLocal(LocalDateTime localDateTime, ZoneId zone, ZoneOffset preferredOffset) {
         Objects.requireNonNull(localDateTime, "localDateTime");
         Objects.requireNonNull(zone, "zone");
-        if (zone instanceof ZoneOffset) {
+        
+        // 直接构造
+        if(zone instanceof ZoneOffset) {
             return new ZonedDateTime(localDateTime, (ZoneOffset) zone, zone);
         }
+        
+        // 获取与zone对应的"时区规则集"
         ZoneRules rules = zone.getRules();
+        
+        /*
+         * 获取zone时区在localDateTime时刻的"有效偏移"。
+         *
+         * 在"间隙时间"中，没有有效的偏移；
+         * 在"重叠时间"中，存在两个有效偏移；
+         * 在"正常时间"或"夏令时时间"中，存在一个有效偏移。
+         *
+         * localDateTime: 视为zone时区的一个本地时间。
+         */
         List<ZoneOffset> validOffsets = rules.getValidOffsets(localDateTime);
+        
         ZoneOffset offset;
-        if (validOffsets.size() == 1) {
+        
+        // 处于"正常时间"或"夏令时时间"中
+        if(validOffsets.size() == 1) {
+            // 直接使用此时获取到的那个有效偏移
             offset = validOffsets.get(0);
-        } else if (validOffsets.size() == 0) {
+            
+            // 处于"间隙时间"中，则将该时间调到间隙后
+        } else if(validOffsets.size() == 0) {
+            /*
+             * 获取zone时区在localDateTime时刻的偏移转换规则，该规则用来指示如何切换时区的时间偏移。
+             *
+             * 只有在"间隙时间"和"重叠时间"中，需要用到偏移转换规则。
+             * 在正常时间和夏令时时间内，无需用到偏移转换规则。
+             *
+             * localDateTime: 视为zone时区的一个本地时间。
+             */
             ZoneOffsetTransition trans = rules.getTransition(localDateTime);
-            localDateTime = localDateTime.plusSeconds(trans.getDuration().getSeconds());
+            
+            // 间隙后的偏移 - 间隙前的偏移，通常指进入夏令时前后相差的时间
+            long duration = trans.getDuration().getSeconds();
+            
+            // 在localDateTime的值上累加seconds秒
+            localDateTime = localDateTime.plusSeconds(duration);
+            
+            // 获取间隙后的偏移
             offset = trans.getOffsetAfter();
+            
+            // 处于"重叠时间"中
         } else {
-            if (preferredOffset != null && validOffsets.contains(preferredOffset)) {
+            /*
+             * 如果预设了一个可以使用的有效偏移，则直接使用该偏移量.
+             * 这里预设了偏移，相当于指定了该本地时间是作为夏令时时间还是非夏令时时间。
+             */
+            if(preferredOffset != null && validOffsets.contains(preferredOffset)) {
                 offset = preferredOffset;
+                
+                /*
+                 * 如果没有预设有效偏移，或者预设的有效偏移无效（不在"重叠时间"的有效偏移中），
+                 * 此时，我们默认选择"重叠时间"的有效偏移列表中的第一个有效偏移。
+                 * 通常来说，这个偏移是仍处于夏令时的偏移。
+                 */
             } else {
                 offset = Objects.requireNonNull(validOffsets.get(0), "offset");  // protect against bad ZoneRules
             }
         }
+        
         return new ZonedDateTime(localDateTime, offset, zone);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains an instance of {@code ZonedDateTime} from an {@code Instant}.
      * <p>
@@ -398,17 +536,22 @@ public final class ZonedDateTime
      * Converting an instant to a zoned date-time is simple as there is only one valid
      * offset for each instant.
      *
-     * @param instant  the instant to create the date-time from, not null
-     * @param zone  the time-zone, not null
+     * @param instant the instant to create the date-time from, not null
+     * @param zone    the time-zone, not null
+     *
      * @return the zoned date-time, not null
+     *
      * @throws DateTimeException if the result exceeds the supported range
      */
+    // 使用时间戳和时区ID构造一个属于zone时区的"本地日期-时间"(时区偏移时间准确)
     public static ZonedDateTime ofInstant(Instant instant, ZoneId zone) {
         Objects.requireNonNull(instant, "instant");
         Objects.requireNonNull(zone, "zone");
+    
+        // 使用UTC时区的纪元秒、纳秒偏移以及时区ID构造一个属于zone时区的"本地日期-时间"(时区偏移时间准确)
         return create(instant.getEpochSecond(), instant.getNano(), zone);
     }
-
+    
     /**
      * Obtains an instance of {@code ZonedDateTime} from the instant formed by combining
      * the local date-time and offset.
@@ -424,40 +567,44 @@ public final class ZonedDateTime
      * If the {@code ZoneId} to be used is a {@code ZoneOffset}, this method is equivalent
      * to {@link #of(LocalDateTime, ZoneId)}.
      *
-     * @param localDateTime  the local date-time, not null
-     * @param offset  the zone offset, not null
-     * @param zone  the time-zone, not null
+     * @param localDateTime the local date-time, not null
+     * @param offset        the zone offset, not null
+     * @param zone          the time-zone, not null
+     *
      * @return the zoned date-time, not null
+     */
+    /*
+     * 使用基于offset的localDateTime，构造处于zone的ZonedDateTime(时区偏移时间准确)。
+     *
+     * 如果offset属于zone时区下的"有效偏移"，则可以直接构造ZonedDateTime对象。
+     * 否则，需要先将这个基于offset的"本地日期-时间"调回到UTC处，然后再结合zone构造ZonedDateTime对象。
+     *
+     * localDateTime: 基于offset的"本地日期-时间"
+     * offset       : localDateTime的时区偏移
+     * zone         : 新生成的"本地日期-时间"的时区ID
      */
     public static ZonedDateTime ofInstant(LocalDateTime localDateTime, ZoneOffset offset, ZoneId zone) {
         Objects.requireNonNull(localDateTime, "localDateTime");
         Objects.requireNonNull(offset, "offset");
         Objects.requireNonNull(zone, "zone");
-        if (zone.getRules().isValidOffset(localDateTime, offset)) {
+        
+        // 获取与zone对应的"时区规则集"
+        ZoneRules rules = zone.getRules();
+        
+        // 如果offset属于rules中的"有效偏移"，则可以直接构造新对象
+        if(rules.isValidOffset(localDateTime, offset)) {
             return new ZonedDateTime(localDateTime, offset, zone);
         }
-        return create(localDateTime.toEpochSecond(offset), localDateTime.getNano(), zone);
+        
+        // 将offset时区与当前"本地日期-时间"捆绑为一个"时间点"，然后计算该本地时间点下，UTC时区的纪元秒
+        long epochSecond = localDateTime.toEpochSecond(offset);
+        // 返回"纳秒"部件
+        int nano = localDateTime.getNano();
+        
+        // 使用UTC时区的纪元秒、纳秒偏移以及时区ID构造一个属于zone时区的"本地日期-时间"(时区偏移时间准确)。
+        return create(epochSecond, nano, zone);
     }
-
-    /**
-     * Obtains an instance of {@code ZonedDateTime} using seconds from the
-     * epoch of 1970-01-01T00:00:00Z.
-     *
-     * @param epochSecond  the number of seconds from the epoch of 1970-01-01T00:00:00Z
-     * @param nanoOfSecond  the nanosecond within the second, from 0 to 999,999,999
-     * @param zone  the time-zone, not null
-     * @return the zoned date-time, not null
-     * @throws DateTimeException if the result exceeds the supported range
-     */
-    private static ZonedDateTime create(long epochSecond, int nanoOfSecond, ZoneId zone) {
-        ZoneRules rules = zone.getRules();
-        Instant instant = Instant.ofEpochSecond(epochSecond, nanoOfSecond);  // TODO: rules should be queryable by epochSeconds
-        ZoneOffset offset = rules.getOffset(instant);
-        LocalDateTime ldt = LocalDateTime.ofEpochSecond(epochSecond, nanoOfSecond, offset);
-        return new ZonedDateTime(ldt, offset, zone);
-    }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains an instance of {@code ZonedDateTime} strictly validating the
      * combination of local date-time, offset and zone ID.
@@ -466,64 +613,56 @@ public final class ZonedDateTime
      * local date-time according to the rules of the specified zone.
      * If the offset is invalid, an exception is thrown.
      *
-     * @param localDateTime  the local date-time, not null
-     * @param offset  the zone offset, not null
-     * @param zone  the time-zone, not null
+     * @param localDateTime the local date-time, not null
+     * @param offset        the zone offset, not null
+     * @param zone          the time-zone, not null
+     *
      * @return the zoned date-time, not null
+     *
      * @throws DateTimeException if the combination of arguments is invalid
+     */
+    /*
+     * 使用基于offset的localDateTime，构造处于zone的ZonedDateTime。
+     *
+     * 只有offset属于zone时区下的"有效偏移"，才可以直接构造ZonedDateTime对象；否则会抛异常。
+     *
+     * localDateTime: 基于offset的"本地日期-时间"
+     * offset       : localDateTime的时区偏移
+     * zone         : 新生成的"本地日期-时间"的时区ID
      */
     public static ZonedDateTime ofStrict(LocalDateTime localDateTime, ZoneOffset offset, ZoneId zone) {
         Objects.requireNonNull(localDateTime, "localDateTime");
         Objects.requireNonNull(offset, "offset");
         Objects.requireNonNull(zone, "zone");
+        
+        // 获取与zone对应的"时区规则集"
         ZoneRules rules = zone.getRules();
-        if (rules.isValidOffset(localDateTime, offset) == false) {
-            ZoneOffsetTransition trans = rules.getTransition(localDateTime);
-            if (trans != null && trans.isGap()) {
-                // error message says daylight savings for simplicity
-                // even though there are other kinds of gaps
-                throw new DateTimeException("LocalDateTime '" + localDateTime +
-                        "' does not exist in zone '" + zone +
-                        "' due to a gap in the local time-line, typically caused by daylight savings");
-            }
-            throw new DateTimeException("ZoneOffset '" + offset + "' is not valid for LocalDateTime '" +
-                    localDateTime + "' in zone '" + zone + "'");
+        
+        // 如果offset属于rules中的"有效偏移"，则可以直接构造新对象
+        if(rules.isValidOffset(localDateTime, offset)) {
+            return new ZonedDateTime(localDateTime, offset, zone);
         }
-        return new ZonedDateTime(localDateTime, offset, zone);
-    }
-
-    /**
-     * Obtains an instance of {@code ZonedDateTime} leniently, for advanced use cases,
-     * allowing any combination of local date-time, offset and zone ID.
-     * <p>
-     * This creates a zoned date-time with no checks other than no nulls.
-     * This means that the resulting zoned date-time may have an offset that is in conflict
-     * with the zone ID.
-     * <p>
-     * This method is intended for advanced use cases.
-     * For example, consider the case where a zoned date-time with valid fields is created
-     * and then stored in a database or serialization-based store. At some later point,
-     * the object is then re-loaded. However, between those points in time, the government
-     * that defined the time-zone has changed the rules, such that the originally stored
-     * local date-time now does not occur. This method can be used to create the object
-     * in an "invalid" state, despite the change in rules.
-     *
-     * @param localDateTime  the local date-time, not null
-     * @param offset  the zone offset, not null
-     * @param zone  the time-zone, not null
-     * @return the zoned date-time, not null
-     */
-    private static ZonedDateTime ofLenient(LocalDateTime localDateTime, ZoneOffset offset, ZoneId zone) {
-        Objects.requireNonNull(localDateTime, "localDateTime");
-        Objects.requireNonNull(offset, "offset");
-        Objects.requireNonNull(zone, "zone");
-        if (zone instanceof ZoneOffset && offset.equals(zone) == false) {
-            throw new IllegalArgumentException("ZoneId must match ZoneOffset");
+        
+        /*
+         * 获取zone时区在localDateTime时刻的偏移转换规则，该规则用来指示如何切换时区的时间偏移。
+         *
+         * 只有在"间隙时间"和"重叠时间"中，需要用到偏移转换规则。
+         * 在正常时间和夏令时时间内，无需用到偏移转换规则。
+         *
+         * localDateTime: 视为zone时区的一个本地时间。
+         */
+        ZoneOffsetTransition trans = rules.getTransition(localDateTime);
+        
+        // 处于"间隙时间"时的异常信息
+        if(trans != null && trans.isGap()) {
+            // error message says daylight savings for simplicity even though there are other kinds of gaps
+            throw new DateTimeException("LocalDateTime '" + localDateTime + "' does not exist in zone '" + zone + "' due to a gap in the local time-line, typically caused by daylight savings");
         }
-        return new ZonedDateTime(localDateTime, offset, zone);
+        
+        // 处于非"间隙"时间时的异常信息
+        throw new DateTimeException("ZoneOffset '" + offset + "' is not valid for LocalDateTime '" + localDateTime + "' in zone '" + zone + "'");
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains an instance of {@code ZonedDateTime} from a temporal object.
      * <p>
@@ -542,32 +681,47 @@ public final class ZonedDateTime
      * This method matches the signature of the functional interface {@link TemporalQuery}
      * allowing it to be used as a query via method reference, {@code ZonedDateTime::from}.
      *
-     * @param temporal  the temporal object to convert, not null
+     * @param temporal the temporal object to convert, not null
+     *
      * @return the zoned date-time, not null
+     *
      * @throws DateTimeException if unable to convert to an {@code ZonedDateTime}
      */
+    // 从temporal中获取/构造ZonedDateTime部件
     public static ZonedDateTime from(TemporalAccessor temporal) {
-        if (temporal instanceof ZonedDateTime) {
+        if(temporal instanceof ZonedDateTime) {
             return (ZonedDateTime) temporal;
         }
+    
         try {
+            // 从temporal中查询ZoneId部件的信息(宽松模式，如果在时间量中无法直接查找到ZoneId属性，则回退为查找ZoneOffset属性)
             ZoneId zone = ZoneId.from(temporal);
-            if (temporal.isSupported(INSTANT_SECONDS)) {
+        
+            if(temporal.isSupported(INSTANT_SECONDS)) {
+                // 获取temporal的"纪元秒"部件
                 long epochSecond = temporal.getLong(INSTANT_SECONDS);
+                // 获取temporal的"纳秒偏移"部件
                 int nanoOfSecond = temporal.get(NANO_OF_SECOND);
+            
+                // 使用UTC时区的纪元秒、纳秒偏移以及时区ID构造一个属于zone时区的"本地日期-时间"(时区偏移时间准确)
                 return create(epochSecond, nanoOfSecond, zone);
             } else {
+                // 从temporal中查询LocalDate部件
                 LocalDate date = LocalDate.from(temporal);
+                // 从temporal中查询LocalTime部件
                 LocalTime time = LocalTime.from(temporal);
+            
+                /*
+                 * 使用给定的"本地日期"部件和"本地时间"部件构造属于zone的"本地日期-时间"对象。
+                 * 如果zone不是ZoneOffset类型，则时区偏移时间可能会不准确。
+                 */
                 return of(date, time, zone);
             }
-        } catch (DateTimeException ex) {
-            throw new DateTimeException("Unable to obtain ZonedDateTime from TemporalAccessor: " +
-                    temporal + " of type " + temporal.getClass().getName(), ex);
+        } catch(DateTimeException ex) {
+            throw new DateTimeException("Unable to obtain ZonedDateTime from TemporalAccessor: " + temporal + " of type " + temporal.getClass().getName(), ex);
         }
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains an instance of {@code ZonedDateTime} from a text string such as
      * {@code 2007-12-03T10:15:30+01:00[Europe/Paris]}.
@@ -575,79 +729,1048 @@ public final class ZonedDateTime
      * The string must represent a valid date-time and is parsed using
      * {@link java.time.format.DateTimeFormatter#ISO_ZONED_DATE_TIME}.
      *
-     * @param text  the text to parse such as "2007-12-03T10:15:30+01:00[Europe/Paris]", not null
+     * @param text the text to parse such as "2007-12-03T10:15:30+01:00[Europe/Paris]", not null
+     *
      * @return the parsed zoned date-time, not null
+     *
      * @throws DateTimeParseException if the text cannot be parsed
      */
+    // 从指定的文本中解析出ZonedDateTime信息，要求该文本符合ISO规范，即类似：2020-01-15T08:20:53+08:00[Asia/Shanghai]
     public static ZonedDateTime parse(CharSequence text) {
         return parse(text, DateTimeFormatter.ISO_ZONED_DATE_TIME);
     }
-
+    
     /**
      * Obtains an instance of {@code ZonedDateTime} from a text string using a specific formatter.
      * <p>
      * The text is parsed using the formatter, returning a date-time.
      *
-     * @param text  the text to parse, not null
-     * @param formatter  the formatter to use, not null
+     * @param text      the text to parse, not null
+     * @param formatter the formatter to use, not null
+     *
      * @return the parsed zoned date-time, not null
+     *
      * @throws DateTimeParseException if the text cannot be parsed
      */
+    // 从指定的文本中解析出ZonedDateTime信息，要求该文本符合指定的格式规范
     public static ZonedDateTime parse(CharSequence text, DateTimeFormatter formatter) {
         Objects.requireNonNull(formatter, "formatter");
         return formatter.parse(text, ZonedDateTime::from);
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 转换 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Constructor.
-     *
-     * @param dateTime  the date-time, validated as not null
-     * @param offset  the zone offset, validated as not null
-     * @param zone  the time-zone, validated as not null
-     */
-    private ZonedDateTime(LocalDateTime dateTime, ZoneOffset offset, ZoneId zone) {
-        this.dateTime = dateTime;
-        this.offset = offset;
-        this.zone = zone;
-    }
-
-    /**
-     * Resolves the new local date-time using this zone ID, retaining the offset if possible.
-     *
-     * @param newDateTime  the new local date-time, not null
-     * @return the zoned date-time, not null
-     */
-    private ZonedDateTime resolveLocal(LocalDateTime newDateTime) {
-        return ofLocal(newDateTime, zone, offset);
-    }
-
-    /**
-     * Resolves the new local date-time using the offset to identify the instant.
-     *
-     * @param newDateTime  the new local date-time, not null
-     * @return the zoned date-time, not null
-     */
-    private ZonedDateTime resolveInstant(LocalDateTime newDateTime) {
-        return ofInstant(newDateTime, offset, zone);
-    }
-
-    /**
-     * Resolves the offset into this zoned date-time for the with methods.
+     * Converts this date-time to an {@code OffsetDateTime}.
      * <p>
-     * This typically ignores the offset, unless it can be used to switch offset in a DST overlap.
+     * This creates an offset date-time using the local date-time and offset.
+     * The zone ID is ignored.
      *
-     * @param offset  the offset, not null
-     * @return the zoned date-time, not null
+     * @return an offset date-time representing the same local date-time and offset, not null
      */
-    private ZonedDateTime resolveOffset(ZoneOffset offset) {
-        if (offset.equals(this.offset) == false && zone.getRules().isValidOffset(dateTime, offset)) {
-            return new ZonedDateTime(dateTime, offset, zone);
-        }
-        return this;
+    // 将ZonedDateTime转换为OffsetDateTime后返回
+    public OffsetDateTime toOffsetDateTime() {
+        return OffsetDateTime.of(dateTime, offset);
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 转换 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 部件 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Gets the time-zone, such as 'Europe/Paris'.
+     * <p>
+     * This returns the zone ID. This identifies the time-zone {@link ZoneRules rules}
+     * that determine when and how the offset from UTC/Greenwich changes.
+     * <p>
+     * The zone ID may be same as the {@linkplain #getOffset() offset}.
+     * If this is true, then any future calculations, such as addition or subtraction,
+     * have no complex edge cases due to time-zone rules.
+     * See also {@link #withFixedOffsetZone()}.
+     *
+     * @return the time-zone, not null
+     */
+    // 返回"时区ID"部件
+    @Override
+    public ZoneId getZone() {
+        return zone;
+    }
+    
+    /**
+     * Gets the zone offset, such as '+01:00'.
+     * <p>
+     * This is the offset of the local date-time from UTC/Greenwich.
+     *
+     * @return the zone offset, not null
+     */
+    // 返回基于时间偏移的"时区ID"部件
+    @Override
+    public ZoneOffset getOffset() {
+        return offset;
+    }
+    
+    /**
+     * Gets the {@code LocalDateTime} part of this date-time.
+     * <p>
+     * This returns a {@code LocalDateTime} with the same year, month, day and time
+     * as this date-time.
+     *
+     * @return the local date-time part of this date-time, not null
+     */
+    // 返回"本地日期-时间"组件
+    @Override
+    public LocalDateTime toLocalDateTime() {
+        return dateTime;
+    }
+    
+    /**
+     * Gets the {@code LocalDate} part of this date-time.
+     * <p>
+     * This returns a {@code LocalDate} with the same year, month and day
+     * as this date-time.
+     *
+     * @return the date part of this date-time, not null
+     */
+    // 返回"本地日期"组件
+    @Override
+    public LocalDate toLocalDate() {
+        return dateTime.toLocalDate();
+    }
+    
+    /**
+     * Gets the {@code LocalTime} part of this date-time.
+     * <p>
+     * This returns a {@code LocalTime} with the same hour, minute, second and
+     * nanosecond as this date-time.
+     *
+     * @return the time part of this date-time, not null
+     */
+    // 返回"本地时间"组件
+    @Override
+    public LocalTime toLocalTime() {
+        return dateTime.toLocalTime();
+    }
+    
+    /**
+     * Gets the year field.
+     * <p>
+     * This method returns the primitive {@code int} value for the year.
+     * <p>
+     * The year returned by this method is proleptic as per {@code get(YEAR)}.
+     * To obtain the year-of-era, use {@code get(YEAR_OF_ERA)}.
+     *
+     * @return the year, from MIN_YEAR to MAX_YEAR
+     */
+    // (哪年)返回"年份"部件[-999999999, 999999999]，由"本地日期"部件计算而来
+    public int getYear() {
+        return dateTime.getYear();
+    }
+    
+    /**
+     * Gets the month-of-year field from 1 to 12.
+     * <p>
+     * This method returns the month as an {@code int} from 1 to 12.
+     * Application code is frequently clearer if the enum {@link Month}
+     * is used by calling {@link #getMonth()}.
+     *
+     * @return the month-of-year, from 1 to 12
+     *
+     * @see #getMonth()
+     */
+    // (哪月)返回"月份"部件[1, 12]，由"本地日期"部件计算而来
+    public int getMonthValue() {
+        return dateTime.getMonthValue();
+    }
+    
+    /**
+     * Gets the month-of-year field using the {@code Month} enum.
+     * <p>
+     * This method returns the enum {@link Month} for the month.
+     * This avoids confusion as to what {@code int} values mean.
+     * If you need access to the primitive {@code int} value then the enum
+     * provides the {@link Month#getValue() int value}.
+     *
+     * @return the month-of-year, not null
+     *
+     * @see #getMonthValue()
+     */
+    // (哪月)以Month形式返回"月份"部件，由"本地日期"部件计算而来
+    public Month getMonth() {
+        return dateTime.getMonth();
+    }
+    
+    /**
+     * Gets the day-of-month field.
+     * <p>
+     * This method returns the primitive {@code int} value for the day-of-month.
+     *
+     * @return the day-of-month, from 1 to 31
+     */
+    // (哪日)返回"天"部件[1, 28/31]
+    public int getDayOfMonth() {
+        return dateTime.getDayOfMonth();
+    }
+    
+    /**
+     * Gets the day-of-week field, which is an enum {@code DayOfWeek}.
+     * <p>
+     * This method returns the enum {@link DayOfWeek} for the day-of-week.
+     * This avoids confusion as to what {@code int} values mean.
+     * If you need access to the primitive {@code int} value then the enum
+     * provides the {@link DayOfWeek#getValue() int value}.
+     * <p>
+     * Additional information can be obtained from the {@code DayOfWeek}.
+     * This includes textual names of the values.
+     *
+     * @return the day-of-week, not null
+     */
+    // (周几)返回当前"本地日期-时间"是所在周的第几天
+    public DayOfWeek getDayOfWeek() {
+        return dateTime.getDayOfWeek();
+    }
+    
+    /**
+     * Gets the day-of-year field.
+     * <p>
+     * This method returns the primitive {@code int} value for the day-of-year.
+     *
+     * @return the day-of-year, from 1 to 365, or 366 in a leap year
+     */
+    // 返回当前"本地日期-时间"是所在年份的第几天
+    public int getDayOfYear() {
+        return dateTime.getDayOfYear();
+    }
+    
+    /**
+     * Gets the hour-of-day field.
+     *
+     * @return the hour-of-day, from 0 to 23
+     */
+    // (几时)返回"小时"部件[0, 23]，由"本地时间"部件计算而来
+    public int getHour() {
+        return dateTime.getHour();
+    }
+    
+    /**
+     * Gets the minute-of-hour field.
+     *
+     * @return the minute-of-hour, from 0 to 59
+     */
+    // (几分)返回"分钟"部件[0, 59]，由"本地时间"部件计算而来
+    public int getMinute() {
+        return dateTime.getMinute();
+    }
+    
+    /**
+     * Gets the second-of-minute field.
+     *
+     * @return the second-of-minute, from 0 to 59
+     */
+    // (几秒)返回"秒"部件[0, 59]，由"本地时间"部件计算而来
+    public int getSecond() {
+        return dateTime.getSecond();
+    }
+    
+    /**
+     * Gets the nano-of-second field.
+     *
+     * @return the nano-of-second, from 0 to 999,999,999
+     */
+    // (几纳秒)返回"纳秒"部件[0, 999999999]，由"本地时间"部件计算而来
+    public int getNano() {
+        return dateTime.getNano();
+    }
+    
+    /*▲ 部件 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 增加 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a copy of this date-time with the specified amount added.
+     * <p>
+     * This returns a {@code ZonedDateTime}, based on this one, with the specified amount added.
+     * The amount is typically {@link Period} or {@link Duration} but may be
+     * any other type implementing the {@link TemporalAmount} interface.
+     * <p>
+     * The calculation is delegated to the amount object by calling
+     * {@link TemporalAmount#addTo(Temporal)}. The amount implementation is free
+     * to implement the addition in any way it wishes, however it typically
+     * calls back to {@link #plus(long, TemporalUnit)}. Consult the documentation
+     * of the amount implementation to determine if it can be successfully added.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param amountToAdd the amount to add, not null
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the addition made, not null
+     *
+     * @throws DateTimeException   if the addition cannot be made
+     * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 对当前时间量的值与参数中的"时间段"求和
+     *
+     * 如果求和后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"求和"后的新对象再返回。
+     */
+    @Override
+    public ZonedDateTime plus(TemporalAmount amountToAdd) {
+        Objects.requireNonNull(amountToAdd, "amountToAdd");
+        
+        if(amountToAdd instanceof Period) {
+            Period periodToAdd = (Period) amountToAdd;
+            return resolveLocal(dateTime.plus(periodToAdd));
+        }
+        
+        return (ZonedDateTime) amountToAdd.addTo(this);
+    }
+    
+    /**
+     * Returns a copy of this date-time with the specified amount added.
+     * <p>
+     * This returns a {@code ZonedDateTime}, based on this one, with the amount
+     * in terms of the unit added. If it is not possible to add the amount, because the
+     * unit is not supported or for some other reason, an exception is thrown.
+     * <p>
+     * If the field is a {@link ChronoUnit} then the addition is implemented here.
+     * The zone is not part of the calculation and will be unchanged in the result.
+     * The calculation for date and time units differ.
+     * <p>
+     * Date units operate on the local time-line.
+     * The period is first added to the local date-time, then converted back
+     * to a zoned date-time using the zone ID.
+     * The conversion uses {@link #ofLocal(LocalDateTime, ZoneId, ZoneOffset)}
+     * with the offset before the addition.
+     * <p>
+     * Time units operate on the instant time-line.
+     * The period is first added to the local date-time, then converted back to
+     * a zoned date-time using the zone ID.
+     * The conversion uses {@link #ofInstant(LocalDateTime, ZoneOffset, ZoneId)}
+     * with the offset before the addition.
+     * <p>
+     * If the field is not a {@code ChronoUnit}, then the result of this method
+     * is obtained by invoking {@code TemporalUnit.addTo(Temporal, long)}
+     * passing {@code this} as the argument. In this case, the unit determines
+     * whether and how to perform the addition.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param amountToAdd the amount of the unit to add to the result, may be negative
+     * @param unit        the unit of the amount to add, not null
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the specified amount added, not null
+     *
+     * @throws DateTimeException                if the addition cannot be made
+     * @throws UnsupportedTemporalTypeException if the unit is not supported
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 对当前时间量的值累加amountToAdd个unit单位的时间量
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    @Override
+    public ZonedDateTime plus(long amountToAdd, TemporalUnit unit) {
+        if(unit instanceof ChronoUnit) {
+            // 对当前时间量的值累加amountToAdd个unit单位的时间量
+            LocalDateTime newDateTime = dateTime.plus(amountToAdd, unit);
+            
+            // 如果时间量单位unit为"日期"单位(>="天"的单位都是"日期"单位)
+            if(unit.isDateBased()) {
+                /*
+                 * 使用newDateTime构造一个属于内部时区部件的"本地日期-时间"。
+                 * 如果zone部件不是ZoneOffset类型，则时区偏移时间可能会不准确。
+                 */
+                return resolveLocal(newDateTime);
+                
+                // 如果时间量单位unit为"时间"单位(<"天"的单位都是"时间"单位)
+            } else {
+                // 使用newDateTime构造一个属于内部时区部件的"本地日期-时间"(时区偏移时间准确)
+                return resolveInstant(newDateTime);
+            }
+        }
+        
+        return unit.addTo(this, amountToAdd);
+    }
+    
+    /**
+     * Returns a copy of this {@code ZonedDateTime} with the specified number of years added.
+     * <p>
+     * This operates on the local time-line,
+     * {@link LocalDateTime#plusYears(long) adding years} to the local date-time.
+     * This is then converted back to a {@code ZonedDateTime}, using the zone ID
+     * to obtain the offset.
+     * <p>
+     * When converting back to {@code ZonedDateTime}, if the local date-time is in an overlap,
+     * then the offset will be retained if possible, otherwise the earlier offset will be used.
+     * If in a gap, the local date-time will be adjusted forward by the length of the gap.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param years the years to add, may be negative
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the years added, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported date range
+     */
+    /*
+     * 在当前时间量的值上累加years年
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    public ZonedDateTime plusYears(long years) {
+        LocalDateTime newDateTime = dateTime.plusYears(years);
+        return resolveLocal(newDateTime);
+    }
+    
+    /**
+     * Returns a copy of this {@code ZonedDateTime} with the specified number of months added.
+     * <p>
+     * This operates on the local time-line,
+     * {@link LocalDateTime#plusMonths(long) adding months} to the local date-time.
+     * This is then converted back to a {@code ZonedDateTime}, using the zone ID
+     * to obtain the offset.
+     * <p>
+     * When converting back to {@code ZonedDateTime}, if the local date-time is in an overlap,
+     * then the offset will be retained if possible, otherwise the earlier offset will be used.
+     * If in a gap, the local date-time will be adjusted forward by the length of the gap.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param months the months to add, may be negative
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the months added, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported date range
+     */
+    /*
+     * 在当前时间量的值上累加months月
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    public ZonedDateTime plusMonths(long months) {
+        LocalDateTime newDateTime = dateTime.plusMonths(months);
+        return resolveLocal(newDateTime);
+    }
+    
+    /**
+     * Returns a copy of this {@code ZonedDateTime} with the specified number of weeks added.
+     * <p>
+     * This operates on the local time-line,
+     * {@link LocalDateTime#plusWeeks(long) adding weeks} to the local date-time.
+     * This is then converted back to a {@code ZonedDateTime}, using the zone ID
+     * to obtain the offset.
+     * <p>
+     * When converting back to {@code ZonedDateTime}, if the local date-time is in an overlap,
+     * then the offset will be retained if possible, otherwise the earlier offset will be used.
+     * If in a gap, the local date-time will be adjusted forward by the length of the gap.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param weeks the weeks to add, may be negative
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the weeks added, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported date range
+     */
+    /*
+     * 在当前时间量的值上累加weeks周
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    public ZonedDateTime plusWeeks(long weeks) {
+        LocalDateTime newDateTime = dateTime.plusWeeks(weeks);
+        return resolveLocal(newDateTime);
+    }
+    
+    /**
+     * Returns a copy of this {@code ZonedDateTime} with the specified number of days added.
+     * <p>
+     * This operates on the local time-line,
+     * {@link LocalDateTime#plusDays(long) adding days} to the local date-time.
+     * This is then converted back to a {@code ZonedDateTime}, using the zone ID
+     * to obtain the offset.
+     * <p>
+     * When converting back to {@code ZonedDateTime}, if the local date-time is in an overlap,
+     * then the offset will be retained if possible, otherwise the earlier offset will be used.
+     * If in a gap, the local date-time will be adjusted forward by the length of the gap.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param days the days to add, may be negative
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the days added, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported date range
+     */
+    /*
+     * 在当前时间量的值上累加days天
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    public ZonedDateTime plusDays(long days) {
+        LocalDateTime newDateTime = dateTime.plusDays(days);
+        return resolveLocal(newDateTime);
+    }
+    
+    /**
+     * Returns a copy of this {@code ZonedDateTime} with the specified number of hours added.
+     * <p>
+     * This operates on the instant time-line, such that adding one hour will
+     * always be a duration of one hour later.
+     * This may cause the local date-time to change by an amount other than one hour.
+     * Note that this is a different approach to that used by days, months and years,
+     * thus adding one day is not the same as adding 24 hours.
+     * <p>
+     * For example, consider a time-zone, such as 'Europe/Paris', where the
+     * Autumn DST cutover means that the local times 02:00 to 02:59 occur twice
+     * changing from offset +02:00 in summer to +01:00 in winter.
+     * <ul>
+     * <li>Adding one hour to 01:30+02:00 will result in 02:30+02:00
+     *     (both in summer time)
+     * <li>Adding one hour to 02:30+02:00 will result in 02:30+01:00
+     *     (moving from summer to winter time)
+     * <li>Adding one hour to 02:30+01:00 will result in 03:30+01:00
+     *     (both in winter time)
+     * <li>Adding three hours to 01:30+02:00 will result in 03:30+01:00
+     *     (moving from summer to winter time)
+     * </ul>
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param hours the hours to add, may be negative
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the hours added, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported date range
+     */
+    /*
+     * 在当前时间量的值上累加hours小时
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    public ZonedDateTime plusHours(long hours) {
+        LocalDateTime newDateTime = dateTime.plusHours(hours);
+        return resolveInstant(newDateTime);
+    }
+    
+    /**
+     * Returns a copy of this {@code ZonedDateTime} with the specified number of minutes added.
+     * <p>
+     * This operates on the instant time-line, such that adding one minute will
+     * always be a duration of one minute later.
+     * This may cause the local date-time to change by an amount other than one minute.
+     * Note that this is a different approach to that used by days, months and years.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param minutes the minutes to add, may be negative
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the minutes added, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported date range
+     */
+    /*
+     * 在当前时间量的值上累加minutes分钟
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    public ZonedDateTime plusMinutes(long minutes) {
+        LocalDateTime newDateTime = dateTime.plusMinutes(minutes);
+        return resolveInstant(newDateTime);
+    }
+    
+    /**
+     * Returns a copy of this {@code ZonedDateTime} with the specified number of seconds added.
+     * <p>
+     * This operates on the instant time-line, such that adding one second will
+     * always be a duration of one second later.
+     * This may cause the local date-time to change by an amount other than one second.
+     * Note that this is a different approach to that used by days, months and years.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param seconds the seconds to add, may be negative
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the seconds added, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported date range
+     */
+    /*
+     * 在当前时间量的值上累加seconds秒
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    public ZonedDateTime plusSeconds(long seconds) {
+        LocalDateTime newDateTime = dateTime.plusSeconds(seconds);
+        return resolveInstant(newDateTime);
+    }
+    
+    /**
+     * Returns a copy of this {@code ZonedDateTime} with the specified number of nanoseconds added.
+     * <p>
+     * This operates on the instant time-line, such that adding one nano will
+     * always be a duration of one nano later.
+     * This may cause the local date-time to change by an amount other than one nano.
+     * Note that this is a different approach to that used by days, months and years.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param nanos the nanos to add, may be negative
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the nanoseconds added, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported date range
+     */
+    /*
+     * 在当前时间量的值上累加nanos纳秒
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    public ZonedDateTime plusNanos(long nanos) {
+        LocalDateTime newDateTime = dateTime.plusNanos(nanos);
+        return resolveInstant(newDateTime);
+    }
+    
+    /*▲ 增加 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 减少 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a copy of this date-time with the specified amount subtracted.
+     * <p>
+     * This returns a {@code ZonedDateTime}, based on this one, with the specified amount subtracted.
+     * The amount is typically {@link Period} or {@link Duration} but may be
+     * any other type implementing the {@link TemporalAmount} interface.
+     * <p>
+     * The calculation is delegated to the amount object by calling
+     * {@link TemporalAmount#subtractFrom(Temporal)}. The amount implementation is free
+     * to implement the subtraction in any way it wishes, however it typically
+     * calls back to {@link #minus(long, TemporalUnit)}. Consult the documentation
+     * of the amount implementation to determine if it can be successfully subtracted.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param amountToSubtract the amount to subtract, not null
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the subtraction made, not null
+     *
+     * @throws DateTimeException   if the subtraction cannot be made
+     * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 对当前时间量的值与参数中的"时间段"求差
+     *
+     * 如果求差后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"求差"后的新对象再返回。
+     */
+    @Override
+    public ZonedDateTime minus(TemporalAmount amountToSubtract) {
+        Objects.requireNonNull(amountToSubtract, "amountToSubtract");
+        
+        if(amountToSubtract instanceof Period) {
+            Period periodToSubtract = (Period) amountToSubtract;
+            return resolveLocal(dateTime.minus(periodToSubtract));
+        }
+        
+        return (ZonedDateTime) amountToSubtract.subtractFrom(this);
+    }
+    
+    /**
+     * Returns a copy of this date-time with the specified amount subtracted.
+     * <p>
+     * This returns a {@code ZonedDateTime}, based on this one, with the amount
+     * in terms of the unit subtracted. If it is not possible to subtract the amount,
+     * because the unit is not supported or for some other reason, an exception is thrown.
+     * <p>
+     * The calculation for date and time units differ.
+     * <p>
+     * Date units operate on the local time-line.
+     * The period is first subtracted from the local date-time, then converted back
+     * to a zoned date-time using the zone ID.
+     * The conversion uses {@link #ofLocal(LocalDateTime, ZoneId, ZoneOffset)}
+     * with the offset before the subtraction.
+     * <p>
+     * Time units operate on the instant time-line.
+     * The period is first subtracted from the local date-time, then converted back to
+     * a zoned date-time using the zone ID.
+     * The conversion uses {@link #ofInstant(LocalDateTime, ZoneOffset, ZoneId)}
+     * with the offset before the subtraction.
+     * <p>
+     * This method is equivalent to {@link #plus(long, TemporalUnit)} with the amount negated.
+     * See that method for a full description of how addition, and thus subtraction, works.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param amountToSubtract the amount of the unit to subtract from the result, may be negative
+     * @param unit             the unit of the amount to subtract, not null
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the specified amount subtracted, not null
+     *
+     * @throws DateTimeException                if the subtraction cannot be made
+     * @throws UnsupportedTemporalTypeException if the unit is not supported
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 对当前时间量的值减去amountToSubtract个unit单位的时间量
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    @Override
+    public ZonedDateTime minus(long amountToSubtract, TemporalUnit unit) {
+        if(amountToSubtract == Long.MIN_VALUE) {
+            return plus(Long.MAX_VALUE, unit).plus(1, unit);
+        }
+        
+        return plus(-amountToSubtract, unit);
+    }
+    
+    /**
+     * Returns a copy of this {@code ZonedDateTime} with the specified number of years subtracted.
+     * <p>
+     * This operates on the local time-line,
+     * {@link LocalDateTime#minusYears(long) subtracting years} to the local date-time.
+     * This is then converted back to a {@code ZonedDateTime}, using the zone ID
+     * to obtain the offset.
+     * <p>
+     * When converting back to {@code ZonedDateTime}, if the local date-time is in an overlap,
+     * then the offset will be retained if possible, otherwise the earlier offset will be used.
+     * If in a gap, the local date-time will be adjusted forward by the length of the gap.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param years the years to subtract, may be negative
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the years subtracted, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported date range
+     */
+    /*
+     * 在当前时间量的值上减去years年
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    public ZonedDateTime minusYears(long years) {
+        if(years == Long.MIN_VALUE) {
+            return plusYears(Long.MAX_VALUE).plusYears(1);
+        }
+        
+        return plusYears(-years);
+    }
+    
+    /**
+     * Returns a copy of this {@code ZonedDateTime} with the specified number of months subtracted.
+     * <p>
+     * This operates on the local time-line,
+     * {@link LocalDateTime#minusMonths(long) subtracting months} to the local date-time.
+     * This is then converted back to a {@code ZonedDateTime}, using the zone ID
+     * to obtain the offset.
+     * <p>
+     * When converting back to {@code ZonedDateTime}, if the local date-time is in an overlap,
+     * then the offset will be retained if possible, otherwise the earlier offset will be used.
+     * If in a gap, the local date-time will be adjusted forward by the length of the gap.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param months the months to subtract, may be negative
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the months subtracted, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported date range
+     */
+    /*
+     * 在当前时间量的值上减去months月
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    public ZonedDateTime minusMonths(long months) {
+        if(months == Long.MIN_VALUE) {
+            return plusMonths(Long.MAX_VALUE).plusMonths(1);
+        }
+        
+        return plusMonths(-months);
+    }
+    
+    /**
+     * Returns a copy of this {@code ZonedDateTime} with the specified number of weeks subtracted.
+     * <p>
+     * This operates on the local time-line,
+     * {@link LocalDateTime#minusWeeks(long) subtracting weeks} to the local date-time.
+     * This is then converted back to a {@code ZonedDateTime}, using the zone ID
+     * to obtain the offset.
+     * <p>
+     * When converting back to {@code ZonedDateTime}, if the local date-time is in an overlap,
+     * then the offset will be retained if possible, otherwise the earlier offset will be used.
+     * If in a gap, the local date-time will be adjusted forward by the length of the gap.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param weeks the weeks to subtract, may be negative
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the weeks subtracted, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported date range
+     */
+    /*
+     * 在当前时间量的值上减去weeks周
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    public ZonedDateTime minusWeeks(long weeks) {
+        if(weeks == Long.MIN_VALUE) {
+            return plusWeeks(Long.MAX_VALUE).plusWeeks(1);
+        }
+        
+        return plusWeeks(-weeks);
+    }
+    
+    /**
+     * Returns a copy of this {@code ZonedDateTime} with the specified number of days subtracted.
+     * <p>
+     * This operates on the local time-line,
+     * {@link LocalDateTime#minusDays(long) subtracting days} to the local date-time.
+     * This is then converted back to a {@code ZonedDateTime}, using the zone ID
+     * to obtain the offset.
+     * <p>
+     * When converting back to {@code ZonedDateTime}, if the local date-time is in an overlap,
+     * then the offset will be retained if possible, otherwise the earlier offset will be used.
+     * If in a gap, the local date-time will be adjusted forward by the length of the gap.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param days the days to subtract, may be negative
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the days subtracted, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported date range
+     */
+    /*
+     * 在当前时间量的值上减去days天
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    public ZonedDateTime minusDays(long days) {
+        if(days == Long.MIN_VALUE) {
+            return plusDays(Long.MAX_VALUE).plusDays(1);
+        }
+        
+        return plusDays(-days);
+    }
+    
+    /**
+     * Returns a copy of this {@code ZonedDateTime} with the specified number of hours subtracted.
+     * <p>
+     * This operates on the instant time-line, such that subtracting one hour will
+     * always be a duration of one hour earlier.
+     * This may cause the local date-time to change by an amount other than one hour.
+     * Note that this is a different approach to that used by days, months and years,
+     * thus subtracting one day is not the same as adding 24 hours.
+     * <p>
+     * For example, consider a time-zone, such as 'Europe/Paris', where the
+     * Autumn DST cutover means that the local times 02:00 to 02:59 occur twice
+     * changing from offset +02:00 in summer to +01:00 in winter.
+     * <ul>
+     * <li>Subtracting one hour from 03:30+01:00 will result in 02:30+01:00
+     *     (both in winter time)
+     * <li>Subtracting one hour from 02:30+01:00 will result in 02:30+02:00
+     *     (moving from winter to summer time)
+     * <li>Subtracting one hour from 02:30+02:00 will result in 01:30+02:00
+     *     (both in summer time)
+     * <li>Subtracting three hours from 03:30+01:00 will result in 01:30+02:00
+     *     (moving from winter to summer time)
+     * </ul>
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param hours the hours to subtract, may be negative
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the hours subtracted, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported date range
+     */
+    /*
+     * 在当前时间量的值上减去hours小时
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    public ZonedDateTime minusHours(long hours) {
+        if(hours == Long.MIN_VALUE) {
+            return plusHours(Long.MAX_VALUE).plusHours(1);
+        }
+        
+        return plusHours(-hours);
+    }
+    
+    /**
+     * Returns a copy of this {@code ZonedDateTime} with the specified number of minutes subtracted.
+     * <p>
+     * This operates on the instant time-line, such that subtracting one minute will
+     * always be a duration of one minute earlier.
+     * This may cause the local date-time to change by an amount other than one minute.
+     * Note that this is a different approach to that used by days, months and years.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param minutes the minutes to subtract, may be negative
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the minutes subtracted, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported date range
+     */
+    /*
+     * 在当前时间量的值上减去minutes分钟
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    public ZonedDateTime minusMinutes(long minutes) {
+        if(minutes == Long.MIN_VALUE) {
+            return plusMinutes(Long.MAX_VALUE).plusMinutes(1);
+        }
+        
+        return plusMinutes(-minutes);
+    }
+    
+    /**
+     * Returns a copy of this {@code ZonedDateTime} with the specified number of seconds subtracted.
+     * <p>
+     * This operates on the instant time-line, such that subtracting one second will
+     * always be a duration of one second earlier.
+     * This may cause the local date-time to change by an amount other than one second.
+     * Note that this is a different approach to that used by days, months and years.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param seconds the seconds to subtract, may be negative
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the seconds subtracted, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported date range
+     */
+    /*
+     * 在当前时间量的值上减去seconds秒
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    public ZonedDateTime minusSeconds(long seconds) {
+        if(seconds == Long.MIN_VALUE) {
+            return plusSeconds(Long.MAX_VALUE).plusSeconds(1);
+        }
+        
+        return plusSeconds(-seconds);
+    }
+    
+    /**
+     * Returns a copy of this {@code ZonedDateTime} with the specified number of nanoseconds subtracted.
+     * <p>
+     * This operates on the instant time-line, such that subtracting one nano will
+     * always be a duration of one nano earlier.
+     * This may cause the local date-time to change by an amount other than one nano.
+     * Note that this is a different approach to that used by days, months and years.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param nanos the nanos to subtract, may be negative
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the nanoseconds subtracted, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported date range
+     */
+    /*
+     * 在当前时间量的值上减去nanos纳秒
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    public ZonedDateTime minusNanos(long nanos) {
+        if(nanos == Long.MIN_VALUE) {
+            return plusNanos(Long.MAX_VALUE).plusNanos(1);
+        }
+        
+        return plusNanos(-nanos);
+    }
+    
+    /*▲ 减少 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 时间量单位 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Checks if the specified unit is supported.
+     * <p>
+     * This checks if the specified unit can be added to, or subtracted from, this date-time.
+     * If false, then calling the {@link #plus(long, TemporalUnit)} and
+     * {@link #minus(long, TemporalUnit) minus} methods will throw an exception.
+     * <p>
+     * If the unit is a {@link ChronoUnit} then the query is implemented here.
+     * The supported units are:
+     * <ul>
+     * <li>{@code NANOS}
+     * <li>{@code MICROS}
+     * <li>{@code MILLIS}
+     * <li>{@code SECONDS}
+     * <li>{@code MINUTES}
+     * <li>{@code HOURS}
+     * <li>{@code HALF_DAYS}
+     * <li>{@code DAYS}
+     * <li>{@code WEEKS}
+     * <li>{@code MONTHS}
+     * <li>{@code YEARS}
+     * <li>{@code DECADES}
+     * <li>{@code CENTURIES}
+     * <li>{@code MILLENNIA}
+     * <li>{@code ERAS}
+     * </ul>
+     * All other {@code ChronoUnit} instances will return false.
+     * <p>
+     * If the unit is not a {@code ChronoUnit}, then the result of this method
+     * is obtained by invoking {@code TemporalUnit.isSupportedBy(Temporal)}
+     * passing {@code this} as the argument.
+     * Whether the unit is supported is determined by the unit.
+     *
+     * @param unit the unit to check, null returns false
+     *
+     * @return true if the unit can be added/subtracted, false if not
+     */
+    // 判断当前时间量是否支持指定的时间量单位
+    @Override
+    public boolean isSupported(TemporalUnit unit) {
+        return ChronoZonedDateTime.super.isSupported(unit);
+    }
+    
+    /*▲ 时间量单位 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 时间量字段操作(TemporalAccessor) ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Checks if the specified field is supported.
      * <p>
@@ -697,56 +1820,16 @@ public final class ZonedDateTime
      * passing {@code this} as the argument.
      * Whether the field is supported is determined by the field.
      *
-     * @param field  the field to check, null returns false
+     * @param field the field to check, null returns false
+     *
      * @return true if the field is supported on this date-time, false if not
      */
+    // 判断当前时间量是否支持指定的时间量字段
     @Override
     public boolean isSupported(TemporalField field) {
         return field instanceof ChronoField || (field != null && field.isSupportedBy(this));
     }
-
-    /**
-     * Checks if the specified unit is supported.
-     * <p>
-     * This checks if the specified unit can be added to, or subtracted from, this date-time.
-     * If false, then calling the {@link #plus(long, TemporalUnit)} and
-     * {@link #minus(long, TemporalUnit) minus} methods will throw an exception.
-     * <p>
-     * If the unit is a {@link ChronoUnit} then the query is implemented here.
-     * The supported units are:
-     * <ul>
-     * <li>{@code NANOS}
-     * <li>{@code MICROS}
-     * <li>{@code MILLIS}
-     * <li>{@code SECONDS}
-     * <li>{@code MINUTES}
-     * <li>{@code HOURS}
-     * <li>{@code HALF_DAYS}
-     * <li>{@code DAYS}
-     * <li>{@code WEEKS}
-     * <li>{@code MONTHS}
-     * <li>{@code YEARS}
-     * <li>{@code DECADES}
-     * <li>{@code CENTURIES}
-     * <li>{@code MILLENNIA}
-     * <li>{@code ERAS}
-     * </ul>
-     * All other {@code ChronoUnit} instances will return false.
-     * <p>
-     * If the unit is not a {@code ChronoUnit}, then the result of this method
-     * is obtained by invoking {@code TemporalUnit.isSupportedBy(Temporal)}
-     * passing {@code this} as the argument.
-     * Whether the unit is supported is determined by the unit.
-     *
-     * @param unit  the unit to check, null returns false
-     * @return true if the unit can be added/subtracted, false if not
-     */
-    @Override  // override for Javadoc
-    public boolean isSupported(TemporalUnit unit) {
-        return ChronoZonedDateTime.super.isSupported(unit);
-    }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Gets the range of valid values for the specified field.
      * <p>
@@ -765,22 +1848,27 @@ public final class ZonedDateTime
      * passing {@code this} as the argument.
      * Whether the range can be obtained is determined by the field.
      *
-     * @param field  the field to query the range for, not null
+     * @param field the field to query the range for, not null
+     *
      * @return the range of valid values for the field, not null
-     * @throws DateTimeException if the range for the field cannot be obtained
+     *
+     * @throws DateTimeException                if the range for the field cannot be obtained
      * @throws UnsupportedTemporalTypeException if the field is not supported
      */
+    // 返回时间量字段field的取值区间，通常要求当前时间量支持该时间量字段
     @Override
     public ValueRange range(TemporalField field) {
-        if (field instanceof ChronoField) {
-            if (field == INSTANT_SECONDS || field == OFFSET_SECONDS) {
+        if(field instanceof ChronoField) {
+            if(field == INSTANT_SECONDS || field == OFFSET_SECONDS) {
                 return field.range();
             }
+            
             return dateTime.range(field);
         }
+        
         return field.rangeRefinedBy(this);
     }
-
+    
     /**
      * Gets the value of the specified field from this date-time as an {@code int}.
      * <p>
@@ -801,28 +1889,73 @@ public final class ZonedDateTime
      * passing {@code this} as the argument. Whether the value can be obtained,
      * and what the value represents, is determined by the field.
      *
-     * @param field  the field to get, not null
+     * @param field the field to get, not null
+     *
      * @return the value for the field
-     * @throws DateTimeException if a value for the field cannot be obtained or
-     *         the value is outside the range of valid values for the field
+     *
+     * @throws DateTimeException                if a value for the field cannot be obtained or
+     *                                          the value is outside the range of valid values for the field
      * @throws UnsupportedTemporalTypeException if the field is not supported or
-     *         the range of values exceeds an {@code int}
-     * @throws ArithmeticException if numeric overflow occurs
+     *                                          the range of values exceeds an {@code int}
+     * @throws ArithmeticException              if numeric overflow occurs
      */
-    @Override  // override for Javadoc and performance
+    /*
+     * 以int形式返回时间量字段field的值
+     *
+     * 目前支持的字段包括：
+     *
+     * ChronoField.OFFSET_SECONDS  - 返回"基于时间偏移的时区ID"部件，即当前时间点位于哪个时区偏移下
+     * .........................................................................................
+     * ChronoField.INSTANT_SECONDS ×
+     * =========================================================================================
+     * ChronoField.YEAR                         - 返回"Proleptic年"部件(哪年)
+     * ChronoField.MONTH_OF_YEAR                - 返回"月份"部件(哪月)
+     * ChronoField.DAY_OF_MONTH                 - 返回"天"部件(哪日)
+     * .........................................................................................
+     * ChronoField.ERA                          - 计算"Proleptic年"年所在的纪元；在公历系统中，0是公元前，1是公元(后)
+     * ChronoField.YEAR_OF_ERA                  - 将"Proleptic年"转换为位于纪元中的[年]后返回
+     * ChronoField.DAY_OF_WEEK                  - 计算当前"本地日期"是一周的第几天(周几)
+     * ChronoField.DAY_OF_YEAR                  - 计算当前"本地日期"是所在年份的第几天
+     * ChronoField.ALIGNED_DAY_OF_WEEK_IN_MONTH - 如果当前"本地日期"的当月第一天是周一，依次推算当前"本地日期"当月其它天是周几
+     * ChronoField.ALIGNED_DAY_OF_WEEK_IN_YEAR  - 如果当前"本地日期"的当年第一天是周一，依次推算当前"本地日期"当年其它天是周几
+     * ChronoField.ALIGNED_WEEK_OF_MONTH        - 如果当前"本地日期"的当月第一天是周一，依次推算当前"本地日期"位于第几周
+     * ChronoField.ALIGNED_WEEK_OF_YEAR         - 如果当前"本地日期"的当年第一天是周一，依次推算当前"本地日期"位于第几周
+     * ChronoField.PROLEPTIC_MONTH              ×
+     * ChronoField.EPOCH_DAY                    ×
+     * =========================================================================================
+     * ChronoField.HOUR_OF_DAY        - 返回小时部件(几时)
+     * ChronoField.MINUTE_OF_HOUR     - 返回分钟部件(几分)
+     * ChronoField.SECOND_OF_MINUTE   - 返回秒部件(几秒)
+     * ChronoField.NANO_OF_SECOND     - 返回纳秒部件(几纳秒)
+     * ..........................................................................................
+     * ChronoField.MICRO_OF_SECOND    - 从纳秒部件中计算出包含的微秒数（不要与纳秒部件同时展示）
+     * ChronoField.MILLI_OF_SECOND    - 从纳秒部件中计算出包含的毫秒数（不要与纳秒部件同时展示）
+     * ChronoField.NANO_OF_DAY        ×
+     * ChronoField.MICRO_OF_DAY       ×
+     * ChronoField.MILLI_OF_DAY       - 计算当前"本地时间"包含的毫秒数
+     * ChronoField.SECOND_OF_DAY      - 计算当前"本地时间"包含的秒数
+     * ChronoField.MINUTE_OF_DAY      - 计算当前"本地时间"包含的分钟数
+     * ChronoField.HOUR_OF_AMPM       - 计算当前"本地时间"包含的小时是12小时制中的哪个[小时](计数从0~11)
+     * ChronoField.CLOCK_HOUR_OF_AMPM - 计算当前"本地时间"包含的小时是12小时制中的哪个[钟点](计数从1~12)
+     * ChronoField.CLOCK_HOUR_OF_DAY  - 计算当前"本地时间"包含的小时是24小时制中的哪个[钟点](计数从1~24)
+     * ChronoField.AMPM_OF_DAY        - 计算当前"本地时间"位于上午(0)还是下午(1)
+     */
+    @Override
     public int get(TemporalField field) {
-        if (field instanceof ChronoField) {
-            switch ((ChronoField) field) {
+        if(field instanceof ChronoField) {
+            switch((ChronoField) field) {
                 case INSTANT_SECONDS:
                     throw new UnsupportedTemporalTypeException("Invalid field 'InstantSeconds' for get() method, use getLong() instead");
                 case OFFSET_SECONDS:
                     return getOffset().getTotalSeconds();
             }
+            
             return dateTime.get(field);
         }
+        
         return ChronoZonedDateTime.super.get(field);
     }
-
+    
     /**
      * Gets the value of the specified field from this date-time as a {@code long}.
      * <p>
@@ -840,341 +1973,108 @@ public final class ZonedDateTime
      * passing {@code this} as the argument. Whether the value can be obtained,
      * and what the value represents, is determined by the field.
      *
-     * @param field  the field to get, not null
+     * @param field the field to get, not null
+     *
      * @return the value for the field
-     * @throws DateTimeException if a value for the field cannot be obtained
+     *
+     * @throws DateTimeException                if a value for the field cannot be obtained
      * @throws UnsupportedTemporalTypeException if the field is not supported
-     * @throws ArithmeticException if numeric overflow occurs
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 以long形式返回时间量字段field的值
+     *
+     * 目前支持的字段包括：
+     *
+     * ChronoField.OFFSET_SECONDS  - 返回"基于时间偏移的时区ID"部件，即当前时间点位于哪个时区偏移下
+     * .....................................................................................................
+     * ChronoField.INSTANT_SECONDS = 返回在当前时间点下，UTC时区的纪元秒
+     * =====================================================================================================
+     * ChronoField.YEAR                         - 返回"Proleptic年"部件(哪年)
+     * ChronoField.MONTH_OF_YEAR                - 返回"月份"部件(哪月)
+     * ChronoField.DAY_OF_MONTH                 - 返回"天"部件(哪日)
+     * ....................................................................................................
+     * ChronoField.ERA                          - 计算"Proleptic年"年所在的纪元；在公历系统中，0是公元前，1是公元(后)
+     * ChronoField.YEAR_OF_ERA                  - 将"Proleptic年"转换为位于纪元中的[年]后返回
+     * ChronoField.DAY_OF_WEEK                  - 计算当前"本地日期"是一周的第几天(周几)
+     * ChronoField.DAY_OF_YEAR                  - 计算当前"本地日期"是所在年份的第几天
+     * ChronoField.ALIGNED_DAY_OF_WEEK_IN_MONTH - 如果当前"本地日期"的当月第一天是周一，依次推算当前"本地日期"当月其它天是周几
+     * ChronoField.ALIGNED_DAY_OF_WEEK_IN_YEAR  - 如果当前"本地日期"的当年第一天是周一，依次推算当前"本地日期"当年其它天是周几
+     * ChronoField.ALIGNED_WEEK_OF_MONTH        - 如果当前"本地日期"的当月第一天是周一，依次推算当前"本地日期"位于第几周
+     * ChronoField.ALIGNED_WEEK_OF_YEAR         - 如果当前"本地日期"的当年第一天是周一，依次推算当前"本地日期"位于第几周
+     * ChronoField.PROLEPTIC_MONTH              = 计算当前时间量包含的"Proleptic月"
+     * ChronoField.EPOCH_DAY                    = 计算当前时间量包含的"纪元天"
+     * =====================================================================================================
+     * ChronoField.HOUR_OF_DAY        - 返回小时部件(几时)
+     * ChronoField.MINUTE_OF_HOUR     - 返回分钟部件(几分)
+     * ChronoField.SECOND_OF_MINUTE   - 返回秒部件(几秒)
+     * ChronoField.NANO_OF_SECOND     - 返回纳秒部件(几纳秒)
+     * .....................................................................................................
+     * ChronoField.MICRO_OF_SECOND    - 从纳秒部件中计算出包含的微秒数（不要与纳秒部件同时展示）
+     * ChronoField.MILLI_OF_SECOND    - 从纳秒部件中计算出包含的毫秒数（不要与纳秒部件同时展示）
+     * ChronoField.NANO_OF_DAY        = 计算当前"本地时间"包含的纳秒数
+     * ChronoField.MICRO_OF_DAY       = 计算当前"本地时间"包含的微秒数
+     * ChronoField.MILLI_OF_DAY       - 计算当前"本地时间"包含的毫秒数
+     * ChronoField.SECOND_OF_DAY      - 计算当前"本地时间"包含的秒数
+     * ChronoField.MINUTE_OF_DAY      - 计算当前"本地时间"包含的分钟数
+     * ChronoField.HOUR_OF_AMPM       - 计算当前"本地时间"包含的小时是12小时制中的哪个[小时](计数从0~11)
+     * ChronoField.CLOCK_HOUR_OF_AMPM - 计算当前"本地时间"包含的小时是12小时制中的哪个[钟点](计数从1~12)
+     * ChronoField.CLOCK_HOUR_OF_DAY  - 计算当前"本地时间"包含的小时是24小时制中的哪个[钟点](计数从1~24)
+     * ChronoField.AMPM_OF_DAY        - 计算当前"本地时间"位于上午(0)还是下午(1)
      */
     @Override
     public long getLong(TemporalField field) {
-        if (field instanceof ChronoField) {
-            switch ((ChronoField) field) {
-                case INSTANT_SECONDS: return toEpochSecond();
-                case OFFSET_SECONDS: return getOffset().getTotalSeconds();
+        if(field instanceof ChronoField) {
+            switch((ChronoField) field) {
+                case INSTANT_SECONDS:
+                    return toEpochSecond();
+                case OFFSET_SECONDS:
+                    return getOffset().getTotalSeconds();
             }
+            
             return dateTime.getLong(field);
         }
+        
         return field.getFrom(this);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
-     * Gets the zone offset, such as '+01:00'.
+     * Queries this date-time using the specified query.
      * <p>
-     * This is the offset of the local date-time from UTC/Greenwich.
+     * This queries this date-time using the specified query strategy object.
+     * The {@code TemporalQuery} object defines the logic to be used to
+     * obtain the result. Read the documentation of the query to understand
+     * what the result of this method will be.
+     * <p>
+     * The result of this method is obtained by invoking the
+     * {@link TemporalQuery#queryFrom(TemporalAccessor)} method on the
+     * specified query passing {@code this} as the argument.
      *
-     * @return the zone offset, not null
-     */
-    @Override
-    public ZoneOffset getOffset() {
-        return offset;
-    }
-
-    /**
-     * Returns a copy of this date-time changing the zone offset to the
-     * earlier of the two valid offsets at a local time-line overlap.
-     * <p>
-     * This method only has any effect when the local time-line overlaps, such as
-     * at an autumn daylight savings cutover. In this scenario, there are two
-     * valid offsets for the local date-time. Calling this method will return
-     * a zoned date-time with the earlier of the two selected.
-     * <p>
-     * If this method is called when it is not an overlap, {@code this}
-     * is returned.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
+     * @param <R>   the type of the result
+     * @param query the query to invoke, not null
      *
-     * @return a {@code ZonedDateTime} based on this date-time with the earlier offset, not null
+     * @return the query result, null may be returned (defined by the query)
+     *
+     * @throws DateTimeException   if unable to query (defined by the query)
+     * @throws ArithmeticException if numeric overflow occurs (defined by the query)
      */
+    // 使用指定的时间量查询器，从当前时间量中查询目标信息
+    @SuppressWarnings("unchecked")
     @Override
-    public ZonedDateTime withEarlierOffsetAtOverlap() {
-        ZoneOffsetTransition trans = getZone().getRules().getTransition(dateTime);
-        if (trans != null && trans.isOverlap()) {
-            ZoneOffset earlierOffset = trans.getOffsetBefore();
-            if (earlierOffset.equals(offset) == false) {
-                return new ZonedDateTime(dateTime, earlierOffset, zone);
-            }
+    public <R> R query(TemporalQuery<R> query) {
+        if(query == TemporalQueries.localDate()) {
+            return (R) toLocalDate();
         }
-        return this;
+        
+        return ChronoZonedDateTime.super.query(query);
     }
-
-    /**
-     * Returns a copy of this date-time changing the zone offset to the
-     * later of the two valid offsets at a local time-line overlap.
-     * <p>
-     * This method only has any effect when the local time-line overlaps, such as
-     * at an autumn daylight savings cutover. In this scenario, there are two
-     * valid offsets for the local date-time. Calling this method will return
-     * a zoned date-time with the later of the two selected.
-     * <p>
-     * If this method is called when it is not an overlap, {@code this}
-     * is returned.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @return a {@code ZonedDateTime} based on this date-time with the later offset, not null
-     */
-    @Override
-    public ZonedDateTime withLaterOffsetAtOverlap() {
-        ZoneOffsetTransition trans = getZone().getRules().getTransition(toLocalDateTime());
-        if (trans != null) {
-            ZoneOffset laterOffset = trans.getOffsetAfter();
-            if (laterOffset.equals(offset) == false) {
-                return new ZonedDateTime(dateTime, laterOffset, zone);
-            }
-        }
-        return this;
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Gets the time-zone, such as 'Europe/Paris'.
-     * <p>
-     * This returns the zone ID. This identifies the time-zone {@link ZoneRules rules}
-     * that determine when and how the offset from UTC/Greenwich changes.
-     * <p>
-     * The zone ID may be same as the {@linkplain #getOffset() offset}.
-     * If this is true, then any future calculations, such as addition or subtraction,
-     * have no complex edge cases due to time-zone rules.
-     * See also {@link #withFixedOffsetZone()}.
-     *
-     * @return the time-zone, not null
-     */
-    @Override
-    public ZoneId getZone() {
-        return zone;
-    }
-
-    /**
-     * Returns a copy of this date-time with a different time-zone,
-     * retaining the local date-time if possible.
-     * <p>
-     * This method changes the time-zone and retains the local date-time.
-     * The local date-time is only changed if it is invalid for the new zone,
-     * determined using the same approach as
-     * {@link #ofLocal(LocalDateTime, ZoneId, ZoneOffset)}.
-     * <p>
-     * To change the zone and adjust the local date-time,
-     * use {@link #withZoneSameInstant(ZoneId)}.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param zone  the time-zone to change to, not null
-     * @return a {@code ZonedDateTime} based on this date-time with the requested zone, not null
-     */
-    @Override
-    public ZonedDateTime withZoneSameLocal(ZoneId zone) {
-        Objects.requireNonNull(zone, "zone");
-        return this.zone.equals(zone) ? this : ofLocal(dateTime, zone, offset);
-    }
-
-    /**
-     * Returns a copy of this date-time with a different time-zone,
-     * retaining the instant.
-     * <p>
-     * This method changes the time-zone and retains the instant.
-     * This normally results in a change to the local date-time.
-     * <p>
-     * This method is based on retaining the same instant, thus gaps and overlaps
-     * in the local time-line have no effect on the result.
-     * <p>
-     * To change the offset while keeping the local time,
-     * use {@link #withZoneSameLocal(ZoneId)}.
-     *
-     * @param zone  the time-zone to change to, not null
-     * @return a {@code ZonedDateTime} based on this date-time with the requested zone, not null
-     * @throws DateTimeException if the result exceeds the supported date range
-     */
-    @Override
-    public ZonedDateTime withZoneSameInstant(ZoneId zone) {
-        Objects.requireNonNull(zone, "zone");
-        return this.zone.equals(zone) ? this :
-            create(dateTime.toEpochSecond(offset), dateTime.getNano(), zone);
-    }
-
-    /**
-     * Returns a copy of this date-time with the zone ID set to the offset.
-     * <p>
-     * This returns a zoned date-time where the zone ID is the same as {@link #getOffset()}.
-     * The local date-time, offset and instant of the result will be the same as in this date-time.
-     * <p>
-     * Setting the date-time to a fixed single offset means that any future
-     * calculations, such as addition or subtraction, have no complex edge cases
-     * due to time-zone rules.
-     * This might also be useful when sending a zoned date-time across a network,
-     * as most protocols, such as ISO-8601, only handle offsets,
-     * and not region-based zone IDs.
-     * <p>
-     * This is equivalent to {@code ZonedDateTime.of(zdt.toLocalDateTime(), zdt.getOffset())}.
-     *
-     * @return a {@code ZonedDateTime} with the zone ID set to the offset, not null
-     */
-    public ZonedDateTime withFixedOffsetZone() {
-        return this.zone.equals(offset) ? this : new ZonedDateTime(dateTime, offset, offset);
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Gets the {@code LocalDateTime} part of this date-time.
-     * <p>
-     * This returns a {@code LocalDateTime} with the same year, month, day and time
-     * as this date-time.
-     *
-     * @return the local date-time part of this date-time, not null
-     */
-    @Override  // override for return type
-    public LocalDateTime toLocalDateTime() {
-        return dateTime;
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Gets the {@code LocalDate} part of this date-time.
-     * <p>
-     * This returns a {@code LocalDate} with the same year, month and day
-     * as this date-time.
-     *
-     * @return the date part of this date-time, not null
-     */
-    @Override  // override for return type
-    public LocalDate toLocalDate() {
-        return dateTime.toLocalDate();
-    }
-
-    /**
-     * Gets the year field.
-     * <p>
-     * This method returns the primitive {@code int} value for the year.
-     * <p>
-     * The year returned by this method is proleptic as per {@code get(YEAR)}.
-     * To obtain the year-of-era, use {@code get(YEAR_OF_ERA)}.
-     *
-     * @return the year, from MIN_YEAR to MAX_YEAR
-     */
-    public int getYear() {
-        return dateTime.getYear();
-    }
-
-    /**
-     * Gets the month-of-year field from 1 to 12.
-     * <p>
-     * This method returns the month as an {@code int} from 1 to 12.
-     * Application code is frequently clearer if the enum {@link Month}
-     * is used by calling {@link #getMonth()}.
-     *
-     * @return the month-of-year, from 1 to 12
-     * @see #getMonth()
-     */
-    public int getMonthValue() {
-        return dateTime.getMonthValue();
-    }
-
-    /**
-     * Gets the month-of-year field using the {@code Month} enum.
-     * <p>
-     * This method returns the enum {@link Month} for the month.
-     * This avoids confusion as to what {@code int} values mean.
-     * If you need access to the primitive {@code int} value then the enum
-     * provides the {@link Month#getValue() int value}.
-     *
-     * @return the month-of-year, not null
-     * @see #getMonthValue()
-     */
-    public Month getMonth() {
-        return dateTime.getMonth();
-    }
-
-    /**
-     * Gets the day-of-month field.
-     * <p>
-     * This method returns the primitive {@code int} value for the day-of-month.
-     *
-     * @return the day-of-month, from 1 to 31
-     */
-    public int getDayOfMonth() {
-        return dateTime.getDayOfMonth();
-    }
-
-    /**
-     * Gets the day-of-year field.
-     * <p>
-     * This method returns the primitive {@code int} value for the day-of-year.
-     *
-     * @return the day-of-year, from 1 to 365, or 366 in a leap year
-     */
-    public int getDayOfYear() {
-        return dateTime.getDayOfYear();
-    }
-
-    /**
-     * Gets the day-of-week field, which is an enum {@code DayOfWeek}.
-     * <p>
-     * This method returns the enum {@link DayOfWeek} for the day-of-week.
-     * This avoids confusion as to what {@code int} values mean.
-     * If you need access to the primitive {@code int} value then the enum
-     * provides the {@link DayOfWeek#getValue() int value}.
-     * <p>
-     * Additional information can be obtained from the {@code DayOfWeek}.
-     * This includes textual names of the values.
-     *
-     * @return the day-of-week, not null
-     */
-    public DayOfWeek getDayOfWeek() {
-        return dateTime.getDayOfWeek();
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Gets the {@code LocalTime} part of this date-time.
-     * <p>
-     * This returns a {@code LocalTime} with the same hour, minute, second and
-     * nanosecond as this date-time.
-     *
-     * @return the time part of this date-time, not null
-     */
-    @Override  // override for Javadoc and performance
-    public LocalTime toLocalTime() {
-        return dateTime.toLocalTime();
-    }
-
-    /**
-     * Gets the hour-of-day field.
-     *
-     * @return the hour-of-day, from 0 to 23
-     */
-    public int getHour() {
-        return dateTime.getHour();
-    }
-
-    /**
-     * Gets the minute-of-hour field.
-     *
-     * @return the minute-of-hour, from 0 to 59
-     */
-    public int getMinute() {
-        return dateTime.getMinute();
-    }
-
-    /**
-     * Gets the second-of-minute field.
-     *
-     * @return the second-of-minute, from 0 to 59
-     */
-    public int getSecond() {
-        return dateTime.getSecond();
-    }
-
-    /**
-     * Gets the nano-of-second field.
-     *
-     * @return the nano-of-second, from 0 to 999,999,999
-     */
-    public int getNano() {
-        return dateTime.getNano();
-    }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 时间量字段操作(TemporalAccessor) ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 整合 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns an adjusted copy of this date-time.
      * <p>
@@ -1221,31 +2121,52 @@ public final class ZonedDateTime
      * This instance is immutable and unaffected by this method call.
      *
      * @param adjuster the adjuster to use, not null
+     *
      * @return a {@code ZonedDateTime} based on {@code this} with the adjustment made, not null
-     * @throws DateTimeException if the adjustment cannot be made
+     *
+     * @throws DateTimeException   if the adjustment cannot be made
      * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 使用指定的时间量整合器adjuster来构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
      */
     @Override
     public ZonedDateTime with(TemporalAdjuster adjuster) {
-        // optimizations
-        if (adjuster instanceof LocalDate) {
+        
+        if(adjuster instanceof LocalDate) {
             return resolveLocal(LocalDateTime.of((LocalDate) adjuster, dateTime.toLocalTime()));
-        } else if (adjuster instanceof LocalTime) {
+        }
+        
+        if(adjuster instanceof LocalTime) {
             return resolveLocal(LocalDateTime.of(dateTime.toLocalDate(), (LocalTime) adjuster));
-        } else if (adjuster instanceof LocalDateTime) {
+        }
+        
+        if(adjuster instanceof LocalDateTime) {
             return resolveLocal((LocalDateTime) adjuster);
-        } else if (adjuster instanceof OffsetDateTime) {
+        }
+        
+        if(adjuster instanceof OffsetDateTime) {
             OffsetDateTime odt = (OffsetDateTime) adjuster;
             return ofLocal(odt.toLocalDateTime(), zone, odt.getOffset());
-        } else if (adjuster instanceof Instant) {
+        }
+        
+        if(adjuster instanceof Instant) {
             Instant instant = (Instant) adjuster;
+            // 使用UTC时区的纪元秒、纳秒偏移以及时区ID构造一个属于zone时区的"本地日期-时间"(时区偏移时间准确)
             return create(instant.getEpochSecond(), instant.getNano(), zone);
-        } else if (adjuster instanceof ZoneOffset) {
+        }
+        
+        if(adjuster instanceof ZoneOffset) {
+            // 尝试使用adjuster更新当前时间量内的基于时间偏移的时区ID
             return resolveOffset((ZoneOffset) adjuster);
         }
+        
         return (ZonedDateTime) adjuster.adjustInto(this);
     }
-
+    
     /**
      * Returns a copy of this date-time with the specified field set to a new value.
      * <p>
@@ -1291,30 +2212,99 @@ public final class ZonedDateTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param field  the field to set in the result, not null
-     * @param newValue  the new value of the field in the result
+     * @param field    the field to set in the result, not null
+     * @param newValue the new value of the field in the result
+     *
      * @return a {@code ZonedDateTime} based on {@code this} with the specified field set, not null
-     * @throws DateTimeException if the field cannot be set
+     *
+     * @throws DateTimeException                if the field cannot be set
      * @throws UnsupportedTemporalTypeException if the field is not supported
-     * @throws ArithmeticException if numeric overflow occurs
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 通过整合指定类型的字段和当前时间量中的其他类型的字段来构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * field   : 待整合的字段(类型)
+     * newValue: field的原始值，需要根据filed的类型进行放缩
+     *
+     * 目前支持传入的字段值包括：
+     *
+     * ChronoField.OFFSET_SECONDS  - 与[时区偏移秒]进行整合，只会覆盖当前时间量的"基于时区偏移的时区ID"部件
+     * .............................................................................................................
+     * ChronoField.INSTANT_SECONDS - 与[纪元秒]进行整合，这会影响到原时间量对象的"小时"、"分钟"、"秒"部件
+     *
+     * 遇到以下所有字段时，后面的描述是指如何在内部的"本地日期-时间"部件上生成新的LocalDateTime对象。
+     * 当生成新的LocalDateTime对象后，还要继续与内部的时区部件进行整合。
+     * =============================================================================================================
+     * ChronoField.YEAR                         - 与[Proleptic-年]整合，只会覆盖当前时间量的"Proleptic年"部件
+     * ChronoField.MONTH_OF_YEAR                - 与一年中的[月](1, 12)整合，只会覆盖当前时间量的"月份"组件
+     * ChronoField.DAY_OF_MONTH                 - 与一月中的[天](1, 28/31)整合，只会覆盖当前时间量的"天"组件
+     * .............................................................................................................
+     * ChronoField.ERA                          - 与[纪元]整合，即切换公元前与公元(后)
+     * ChronoField.YEAR_OF_ERA                  - 与位于纪元中的[年]整合，这会将该年份进行转换后覆盖"Proleptic年"部件
+     * ChronoField.DAY_OF_WEEK                  - 与一周中的[天](1, 7)整合，这会在当前时间量的基础上增/减一定的天数，以达到给定的字段值表示的"周几"
+     * ChronoField.DAY_OF_YEAR                  - 与一年中的[天](1, 365/366)整合，这会覆盖当前时间量的"月份"组件和"天"组件
+     * ChronoField.ALIGNED_DAY_OF_WEEK_IN_MONTH - 与位于月周对齐中的[天](1, 7)整合，这会在当前时间量的基础上增/减一定的天数，以达到给定的字段值表示的"周几"
+     * ChronoField.ALIGNED_DAY_OF_WEEK_IN_YEAR  - 与位于年周对齐中的[天](1, 7)整合，这会在当前时间量的基础上增/减一定的天数，以达到给定的字段值表示的"周几"
+     * ChronoField.ALIGNED_WEEK_OF_MONTH        - 与位于月周对齐中的[第几周](1, 4/5)整合，这会在当前时间量的基础上增/减一定的周数，以达到给定的字段值表示的"第几周"
+     * ChronoField.ALIGNED_WEEK_OF_YEAR         - 与位于年周对齐中的[第几周](1, 53)整合，这会在当前时间量的基础上增/减一定的周数，以达到给定的字段值表示的"第几周"
+     * ChronoField.PROLEPTIC_MONTH              - 与[Proleptic-月]整合，这会在当前时间量的基础上增/减一定的月数，以达到给定的字段值表示的目标月
+     * ChronoField.EPOCH_DAY                    - 与纪元中的[天](-365243219162L, 365241780471L)整合，这会完全地构造一个新的"本地日期"
+     * =============================================================================================================
+     * ChronoField.HOUR_OF_DAY        - 与24小时制中的[小时](0, 23)整合，只会覆盖当前时间量的"小时"组件
+     * ChronoField.MINUTE_OF_HOUR     - 与一小时内的[分钟](0, 59)整合，只会覆盖当前时间量的"分钟"组件
+     * ChronoField.SECOND_OF_MINUTE   - 与一分内的[秒](0, 59)整合，只会覆盖当前时间量的"秒"组件
+     * ChronoField.NANO_OF_SECOND     - 与一秒内的[纳秒](0, 999_999_999)整合，只会覆盖当前时间量的"纳秒"组件
+     * .............................................................................................................
+     * ChronoField.MICRO_OF_SECOND    - 与一秒内的[微秒](0, 999_999)整合，会将其转换为纳秒，然后去覆盖当前时间量的"纳秒"组件
+     * ChronoField.MILLI_OF_SECOND    - 与一秒内的[毫秒](0, 999)整合，会将其转换为纳秒，然后去覆盖当前时间量的"纳秒"组件
+     * ChronoField.NANO_OF_DAY        - 与一天内的[纳秒](0, 86400L * 1000_000_000L - 1)整合，这会完全地构造一个新的"本地时间"
+     * ChronoField.MICRO_OF_DAY       - 与一天内的[微秒](0, 86400L * 1000_000L - 1)整合，这会完全地构造一个新的"本地时间"
+     * ChronoField.MILLI_OF_DAY       - 与一天内的[毫秒](0, 86400L * 1000L - 1)整合，这会完全地构造一个新的"本地时间"
+     * ChronoField.SECOND_OF_DAY      - 与一天内的[秒](0, 86400L - 1)整合，这会在当前时间量的基础上增/减一定的秒数，以达到给定的字段值表示的时间
+     * ChronoField.MINUTE_OF_DAY      - 与一天内的[分钟](0, (24 * 60) - 1)整合，这会在当前时间量的基础上增/减一定的分钟数，以达到给定的字段值表示的时间
+     * ChronoField.HOUR_OF_AMPM       - 与12小时制中的[小时](0, 11)整合，这会在当前时间量的基础上增/减一定的小时数，以达到给定的字段值表示的时间
+     * ChronoField.CLOCK_HOUR_OF_AMPM - 与12小时制中的[钟点](1, 12)整合，这会在当前时间量的基础上增/减一定的小时数，以达到给定的字段值表示的时间
+     * ChronoField.CLOCK_HOUR_OF_DAY  - 与24小时制中的[钟点](1, 24)整合，会将其转换为24小时制的[小时]，然后覆盖当前时间量的"小时"组件
+     * ChronoField.AMPM_OF_DAY        - 与一天中的[上午/下午](0, 1)整合，即在当前时间量的基础上增/减12个小时，进行上下午的切换
      */
     @Override
     public ZonedDateTime with(TemporalField field, long newValue) {
-        if (field instanceof ChronoField) {
+        if(field instanceof ChronoField) {
             ChronoField f = (ChronoField) field;
-            switch (f) {
-                case INSTANT_SECONDS:
-                    return create(newValue, getNano(), zone);
-                case OFFSET_SECONDS:
-                    ZoneOffset offset = ZoneOffset.ofTotalSeconds(f.checkValidIntValue(newValue));
-                    return resolveOffset(offset);
+            
+            if(f == INSTANT_SECONDS) {
+                // 使用UTC时区的纪元秒、纳秒偏移以及时区ID构造一个属于zone时区的"本地日期-时间"(时区偏移时间准确)
+                return create(newValue, getNano(), zone);
             }
-            return resolveLocal(dateTime.with(field, newValue));
+            
+            if(f == OFFSET_SECONDS) {
+                // 确保字段field的取值区间在int的范围内，且给定的值newValue落在字段field的取值区间中，否则抛异常
+                int seconds = f.checkValidIntValue(newValue);
+                
+                // 构造基于时间偏移的时区ID，其时间偏移为seconds秒
+                ZoneOffset newOffset = ZoneOffset.ofTotalSeconds(seconds);
+                
+                // 尝试使用newOffset更新当前时间量内的基于时间偏移的时区ID
+                return resolveOffset(newOffset);
+            }
+            
+            // 通过整合指定类型的字段和dateTime中的其他类型的字段来构造时间量对象
+            LocalDateTime newDateTime = dateTime.with(field, newValue);
+            
+            /*
+             * 使用newDateTime构造一个属于内部时区部件的"本地日期-时间"。
+             * 如果zone部件不是ZoneOffset类型，则时区偏移时间可能会不准确。
+             */
+            return resolveLocal(newDateTime);
         }
+        
         return field.adjustInto(this, newValue);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Returns a copy of this {@code ZonedDateTime} with the year altered.
      * <p>
@@ -1329,14 +2319,27 @@ public final class ZonedDateTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param year  the year to set in the result, from MIN_YEAR to MAX_YEAR
+     * @param year the year to set in the result, from MIN_YEAR to MAX_YEAR
+     *
      * @return a {@code ZonedDateTime} based on this date-time with the requested year, not null
+     *
      * @throws DateTimeException if the year value is invalid
+     */
+    /*
+     * 将指定的"年"整合到当前时间量中以构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：年份
      */
     public ZonedDateTime withYear(int year) {
         return resolveLocal(dateTime.withYear(year));
     }
-
+    
     /**
      * Returns a copy of this {@code ZonedDateTime} with the month-of-year altered.
      * <p>
@@ -1351,14 +2354,27 @@ public final class ZonedDateTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param month  the month-of-year to set in the result, from 1 (January) to 12 (December)
+     * @param month the month-of-year to set in the result, from 1 (January) to 12 (December)
+     *
      * @return a {@code ZonedDateTime} based on this date-time with the requested month, not null
+     *
      * @throws DateTimeException if the month-of-year value is invalid
+     */
+    /*
+     * 将指定的"月"整合到当前时间量中以构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：月份
      */
     public ZonedDateTime withMonth(int month) {
         return resolveLocal(dateTime.withMonth(month));
     }
-
+    
     /**
      * Returns a copy of this {@code ZonedDateTime} with the day-of-month altered.
      * <p>
@@ -1373,15 +2389,28 @@ public final class ZonedDateTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param dayOfMonth  the day-of-month to set in the result, from 1 to 28-31
+     * @param dayOfMonth the day-of-month to set in the result, from 1 to 28-31
+     *
      * @return a {@code ZonedDateTime} based on this date-time with the requested day, not null
+     *
      * @throws DateTimeException if the day-of-month value is invalid,
-     *  or if the day-of-month is invalid for the month-year
+     *                           or if the day-of-month is invalid for the month-year
+     */
+    /*
+     * 将"一月中的天"整合到当前时间量中以构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：天
      */
     public ZonedDateTime withDayOfMonth(int dayOfMonth) {
         return resolveLocal(dateTime.withDayOfMonth(dayOfMonth));
     }
-
+    
     /**
      * Returns a copy of this {@code ZonedDateTime} with the day-of-year altered.
      * <p>
@@ -1396,16 +2425,28 @@ public final class ZonedDateTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param dayOfYear  the day-of-year to set in the result, from 1 to 365-366
+     * @param dayOfYear the day-of-year to set in the result, from 1 to 365-366
+     *
      * @return a {@code ZonedDateTime} based on this date with the requested day, not null
+     *
      * @throws DateTimeException if the day-of-year value is invalid,
-     *  or if the day-of-year is invalid for the year
+     *                           or if the day-of-year is invalid for the year
+     */
+    /*
+     * 将"一年中的天"整合到当前时间量中以构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：月份、天
      */
     public ZonedDateTime withDayOfYear(int dayOfYear) {
         return resolveLocal(dateTime.withDayOfYear(dayOfYear));
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Returns a copy of this {@code ZonedDateTime} with the hour-of-day altered.
      * <p>
@@ -1420,14 +2461,27 @@ public final class ZonedDateTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param hour  the hour-of-day to set in the result, from 0 to 23
+     * @param hour the hour-of-day to set in the result, from 0 to 23
+     *
      * @return a {@code ZonedDateTime} based on this date-time with the requested hour, not null
+     *
      * @throws DateTimeException if the hour value is invalid
+     */
+    /*
+     * 将指定的"小时"整合到当前时间量中以构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：小时
      */
     public ZonedDateTime withHour(int hour) {
         return resolveLocal(dateTime.withHour(hour));
     }
-
+    
     /**
      * Returns a copy of this {@code ZonedDateTime} with the minute-of-hour altered.
      * <p>
@@ -1442,14 +2496,27 @@ public final class ZonedDateTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param minute  the minute-of-hour to set in the result, from 0 to 59
+     * @param minute the minute-of-hour to set in the result, from 0 to 59
+     *
      * @return a {@code ZonedDateTime} based on this date-time with the requested minute, not null
+     *
      * @throws DateTimeException if the minute value is invalid
+     */
+    /*
+     * 将指定的"分钟"整合到当前时间量中以构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：分钟
      */
     public ZonedDateTime withMinute(int minute) {
         return resolveLocal(dateTime.withMinute(minute));
     }
-
+    
     /**
      * Returns a copy of this {@code ZonedDateTime} with the second-of-minute altered.
      * <p>
@@ -1464,14 +2531,27 @@ public final class ZonedDateTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param second  the second-of-minute to set in the result, from 0 to 59
+     * @param second the second-of-minute to set in the result, from 0 to 59
+     *
      * @return a {@code ZonedDateTime} based on this date-time with the requested second, not null
+     *
      * @throws DateTimeException if the second value is invalid
+     */
+    /*
+     * 将指定的"秒"整合到当前时间量中以构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：秒
      */
     public ZonedDateTime withSecond(int second) {
         return resolveLocal(dateTime.withSecond(second));
     }
-
+    
     /**
      * Returns a copy of this {@code ZonedDateTime} with the nano-of-second altered.
      * <p>
@@ -1486,579 +2566,252 @@ public final class ZonedDateTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param nanoOfSecond  the nano-of-second to set in the result, from 0 to 999,999,999
+     * @param nanoOfSecond the nano-of-second to set in the result, from 0 to 999,999,999
+     *
      * @return a {@code ZonedDateTime} based on this date-time with the requested nanosecond, not null
+     *
      * @throws DateTimeException if the nano value is invalid
+     */
+    /*
+     * 将指定的"纳秒"整合到当前时间量中以构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：纳秒
      */
     public ZonedDateTime withNano(int nanoOfSecond) {
         return resolveLocal(dateTime.withNano(nanoOfSecond));
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
-     * Returns a copy of this {@code ZonedDateTime} with the time truncated.
+     * Returns a copy of this date-time with the zone ID set to the offset.
      * <p>
-     * Truncation returns a copy of the original date-time with fields
-     * smaller than the specified unit set to zero.
-     * For example, truncating with the {@link ChronoUnit#MINUTES minutes} unit
-     * will set the second-of-minute and nano-of-second field to zero.
+     * This returns a zoned date-time where the zone ID is the same as {@link #getOffset()}.
+     * The local date-time, offset and instant of the result will be the same as in this date-time.
      * <p>
-     * The unit must have a {@linkplain TemporalUnit#getDuration() duration}
-     * that divides into the length of a standard day without remainder.
-     * This includes all supplied time units on {@link ChronoUnit} and
-     * {@link ChronoUnit#DAYS DAYS}. Other units throw an exception.
+     * Setting the date-time to a fixed single offset means that any future
+     * calculations, such as addition or subtraction, have no complex edge cases
+     * due to time-zone rules.
+     * This might also be useful when sending a zoned date-time across a network,
+     * as most protocols, such as ISO-8601, only handle offsets,
+     * and not region-based zone IDs.
      * <p>
-     * This operates on the local time-line,
-     * {@link LocalDateTime#truncatedTo(TemporalUnit) truncating}
-     * the underlying local date-time. This is then converted back to a
-     * {@code ZonedDateTime}, using the zone ID to obtain the offset.
-     * <p>
-     * When converting back to {@code ZonedDateTime}, if the local date-time is in an overlap,
-     * then the offset will be retained if possible, otherwise the earlier offset will be used.
-     * If in a gap, the local date-time will be adjusted forward by the length of the gap.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
+     * This is equivalent to {@code ZonedDateTime.of(zdt.toLocalDateTime(), zdt.getOffset())}.
      *
-     * @param unit  the unit to truncate to, not null
-     * @return a {@code ZonedDateTime} based on this date-time with the time truncated, not null
-     * @throws DateTimeException if unable to truncate
-     * @throws UnsupportedTemporalTypeException if the unit is not supported
+     * @return a {@code ZonedDateTime} with the zone ID set to the offset, not null
      */
-    public ZonedDateTime truncatedTo(TemporalUnit unit) {
-        return resolveLocal(dateTime.truncatedTo(unit));
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Returns a copy of this date-time with the specified amount added.
-     * <p>
-     * This returns a {@code ZonedDateTime}, based on this one, with the specified amount added.
-     * The amount is typically {@link Period} or {@link Duration} but may be
-     * any other type implementing the {@link TemporalAmount} interface.
-     * <p>
-     * The calculation is delegated to the amount object by calling
-     * {@link TemporalAmount#addTo(Temporal)}. The amount implementation is free
-     * to implement the addition in any way it wishes, however it typically
-     * calls back to {@link #plus(long, TemporalUnit)}. Consult the documentation
-     * of the amount implementation to determine if it can be successfully added.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param amountToAdd  the amount to add, not null
-     * @return a {@code ZonedDateTime} based on this date-time with the addition made, not null
-     * @throws DateTimeException if the addition cannot be made
-     * @throws ArithmeticException if numeric overflow occurs
-     */
-    @Override
-    public ZonedDateTime plus(TemporalAmount amountToAdd) {
-        if (amountToAdd instanceof Period) {
-            Period periodToAdd = (Period) amountToAdd;
-            return resolveLocal(dateTime.plus(periodToAdd));
+    // 使用内部的基于时间偏移的时区ID(ZoneOffset)替换时区ID(ZoneId)
+    public ZonedDateTime withFixedOffsetZone() {
+        if(this.zone.equals(offset)) {
+            return this;
         }
-        Objects.requireNonNull(amountToAdd, "amountToAdd");
-        return (ZonedDateTime) amountToAdd.addTo(this);
+        
+        return new ZonedDateTime(dateTime, offset, offset);
     }
-
+    
     /**
-     * Returns a copy of this date-time with the specified amount added.
+     * Returns a copy of this date-time with a different time-zone,
+     * retaining the local date-time if possible.
      * <p>
-     * This returns a {@code ZonedDateTime}, based on this one, with the amount
-     * in terms of the unit added. If it is not possible to add the amount, because the
-     * unit is not supported or for some other reason, an exception is thrown.
+     * This method changes the time-zone and retains the local date-time.
+     * The local date-time is only changed if it is invalid for the new zone,
+     * determined using the same approach as
+     * {@link #ofLocal(LocalDateTime, ZoneId, ZoneOffset)}.
      * <p>
-     * If the field is a {@link ChronoUnit} then the addition is implemented here.
-     * The zone is not part of the calculation and will be unchanged in the result.
-     * The calculation for date and time units differ.
-     * <p>
-     * Date units operate on the local time-line.
-     * The period is first added to the local date-time, then converted back
-     * to a zoned date-time using the zone ID.
-     * The conversion uses {@link #ofLocal(LocalDateTime, ZoneId, ZoneOffset)}
-     * with the offset before the addition.
-     * <p>
-     * Time units operate on the instant time-line.
-     * The period is first added to the local date-time, then converted back to
-     * a zoned date-time using the zone ID.
-     * The conversion uses {@link #ofInstant(LocalDateTime, ZoneOffset, ZoneId)}
-     * with the offset before the addition.
-     * <p>
-     * If the field is not a {@code ChronoUnit}, then the result of this method
-     * is obtained by invoking {@code TemporalUnit.addTo(Temporal, long)}
-     * passing {@code this} as the argument. In this case, the unit determines
-     * whether and how to perform the addition.
+     * To change the zone and adjust the local date-time,
+     * use {@link #withZoneSameInstant(ZoneId)}.
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param amountToAdd  the amount of the unit to add to the result, may be negative
-     * @param unit  the unit of the amount to add, not null
-     * @return a {@code ZonedDateTime} based on this date-time with the specified amount added, not null
-     * @throws DateTimeException if the addition cannot be made
-     * @throws UnsupportedTemporalTypeException if the unit is not supported
-     * @throws ArithmeticException if numeric overflow occurs
+     * @param zone the time-zone to change to, not null
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the requested zone, not null
+     */
+    /*
+     * 将指定的"时区ID"整合到当前时间量中以构造时间量对象。
+     * 该操作是尝试对ZoneId属性和ZoneOffset属性进行更新。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：(本地日期-时间)、时区ID、基于时间偏移的时区ID
      */
     @Override
-    public ZonedDateTime plus(long amountToAdd, TemporalUnit unit) {
-        if (unit instanceof ChronoUnit) {
-            if (unit.isDateBased()) {
-                return resolveLocal(dateTime.plus(amountToAdd, unit));
-            } else {
-                return resolveInstant(dateTime.plus(amountToAdd, unit));
+    public ZonedDateTime withZoneSameLocal(ZoneId zone) {
+        Objects.requireNonNull(zone, "zone");
+        
+        if(this.zone.equals(zone)) {
+            return this;
+        }
+        
+        return ofLocal(dateTime, zone, offset);
+    }
+    
+    /**
+     * Returns a copy of this date-time with a different time-zone,
+     * retaining the instant.
+     * <p>
+     * This method changes the time-zone and retains the instant.
+     * This normally results in a change to the local date-time.
+     * <p>
+     * This method is based on retaining the same instant, thus gaps and overlaps
+     * in the local time-line have no effect on the result.
+     * <p>
+     * To change the offset while keeping the local time,
+     * use {@link #withZoneSameLocal(ZoneId)}.
+     *
+     * @param zone the time-zone to change to, not null
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the requested zone, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported date range
+     */
+    /*
+     * 将指定的"时区ID"整合到当前时间量中以构造时间量对象。
+     * 该操作会先获取在当前时刻时UTC时区的时间点，然后使用该时间点与zone构造一个ZonedDateTime对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：本地日期-时间、时区ID、基于时间偏移的时区ID
+     */
+    @Override
+    public ZonedDateTime withZoneSameInstant(ZoneId zone) {
+        Objects.requireNonNull(zone, "zone");
+        
+        if(this.zone.equals(zone)) {
+            return this;
+        }
+        
+        // 将offset时区与当前dateTime捆绑为一个"时间点"，然后计算该本地时间点下，UTC时区的纪元秒
+        long epochSecond = dateTime.toEpochSecond(offset);
+        // 获取"纳秒"部件
+        int nano = dateTime.getNano();
+        
+        // 使用UTC时区的纪元秒、纳秒偏移以及时区ID构造一个属于zone时区的"本地日期-时间"(时区偏移时间准确)
+        return create(epochSecond, nano, zone);
+    }
+    
+    /**
+     * Returns a copy of this date-time changing the zone offset to the
+     * earlier of the two valid offsets at a local time-line overlap.
+     * <p>
+     * This method only has any effect when the local time-line overlaps, such as
+     * at an autumn daylight savings cutover. In this scenario, there are two
+     * valid offsets for the local date-time. Calling this method will return
+     * a zoned date-time with the earlier of the two selected.
+     * <p>
+     * If this method is called when it is not an overlap, {@code this}
+     * is returned.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the earlier offset, not null
+     */
+    /*
+     * 如果当前本地日期-时间位于其所在时区的"重叠时间"中，
+     * 则将当前时间量的时区偏移更新为"重叠时间"之前的时区偏移。
+     */
+    @Override
+    public ZonedDateTime withEarlierOffsetAtOverlap() {
+        
+        // 获取当前"本地日期-时间"所在时区的时区ID
+        ZoneId zone = getZone();
+        
+        // 获取与zone对应的"时区规则集"
+        ZoneRules rules = zone.getRules();
+        
+        /*
+         * 获取zone时区在dateTime时刻的偏移转换规则，该规则用来指示如何切换时区的时间偏移。
+         *
+         * 只有在"间隙时间"和"重叠时间"中，需要用到偏移转换规则。
+         * 在正常时间和夏令时时间内，无需用到偏移转换规则。
+         *
+         * dateTime: 视为zone时区的一个本地时间。
+         */
+        ZoneOffsetTransition trans = rules.getTransition(dateTime);
+        
+        // 如果dateTime时刻位于"重叠时间"
+        if(trans != null && trans.isOverlap()) {
+            // 获取"重叠"前的时间偏移
+            ZoneOffset earlierOffset = trans.getOffsetBefore();
+            if(!earlierOffset.equals(offset)) {
+                // 使用"重叠"前的时间偏移更新ZoneOffset属性
+                return new ZonedDateTime(dateTime, earlierOffset, this.zone);
             }
         }
-        return unit.addTo(this, amountToAdd);
+        
+        return this;
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
-     * Returns a copy of this {@code ZonedDateTime} with the specified number of years added.
+     * Returns a copy of this date-time changing the zone offset to the
+     * later of the two valid offsets at a local time-line overlap.
      * <p>
-     * This operates on the local time-line,
-     * {@link LocalDateTime#plusYears(long) adding years} to the local date-time.
-     * This is then converted back to a {@code ZonedDateTime}, using the zone ID
-     * to obtain the offset.
+     * This method only has any effect when the local time-line overlaps, such as
+     * at an autumn daylight savings cutover. In this scenario, there are two
+     * valid offsets for the local date-time. Calling this method will return
+     * a zoned date-time with the later of the two selected.
      * <p>
-     * When converting back to {@code ZonedDateTime}, if the local date-time is in an overlap,
-     * then the offset will be retained if possible, otherwise the earlier offset will be used.
-     * If in a gap, the local date-time will be adjusted forward by the length of the gap.
+     * If this method is called when it is not an overlap, {@code this}
+     * is returned.
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param years  the years to add, may be negative
-     * @return a {@code ZonedDateTime} based on this date-time with the years added, not null
-     * @throws DateTimeException if the result exceeds the supported date range
+     * @return a {@code ZonedDateTime} based on this date-time with the later offset, not null
      */
-    public ZonedDateTime plusYears(long years) {
-        return resolveLocal(dateTime.plusYears(years));
-    }
-
-    /**
-     * Returns a copy of this {@code ZonedDateTime} with the specified number of months added.
-     * <p>
-     * This operates on the local time-line,
-     * {@link LocalDateTime#plusMonths(long) adding months} to the local date-time.
-     * This is then converted back to a {@code ZonedDateTime}, using the zone ID
-     * to obtain the offset.
-     * <p>
-     * When converting back to {@code ZonedDateTime}, if the local date-time is in an overlap,
-     * then the offset will be retained if possible, otherwise the earlier offset will be used.
-     * If in a gap, the local date-time will be adjusted forward by the length of the gap.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param months  the months to add, may be negative
-     * @return a {@code ZonedDateTime} based on this date-time with the months added, not null
-     * @throws DateTimeException if the result exceeds the supported date range
-     */
-    public ZonedDateTime plusMonths(long months) {
-        return resolveLocal(dateTime.plusMonths(months));
-    }
-
-    /**
-     * Returns a copy of this {@code ZonedDateTime} with the specified number of weeks added.
-     * <p>
-     * This operates on the local time-line,
-     * {@link LocalDateTime#plusWeeks(long) adding weeks} to the local date-time.
-     * This is then converted back to a {@code ZonedDateTime}, using the zone ID
-     * to obtain the offset.
-     * <p>
-     * When converting back to {@code ZonedDateTime}, if the local date-time is in an overlap,
-     * then the offset will be retained if possible, otherwise the earlier offset will be used.
-     * If in a gap, the local date-time will be adjusted forward by the length of the gap.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param weeks  the weeks to add, may be negative
-     * @return a {@code ZonedDateTime} based on this date-time with the weeks added, not null
-     * @throws DateTimeException if the result exceeds the supported date range
-     */
-    public ZonedDateTime plusWeeks(long weeks) {
-        return resolveLocal(dateTime.plusWeeks(weeks));
-    }
-
-    /**
-     * Returns a copy of this {@code ZonedDateTime} with the specified number of days added.
-     * <p>
-     * This operates on the local time-line,
-     * {@link LocalDateTime#plusDays(long) adding days} to the local date-time.
-     * This is then converted back to a {@code ZonedDateTime}, using the zone ID
-     * to obtain the offset.
-     * <p>
-     * When converting back to {@code ZonedDateTime}, if the local date-time is in an overlap,
-     * then the offset will be retained if possible, otherwise the earlier offset will be used.
-     * If in a gap, the local date-time will be adjusted forward by the length of the gap.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param days  the days to add, may be negative
-     * @return a {@code ZonedDateTime} based on this date-time with the days added, not null
-     * @throws DateTimeException if the result exceeds the supported date range
-     */
-    public ZonedDateTime plusDays(long days) {
-        return resolveLocal(dateTime.plusDays(days));
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Returns a copy of this {@code ZonedDateTime} with the specified number of hours added.
-     * <p>
-     * This operates on the instant time-line, such that adding one hour will
-     * always be a duration of one hour later.
-     * This may cause the local date-time to change by an amount other than one hour.
-     * Note that this is a different approach to that used by days, months and years,
-     * thus adding one day is not the same as adding 24 hours.
-     * <p>
-     * For example, consider a time-zone, such as 'Europe/Paris', where the
-     * Autumn DST cutover means that the local times 02:00 to 02:59 occur twice
-     * changing from offset +02:00 in summer to +01:00 in winter.
-     * <ul>
-     * <li>Adding one hour to 01:30+02:00 will result in 02:30+02:00
-     *     (both in summer time)
-     * <li>Adding one hour to 02:30+02:00 will result in 02:30+01:00
-     *     (moving from summer to winter time)
-     * <li>Adding one hour to 02:30+01:00 will result in 03:30+01:00
-     *     (both in winter time)
-     * <li>Adding three hours to 01:30+02:00 will result in 03:30+01:00
-     *     (moving from summer to winter time)
-     * </ul>
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param hours  the hours to add, may be negative
-     * @return a {@code ZonedDateTime} based on this date-time with the hours added, not null
-     * @throws DateTimeException if the result exceeds the supported date range
-     */
-    public ZonedDateTime plusHours(long hours) {
-        return resolveInstant(dateTime.plusHours(hours));
-    }
-
-    /**
-     * Returns a copy of this {@code ZonedDateTime} with the specified number of minutes added.
-     * <p>
-     * This operates on the instant time-line, such that adding one minute will
-     * always be a duration of one minute later.
-     * This may cause the local date-time to change by an amount other than one minute.
-     * Note that this is a different approach to that used by days, months and years.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param minutes  the minutes to add, may be negative
-     * @return a {@code ZonedDateTime} based on this date-time with the minutes added, not null
-     * @throws DateTimeException if the result exceeds the supported date range
-     */
-    public ZonedDateTime plusMinutes(long minutes) {
-        return resolveInstant(dateTime.plusMinutes(minutes));
-    }
-
-    /**
-     * Returns a copy of this {@code ZonedDateTime} with the specified number of seconds added.
-     * <p>
-     * This operates on the instant time-line, such that adding one second will
-     * always be a duration of one second later.
-     * This may cause the local date-time to change by an amount other than one second.
-     * Note that this is a different approach to that used by days, months and years.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param seconds  the seconds to add, may be negative
-     * @return a {@code ZonedDateTime} based on this date-time with the seconds added, not null
-     * @throws DateTimeException if the result exceeds the supported date range
-     */
-    public ZonedDateTime plusSeconds(long seconds) {
-        return resolveInstant(dateTime.plusSeconds(seconds));
-    }
-
-    /**
-     * Returns a copy of this {@code ZonedDateTime} with the specified number of nanoseconds added.
-     * <p>
-     * This operates on the instant time-line, such that adding one nano will
-     * always be a duration of one nano later.
-     * This may cause the local date-time to change by an amount other than one nano.
-     * Note that this is a different approach to that used by days, months and years.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param nanos  the nanos to add, may be negative
-     * @return a {@code ZonedDateTime} based on this date-time with the nanoseconds added, not null
-     * @throws DateTimeException if the result exceeds the supported date range
-     */
-    public ZonedDateTime plusNanos(long nanos) {
-        return resolveInstant(dateTime.plusNanos(nanos));
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Returns a copy of this date-time with the specified amount subtracted.
-     * <p>
-     * This returns a {@code ZonedDateTime}, based on this one, with the specified amount subtracted.
-     * The amount is typically {@link Period} or {@link Duration} but may be
-     * any other type implementing the {@link TemporalAmount} interface.
-     * <p>
-     * The calculation is delegated to the amount object by calling
-     * {@link TemporalAmount#subtractFrom(Temporal)}. The amount implementation is free
-     * to implement the subtraction in any way it wishes, however it typically
-     * calls back to {@link #minus(long, TemporalUnit)}. Consult the documentation
-     * of the amount implementation to determine if it can be successfully subtracted.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param amountToSubtract  the amount to subtract, not null
-     * @return a {@code ZonedDateTime} based on this date-time with the subtraction made, not null
-     * @throws DateTimeException if the subtraction cannot be made
-     * @throws ArithmeticException if numeric overflow occurs
+    /*
+     * 如果当前本地日期-时间位于其所在时区的"重叠时间"中，
+     * 则将当前时间量的时区偏移更新为"重叠时间"之后的时区偏移。
      */
     @Override
-    public ZonedDateTime minus(TemporalAmount amountToSubtract) {
-        if (amountToSubtract instanceof Period) {
-            Period periodToSubtract = (Period) amountToSubtract;
-            return resolveLocal(dateTime.minus(periodToSubtract));
+    public ZonedDateTime withLaterOffsetAtOverlap() {
+        
+        // 获取当前"本地日期-时间"所在时区的时区ID
+        ZoneId zone = getZone();
+        
+        // 获取与zone对应的"时区规则集"
+        ZoneRules rules = zone.getRules();
+        
+        /*
+         * 获取zone时区在dateTime时刻的偏移转换规则，该规则用来指示如何切换时区的时间偏移。
+         *
+         * 只有在"间隙时间"和"重叠时间"中，需要用到偏移转换规则。
+         * 在正常时间和夏令时时间内，无需用到偏移转换规则。
+         *
+         * dateTime: 视为zone时区的一个本地时间。
+         */
+        ZoneOffsetTransition trans = rules.getTransition(dateTime);
+        
+        // 注：这里没有进行trans.isOverlap()判断依然可行，原因是前面构造ZonedDateTime时，对于"间隙"中的时间会将其前进到夏令时中
+        if(trans != null) {
+            // 获取"重叠"后的时间偏移
+            ZoneOffset laterOffset = trans.getOffsetAfter();
+            if(!laterOffset.equals(offset)) {
+                // 使用"重叠"后的时间偏移更新ZoneOffset属性
+                return new ZonedDateTime(this.dateTime, laterOffset, zone);
+            }
         }
-        Objects.requireNonNull(amountToSubtract, "amountToSubtract");
-        return (ZonedDateTime) amountToSubtract.subtractFrom(this);
+        
+        return this;
     }
-
-    /**
-     * Returns a copy of this date-time with the specified amount subtracted.
-     * <p>
-     * This returns a {@code ZonedDateTime}, based on this one, with the amount
-     * in terms of the unit subtracted. If it is not possible to subtract the amount,
-     * because the unit is not supported or for some other reason, an exception is thrown.
-     * <p>
-     * The calculation for date and time units differ.
-     * <p>
-     * Date units operate on the local time-line.
-     * The period is first subtracted from the local date-time, then converted back
-     * to a zoned date-time using the zone ID.
-     * The conversion uses {@link #ofLocal(LocalDateTime, ZoneId, ZoneOffset)}
-     * with the offset before the subtraction.
-     * <p>
-     * Time units operate on the instant time-line.
-     * The period is first subtracted from the local date-time, then converted back to
-     * a zoned date-time using the zone ID.
-     * The conversion uses {@link #ofInstant(LocalDateTime, ZoneOffset, ZoneId)}
-     * with the offset before the subtraction.
-     * <p>
-     * This method is equivalent to {@link #plus(long, TemporalUnit)} with the amount negated.
-     * See that method for a full description of how addition, and thus subtraction, works.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param amountToSubtract  the amount of the unit to subtract from the result, may be negative
-     * @param unit  the unit of the amount to subtract, not null
-     * @return a {@code ZonedDateTime} based on this date-time with the specified amount subtracted, not null
-     * @throws DateTimeException if the subtraction cannot be made
-     * @throws UnsupportedTemporalTypeException if the unit is not supported
-     * @throws ArithmeticException if numeric overflow occurs
-     */
-    @Override
-    public ZonedDateTime minus(long amountToSubtract, TemporalUnit unit) {
-        return (amountToSubtract == Long.MIN_VALUE ? plus(Long.MAX_VALUE, unit).plus(1, unit) : plus(-amountToSubtract, unit));
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Returns a copy of this {@code ZonedDateTime} with the specified number of years subtracted.
-     * <p>
-     * This operates on the local time-line,
-     * {@link LocalDateTime#minusYears(long) subtracting years} to the local date-time.
-     * This is then converted back to a {@code ZonedDateTime}, using the zone ID
-     * to obtain the offset.
-     * <p>
-     * When converting back to {@code ZonedDateTime}, if the local date-time is in an overlap,
-     * then the offset will be retained if possible, otherwise the earlier offset will be used.
-     * If in a gap, the local date-time will be adjusted forward by the length of the gap.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param years  the years to subtract, may be negative
-     * @return a {@code ZonedDateTime} based on this date-time with the years subtracted, not null
-     * @throws DateTimeException if the result exceeds the supported date range
-     */
-    public ZonedDateTime minusYears(long years) {
-        return (years == Long.MIN_VALUE ? plusYears(Long.MAX_VALUE).plusYears(1) : plusYears(-years));
-    }
-
-    /**
-     * Returns a copy of this {@code ZonedDateTime} with the specified number of months subtracted.
-     * <p>
-     * This operates on the local time-line,
-     * {@link LocalDateTime#minusMonths(long) subtracting months} to the local date-time.
-     * This is then converted back to a {@code ZonedDateTime}, using the zone ID
-     * to obtain the offset.
-     * <p>
-     * When converting back to {@code ZonedDateTime}, if the local date-time is in an overlap,
-     * then the offset will be retained if possible, otherwise the earlier offset will be used.
-     * If in a gap, the local date-time will be adjusted forward by the length of the gap.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param months  the months to subtract, may be negative
-     * @return a {@code ZonedDateTime} based on this date-time with the months subtracted, not null
-     * @throws DateTimeException if the result exceeds the supported date range
-     */
-    public ZonedDateTime minusMonths(long months) {
-        return (months == Long.MIN_VALUE ? plusMonths(Long.MAX_VALUE).plusMonths(1) : plusMonths(-months));
-    }
-
-    /**
-     * Returns a copy of this {@code ZonedDateTime} with the specified number of weeks subtracted.
-     * <p>
-     * This operates on the local time-line,
-     * {@link LocalDateTime#minusWeeks(long) subtracting weeks} to the local date-time.
-     * This is then converted back to a {@code ZonedDateTime}, using the zone ID
-     * to obtain the offset.
-     * <p>
-     * When converting back to {@code ZonedDateTime}, if the local date-time is in an overlap,
-     * then the offset will be retained if possible, otherwise the earlier offset will be used.
-     * If in a gap, the local date-time will be adjusted forward by the length of the gap.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param weeks  the weeks to subtract, may be negative
-     * @return a {@code ZonedDateTime} based on this date-time with the weeks subtracted, not null
-     * @throws DateTimeException if the result exceeds the supported date range
-     */
-    public ZonedDateTime minusWeeks(long weeks) {
-        return (weeks == Long.MIN_VALUE ? plusWeeks(Long.MAX_VALUE).plusWeeks(1) : plusWeeks(-weeks));
-    }
-
-    /**
-     * Returns a copy of this {@code ZonedDateTime} with the specified number of days subtracted.
-     * <p>
-     * This operates on the local time-line,
-     * {@link LocalDateTime#minusDays(long) subtracting days} to the local date-time.
-     * This is then converted back to a {@code ZonedDateTime}, using the zone ID
-     * to obtain the offset.
-     * <p>
-     * When converting back to {@code ZonedDateTime}, if the local date-time is in an overlap,
-     * then the offset will be retained if possible, otherwise the earlier offset will be used.
-     * If in a gap, the local date-time will be adjusted forward by the length of the gap.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param days  the days to subtract, may be negative
-     * @return a {@code ZonedDateTime} based on this date-time with the days subtracted, not null
-     * @throws DateTimeException if the result exceeds the supported date range
-     */
-    public ZonedDateTime minusDays(long days) {
-        return (days == Long.MIN_VALUE ? plusDays(Long.MAX_VALUE).plusDays(1) : plusDays(-days));
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Returns a copy of this {@code ZonedDateTime} with the specified number of hours subtracted.
-     * <p>
-     * This operates on the instant time-line, such that subtracting one hour will
-     * always be a duration of one hour earlier.
-     * This may cause the local date-time to change by an amount other than one hour.
-     * Note that this is a different approach to that used by days, months and years,
-     * thus subtracting one day is not the same as adding 24 hours.
-     * <p>
-     * For example, consider a time-zone, such as 'Europe/Paris', where the
-     * Autumn DST cutover means that the local times 02:00 to 02:59 occur twice
-     * changing from offset +02:00 in summer to +01:00 in winter.
-     * <ul>
-     * <li>Subtracting one hour from 03:30+01:00 will result in 02:30+01:00
-     *     (both in winter time)
-     * <li>Subtracting one hour from 02:30+01:00 will result in 02:30+02:00
-     *     (moving from winter to summer time)
-     * <li>Subtracting one hour from 02:30+02:00 will result in 01:30+02:00
-     *     (both in summer time)
-     * <li>Subtracting three hours from 03:30+01:00 will result in 01:30+02:00
-     *     (moving from winter to summer time)
-     * </ul>
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param hours  the hours to subtract, may be negative
-     * @return a {@code ZonedDateTime} based on this date-time with the hours subtracted, not null
-     * @throws DateTimeException if the result exceeds the supported date range
-     */
-    public ZonedDateTime minusHours(long hours) {
-        return (hours == Long.MIN_VALUE ? plusHours(Long.MAX_VALUE).plusHours(1) : plusHours(-hours));
-    }
-
-    /**
-     * Returns a copy of this {@code ZonedDateTime} with the specified number of minutes subtracted.
-     * <p>
-     * This operates on the instant time-line, such that subtracting one minute will
-     * always be a duration of one minute earlier.
-     * This may cause the local date-time to change by an amount other than one minute.
-     * Note that this is a different approach to that used by days, months and years.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param minutes  the minutes to subtract, may be negative
-     * @return a {@code ZonedDateTime} based on this date-time with the minutes subtracted, not null
-     * @throws DateTimeException if the result exceeds the supported date range
-     */
-    public ZonedDateTime minusMinutes(long minutes) {
-        return (minutes == Long.MIN_VALUE ? plusMinutes(Long.MAX_VALUE).plusMinutes(1) : plusMinutes(-minutes));
-    }
-
-    /**
-     * Returns a copy of this {@code ZonedDateTime} with the specified number of seconds subtracted.
-     * <p>
-     * This operates on the instant time-line, such that subtracting one second will
-     * always be a duration of one second earlier.
-     * This may cause the local date-time to change by an amount other than one second.
-     * Note that this is a different approach to that used by days, months and years.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param seconds  the seconds to subtract, may be negative
-     * @return a {@code ZonedDateTime} based on this date-time with the seconds subtracted, not null
-     * @throws DateTimeException if the result exceeds the supported date range
-     */
-    public ZonedDateTime minusSeconds(long seconds) {
-        return (seconds == Long.MIN_VALUE ? plusSeconds(Long.MAX_VALUE).plusSeconds(1) : plusSeconds(-seconds));
-    }
-
-    /**
-     * Returns a copy of this {@code ZonedDateTime} with the specified number of nanoseconds subtracted.
-     * <p>
-     * This operates on the instant time-line, such that subtracting one nano will
-     * always be a duration of one nano earlier.
-     * This may cause the local date-time to change by an amount other than one nano.
-     * Note that this is a different approach to that used by days, months and years.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param nanos  the nanos to subtract, may be negative
-     * @return a {@code ZonedDateTime} based on this date-time with the nanoseconds subtracted, not null
-     * @throws DateTimeException if the result exceeds the supported date range
-     */
-    public ZonedDateTime minusNanos(long nanos) {
-        return (nanos == Long.MIN_VALUE ? plusNanos(Long.MAX_VALUE).plusNanos(1) : plusNanos(-nanos));
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Queries this date-time using the specified query.
-     * <p>
-     * This queries this date-time using the specified query strategy object.
-     * The {@code TemporalQuery} object defines the logic to be used to
-     * obtain the result. Read the documentation of the query to understand
-     * what the result of this method will be.
-     * <p>
-     * The result of this method is obtained by invoking the
-     * {@link TemporalQuery#queryFrom(TemporalAccessor)} method on the
-     * specified query passing {@code this} as the argument.
-     *
-     * @param <R> the type of the result
-     * @param query  the query to invoke, not null
-     * @return the query result, null may be returned (defined by the query)
-     * @throws DateTimeException if unable to query (defined by the query)
-     * @throws ArithmeticException if numeric overflow occurs (defined by the query)
-     */
-    @SuppressWarnings("unchecked")
-    @Override  // override for Javadoc
-    public <R> R query(TemporalQuery<R> query) {
-        if (query == TemporalQueries.localDate()) {
-            return (R) toLocalDate();
-        }
-        return ChronoZonedDateTime.super.query(query);
-    }
-
+    
+    /*▲ 整合 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Calculates the amount of time until another date-time in terms of the specified unit.
      * <p>
@@ -2117,91 +2870,231 @@ public final class ZonedDateTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param endExclusive  the end date, exclusive, which is converted to a {@code ZonedDateTime}, not null
-     * @param unit  the unit to measure the amount in, not null
+     * @param endExclusive the end date, exclusive, which is converted to a {@code ZonedDateTime}, not null
+     * @param unit         the unit to measure the amount in, not null
+     *
      * @return the amount of time between this date-time and the end date-time
-     * @throws DateTimeException if the amount cannot be calculated, or the end
-     *  temporal cannot be converted to a {@code ZonedDateTime}
+     *
+     * @throws DateTimeException                if the amount cannot be calculated, or the end
+     *                                          temporal cannot be converted to a {@code ZonedDateTime}
      * @throws UnsupportedTemporalTypeException if the unit is not supported
-     * @throws ArithmeticException if numeric overflow occurs
+     * @throws ArithmeticException              if numeric overflow occurs
      */
+    // 计算当前时间量到目标时间量endExclusive之间相差多少个unit单位的时间值
     @Override
     public long until(Temporal endExclusive, TemporalUnit unit) {
         ZonedDateTime end = ZonedDateTime.from(endExclusive);
-        if (unit instanceof ChronoUnit) {
+    
+        if(unit instanceof ChronoUnit) {
             end = end.withZoneSameInstant(zone);
-            if (unit.isDateBased()) {
+        
+            // 如果时间量单位unit为"日期"单位(>="天"的单位都是"日期"单位)
+            if(unit.isDateBased()) {
                 return dateTime.until(end.dateTime, unit);
+            
+                // 如果时间量单位unit为"时间"单位(<"天"的单位都是"时间"单位)
             } else {
                 return toOffsetDateTime().until(end.toOffsetDateTime(), unit);
             }
         }
+    
         return unit.between(this, end);
     }
-
+    
+    /**
+     * Returns a copy of this {@code ZonedDateTime} with the time truncated.
+     * <p>
+     * Truncation returns a copy of the original date-time with fields
+     * smaller than the specified unit set to zero.
+     * For example, truncating with the {@link ChronoUnit#MINUTES minutes} unit
+     * will set the second-of-minute and nano-of-second field to zero.
+     * <p>
+     * The unit must have a {@linkplain TemporalUnit#getDuration() duration}
+     * that divides into the length of a standard day without remainder.
+     * This includes all supplied time units on {@link ChronoUnit} and
+     * {@link ChronoUnit#DAYS DAYS}. Other units throw an exception.
+     * <p>
+     * This operates on the local time-line,
+     * {@link LocalDateTime#truncatedTo(TemporalUnit) truncating}
+     * the underlying local date-time. This is then converted back to a
+     * {@code ZonedDateTime}, using the zone ID to obtain the offset.
+     * <p>
+     * When converting back to {@code ZonedDateTime}, if the local date-time is in an overlap,
+     * then the offset will be retained if possible, otherwise the earlier offset will be used.
+     * If in a gap, the local date-time will be adjusted forward by the length of the gap.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param unit the unit to truncate to, not null
+     *
+     * @return a {@code ZonedDateTime} based on this date-time with the time truncated, not null
+     *
+     * @throws DateTimeException                if unable to truncate
+     * @throws UnsupportedTemporalTypeException if the unit is not supported
+     */
+    /*
+     * 截断(对齐)
+     *
+     * 将当前时间量按照unit单位进行截断(对齐)，返回截断(对齐)后的新对象。
+     *
+     * 注：要求unit为"时间"单位
+     */
+    public ZonedDateTime truncatedTo(TemporalUnit unit) {
+        return resolveLocal(dateTime.truncatedTo(unit));
+    }
+    
     /**
      * Formats this date-time using the specified formatter.
      * <p>
      * This date-time will be passed to the formatter to produce a string.
      *
-     * @param formatter  the formatter to use, not null
+     * @param formatter the formatter to use, not null
+     *
      * @return the formatted date-time string, not null
+     *
      * @throws DateTimeException if an error occurs during printing
      */
-    @Override  // override for Javadoc and performance
+    // 将当前日期-时间转换为一个指定格式的字符串后返回
+    @Override
     public String format(DateTimeFormatter formatter) {
         Objects.requireNonNull(formatter, "formatter");
         return formatter.format(this);
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
     /**
-     * Converts this date-time to an {@code OffsetDateTime}.
+     * Obtains an instance of {@code ZonedDateTime} using seconds from the
+     * epoch of 1970-01-01T00:00:00Z.
+     *
+     * @param epochSecond  the number of seconds from the epoch of 1970-01-01T00:00:00Z
+     * @param nanoOfSecond the nanosecond within the second, from 0 to 999,999,999
+     * @param zone         the time-zone, not null
+     *
+     * @return the zoned date-time, not null
+     *
+     * @throws DateTimeException if the result exceeds the supported range
+     */
+    // 使用UTC时区的纪元秒、纳秒偏移以及时区ID构造一个属于zone时区的"本地日期-时间"(时区偏移时间准确)
+    private static ZonedDateTime create(long epochSecond, int nanoOfSecond, ZoneId zone) {
+        /*
+         * 根据给定的纪元秒与纳秒偏移构造一个时间戳
+         *
+         * TODO: rules should be queryable by epochSeconds
+         */
+        Instant instant = Instant.ofEpochSecond(epochSecond, nanoOfSecond);
+        
+        // 获取与zone对应的"时区规则集"
+        ZoneRules rules = zone.getRules();
+        /*
+         * 获取zone时区在instant时刻的"实际偏移"。
+         * 这里可以返回一个准确的"实际偏移"。
+         */
+        ZoneOffset offset = rules.getOffset(instant);
+        
+        // 使用UTC时区的纪元秒、纳秒偏移以及时区ID构造一个属于offset时区的"本地日期-时间"
+        LocalDateTime localDateTime = LocalDateTime.ofEpochSecond(epochSecond, nanoOfSecond, offset);
+        
+        return new ZonedDateTime(localDateTime, offset, zone);
+    }
+    
+    /**
+     * Resolves the new local date-time using this zone ID, retaining the offset if possible.
+     *
+     * @param newDateTime the new local date-time, not null
+     *
+     * @return the zoned date-time, not null
+     */
+    /*
+     * 使用newDateTime构造一个属于内部时区部件的"本地日期-时间"。
+     * 如果zone部件不是ZoneOffset类型，则时区偏移时间可能会不准确。
+     */
+    private ZonedDateTime resolveLocal(LocalDateTime newDateTime) {
+        return ofLocal(newDateTime, zone, offset);
+    }
+    
+    /**
+     * Resolves the new local date-time using the offset to identify the instant.
+     *
+     * @param newDateTime the new local date-time, not null
+     *
+     * @return the zoned date-time, not null
+     */
+    // 使用newDateTime构造一个属于内部时区部件的"本地日期-时间"(时区偏移时间准确)
+    private ZonedDateTime resolveInstant(LocalDateTime newDateTime) {
+        return ofInstant(newDateTime, offset, zone);
+    }
+    
+    /**
+     * Resolves the offset into this zoned date-time for the with methods.
      * <p>
-     * This creates an offset date-time using the local date-time and offset.
-     * The zone ID is ignored.
+     * This typically ignores the offset, unless it can be used to switch offset in a DST overlap.
      *
-     * @return an offset date-time representing the same local date-time and offset, not null
+     * @param offset the offset, not null
+     *
+     * @return the zoned date-time, not null
      */
-    public OffsetDateTime toOffsetDateTime() {
-        return OffsetDateTime.of(dateTime, offset);
+    /*
+     * 尝试使用newOffset更新当前时间量内的基于时间偏移的时区ID。
+     *
+     * 如果newOffset与原有的offset值一致，
+     * 或者newOffset不属于zone时区在dateTime时刻的"有效偏移"，
+     * 则不会改变offset，还是返回当前时间量自身。
+     * 否则，需要构造新的ZonedDateTime对象。
+     */
+    private ZonedDateTime resolveOffset(ZoneOffset newOffset) {
+        // 获取与zone对应的"时区规则集"
+        ZoneRules rules = zone.getRules();
+        
+        // 如果待更新的newOffset与原有的offset值一致，则返回当前时间量自身
+        if(newOffset.equals(offset)) {
+            return this;
+        }
+        
+        // 如果newOffset不属于zone时区在dateTime时刻的"有效偏移"，则不会改变offset，还是返回当前时间量自身
+        if(!rules.isValidOffset(dateTime, newOffset)) {
+            return this;
+        }
+        
+        return new ZonedDateTime(dateTime, newOffset, zone);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
-     * Checks if this date-time is equal to another date-time.
+     * Obtains an instance of {@code ZonedDateTime} leniently, for advanced use cases,
+     * allowing any combination of local date-time, offset and zone ID.
      * <p>
-     * The comparison is based on the offset date-time and the zone.
-     * Only objects of type {@code ZonedDateTime} are compared, other types return false.
+     * This creates a zoned date-time with no checks other than no nulls.
+     * This means that the resulting zoned date-time may have an offset that is in conflict
+     * with the zone ID.
+     * <p>
+     * This method is intended for advanced use cases.
+     * For example, consider the case where a zoned date-time with valid fields is created
+     * and then stored in a database or serialization-based store. At some later point,
+     * the object is then re-loaded. However, between those points in time, the government
+     * that defined the time-zone has changed the rules, such that the originally stored
+     * local date-time now does not occur. This method can be used to create the object
+     * in an "invalid" state, despite the change in rules.
      *
-     * @param obj  the object to check, null returns false
-     * @return true if this is equal to the other date-time
-     */
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj instanceof ZonedDateTime) {
-            ZonedDateTime other = (ZonedDateTime) obj;
-            return dateTime.equals(other.dateTime) &&
-                offset.equals(other.offset) &&
-                zone.equals(other.zone);
-        }
-        return false;
-    }
-
-    /**
-     * A hash code for this date-time.
+     * @param localDateTime the local date-time, not null
+     * @param offset        the zone offset, not null
+     * @param zone          the time-zone, not null
      *
-     * @return a suitable hash code
+     * @return the zoned date-time, not null
      */
-    @Override
-    public int hashCode() {
-        return dateTime.hashCode() ^ offset.hashCode() ^ Integer.rotateLeft(zone.hashCode(), 3);
+    private static ZonedDateTime ofLenient(LocalDateTime localDateTime, ZoneOffset offset, ZoneId zone) {
+        Objects.requireNonNull(localDateTime, "localDateTime");
+        Objects.requireNonNull(offset, "offset");
+        Objects.requireNonNull(zone, "zone");
+        
+        if(zone instanceof ZoneOffset && !offset.equals(zone)) {
+            throw new IllegalArgumentException("ZoneId must match ZoneOffset");
+        }
+        
+        return new ZonedDateTime(localDateTime, offset, zone);
     }
-
-    //-----------------------------------------------------------------------
+    
+    
     /**
      * Outputs this date-time as a {@code String}, such as
      * {@code 2007-12-03T10:15:30+01:00[Europe/Paris]}.
@@ -2212,54 +3105,97 @@ public final class ZonedDateTime
      *
      * @return a string representation of this date-time, not null
      */
-    @Override  // override for Javadoc
+    @Override
     public String toString() {
         String str = dateTime.toString() + offset.toString();
-        if (offset != zone) {
+        if(offset != zone) {
             str += '[' + zone.toString() + ']';
         }
         return str;
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
-     * Writes the object using a
-     * <a href="../../serialized-form.html#java.time.Ser">dedicated serialized form</a>.
-     * @serialData
-     * <pre>
-     *  out.writeByte(6);  // identifies a ZonedDateTime
-     *  // the <a href="../../serialized-form.html#java.time.LocalDateTime">dateTime</a> excluding the one byte header
-     *  // the <a href="../../serialized-form.html#java.time.ZoneOffset">offset</a> excluding the one byte header
-     *  // the <a href="../../serialized-form.html#java.time.ZoneId">zone ID</a> excluding the one byte header
-     * </pre>
+     * Checks if this date-time is equal to another date-time.
+     * <p>
+     * The comparison is based on the offset date-time and the zone.
+     * Only objects of type {@code ZonedDateTime} are compared, other types return false.
      *
-     * @return the instance of {@code Ser}, not null
+     * @param obj the object to check, null returns false
+     *
+     * @return true if this is equal to the other date-time
      */
-    private Object writeReplace() {
-        return new Ser(Ser.ZONE_DATE_TIME_TYPE, this);
+    @Override
+    public boolean equals(Object obj) {
+        if(this == obj) {
+            return true;
+        }
+        if(obj instanceof ZonedDateTime) {
+            ZonedDateTime other = (ZonedDateTime) obj;
+            return dateTime.equals(other.dateTime) && offset.equals(other.offset) && zone.equals(other.zone);
+        }
+        return false;
     }
-
+    
+    /**
+     * A hash code for this date-time.
+     *
+     * @return a suitable hash code
+     */
+    @Override
+    public int hashCode() {
+        return dateTime.hashCode() ^ offset.hashCode() ^ Integer.rotateLeft(zone.hashCode(), 3);
+    }
+    
+    
+    
+    /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Serialization version.
+     */
+    private static final long serialVersionUID = -6260982410461394882L;
+    
     /**
      * Defend against malicious streams.
      *
      * @param s the stream to read
+     *
      * @throws InvalidObjectException always
      */
     private void readObject(ObjectInputStream s) throws InvalidObjectException {
         throw new InvalidObjectException("Deserialization via serialization delegate");
     }
-
-    void writeExternal(DataOutput out) throws IOException {
-        dateTime.writeExternal(out);
-        offset.writeExternal(out);
-        zone.write(out);
+    
+    /**
+     * Writes the object using a
+     * <a href="../../serialized-form.html#java.time.Ser">dedicated serialized form</a>.
+     *
+     * @return the instance of {@code Ser}, not null
+     *
+     * @serialData <pre>
+     *  out.writeByte(6);  // identifies a ZonedDateTime
+     *  // the <a href="../../serialized-form.html#java.time.LocalDateTime">dateTime</a> excluding the one byte header
+     *  // the <a href="../../serialized-form.html#java.time.ZoneOffset">offset</a> excluding the one byte header
+     *  // the <a href="../../serialized-form.html#java.time.ZoneId">zone ID</a> excluding the one byte header
+     * </pre>
+     */
+    private Object writeReplace() {
+        return new Ser(Ser.ZONE_DATE_TIME_TYPE, this);
     }
-
+    
     static ZonedDateTime readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         LocalDateTime dateTime = LocalDateTime.readExternal(in);
         ZoneOffset offset = ZoneOffset.readExternal(in);
         ZoneId zone = (ZoneId) Ser.read(in);
         return ZonedDateTime.ofLenient(dateTime, offset, zone);
     }
-
+    
+    void writeExternal(DataOutput out) throws IOException {
+        dateTime.writeExternal(out);
+        offset.writeExternal(out);
+        zone.write(out);
+    }
+    
+    /*▲ 序列化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }

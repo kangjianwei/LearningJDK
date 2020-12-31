@@ -35,9 +35,7 @@ import static java.lang.Thread.State.TERMINATED;
 import static java.lang.Thread.State.TIMED_WAITING;
 import static java.lang.Thread.State.WAITING;
 
-/**
- * 虚拟机类
- */
+// 虚拟机工具类
 public class VM {
     
     /**
@@ -388,6 +386,18 @@ public class VM {
      * returned. As such, {@code -1} must not be considered as a valid
      * nano time adjustment, but as an exception value indicating
      * that an offset closer to the current time should be used.
+     */
+    /*
+     * 返回当前时间点与(新纪元时间点+offsetInSeconds)之间的纳秒差值（具体粒度由底层操作系统决定）
+     *
+     * offsetInSeconds: 以秒为单位的与新纪元时间点的偏移量
+     *                  如果offsetInSeconds为0，则返回当前时间点与新纪元时间点之间的纳秒差值。
+     *                  如果offsetInSeconds为System.currentTimeMillis()/1000，则返回当前时间点与上次调用System.currentTimeMillis()时的时间点的一个差值。
+     *                  如果offsetInSeconds为System.currentTimeMillis()/1000-1024，则尽力返回最近1024秒内流逝的纳秒时间。
+     *
+     * 新纪元时间点：UTC/GMT时间1970年1月1日0时0分0秒
+     *
+     * 参见：System.currentTimeMillis();
      */
     public static native long getNanoTimeAdjustment(long offsetInSeconds);
     

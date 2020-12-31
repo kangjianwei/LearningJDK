@@ -61,11 +61,6 @@
  */
 package java.time;
 
-import static java.time.LocalTime.MINUTES_PER_HOUR;
-import static java.time.LocalTime.SECONDS_PER_HOUR;
-import static java.time.LocalTime.SECONDS_PER_MINUTE;
-import static java.time.temporal.ChronoField.OFFSET_SECONDS;
-
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -85,6 +80,10 @@ import java.time.zone.ZoneRules;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+
+import static java.time.LocalTime.MINUTES_PER_HOUR;
+import static java.time.LocalTime.SECONDS_PER_HOUR;
+import static java.time.LocalTime.SECONDS_PER_MINUTE;
 
 /**
  * A time-zone offset from Greenwich/UTC, such as {@code +02:00}.
@@ -122,52 +121,80 @@ import java.util.concurrent.ConcurrentMap;
  * {@code ZoneOffset} may have unpredictable results and should be avoided.
  * The {@code equals} method should be used for comparisons.
  *
- * @implSpec
- * This class is immutable and thread-safe.
- *
+ * @implSpec This class is immutable and thread-safe.
  * @since 1.8
  */
-public final class ZoneOffset
-        extends ZoneId
-        implements TemporalAccessor, TemporalAdjuster, Comparable<ZoneOffset>, Serializable {
-
+// 基于时间偏移的时区ID，只反映与UTC时区的一个时差
+public final class ZoneOffset extends ZoneId implements TemporalAccessor, TemporalAdjuster, Comparable<ZoneOffset>, Serializable {
+    
     /** Cache of time-zone offset by offset in seconds. */
     private static final ConcurrentMap<Integer, ZoneOffset> SECONDS_CACHE = new ConcurrentHashMap<>(16, 0.75f, 4);
     /** Cache of time-zone offset by ID. */
     private static final ConcurrentMap<String, ZoneOffset> ID_CACHE = new ConcurrentHashMap<>(16, 0.75f, 4);
-
+    
     /**
      * The abs maximum seconds.
      */
     private static final int MAX_SECONDS = 18 * SECONDS_PER_HOUR;
-    /**
-     * Serialization version.
-     */
-    private static final long serialVersionUID = 2357656521762053153L;
-
+    
     /**
      * The time-zone offset for UTC, with an ID of 'Z'.
      */
-    public static final ZoneOffset UTC = ZoneOffset.ofTotalSeconds(0);
+    public static final ZoneOffset UTC = ZoneOffset.ofTotalSeconds(0);           // UTC时区，时间偏移秒数为0
     /**
      * Constant for the minimum supported offset.
      */
-    public static final ZoneOffset MIN = ZoneOffset.ofTotalSeconds(-MAX_SECONDS);
+    public static final ZoneOffset MIN = ZoneOffset.ofTotalSeconds(-MAX_SECONDS); // 最小的时区偏移：-18
     /**
      * Constant for the maximum supported offset.
      */
-    public static final ZoneOffset MAX = ZoneOffset.ofTotalSeconds(MAX_SECONDS);
-
-    /**
-     * The total offset in seconds.
-     */
-    private final int totalSeconds;
+    public static final ZoneOffset MAX = ZoneOffset.ofTotalSeconds(MAX_SECONDS);  // 最大的时区偏移：+18
+    
     /**
      * The string form of the time-zone offset.
      */
+    /*
+     * 时区ID的字符串表示
+     *
+     * 此处的ID是基于一个偏移时间的，比如：
+     * Z
+     * +08:00
+     * -07:05:12
+     */
     private final transient String id;
-
-    //-----------------------------------------------------------------------
+    
+    /**
+     * The total offset in seconds.
+     */
+    /*
+     * 时区偏移的秒数。
+     *
+     * 正数表示在东区，负数表示在西区，0表示在UTC/GMT时区。
+     * 比如28800表示在东八区，比UTC/GMT时区快8个小时。
+     */
+    private final int totalSeconds;
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Constructor.
+     *
+     * @param totalSeconds the total time-zone offset in seconds, from -64800 to +64800
+     */
+    private ZoneOffset(int totalSeconds) {
+        super();
+        this.totalSeconds = totalSeconds;
+        id = buildId(totalSeconds);
+    }
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Obtains an instance of {@code ZoneOffset} using the ID.
      * <p>
@@ -194,22 +221,44 @@ public final class ZoneOffset
      * <p>
      * The maximum supported range is from +18:00 to -18:00 inclusive.
      *
-     * @param offsetId  the offset ID, not null
+     * @param offsetId the offset ID, not null
+     *
      * @return the zone-offset, not null
+     *
      * @throws DateTimeException if the offset ID is invalid
+     */
+    /*
+     * 根据给定的时间偏移构造基于时间偏移的时区ID
+     *
+     * offsetId: 代表时间偏移的字符串，包括以下形式：
+     *
+     * Z（表示在UTC时区）
+     * +h
+     * +hh
+     * +hh:mm
+     * -hh:mm
+     * +hhmm
+     * -hhmm
+     * +hh:mm:ss
+     * -hh:mm:ss
+     * +hhmmss
+     * -hhmmss
+     *
+     * 注：时间偏移的范围为[-18:00, +18:00]
      */
     @SuppressWarnings("fallthrough")
     public static ZoneOffset of(String offsetId) {
         Objects.requireNonNull(offsetId, "offsetId");
+        
         // "Z" is always in the cache
         ZoneOffset offset = ID_CACHE.get(offsetId);
-        if (offset != null) {
+        if(offset != null) {
             return offset;
         }
-
+        
         // parse - +h, +hh, +hhmm, +hh:mm, +hhmmss, +hh:mm:ss
         final int hours, minutes, seconds;
-        switch (offsetId.length()) {
+        switch(offsetId.length()) {
             case 2:
                 offsetId = offsetId.charAt(0) + "0" + offsetId.charAt(1);  // fallthru
             case 3:
@@ -240,49 +289,33 @@ public final class ZoneOffset
             default:
                 throw new DateTimeException("Invalid ID for ZoneOffset, invalid format: " + offsetId);
         }
+        
         char first = offsetId.charAt(0);
-        if (first != '+' && first != '-') {
+        if(first != '+' && first != '-') {
             throw new DateTimeException("Invalid ID for ZoneOffset, plus/minus not found when expected: " + offsetId);
         }
-        if (first == '-') {
+        
+        if(first == '-') {
             return ofHoursMinutesSeconds(-hours, -minutes, -seconds);
         } else {
             return ofHoursMinutesSeconds(hours, minutes, seconds);
         }
     }
-
-    /**
-     * Parse a two digit zero-prefixed number.
-     *
-     * @param offsetId  the offset ID, not null
-     * @param pos  the position to parse, valid
-     * @param precededByColon  should this number be prefixed by a precededByColon
-     * @return the parsed number, from 0 to 99
-     */
-    private static int parseNumber(CharSequence offsetId, int pos, boolean precededByColon) {
-        if (precededByColon && offsetId.charAt(pos - 1) != ':') {
-            throw new DateTimeException("Invalid ID for ZoneOffset, colon not found when expected: " + offsetId);
-        }
-        char ch1 = offsetId.charAt(pos);
-        char ch2 = offsetId.charAt(pos + 1);
-        if (ch1 < '0' || ch1 > '9' || ch2 < '0' || ch2 > '9') {
-            throw new DateTimeException("Invalid ID for ZoneOffset, non numeric characters found: " + offsetId);
-        }
-        return (ch1 - 48) * 10 + (ch2 - 48);
-    }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains an instance of {@code ZoneOffset} using an offset in hours.
      *
-     * @param hours  the time-zone offset in hours, from -18 to +18
+     * @param hours the time-zone offset in hours, from -18 to +18
+     *
      * @return the zone-offset, not null
+     *
      * @throws DateTimeException if the offset is not in the required range
      */
+    // 构造基于时间偏移的时区ID，其时间偏移为hours小时
     public static ZoneOffset ofHours(int hours) {
         return ofHoursMinutesSeconds(hours, 0, 0);
     }
-
+    
     /**
      * Obtains an instance of {@code ZoneOffset} using an offset in
      * hours and minutes.
@@ -291,15 +324,18 @@ public final class ZoneOffset
      * Thus, if the hours is negative, the minutes must be negative or zero.
      * If the hours is zero, the minutes may be positive, negative or zero.
      *
-     * @param hours  the time-zone offset in hours, from -18 to +18
-     * @param minutes  the time-zone offset in minutes, from 0 to &plusmn;59, sign matches hours
+     * @param hours   the time-zone offset in hours, from -18 to +18
+     * @param minutes the time-zone offset in minutes, from 0 to &plusmn;59, sign matches hours
+     *
      * @return the zone-offset, not null
+     *
      * @throws DateTimeException if the offset is not in the required range
      */
+    // 构造基于时间偏移的时区ID，其时间偏移为hours小时+minutes分
     public static ZoneOffset ofHoursMinutes(int hours, int minutes) {
         return ofHoursMinutesSeconds(hours, minutes, 0);
     }
-
+    
     /**
      * Obtains an instance of {@code ZoneOffset} using an offset in
      * hours, minutes and seconds.
@@ -307,19 +343,56 @@ public final class ZoneOffset
      * The sign of the hours, minutes and seconds components must match.
      * Thus, if the hours is negative, the minutes and seconds must be negative or zero.
      *
-     * @param hours  the time-zone offset in hours, from -18 to +18
-     * @param minutes  the time-zone offset in minutes, from 0 to &plusmn;59, sign matches hours and seconds
-     * @param seconds  the time-zone offset in seconds, from 0 to &plusmn;59, sign matches hours and minutes
+     * @param hours   the time-zone offset in hours, from -18 to +18
+     * @param minutes the time-zone offset in minutes, from 0 to &plusmn;59, sign matches hours and seconds
+     * @param seconds the time-zone offset in seconds, from 0 to &plusmn;59, sign matches hours and minutes
+     *
      * @return the zone-offset, not null
+     *
      * @throws DateTimeException if the offset is not in the required range
      */
+    // 构造基于时间偏移的时区ID，其时间偏移为hours小时+minutes分+seconds秒
     public static ZoneOffset ofHoursMinutesSeconds(int hours, int minutes, int seconds) {
         validate(hours, minutes, seconds);
+    
         int totalSeconds = totalSeconds(hours, minutes, seconds);
+    
         return ofTotalSeconds(totalSeconds);
     }
-
-    //-----------------------------------------------------------------------
+    
+    /**
+     * Obtains an instance of {@code ZoneOffset} specifying the total offset in seconds
+     * <p>
+     * The offset must be in the range {@code -18:00} to {@code +18:00}, which corresponds to -64800 to +64800.
+     *
+     * @param totalSeconds the total time-zone offset in seconds, from -64800 to +64800
+     *
+     * @return the ZoneOffset, not null
+     *
+     * @throws DateTimeException if the offset is not in the required range
+     */
+    // 构造基于时间偏移的时区ID，其时间偏移为totalSeconds秒
+    public static ZoneOffset ofTotalSeconds(int totalSeconds) {
+        if(totalSeconds<-MAX_SECONDS || totalSeconds>MAX_SECONDS) {
+            throw new DateTimeException("Zone offset not in valid range: -18:00 to +18:00");
+        }
+    
+        // 如果totalSeconds是15分的倍数，则做缓存
+        if(totalSeconds % (15 * SECONDS_PER_MINUTE) == 0) {
+            Integer totalSecs = totalSeconds;
+            ZoneOffset result = SECONDS_CACHE.get(totalSecs);
+            if(result == null) {
+                result = new ZoneOffset(totalSeconds);
+                SECONDS_CACHE.putIfAbsent(totalSecs, result);
+                result = SECONDS_CACHE.get(totalSecs);
+                ID_CACHE.putIfAbsent(result.getId(), result);
+            }
+            return result;
+        } else {
+            return new ZoneOffset(totalSeconds);
+        }
+    }
+    
     /**
      * Obtains an instance of {@code ZoneOffset} from a temporal object.
      * <p>
@@ -336,144 +409,38 @@ public final class ZoneOffset
      * This method matches the signature of the functional interface {@link TemporalQuery}
      * allowing it to be used as a query via method reference, {@code ZoneOffset::from}.
      *
-     * @param temporal  the temporal object to convert, not null
+     * @param temporal the temporal object to convert, not null
+     *
      * @return the zone-offset, not null
+     *
      * @throws DateTimeException if unable to convert to an {@code ZoneOffset}
+     */
+    /*
+     * 从指定的时间量中查询出基于时间偏移的时区ID
+     *
+     * 注：要求该时间量支持ChronoField.OFFSET_SECONDS字段
      */
     public static ZoneOffset from(TemporalAccessor temporal) {
         Objects.requireNonNull(temporal, "temporal");
-        ZoneOffset offset = temporal.query(TemporalQueries.offset());
-        if (offset == null) {
-            throw new DateTimeException("Unable to obtain ZoneOffset from TemporalAccessor: " +
-                    temporal + " of type " + temporal.getClass().getName());
+        
+        // 获取特定的时间量查询器
+        TemporalQuery<ZoneOffset> query = TemporalQueries.offset();
+        
+        // 使用指定的时间量查询器，从当前时间量中查询目标信息
+        ZoneOffset offset = temporal.query(query);
+        if(offset == null) {
+            throw new DateTimeException("Unable to obtain ZoneOffset from TemporalAccessor: " + temporal + " of type " + temporal.getClass().getName());
         }
+        
         return offset;
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Validates the offset fields.
-     *
-     * @param hours  the time-zone offset in hours, from -18 to +18
-     * @param minutes  the time-zone offset in minutes, from 0 to &plusmn;59
-     * @param seconds  the time-zone offset in seconds, from 0 to &plusmn;59
-     * @throws DateTimeException if the offset is not in the required range
-     */
-    private static void validate(int hours, int minutes, int seconds) {
-        if (hours < -18 || hours > 18) {
-            throw new DateTimeException("Zone offset hours not in valid range: value " + hours +
-                    " is not in the range -18 to 18");
-        }
-        if (hours > 0) {
-            if (minutes < 0 || seconds < 0) {
-                throw new DateTimeException("Zone offset minutes and seconds must be positive because hours is positive");
-            }
-        } else if (hours < 0) {
-            if (minutes > 0 || seconds > 0) {
-                throw new DateTimeException("Zone offset minutes and seconds must be negative because hours is negative");
-            }
-        } else if ((minutes > 0 && seconds < 0) || (minutes < 0 && seconds > 0)) {
-            throw new DateTimeException("Zone offset minutes and seconds must have the same sign");
-        }
-        if (minutes < -59 || minutes > 59) {
-            throw new DateTimeException("Zone offset minutes not in valid range: value " +
-                    minutes + " is not in the range -59 to 59");
-        }
-        if (seconds < -59 || seconds > 59) {
-            throw new DateTimeException("Zone offset seconds not in valid range: value " +
-                    seconds + " is not in the range -59 to 59");
-        }
-        if (Math.abs(hours) == 18 && (minutes | seconds) != 0) {
-            throw new DateTimeException("Zone offset not in valid range: -18:00 to +18:00");
-        }
-    }
-
-    /**
-     * Calculates the total offset in seconds.
-     *
-     * @param hours  the time-zone offset in hours, from -18 to +18
-     * @param minutes  the time-zone offset in minutes, from 0 to &plusmn;59, sign matches hours and seconds
-     * @param seconds  the time-zone offset in seconds, from 0 to &plusmn;59, sign matches hours and minutes
-     * @return the total in seconds
-     */
-    private static int totalSeconds(int hours, int minutes, int seconds) {
-        return hours * SECONDS_PER_HOUR + minutes * SECONDS_PER_MINUTE + seconds;
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Obtains an instance of {@code ZoneOffset} specifying the total offset in seconds
-     * <p>
-     * The offset must be in the range {@code -18:00} to {@code +18:00}, which corresponds to -64800 to +64800.
-     *
-     * @param totalSeconds  the total time-zone offset in seconds, from -64800 to +64800
-     * @return the ZoneOffset, not null
-     * @throws DateTimeException if the offset is not in the required range
-     */
-    public static ZoneOffset ofTotalSeconds(int totalSeconds) {
-        if (totalSeconds < -MAX_SECONDS || totalSeconds > MAX_SECONDS) {
-            throw new DateTimeException("Zone offset not in valid range: -18:00 to +18:00");
-        }
-        if (totalSeconds % (15 * SECONDS_PER_MINUTE) == 0) {
-            Integer totalSecs = totalSeconds;
-            ZoneOffset result = SECONDS_CACHE.get(totalSecs);
-            if (result == null) {
-                result = new ZoneOffset(totalSeconds);
-                SECONDS_CACHE.putIfAbsent(totalSecs, result);
-                result = SECONDS_CACHE.get(totalSecs);
-                ID_CACHE.putIfAbsent(result.getId(), result);
-            }
-            return result;
-        } else {
-            return new ZoneOffset(totalSeconds);
-        }
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Constructor.
-     *
-     * @param totalSeconds  the total time-zone offset in seconds, from -64800 to +64800
-     */
-    private ZoneOffset(int totalSeconds) {
-        super();
-        this.totalSeconds = totalSeconds;
-        id = buildId(totalSeconds);
-    }
-
-    private static String buildId(int totalSeconds) {
-        if (totalSeconds == 0) {
-            return "Z";
-        } else {
-            int absTotalSeconds = Math.abs(totalSeconds);
-            StringBuilder buf = new StringBuilder();
-            int absHours = absTotalSeconds / SECONDS_PER_HOUR;
-            int absMinutes = (absTotalSeconds / SECONDS_PER_MINUTE) % MINUTES_PER_HOUR;
-            buf.append(totalSeconds < 0 ? "-" : "+")
-                .append(absHours < 10 ? "0" : "").append(absHours)
-                .append(absMinutes < 10 ? ":0" : ":").append(absMinutes);
-            int absSeconds = absTotalSeconds % SECONDS_PER_MINUTE;
-            if (absSeconds != 0) {
-                buf.append(absSeconds < 10 ? ":0" : ":").append(absSeconds);
-            }
-            return buf.toString();
-        }
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Gets the total zone offset in seconds.
-     * <p>
-     * This is the primary way to access the offset amount.
-     * It returns the total of the hours, minutes and seconds fields as a
-     * single offset that can be added to a time.
-     *
-     * @return the total zone offset amount in seconds
-     */
-    public int getTotalSeconds() {
-        return totalSeconds;
-    }
-
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 部件 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Gets the normalized zone offset ID.
      * <p>
@@ -487,25 +454,32 @@ public final class ZoneOffset
      *
      * @return the zone offset ID, not null
      */
+    // 返回时区ID的字符串表示
     @Override
     public String getId() {
         return id;
     }
-
+    
     /**
-     * Gets the associated time-zone rules.
+     * Gets the total zone offset in seconds.
      * <p>
-     * The rules will always return this offset when queried.
-     * The implementation class is immutable, thread-safe and serializable.
+     * This is the primary way to access the offset amount.
+     * It returns the total of the hours, minutes and seconds fields as a
+     * single offset that can be added to a time.
      *
-     * @return the rules, not null
+     * @return the total zone offset amount in seconds
      */
-    @Override
-    public ZoneRules getRules() {
-        return ZoneRules.of(this);
+    // 返回当前时区的偏移秒数
+    public int getTotalSeconds() {
+        return totalSeconds;
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 部件 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 时间量字段操作(TemporalAccessor) ███████████████████████████████████████████████████████┓ */
+    
     /**
      * Checks if the specified field is supported.
      * <p>
@@ -522,17 +496,19 @@ public final class ZoneOffset
      * passing {@code this} as the argument.
      * Whether the field is supported is determined by the field.
      *
-     * @param field  the field to check, null returns false
+     * @param field the field to check, null returns false
+     *
      * @return true if the field is supported on this offset, false if not
      */
+    // 判断当前时间量是否支持指定的时间量字段
     @Override
     public boolean isSupported(TemporalField field) {
-        if (field instanceof ChronoField) {
-            return field == OFFSET_SECONDS;
+        if(field instanceof ChronoField) {
+            return field == ChronoField.OFFSET_SECONDS;
         }
         return field != null && field.isSupportedBy(this);
     }
-
+    
     /**
      * Gets the range of valid values for the specified field.
      * <p>
@@ -551,16 +527,19 @@ public final class ZoneOffset
      * passing {@code this} as the argument.
      * Whether the range can be obtained is determined by the field.
      *
-     * @param field  the field to query the range for, not null
+     * @param field the field to query the range for, not null
+     *
      * @return the range of valid values for the field, not null
-     * @throws DateTimeException if the range for the field cannot be obtained
+     *
+     * @throws DateTimeException                if the range for the field cannot be obtained
      * @throws UnsupportedTemporalTypeException if the field is not supported
      */
-    @Override  // override for Javadoc
+    // 返回时间量字段field的有效范围，通常要求当前时间量支持该时间量字段
+    @Override
     public ValueRange range(TemporalField field) {
         return TemporalAccessor.super.range(field);
     }
-
+    
     /**
      * Gets the value of the specified field from this offset as an {@code int}.
      * <p>
@@ -578,24 +557,35 @@ public final class ZoneOffset
      * passing {@code this} as the argument. Whether the value can be obtained,
      * and what the value represents, is determined by the field.
      *
-     * @param field  the field to get, not null
+     * @param field the field to get, not null
+     *
      * @return the value for the field
-     * @throws DateTimeException if a value for the field cannot be obtained or
-     *         the value is outside the range of valid values for the field
+     *
+     * @throws DateTimeException                if a value for the field cannot be obtained or
+     *                                          the value is outside the range of valid values for the field
      * @throws UnsupportedTemporalTypeException if the field is not supported or
-     *         the range of values exceeds an {@code int}
-     * @throws ArithmeticException if numeric overflow occurs
+     *                                          the range of values exceeds an {@code int}
+     * @throws ArithmeticException              if numeric overflow occurs
      */
-    @Override  // override for Javadoc and performance
+    /*
+     * 以int形式返回时间量字段field的值
+     *
+     * 目前支持的字段包括：
+     * ChronoField.OFFSET_SECONDS - 时区偏移的秒数
+     */
+    @Override
     public int get(TemporalField field) {
-        if (field == OFFSET_SECONDS) {
-            return totalSeconds;
-        } else if (field instanceof ChronoField) {
+        if(field instanceof ChronoField) {
+            if(field == ChronoField.OFFSET_SECONDS) {
+                return totalSeconds;
+            }
+            
             throw new UnsupportedTemporalTypeException("Unsupported field: " + field);
         }
+        
         return range(field).checkValidIntValue(getLong(field), field);
     }
-
+    
     /**
      * Gets the value of the specified field from this offset as a {@code long}.
      * <p>
@@ -612,23 +602,33 @@ public final class ZoneOffset
      * passing {@code this} as the argument. Whether the value can be obtained,
      * and what the value represents, is determined by the field.
      *
-     * @param field  the field to get, not null
+     * @param field the field to get, not null
+     *
      * @return the value for the field
-     * @throws DateTimeException if a value for the field cannot be obtained
+     *
+     * @throws DateTimeException                if a value for the field cannot be obtained
      * @throws UnsupportedTemporalTypeException if the field is not supported
-     * @throws ArithmeticException if numeric overflow occurs
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 以long形式返回时间量字段field的值
+     *
+     * 目前支持的字段包括：
+     * ChronoField.OFFSET_SECONDS - 时区偏移的秒数
      */
     @Override
     public long getLong(TemporalField field) {
-        if (field == OFFSET_SECONDS) {
-            return totalSeconds;
-        } else if (field instanceof ChronoField) {
+        if(field instanceof ChronoField) {
+            if(field == ChronoField.OFFSET_SECONDS) {
+                return totalSeconds;
+            }
+            
             throw new UnsupportedTemporalTypeException("Unsupported field: " + field);
         }
+        
         return field.getFrom(this);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Queries this offset using the specified query.
      * <p>
@@ -641,21 +641,31 @@ public final class ZoneOffset
      * {@link TemporalQuery#queryFrom(TemporalAccessor)} method on the
      * specified query passing {@code this} as the argument.
      *
-     * @param <R> the type of the result
-     * @param query  the query to invoke, not null
+     * @param <R>   the type of the result
+     * @param query the query to invoke, not null
+     *
      * @return the query result, null may be returned (defined by the query)
-     * @throws DateTimeException if unable to query (defined by the query)
+     *
+     * @throws DateTimeException   if unable to query (defined by the query)
      * @throws ArithmeticException if numeric overflow occurs (defined by the query)
      */
+    // 使用指定的时间量查询器，从当前时间量中查询目标信息
     @SuppressWarnings("unchecked")
     @Override
     public <R> R query(TemporalQuery<R> query) {
-        if (query == TemporalQueries.offset() || query == TemporalQueries.zone()) {
+        if(query == TemporalQueries.offset() || query == TemporalQueries.zone()) {
             return (R) this;
         }
+        
         return TemporalAccessor.super.query(query);
     }
-
+    
+    /*▲ 时间量字段操作(TemporalAccessor) ███████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 整合 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Adjusts the specified temporal object to have the same offset as this object.
      * <p>
@@ -675,17 +685,147 @@ public final class ZoneOffset
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param temporal  the target object to be adjusted, not null
+     * @param temporal the target object to be adjusted, not null
+     *
      * @return the adjusted object, not null
-     * @throws DateTimeException if unable to make the adjustment
+     *
+     * @throws DateTimeException   if unable to make the adjustment
      * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 拿当前时间量中的特定字段与时间量temporal中的其他字段进行整合。
+     *
+     * 如果整合后的值与temporal中原有的值相等，则可以直接使用temporal本身；否则，会返回新构造的时间量对象。
+     *
+     * 注：通常，这会用到当前时间量的所有部件信息
+     *
+     *
+     * 当前时间量参与整合字段包括：
+     * ChronoField.OFFSET_SECONDS - 当前时间量的时区偏移秒数
+     *
+     * 目标时间量temporal的取值可以是：
+     * OffsetTime
+     * OffsetDateTime
+     * ZonedDateTime
+     * ChronoZonedDateTimeImpl
      */
     @Override
     public Temporal adjustInto(Temporal temporal) {
-        return temporal.with(OFFSET_SECONDS, totalSeconds);
+        return temporal.with(ChronoField.OFFSET_SECONDS, totalSeconds);
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 整合 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Gets the associated time-zone rules.
+     * <p>
+     * The rules will always return this offset when queried.
+     * The implementation class is immutable, thread-safe and serializable.
+     *
+     * @return the rules, not null
+     */
+    // 返回与当前时区ID对应的"时区规则集"
+    @Override
+    public ZoneRules getRules() {
+        return ZoneRules.of(this);
+    }
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    /**
+     * Parse a two digit zero-prefixed number.
+     *
+     * @param offsetId        the offset ID, not null
+     * @param pos             the position to parse, valid
+     * @param precededByColon should this number be prefixed by a precededByColon
+     *
+     * @return the parsed number, from 0 to 99
+     */
+    private static int parseNumber(CharSequence offsetId, int pos, boolean precededByColon) {
+        if(precededByColon && offsetId.charAt(pos - 1) != ':') {
+            throw new DateTimeException("Invalid ID for ZoneOffset, colon not found when expected: " + offsetId);
+        }
+        char ch1 = offsetId.charAt(pos);
+        char ch2 = offsetId.charAt(pos + 1);
+        if(ch1<'0' || ch1>'9' || ch2<'0' || ch2>'9') {
+            throw new DateTimeException("Invalid ID for ZoneOffset, non numeric characters found: " + offsetId);
+        }
+        return (ch1 - 48) * 10 + (ch2 - 48);
+    }
+    
+    /**
+     * Validates the offset fields.
+     *
+     * @param hours   the time-zone offset in hours, from -18 to +18
+     * @param minutes the time-zone offset in minutes, from 0 to &plusmn;59
+     * @param seconds the time-zone offset in seconds, from 0 to &plusmn;59
+     *
+     * @throws DateTimeException if the offset is not in the required range
+     */
+    private static void validate(int hours, int minutes, int seconds) {
+        if(hours<-18 || hours>18) {
+            throw new DateTimeException("Zone offset hours not in valid range: value " + hours + " is not in the range -18 to 18");
+        }
+        if(hours>0) {
+            if(minutes<0 || seconds<0) {
+                throw new DateTimeException("Zone offset minutes and seconds must be positive because hours is positive");
+            }
+        } else if(hours<0) {
+            if(minutes>0 || seconds>0) {
+                throw new DateTimeException("Zone offset minutes and seconds must be negative because hours is negative");
+            }
+        } else if((minutes>0 && seconds<0) || (minutes<0 && seconds>0)) {
+            throw new DateTimeException("Zone offset minutes and seconds must have the same sign");
+        }
+        if(minutes<-59 || minutes>59) {
+            throw new DateTimeException("Zone offset minutes not in valid range: value " + minutes + " is not in the range -59 to 59");
+        }
+        if(seconds<-59 || seconds>59) {
+            throw new DateTimeException("Zone offset seconds not in valid range: value " + seconds + " is not in the range -59 to 59");
+        }
+        if(Math.abs(hours) == 18 && (minutes | seconds) != 0) {
+            throw new DateTimeException("Zone offset not in valid range: -18:00 to +18:00");
+        }
+    }
+    
+    /**
+     * Calculates the total offset in seconds.
+     *
+     * @param hours   the time-zone offset in hours, from -18 to +18
+     * @param minutes the time-zone offset in minutes, from 0 to &plusmn;59, sign matches hours and seconds
+     * @param seconds the time-zone offset in seconds, from 0 to &plusmn;59, sign matches hours and minutes
+     *
+     * @return the total in seconds
+     */
+    private static int totalSeconds(int hours, int minutes, int seconds) {
+        return hours * SECONDS_PER_HOUR + minutes * SECONDS_PER_MINUTE + seconds;
+    }
+    
+    // 根据偏移秒数构造时区ID
+    private static String buildId(int totalSeconds) {
+        if(totalSeconds == 0) {
+            return "Z";
+        }
+        
+        int absTotalSeconds = Math.abs(totalSeconds);
+        StringBuilder buf = new StringBuilder();
+        int absHours = absTotalSeconds / SECONDS_PER_HOUR;
+        int absMinutes = (absTotalSeconds / SECONDS_PER_MINUTE) % MINUTES_PER_HOUR;
+        buf.append(totalSeconds<0 ? "-" : "+").append(absHours<10 ? "0" : "").append(absHours).append(absMinutes<10 ? ":0" : ":").append(absMinutes);
+        int absSeconds = absTotalSeconds % SECONDS_PER_MINUTE;
+        if(absSeconds != 0) {
+            buf.append(absSeconds<10 ? ":0" : ":").append(absSeconds);
+        }
+        
+        return buf.toString();
+    }
+    
+    
     /**
      * Compares this offset to another offset in descending order.
      * <p>
@@ -695,8 +835,10 @@ public final class ZoneOffset
      * <p>
      * The comparison is "consistent with equals", as defined by {@link Comparable}.
      *
-     * @param other  the other date to compare to, not null
+     * @param other the other date to compare to, not null
+     *
      * @return the comparator value, negative if less, positive if greater
+     *
      * @throws NullPointerException if {@code other} is null
      */
     @Override
@@ -704,39 +846,7 @@ public final class ZoneOffset
         // abs(totalSeconds) <= MAX_SECONDS, so no overflow can happen here
         return other.totalSeconds - totalSeconds;
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Checks if this offset is equal to another offset.
-     * <p>
-     * The comparison is based on the amount of the offset in seconds.
-     * This is equivalent to a comparison by ID.
-     *
-     * @param obj  the object to check, null returns false
-     * @return true if this is equal to the other offset
-     */
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-           return true;
-        }
-        if (obj instanceof ZoneOffset) {
-            return totalSeconds == ((ZoneOffset) obj).totalSeconds;
-        }
-        return false;
-    }
-
-    /**
-     * A hash code for this offset.
-     *
-     * @return a suitable hash code
-     */
-    @Override
-    public int hashCode() {
-        return totalSeconds;
-    }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Outputs this offset as a {@code String}, using the normalized ID.
      *
@@ -746,13 +856,85 @@ public final class ZoneOffset
     public String toString() {
         return id;
     }
-
-    // -----------------------------------------------------------------------
+    
+    /**
+     * Checks if this offset is equal to another offset.
+     * <p>
+     * The comparison is based on the amount of the offset in seconds.
+     * This is equivalent to a comparison by ID.
+     *
+     * @param obj the object to check, null returns false
+     *
+     * @return true if this is equal to the other offset
+     */
+    @Override
+    public boolean equals(Object obj) {
+        if(this == obj) {
+            return true;
+        }
+        if(obj instanceof ZoneOffset) {
+            return totalSeconds == ((ZoneOffset) obj).totalSeconds;
+        }
+        return false;
+    }
+    
+    /**
+     * A hash code for this offset.
+     *
+     * @return a suitable hash code
+     */
+    @Override
+    public int hashCode() {
+        return totalSeconds;
+    }
+    
+    
+    
+    /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Serialization version.
+     */
+    private static final long serialVersionUID = 2357656521762053153L;
+    
+    /**
+     * Defend against malicious streams.
+     *
+     * @param s the stream to read
+     *
+     * @throws InvalidObjectException always
+     */
+    private void readObject(ObjectInputStream s) throws InvalidObjectException {
+        throw new InvalidObjectException("Deserialization via serialization delegate");
+    }
+    
+    @Override
+    void write(DataOutput out) throws IOException {
+        out.writeByte(Ser.ZONE_OFFSET_TYPE);
+        writeExternal(out);
+    }
+    
+    void writeExternal(DataOutput out) throws IOException {
+        final int offsetSecs = totalSeconds;
+        int offsetByte = offsetSecs % 900 == 0 ? offsetSecs / 900 : 127;  // compress to -72 to +72
+        out.writeByte(offsetByte);
+        if(offsetByte == 127) {
+            out.writeInt(offsetSecs);
+        }
+    }
+    
+    static ZoneOffset readExternal(DataInput in) throws IOException {
+        int offsetByte = in.readByte();
+        return (offsetByte == 127 ? ZoneOffset.ofTotalSeconds(in.readInt()) : ZoneOffset.ofTotalSeconds(offsetByte * 900));
+    }
+    
     /**
      * Writes the object using a
      * <a href="../../serialized-form.html#java.time.Ser">dedicated serialized form</a>.
-     * @serialData
-     * <pre>
+     *
+     * @return the instance of {@code Ser}, not null
+     *
+     * @serialData <pre>
      *  out.writeByte(8);                  // identifies a ZoneOffset
      *  int offsetByte = totalSeconds % 900 == 0 ? totalSeconds / 900 : 127;
      *  out.writeByte(offsetByte);
@@ -760,41 +942,11 @@ public final class ZoneOffset
      *      out.writeInt(totalSeconds);
      *  }
      * </pre>
-     *
-     * @return the instance of {@code Ser}, not null
      */
     private Object writeReplace() {
         return new Ser(Ser.ZONE_OFFSET_TYPE, this);
     }
-
-    /**
-     * Defend against malicious streams.
-     *
-     * @param s the stream to read
-     * @throws InvalidObjectException always
-     */
-    private void readObject(ObjectInputStream s) throws InvalidObjectException {
-        throw new InvalidObjectException("Deserialization via serialization delegate");
-    }
-
-    @Override
-    void write(DataOutput out) throws IOException {
-        out.writeByte(Ser.ZONE_OFFSET_TYPE);
-        writeExternal(out);
-    }
-
-    void writeExternal(DataOutput out) throws IOException {
-        final int offsetSecs = totalSeconds;
-        int offsetByte = offsetSecs % 900 == 0 ? offsetSecs / 900 : 127;  // compress to -72 to +72
-        out.writeByte(offsetByte);
-        if (offsetByte == 127) {
-            out.writeInt(offsetSecs);
-        }
-    }
-
-    static ZoneOffset readExternal(DataInput in) throws IOException {
-        int offsetByte = in.readByte();
-        return (offsetByte == 127 ? ZoneOffset.ofTotalSeconds(in.readInt()) : ZoneOffset.ofTotalSeconds(offsetByte * 900));
-    }
-
+    
+    /*▲ 序列化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }

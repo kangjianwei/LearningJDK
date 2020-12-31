@@ -99,6 +99,11 @@ import java.time.DateTimeException;
  *
  * @since 1.8
  */
+/*
+ * 时间量查询器的接口，用来从指定的时间量中查询目标信息。
+ * 该接口同时也是一个函数表达式，具体查询行为由实现类指定。
+ * 注：TemporalQueries类中预设了多种实用的查询器。
+ */
 @FunctionalInterface
 public interface TemporalQuery<R> {
 
@@ -140,6 +145,7 @@ public interface TemporalQuery<R> {
      * @throws DateTimeException if unable to query
      * @throws ArithmeticException if numeric overflow occurs
      */
+    // 从时间量temporal中查询出目标对象
     R queryFrom(TemporalAccessor temporal);
 
 }

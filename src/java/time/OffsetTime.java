@@ -61,19 +61,11 @@
  */
 package java.time;
 
-import static java.time.LocalTime.NANOS_PER_HOUR;
-import static java.time.LocalTime.NANOS_PER_MINUTE;
-import static java.time.LocalTime.NANOS_PER_SECOND;
-import static java.time.LocalTime.SECONDS_PER_DAY;
-import static java.time.temporal.ChronoField.NANO_OF_DAY;
-import static java.time.temporal.ChronoField.OFFSET_SECONDS;
-import static java.time.temporal.ChronoUnit.NANOS;
-
 import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectOutput;
 import java.io.InvalidObjectException;
+import java.io.ObjectInput;
 import java.io.ObjectInputStream;
+import java.io.ObjectOutput;
 import java.io.Serializable;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -91,6 +83,12 @@ import java.time.temporal.UnsupportedTemporalTypeException;
 import java.time.temporal.ValueRange;
 import java.time.zone.ZoneRules;
 import java.util.Objects;
+
+import static java.time.LocalTime.NANOS_PER_HOUR;
+import static java.time.LocalTime.NANOS_PER_MINUTE;
+import static java.time.LocalTime.NANOS_PER_SECOND;
+import static java.time.LocalTime.SECONDS_PER_DAY;
+import static java.time.temporal.ChronoUnit.NANOS;
 
 /**
  * A time with an offset from UTC/Greenwich in the ISO-8601 calendar system,
@@ -110,14 +108,12 @@ import java.util.Objects;
  * {@code OffsetTime} may have unpredictable results and should be avoided.
  * The {@code equals} method should be used for comparisons.
  *
- * @implSpec
- * This class is immutable and thread-safe.
- *
+ * @implSpec This class is immutable and thread-safe.
  * @since 1.8
  */
-public final class OffsetTime
-        implements Temporal, TemporalAdjuster, Comparable<OffsetTime>, Serializable {
-
+// "本地时间"，"时间"[关联]了所属的时区ID
+public final class OffsetTime implements Temporal, TemporalAdjuster, Comparable<OffsetTime>, Serializable {
+    
     /**
      * The minimum supported {@code OffsetTime}, '00:00:00+18:00'.
      * This is the time of midnight at the start of the day in the maximum offset
@@ -126,6 +122,7 @@ public final class OffsetTime
      * This could be used by an application as a "far past" date.
      */
     public static final OffsetTime MIN = LocalTime.MIN.atOffset(ZoneOffset.MAX);
+    
     /**
      * The maximum supported {@code OffsetTime}, '23:59:59.999999999-18:00'.
      * This is the time just before midnight at the end of the day in the minimum offset
@@ -134,22 +131,40 @@ public final class OffsetTime
      * This could be used by an application as a "far future" date.
      */
     public static final OffsetTime MAX = LocalTime.MAX.atOffset(ZoneOffset.MIN);
-
-    /**
-     * Serialization version.
-     */
-    private static final long serialVersionUID = 7264499704384272492L;
-
+    
     /**
      * The local date-time.
      */
+    // "本地时间"部件：即位于offset时区的"本地时间"
     private final LocalTime time;
+    
     /**
      * The offset from UTC/Greenwich.
      */
+    // "时区偏移"部件：基于时间偏移的时区ID，用来指示当前"本地时间"所处的时区
     private final ZoneOffset offset;
-
-    //-----------------------------------------------------------------------
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Constructor.
+     *
+     * @param time   the local time, not null
+     * @param offset the zone offset, not null
+     */
+    private OffsetTime(LocalTime time, ZoneOffset offset) {
+        this.time = Objects.requireNonNull(time, "time");
+        this.offset = Objects.requireNonNull(offset, "offset");
+    }
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Obtains the current time from the system clock in the default time-zone.
      * <p>
@@ -162,10 +177,13 @@ public final class OffsetTime
      *
      * @return the current time using the system clock and default time-zone, not null
      */
+    // 基于此刻的UTC时间，构造属于系统默认时区的"本地时间"对象
     public static OffsetTime now() {
-        return now(Clock.systemDefaultZone());
+        // 获取一个系统时钟，其预设的时区ID为系统默认的时区ID
+        Clock clock = Clock.systemDefaultZone();
+        return now(clock);
     }
-
+    
     /**
      * Obtains the current time from the system clock in the specified time-zone.
      * <p>
@@ -176,13 +194,17 @@ public final class OffsetTime
      * Using this method will prevent the ability to use an alternate clock for testing
      * because the clock is hard-coded.
      *
-     * @param zone  the zone ID to use, not null
+     * @param zone the zone ID to use, not null
+     *
      * @return the current time using the system clock, not null
      */
+    // 基于此刻的UTC时间，构造属于zone时区的"本地时间"对象
     public static OffsetTime now(ZoneId zone) {
-        return now(Clock.system(zone));
+        // 获取一个系统时钟，其预设的时区ID为zone
+        Clock clock = Clock.system(zone);
+        return now(clock);
     }
-
+    
     /**
      * Obtains the current time from the specified clock.
      * <p>
@@ -192,27 +214,30 @@ public final class OffsetTime
      * Using this method allows the use of an alternate clock for testing.
      * The alternate clock may be introduced using {@link Clock dependency injection}.
      *
-     * @param clock  the clock to use, not null
+     * @param clock the clock to use, not null
+     *
      * @return the current time, not null
      */
+    // 基于clock提供的时间戳和时区ID构造"本地时间"对象
     public static OffsetTime now(Clock clock) {
         Objects.requireNonNull(clock, "clock");
-        final Instant now = clock.instant();  // called once
-        return ofInstant(now, clock.getZone().getRules().getOffset(now));
+    
+        // 获取clock时钟提供的时间戳
+        final Instant instant = clock.instant();
+        // 获取clock时钟提供的时区ID
+        ZoneId zoneId = clock.getZone();
+    
+        // 获取与zoneId对应的"时区规则集"
+        ZoneRules rules = zoneId.getRules();
+        /*
+         * 获取zoneId时区在instant时刻的"实际偏移"。
+         * 这里可以返回一个准确的"实际偏移"。
+         */
+        ZoneOffset offset = rules.getOffset(instant);
+    
+        return ofInstant(instant, offset);
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Obtains an instance of {@code OffsetTime} from a local time and an offset.
-     *
-     * @param time  the local time, not null
-     * @param offset  the zone offset, not null
-     * @return the offset time, not null
-     */
-    public static OffsetTime of(LocalTime time, ZoneOffset offset) {
-        return new OffsetTime(time, offset);
-    }
-
+    
     /**
      * Obtains an instance of {@code OffsetTime} from an hour, minute, second and nanosecond.
      * <p>
@@ -224,19 +249,34 @@ public final class OffsetTime
      * equivalent factory method taking fewer arguments.
      * They are not provided here to reduce the footprint of the API.
      *
-     * @param hour  the hour-of-day to represent, from 0 to 23
-     * @param minute  the minute-of-hour to represent, from 0 to 59
-     * @param second  the second-of-minute to represent, from 0 to 59
-     * @param nanoOfSecond  the nano-of-second to represent, from 0 to 999,999,999
-     * @param offset  the zone offset, not null
+     * @param hour         the hour-of-day to represent, from 0 to 23
+     * @param minute       the minute-of-hour to represent, from 0 to 59
+     * @param second       the second-of-minute to represent, from 0 to 59
+     * @param nanoOfSecond the nano-of-second to represent, from 0 to 999,999,999
+     * @param offset       the zone offset, not null
+     *
      * @return the offset time, not null
+     *
      * @throws DateTimeException if the value of any field is out of range
      */
+    // 根据指定的时间部件和时区偏移构造"本地时间"对象
     public static OffsetTime of(int hour, int minute, int second, int nanoOfSecond, ZoneOffset offset) {
         return new OffsetTime(LocalTime.of(hour, minute, second, nanoOfSecond), offset);
     }
-
-    //-----------------------------------------------------------------------
+    
+    /**
+     * Obtains an instance of {@code OffsetTime} from a local time and an offset.
+     *
+     * @param time   the local time, not null
+     * @param offset the zone offset, not null
+     *
+     * @return the offset time, not null
+     */
+    // 根据指定的"本地时间"和时区偏移构造"本地时间"对象
+    public static OffsetTime of(LocalTime time, ZoneOffset offset) {
+        return new OffsetTime(time, offset);
+    }
+    
     /**
      * Obtains an instance of {@code OffsetTime} from an {@code Instant} and zone ID.
      * <p>
@@ -248,22 +288,36 @@ public final class OffsetTime
      * This means that the conversion can never fail due to the instant being
      * out of the valid range of dates.
      *
-     * @param instant  the instant to create the time from, not null
-     * @param zone  the time-zone, which may be an offset, not null
+     * @param instant the instant to create the time from, not null
+     * @param zone    the time-zone, which may be an offset, not null
+     *
      * @return the offset time, not null
      */
+    // 使用指定的时间戳和时区ID构造属于zone时区的"本地时间"对象
     public static OffsetTime ofInstant(Instant instant, ZoneId zone) {
         Objects.requireNonNull(instant, "instant");
         Objects.requireNonNull(zone, "zone");
+    
+        // 获取与zone对应的"时区规则集"
         ZoneRules rules = zone.getRules();
+        /*
+         * 获取zone时区在instant时刻的"实际偏移"。
+         * 这里可以返回一个准确的"实际偏移"。
+         */
         ZoneOffset offset = rules.getOffset(instant);
-        long localSecond = instant.getEpochSecond() + offset.getTotalSeconds();  // overflow caught later
+    
+        // 计算instant在zone时区的纪元秒
+        long localSecond = instant.getEpochSecond() + offset.getTotalSeconds();
+    
+        // 获取localSecond中不足一天的秒数，即会忽略"日期"部件中包含的秒
         int secsOfDay = Math.floorMod(localSecond, SECONDS_PER_DAY);
+    
+        // 使用指定的纳秒数(不超过一天)构造"本地时间"
         LocalTime time = LocalTime.ofNanoOfDay(secsOfDay * NANOS_PER_SECOND + instant.getNano());
+    
         return new OffsetTime(time, offset);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains an instance of {@code OffsetTime} from a temporal object.
      * <p>
@@ -279,80 +333,583 @@ public final class OffsetTime
      * This method matches the signature of the functional interface {@link TemporalQuery}
      * allowing it to be used as a query via method reference, {@code OffsetTime::from}.
      *
-     * @param temporal  the temporal object to convert, not null
+     * @param temporal the temporal object to convert, not null
+     *
      * @return the offset time, not null
+     *
      * @throws DateTimeException if unable to convert to an {@code OffsetTime}
      */
+    /*
+     * 从temporal中获取OffsetTime部件。
+     *
+     * 如果temporal是OffsetTime类型的实例，则可以直接返回。
+     * 否则，需要从temporal中查询出LocalTime和ZoneOffset，并依次构造"本地时间"对象。
+     */
     public static OffsetTime from(TemporalAccessor temporal) {
-        if (temporal instanceof OffsetTime) {
+        if(temporal instanceof OffsetTime) {
             return (OffsetTime) temporal;
         }
+        
         try {
+            // 从temporal中查询LocalTime部件
             LocalTime time = LocalTime.from(temporal);
+            // 从temporal中查询出基于时间偏移的时区ID
             ZoneOffset offset = ZoneOffset.from(temporal);
             return new OffsetTime(time, offset);
-        } catch (DateTimeException ex) {
-            throw new DateTimeException("Unable to obtain OffsetTime from TemporalAccessor: " +
-                    temporal + " of type " + temporal.getClass().getName(), ex);
+        } catch(DateTimeException ex) {
+            throw new DateTimeException("Unable to obtain OffsetTime from TemporalAccessor: " + temporal + " of type " + temporal.getClass().getName(), ex);
         }
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Obtains an instance of {@code OffsetTime} from a text string such as {@code 10:15:30+01:00}.
      * <p>
      * The string must represent a valid time and is parsed using
      * {@link java.time.format.DateTimeFormatter#ISO_OFFSET_TIME}.
      *
-     * @param text  the text to parse such as "10:15:30+01:00", not null
+     * @param text the text to parse such as "10:15:30+01:00", not null
+     *
      * @return the parsed local time, not null
+     *
      * @throws DateTimeParseException if the text cannot be parsed
      */
+    // 从指定的文本中解析出OffsetTime信息，要求该文本符合ISO规范，即类似：08:20:53:+08:00
     public static OffsetTime parse(CharSequence text) {
         return parse(text, DateTimeFormatter.ISO_OFFSET_TIME);
     }
-
+    
     /**
      * Obtains an instance of {@code OffsetTime} from a text string using a specific formatter.
      * <p>
      * The text is parsed using the formatter, returning a time.
      *
-     * @param text  the text to parse, not null
-     * @param formatter  the formatter to use, not null
+     * @param text      the text to parse, not null
+     * @param formatter the formatter to use, not null
+     *
      * @return the parsed offset time, not null
+     *
      * @throws DateTimeParseException if the text cannot be parsed
      */
+    // 从指定的文本中解析出OffsetTime信息，要求该文本符合指定的格式规范
     public static OffsetTime parse(CharSequence text, DateTimeFormatter formatter) {
         Objects.requireNonNull(formatter, "formatter");
-        return formatter.parse(text, OffsetTime::from);
+        
+        return formatter.parse(text, new TemporalQuery<OffsetTime>() {
+            @Override
+            public OffsetTime queryFrom(TemporalAccessor temporal) {
+                return from(temporal);
+            }
+        });
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 转换 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Constructor.
+     * Combines this time with a date to create an {@code OffsetDateTime}.
+     * <p>
+     * This returns an {@code OffsetDateTime} formed from this time and the specified date.
+     * All possible combinations of date and time are valid.
      *
-     * @param time  the local time, not null
-     * @param offset  the zone offset, not null
+     * @param date the date to combine with, not null
+     *
+     * @return the offset date-time formed from this time and the specified date, not null
      */
-    private OffsetTime(LocalTime time, ZoneOffset offset) {
-        this.time = Objects.requireNonNull(time, "time");
-        this.offset = Objects.requireNonNull(offset, "offset");
+    // 将当前"本地时间"和指定的"本地日期"整合成一个"本地日期-时间"对象后返回
+    public OffsetDateTime atDate(LocalDate date) {
+        return OffsetDateTime.of(date, time, offset);
     }
-
+    
     /**
-     * Returns a new time based on this one, returning {@code this} where possible.
+     * Converts this {@code OffsetTime} to the number of seconds since the epoch
+     * of 1970-01-01T00:00:00Z.
+     * <p>
+     * This combines this offset time with the specified date to calculate the
+     * epoch-second value, which is the number of elapsed seconds from
+     * 1970-01-01T00:00:00Z.
+     * Instants on the time-line after the epoch are positive, earlier
+     * are negative.
      *
-     * @param time  the time to create with, not null
-     * @param offset  the zone offset to create with, not null
+     * @param date the localdate, not null
+     *
+     * @return the number of seconds since the epoch of 1970-01-01T00:00:00Z, may be negative
+     *
+     * @since 9
      */
-    private OffsetTime with(LocalTime time, ZoneOffset offset) {
-        if (this.time == time && this.offset.equals(offset)) {
-            return this;
+    // 将date视为在内部时区偏移处的"本地日期"，然后与当前"本地时间"捆绑为一个"时间点"，并计算该本地时间点下，UTC时区的纪元秒
+    public long toEpochSecond(LocalDate date) {
+        Objects.requireNonNull(date, "date");
+        
+        // 返回时间量date的纪元天
+        long epochDay = date.toEpochDay();
+        // 将当前"本地时间"转换为一天中的秒数
+        int seconds = time.toSecondOfDay();
+        
+        // 计算出(date+本地时间)代表的纪元秒
+        long epochSec = epochDay * 86400 + seconds;
+        
+        // 减去时区偏移秒数
+        epochSec -= offset.getTotalSeconds();
+        
+        return epochSec;
+    }
+    
+    /*▲ 转换 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 部件 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Gets the {@code LocalTime} part of this date-time.
+     * <p>
+     * This returns a {@code LocalTime} with the same hour, minute, second and
+     * nanosecond as this date-time.
+     *
+     * @return the time part of this date-time, not null
+     */
+    // 返回"本地时间"部件
+    public LocalTime toLocalTime() {
+        return time;
+    }
+    
+    /**
+     * Gets the zone offset, such as '+01:00'.
+     * <p>
+     * This is the offset of the local time from UTC/Greenwich.
+     *
+     * @return the zone offset, not null
+     */
+    // 返回"时区偏移"部件
+    public ZoneOffset getOffset() {
+        return offset;
+    }
+    
+    /**
+     * Gets the hour-of-day field.
+     *
+     * @return the hour-of-day, from 0 to 23
+     */
+    // 返回"小时"部件
+    public int getHour() {
+        return time.getHour();
+    }
+    
+    /**
+     * Gets the minute-of-hour field.
+     *
+     * @return the minute-of-hour, from 0 to 59
+     */
+    // 返回"分钟"部件
+    public int getMinute() {
+        return time.getMinute();
+    }
+    
+    /**
+     * Gets the second-of-minute field.
+     *
+     * @return the second-of-minute, from 0 to 59
+     */
+    // 返回"秒"部件
+    public int getSecond() {
+        return time.getSecond();
+    }
+    
+    /**
+     * Gets the nano-of-second field.
+     *
+     * @return the nano-of-second, from 0 to 999,999,999
+     */
+    // 返回"纳秒"部件
+    public int getNano() {
+        return time.getNano();
+    }
+    
+    /*▲ 部件 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 增加 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a copy of this time with the specified amount added.
+     * <p>
+     * This returns an {@code OffsetTime}, based on this one, with the specified amount added.
+     * The amount is typically {@link Duration} but may be any other type implementing
+     * the {@link TemporalAmount} interface.
+     * <p>
+     * The calculation is delegated to the amount object by calling
+     * {@link TemporalAmount#addTo(Temporal)}. The amount implementation is free
+     * to implement the addition in any way it wishes, however it typically
+     * calls back to {@link #plus(long, TemporalUnit)}. Consult the documentation
+     * of the amount implementation to determine if it can be successfully added.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param amountToAdd the amount to add, not null
+     *
+     * @return an {@code OffsetTime} based on this time with the addition made, not null
+     *
+     * @throws DateTimeException   if the addition cannot be made
+     * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 对当前时间量的值与参数中的"时间段"求和
+     *
+     * 如果求和后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"求和"后的新对象再返回。
+     */
+    @Override
+    public OffsetTime plus(TemporalAmount amountToAdd) {
+        return (OffsetTime) amountToAdd.addTo(this);
+    }
+    
+    /**
+     * Returns a copy of this time with the specified amount added.
+     * <p>
+     * This returns an {@code OffsetTime}, based on this one, with the amount
+     * in terms of the unit added. If it is not possible to add the amount, because the
+     * unit is not supported or for some other reason, an exception is thrown.
+     * <p>
+     * If the field is a {@link ChronoUnit} then the addition is implemented by
+     * {@link LocalTime#plus(long, TemporalUnit)}.
+     * The offset is not part of the calculation and will be unchanged in the result.
+     * <p>
+     * If the field is not a {@code ChronoUnit}, then the result of this method
+     * is obtained by invoking {@code TemporalUnit.addTo(Temporal, long)}
+     * passing {@code this} as the argument. In this case, the unit determines
+     * whether and how to perform the addition.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param amountToAdd the amount of the unit to add to the result, may be negative
+     * @param unit        the unit of the amount to add, not null
+     *
+     * @return an {@code OffsetTime} based on this time with the specified amount added, not null
+     *
+     * @throws DateTimeException                if the addition cannot be made
+     * @throws UnsupportedTemporalTypeException if the unit is not supported
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 对当前时间量的值累加amountToAdd个unit单位的时间量
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    @Override
+    public OffsetTime plus(long amountToAdd, TemporalUnit unit) {
+        if(unit instanceof ChronoUnit) {
+            return with(time.plus(amountToAdd, unit), offset);
         }
-        return new OffsetTime(time, offset);
+        
+        return unit.addTo(this, amountToAdd);
     }
-
-    //-----------------------------------------------------------------------
+    
+    /**
+     * Returns a copy of this {@code OffsetTime} with the specified number of hours added.
+     * <p>
+     * This adds the specified number of hours to this time, returning a new time.
+     * The calculation wraps around midnight.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param hours the hours to add, may be negative
+     *
+     * @return an {@code OffsetTime} based on this time with the hours added, not null
+     */
+    /*
+     * 在当前时间量的值上累加hours小时
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    public OffsetTime plusHours(long hours) {
+        return with(time.plusHours(hours), offset);
+    }
+    
+    /**
+     * Returns a copy of this {@code OffsetTime} with the specified number of minutes added.
+     * <p>
+     * This adds the specified number of minutes to this time, returning a new time.
+     * The calculation wraps around midnight.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param minutes the minutes to add, may be negative
+     *
+     * @return an {@code OffsetTime} based on this time with the minutes added, not null
+     */
+    /*
+     * 在当前时间量的值上累加minutes分钟
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    public OffsetTime plusMinutes(long minutes) {
+        return with(time.plusMinutes(minutes), offset);
+    }
+    
+    /**
+     * Returns a copy of this {@code OffsetTime} with the specified number of seconds added.
+     * <p>
+     * This adds the specified number of seconds to this time, returning a new time.
+     * The calculation wraps around midnight.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param seconds the seconds to add, may be negative
+     *
+     * @return an {@code OffsetTime} based on this time with the seconds added, not null
+     */
+    /*
+     * 在当前时间量的值上累加seconds秒
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    public OffsetTime plusSeconds(long seconds) {
+        return with(time.plusSeconds(seconds), offset);
+    }
+    
+    /**
+     * Returns a copy of this {@code OffsetTime} with the specified number of nanoseconds added.
+     * <p>
+     * This adds the specified number of nanoseconds to this time, returning a new time.
+     * The calculation wraps around midnight.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param nanos the nanos to add, may be negative
+     *
+     * @return an {@code OffsetTime} based on this time with the nanoseconds added, not null
+     */
+    /*
+     * 在当前时间量的值上累加nanos纳秒
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    public OffsetTime plusNanos(long nanos) {
+        return with(time.plusNanos(nanos), offset);
+    }
+    
+    /*▲ 增加 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 减少 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Returns a copy of this time with the specified amount subtracted.
+     * <p>
+     * This returns an {@code OffsetTime}, based on this one, with the specified amount subtracted.
+     * The amount is typically {@link Duration} but may be any other type implementing
+     * the {@link TemporalAmount} interface.
+     * <p>
+     * The calculation is delegated to the amount object by calling
+     * {@link TemporalAmount#subtractFrom(Temporal)}. The amount implementation is free
+     * to implement the subtraction in any way it wishes, however it typically
+     * calls back to {@link #minus(long, TemporalUnit)}. Consult the documentation
+     * of the amount implementation to determine if it can be successfully subtracted.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param amountToSubtract the amount to subtract, not null
+     *
+     * @return an {@code OffsetTime} based on this time with the subtraction made, not null
+     *
+     * @throws DateTimeException   if the subtraction cannot be made
+     * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 对当前时间量的值与参数中的"时间段"求差
+     *
+     * 如果求差后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"求差"后的新对象再返回。
+     */
+    @Override
+    public OffsetTime minus(TemporalAmount amountToSubtract) {
+        return (OffsetTime) amountToSubtract.subtractFrom(this);
+    }
+    
+    /**
+     * Returns a copy of this time with the specified amount subtracted.
+     * <p>
+     * This returns an {@code OffsetTime}, based on this one, with the amount
+     * in terms of the unit subtracted. If it is not possible to subtract the amount,
+     * because the unit is not supported or for some other reason, an exception is thrown.
+     * <p>
+     * This method is equivalent to {@link #plus(long, TemporalUnit)} with the amount negated.
+     * See that method for a full description of how addition, and thus subtraction, works.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param amountToSubtract the amount of the unit to subtract from the result, may be negative
+     * @param unit             the unit of the amount to subtract, not null
+     *
+     * @return an {@code OffsetTime} based on this time with the specified amount subtracted, not null
+     *
+     * @throws DateTimeException                if the subtraction cannot be made
+     * @throws UnsupportedTemporalTypeException if the unit is not supported
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 对当前时间量的值减去amountToSubtract个unit单位的时间量
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    @Override
+    public OffsetTime minus(long amountToSubtract, TemporalUnit unit) {
+        if(amountToSubtract == Long.MIN_VALUE) {
+            return plus(Long.MAX_VALUE, unit).plus(1, unit);
+        }
+        
+        return plus(-amountToSubtract, unit);
+    }
+    
+    /**
+     * Returns a copy of this {@code OffsetTime} with the specified number of hours subtracted.
+     * <p>
+     * This subtracts the specified number of hours from this time, returning a new time.
+     * The calculation wraps around midnight.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param hours the hours to subtract, may be negative
+     *
+     * @return an {@code OffsetTime} based on this time with the hours subtracted, not null
+     */
+    /*
+     * 在当前时间量的值上减去hours小时
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    public OffsetTime minusHours(long hours) {
+        return with(time.minusHours(hours), offset);
+    }
+    
+    /**
+     * Returns a copy of this {@code OffsetTime} with the specified number of minutes subtracted.
+     * <p>
+     * This subtracts the specified number of minutes from this time, returning a new time.
+     * The calculation wraps around midnight.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param minutes the minutes to subtract, may be negative
+     *
+     * @return an {@code OffsetTime} based on this time with the minutes subtracted, not null
+     */
+    /*
+     * 在当前时间量的值上减去minutes分钟
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    public OffsetTime minusMinutes(long minutes) {
+        return with(time.minusMinutes(minutes), offset);
+    }
+    
+    /**
+     * Returns a copy of this {@code OffsetTime} with the specified number of seconds subtracted.
+     * <p>
+     * This subtracts the specified number of seconds from this time, returning a new time.
+     * The calculation wraps around midnight.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param seconds the seconds to subtract, may be negative
+     *
+     * @return an {@code OffsetTime} based on this time with the seconds subtracted, not null
+     */
+    /*
+     * 在当前时间量的值上减去seconds秒
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    public OffsetTime minusSeconds(long seconds) {
+        return with(time.minusSeconds(seconds), offset);
+    }
+    
+    /**
+     * Returns a copy of this {@code OffsetTime} with the specified number of nanoseconds subtracted.
+     * <p>
+     * This subtracts the specified number of nanoseconds from this time, returning a new time.
+     * The calculation wraps around midnight.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param nanos the nanos to subtract, may be negative
+     *
+     * @return an {@code OffsetTime} based on this time with the nanoseconds subtracted, not null
+     */
+    /*
+     * 在当前时间量的值上减去nanos纳秒
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    public OffsetTime minusNanos(long nanos) {
+        return with(time.minusNanos(nanos), offset);
+    }
+    
+    /*▲ 减少 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 时间量单位 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Checks if the specified unit is supported.
+     * <p>
+     * This checks if the specified unit can be added to, or subtracted from, this offset-time.
+     * If false, then calling the {@link #plus(long, TemporalUnit)} and
+     * {@link #minus(long, TemporalUnit) minus} methods will throw an exception.
+     * <p>
+     * If the unit is a {@link ChronoUnit} then the query is implemented here.
+     * The supported units are:
+     * <ul>
+     * <li>{@code NANOS}
+     * <li>{@code MICROS}
+     * <li>{@code MILLIS}
+     * <li>{@code SECONDS}
+     * <li>{@code MINUTES}
+     * <li>{@code HOURS}
+     * <li>{@code HALF_DAYS}
+     * </ul>
+     * All other {@code ChronoUnit} instances will return false.
+     * <p>
+     * If the unit is not a {@code ChronoUnit}, then the result of this method
+     * is obtained by invoking {@code TemporalUnit.isSupportedBy(Temporal)}
+     * passing {@code this} as the argument.
+     * Whether the unit is supported is determined by the unit.
+     *
+     * @param unit the unit to check, null returns false
+     *
+     * @return true if the unit can be added/subtracted, false if not
+     */
+    // 判断当前时间量是否支持指定的时间量单位
+    @Override
+    public boolean isSupported(TemporalUnit unit) {
+        if(unit instanceof ChronoUnit) {
+            return unit.isTimeBased();
+        }
+        return unit != null && unit.isSupportedBy(this);
+    }
+    
+    /*▲ 时间量单位 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 时间量字段操作(TemporalAccessor) ███████████████████████████████████████████████████████┓ */
+    
     /**
      * Checks if the specified field is supported.
      * <p>
@@ -388,54 +945,20 @@ public final class OffsetTime
      * passing {@code this} as the argument.
      * Whether the field is supported is determined by the field.
      *
-     * @param field  the field to check, null returns false
+     * @param field the field to check, null returns false
+     *
      * @return true if the field is supported on this time, false if not
      */
+    // 判断当前时间量是否支持指定的时间量字段
     @Override
     public boolean isSupported(TemporalField field) {
-        if (field instanceof ChronoField) {
-            return field.isTimeBased() || field == OFFSET_SECONDS;
+        if(field instanceof ChronoField) {
+            return field.isTimeBased() || field == ChronoField.OFFSET_SECONDS;
         }
+    
         return field != null && field.isSupportedBy(this);
     }
-
-    /**
-     * Checks if the specified unit is supported.
-     * <p>
-     * This checks if the specified unit can be added to, or subtracted from, this offset-time.
-     * If false, then calling the {@link #plus(long, TemporalUnit)} and
-     * {@link #minus(long, TemporalUnit) minus} methods will throw an exception.
-     * <p>
-     * If the unit is a {@link ChronoUnit} then the query is implemented here.
-     * The supported units are:
-     * <ul>
-     * <li>{@code NANOS}
-     * <li>{@code MICROS}
-     * <li>{@code MILLIS}
-     * <li>{@code SECONDS}
-     * <li>{@code MINUTES}
-     * <li>{@code HOURS}
-     * <li>{@code HALF_DAYS}
-     * </ul>
-     * All other {@code ChronoUnit} instances will return false.
-     * <p>
-     * If the unit is not a {@code ChronoUnit}, then the result of this method
-     * is obtained by invoking {@code TemporalUnit.isSupportedBy(Temporal)}
-     * passing {@code this} as the argument.
-     * Whether the unit is supported is determined by the unit.
-     *
-     * @param unit  the unit to check, null returns false
-     * @return true if the unit can be added/subtracted, false if not
-     */
-    @Override  // override for Javadoc
-    public boolean isSupported(TemporalUnit unit) {
-        if (unit instanceof ChronoUnit) {
-            return unit.isTimeBased();
-        }
-        return unit != null && unit.isSupportedBy(this);
-    }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Gets the range of valid values for the specified field.
      * <p>
@@ -454,22 +977,27 @@ public final class OffsetTime
      * passing {@code this} as the argument.
      * Whether the range can be obtained is determined by the field.
      *
-     * @param field  the field to query the range for, not null
+     * @param field the field to query the range for, not null
+     *
      * @return the range of valid values for the field, not null
-     * @throws DateTimeException if the range for the field cannot be obtained
+     *
+     * @throws DateTimeException                if the range for the field cannot be obtained
      * @throws UnsupportedTemporalTypeException if the field is not supported
      */
+    // 返回时间量字段field的取值区间，通常要求当前时间量支持该时间量字段
     @Override
     public ValueRange range(TemporalField field) {
-        if (field instanceof ChronoField) {
-            if (field == OFFSET_SECONDS) {
+        if(field instanceof ChronoField) {
+            if(field == ChronoField.OFFSET_SECONDS) {
                 return field.range();
             }
+        
             return time.range(field);
         }
+    
         return field.rangeRefinedBy(this);
     }
-
+    
     /**
      * Gets the value of the specified field from this time as an {@code int}.
      * <p>
@@ -489,19 +1017,45 @@ public final class OffsetTime
      * passing {@code this} as the argument. Whether the value can be obtained,
      * and what the value represents, is determined by the field.
      *
-     * @param field  the field to get, not null
+     * @param field the field to get, not null
+     *
      * @return the value for the field
-     * @throws DateTimeException if a value for the field cannot be obtained or
-     *         the value is outside the range of valid values for the field
+     *
+     * @throws DateTimeException                if a value for the field cannot be obtained or
+     *                                          the value is outside the range of valid values for the field
      * @throws UnsupportedTemporalTypeException if the field is not supported or
-     *         the range of values exceeds an {@code int}
-     * @throws ArithmeticException if numeric overflow occurs
+     *                                          the range of values exceeds an {@code int}
+     * @throws ArithmeticException              if numeric overflow occurs
      */
-    @Override  // override for Javadoc
+    /*
+     * 以int形式返回时间量字段field的值
+     *
+     * 目前支持的字段包括：
+     *
+     * ChronoField.OFFSET_SECONDS     - 当前时间点所在时区的偏移秒数
+     * =========================================================================================
+     * ChronoField.HOUR_OF_DAY        - 返回小时部件(几时)
+     * ChronoField.MINUTE_OF_HOUR     - 返回分钟部件(几分)
+     * ChronoField.SECOND_OF_MINUTE   - 返回秒部件(几秒)
+     * ChronoField.NANO_OF_SECOND     - 返回纳秒部件(几纳秒)
+     * ..........................................................................................
+     * ChronoField.MICRO_OF_SECOND    - 从纳秒部件中计算出包含的微秒数（不要与纳秒部件同时展示）
+     * ChronoField.MILLI_OF_SECOND    - 从纳秒部件中计算出包含的毫秒数（不要与纳秒部件同时展示）
+     * ChronoField.NANO_OF_DAY        ×
+     * ChronoField.MICRO_OF_DAY       ×
+     * ChronoField.MILLI_OF_DAY       - 计算当前"本地时间"包含的毫秒数
+     * ChronoField.SECOND_OF_DAY      - 计算当前"本地时间"包含的秒数
+     * ChronoField.MINUTE_OF_DAY      - 计算当前"本地时间"包含的分钟数
+     * ChronoField.HOUR_OF_AMPM       - 计算当前"本地时间"包含的小时是12小时制中的哪个[小时](计数从0~11)
+     * ChronoField.CLOCK_HOUR_OF_AMPM - 计算当前"本地时间"包含的小时是12小时制中的哪个[钟点](计数从1~12)
+     * ChronoField.CLOCK_HOUR_OF_DAY  - 计算当前"本地时间"包含的小时是24小时制中的哪个[钟点](计数从1~24)
+     * ChronoField.AMPM_OF_DAY        - 计算当前"本地时间"位于上午(0)还是下午(1)
+     */
+    @Override
     public int get(TemporalField field) {
         return Temporal.super.get(field);
     }
-
+    
     /**
      * Gets the value of the specified field from this time as a {@code long}.
      * <p>
@@ -519,134 +1073,105 @@ public final class OffsetTime
      * passing {@code this} as the argument. Whether the value can be obtained,
      * and what the value represents, is determined by the field.
      *
-     * @param field  the field to get, not null
+     * @param field the field to get, not null
+     *
      * @return the value for the field
-     * @throws DateTimeException if a value for the field cannot be obtained
+     *
+     * @throws DateTimeException                if a value for the field cannot be obtained
      * @throws UnsupportedTemporalTypeException if the field is not supported
-     * @throws ArithmeticException if numeric overflow occurs
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 以long形式返回时间量字段field的值
+     *
+     * 目前支持的字段包括：
+     *
+     * ChronoField.OFFSET_SECONDS     - 返回当前时间点所在时区的偏移秒数
+     * =========================================================================================
+     * ChronoField.HOUR_OF_DAY        - 返回小时部件(几时)
+     * ChronoField.MINUTE_OF_HOUR     - 返回分钟部件(几分)
+     * ChronoField.SECOND_OF_MINUTE   - 返回秒部件(几秒)
+     * ChronoField.NANO_OF_SECOND     - 返回纳秒部件(几纳秒)
+     * ..........................................................................................
+     * ChronoField.MICRO_OF_SECOND    - 从纳秒部件中计算出包含的微秒数（不要与纳秒部件同时展示）
+     * ChronoField.MILLI_OF_SECOND    - 从纳秒部件中计算出包含的毫秒数（不要与纳秒部件同时展示）
+     * ChronoField.NANO_OF_DAY        = 计算当前"本地时间"包含的纳秒数
+     * ChronoField.MICRO_OF_DAY       = 计算当前"本地时间"包含的微秒数
+     * ChronoField.MILLI_OF_DAY       - 计算当前"本地时间"包含的毫秒数
+     * ChronoField.SECOND_OF_DAY      - 计算当前"本地时间"包含的秒数
+     * ChronoField.MINUTE_OF_DAY      - 计算当前"本地时间"包含的分钟数
+     * ChronoField.HOUR_OF_AMPM       - 计算当前"本地时间"包含的小时是12小时制中的哪个[小时](计数从0~11)
+     * ChronoField.CLOCK_HOUR_OF_AMPM - 计算当前"本地时间"包含的小时是12小时制中的哪个[钟点](计数从1~12)
+     * ChronoField.CLOCK_HOUR_OF_DAY  - 计算当前"本地时间"包含的小时是24小时制中的哪个[钟点](计数从1~24)
+     * ChronoField.AMPM_OF_DAY        - 计算当前"本地时间"位于上午(0)还是下午(1)
      */
     @Override
     public long getLong(TemporalField field) {
-        if (field instanceof ChronoField) {
-            if (field == OFFSET_SECONDS) {
+        if(field instanceof ChronoField) {
+            if(field == ChronoField.OFFSET_SECONDS) {
                 return offset.getTotalSeconds();
             }
+            
             return time.getLong(field);
         }
+        
         return field.getFrom(this);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
-     * Gets the zone offset, such as '+01:00'.
+     * Queries this time using the specified query.
      * <p>
-     * This is the offset of the local time from UTC/Greenwich.
+     * This queries this time using the specified query strategy object.
+     * The {@code TemporalQuery} object defines the logic to be used to
+     * obtain the result. Read the documentation of the query to understand
+     * what the result of this method will be.
+     * <p>
+     * The result of this method is obtained by invoking the
+     * {@link TemporalQuery#queryFrom(TemporalAccessor)} method on the
+     * specified query passing {@code this} as the argument.
      *
-     * @return the zone offset, not null
-     */
-    public ZoneOffset getOffset() {
-        return offset;
-    }
-
-    /**
-     * Returns a copy of this {@code OffsetTime} with the specified offset ensuring
-     * that the result has the same local time.
-     * <p>
-     * This method returns an object with the same {@code LocalTime} and the specified {@code ZoneOffset}.
-     * No calculation is needed or performed.
-     * For example, if this time represents {@code 10:30+02:00} and the offset specified is
-     * {@code +03:00}, then this method will return {@code 10:30+03:00}.
-     * <p>
-     * To take into account the difference between the offsets, and adjust the time fields,
-     * use {@link #withOffsetSameInstant}.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
+     * @param <R>   the type of the result
+     * @param query the query to invoke, not null
      *
-     * @param offset  the zone offset to change to, not null
-     * @return an {@code OffsetTime} based on this time with the requested offset, not null
-     */
-    public OffsetTime withOffsetSameLocal(ZoneOffset offset) {
-        return offset != null && offset.equals(this.offset) ? this : new OffsetTime(time, offset);
-    }
-
-    /**
-     * Returns a copy of this {@code OffsetTime} with the specified offset ensuring
-     * that the result is at the same instant on an implied day.
-     * <p>
-     * This method returns an object with the specified {@code ZoneOffset} and a {@code LocalTime}
-     * adjusted by the difference between the two offsets.
-     * This will result in the old and new objects representing the same instant on an implied day.
-     * This is useful for finding the local time in a different offset.
-     * For example, if this time represents {@code 10:30+02:00} and the offset specified is
-     * {@code +03:00}, then this method will return {@code 11:30+03:00}.
-     * <p>
-     * To change the offset without adjusting the local time use {@link #withOffsetSameLocal}.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
+     * @return the query result, null may be returned (defined by the query)
      *
-     * @param offset  the zone offset to change to, not null
-     * @return an {@code OffsetTime} based on this time with the requested offset, not null
+     * @throws DateTimeException   if unable to query (defined by the query)
+     * @throws ArithmeticException if numeric overflow occurs (defined by the query)
      */
-    public OffsetTime withOffsetSameInstant(ZoneOffset offset) {
-        if (offset.equals(this.offset)) {
-            return this;
+    // 使用指定的时间量查询器，从当前时间量中查询目标信息
+    @SuppressWarnings("unchecked")
+    @Override
+    public <R> R query(TemporalQuery<R> query) {
+        
+        if(query == TemporalQueries.precision()) {
+            return (R) NANOS;
         }
-        int difference = offset.getTotalSeconds() - this.offset.getTotalSeconds();
-        LocalTime adjusted = time.plusSeconds(difference);
-        return new OffsetTime(adjusted, offset);
+        
+        if(query == TemporalQueries.offset() || query == TemporalQueries.zone()) {
+            return (R) offset;
+        }
+        
+        if(query == TemporalQueries.localTime()) {
+            return (R) time;
+        }
+        
+        if(query == TemporalQueries.zoneId() || query == TemporalQueries.chronology() || query == TemporalQueries.localDate()) {
+            return null;
+        }
+        
+        /*
+         * inline TemporalAccessor.super.query(query) as an optimization
+         * non-JDK classes are not permitted to make this optimization
+         */
+        return query.queryFrom(this);
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Gets the {@code LocalTime} part of this date-time.
-     * <p>
-     * This returns a {@code LocalTime} with the same hour, minute, second and
-     * nanosecond as this date-time.
-     *
-     * @return the time part of this date-time, not null
-     */
-    public LocalTime toLocalTime() {
-        return time;
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Gets the hour-of-day field.
-     *
-     * @return the hour-of-day, from 0 to 23
-     */
-    public int getHour() {
-        return time.getHour();
-    }
-
-    /**
-     * Gets the minute-of-hour field.
-     *
-     * @return the minute-of-hour, from 0 to 59
-     */
-    public int getMinute() {
-        return time.getMinute();
-    }
-
-    /**
-     * Gets the second-of-minute field.
-     *
-     * @return the second-of-minute, from 0 to 59
-     */
-    public int getSecond() {
-        return time.getSecond();
-    }
-
-    /**
-     * Gets the nano-of-second field.
-     *
-     * @return the nano-of-second, from 0 to 999,999,999
-     */
-    public int getNano() {
-        return time.getNano();
-    }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 时间量字段操作(TemporalAccessor) ███████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 整合 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Returns an adjusted copy of this time.
      * <p>
@@ -671,23 +1196,36 @@ public final class OffsetTime
      * This instance is immutable and unaffected by this method call.
      *
      * @param adjuster the adjuster to use, not null
+     *
      * @return an {@code OffsetTime} based on {@code this} with the adjustment made, not null
-     * @throws DateTimeException if the adjustment cannot be made
+     *
+     * @throws DateTimeException   if the adjustment cannot be made
      * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 使用指定的时间量整合器adjuster来构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
      */
     @Override
     public OffsetTime with(TemporalAdjuster adjuster) {
         // optimizations
-        if (adjuster instanceof LocalTime) {
+        if(adjuster instanceof LocalTime) {
             return with((LocalTime) adjuster, offset);
-        } else if (adjuster instanceof ZoneOffset) {
+        }
+        
+        if(adjuster instanceof ZoneOffset) {
             return with(time, (ZoneOffset) adjuster);
-        } else if (adjuster instanceof OffsetTime) {
+        }
+        
+        if(adjuster instanceof OffsetTime) {
             return (OffsetTime) adjuster;
         }
+        
         return (OffsetTime) adjuster.adjustInto(this);
     }
-
+    
     /**
      * Returns a copy of this time with the specified field set to a new value.
      * <p>
@@ -716,26 +1254,75 @@ public final class OffsetTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param field  the field to set in the result, not null
-     * @param newValue  the new value of the field in the result
+     * @param field    the field to set in the result, not null
+     * @param newValue the new value of the field in the result
+     *
      * @return an {@code OffsetTime} based on {@code this} with the specified field set, not null
-     * @throws DateTimeException if the field cannot be set
+     *
+     * @throws DateTimeException                if the field cannot be set
      * @throws UnsupportedTemporalTypeException if the field is not supported
-     * @throws ArithmeticException if numeric overflow occurs
+     * @throws ArithmeticException              if numeric overflow occurs
+     */
+    /*
+     * 通过整合指定类型的字段和当前时间量中的其他类型的字段来构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * field   : 待整合的字段(类型)
+     * newValue: field的原始值，需要根据filed的类型进行放缩
+     *
+     * 目前支持传入的字段值包括：
+     *
+     * ChronoField.OFFSET_SECONDS     - 与时区偏移中的[秒](-18 * 3600, 18 * 3600)整合，只会覆盖当前时间量的"时区ID"部件
+     *
+     * 遇到以下所有字段时，后面的描述是指如何在内部的"本地时间"部件上生成新的LocalTime对象。
+     * 当生成新的LocalTime对象后，还要继续与内部的时区部件进行整合。
+     * =============================================================================================
+     * ChronoField.HOUR_OF_DAY        - 与24小时制中的[小时](0, 23)整合，只会覆盖当前时间量的"小时"组件
+     * ChronoField.MINUTE_OF_HOUR     - 与一小时内的[分钟](0, 59)整合，只会覆盖当前时间量的"分钟"组件
+     * ChronoField.SECOND_OF_MINUTE   - 与一分内的[秒](0, 59)整合，只会覆盖当前时间量的"秒"组件
+     * ChronoField.NANO_OF_SECOND     - 与一秒内的[纳秒](0, 999_999_999)整合，只会覆盖当前时间量的"纳秒"组件
+     * .............................................................................................................
+     * ChronoField.MICRO_OF_SECOND    - 与一秒内的[微秒](0, 999_999)整合，会将其转换为纳秒，然后去覆盖当前时间量的"纳秒"组件
+     * ChronoField.MILLI_OF_SECOND    - 与一秒内的[毫秒](0, 999)整合，会将其转换为纳秒，然后去覆盖当前时间量的"纳秒"组件
+     * ChronoField.NANO_OF_DAY        - 与一天内的[纳秒](0, 86400L * 1000_000_000L - 1)整合，这会完全地构造一个新的"本地时间"
+     * ChronoField.MICRO_OF_DAY       - 与一天内的[微秒](0, 86400L * 1000_000L - 1)整合，这会完全地构造一个新的"本地时间"
+     * ChronoField.MILLI_OF_DAY       - 与一天内的[毫秒](0, 86400L * 1000L - 1)整合，这会完全地构造一个新的"本地时间"
+     * ChronoField.SECOND_OF_DAY      - 与一天内的[秒](0, 86400L - 1)整合，这会在当前时间量的基础上增/减一定的秒数，以达到给定的字段值表示的时间
+     * ChronoField.MINUTE_OF_DAY      - 与一天内的[分钟](0, (24 * 60) - 1)整合，这会在当前时间量的基础上增/减一定的分钟数，以达到给定的字段值表示的时间
+     * ChronoField.HOUR_OF_AMPM       - 与12小时制中的[小时](0, 11)整合，这会在当前时间量的基础上增/减一定的小时数，以达到给定的字段值表示的时间
+     * ChronoField.CLOCK_HOUR_OF_AMPM - 与12小时制中的[钟点](1, 12)整合，这会在当前时间量的基础上增/减一定的小时数，以达到给定的字段值表示的时间
+     * ChronoField.CLOCK_HOUR_OF_DAY  - 与24小时制中的[钟点](1, 24)整合，会将其转换为24小时制的[小时]，然后覆盖当前时间量的"小时"组件
+     * ChronoField.AMPM_OF_DAY        - 与一天中的[上午/下午](0, 1)整合，即在当前时间量的基础上增/减12个小时，进行上下午的切换
      */
     @Override
     public OffsetTime with(TemporalField field, long newValue) {
-        if (field instanceof ChronoField) {
-            if (field == OFFSET_SECONDS) {
+        if(field instanceof ChronoField) {
+            // 更新"时区ID"部件
+            if(field == ChronoField.OFFSET_SECONDS) {
                 ChronoField f = (ChronoField) field;
-                return with(time, ZoneOffset.ofTotalSeconds(f.checkValidIntValue(newValue)));
+                
+                // 确保字段field的取值区间在int的范围内，且给定的值newValue落在字段field的取值区间中，否则抛异常
+                int seconds = f.checkValidIntValue(newValue);
+                
+                // 构造基于时间偏移的时区ID，其时间偏移为seconds秒
+                ZoneOffset offset = ZoneOffset.ofTotalSeconds(seconds);
+                
+                // 更新"时区ID"部件
+                return with(time, offset);
             }
-            return with(time.with(field, newValue), offset);
+            
+            // 通过整合指定类型的字段和当前时间量中的其他类型的字段来构造时间量对象
+            LocalTime newTime = time.with(field, newValue);
+            
+            // 使用newDateTimetime构造属于offset的"本地时间"
+            return with(newTime, offset);
         }
+        
         return field.adjustInto(this, newValue);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Returns a copy of this {@code OffsetTime} with the hour-of-day altered.
      * <p>
@@ -743,14 +1330,27 @@ public final class OffsetTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param hour  the hour-of-day to set in the result, from 0 to 23
+     * @param hour the hour-of-day to set in the result, from 0 to 23
+     *
      * @return an {@code OffsetTime} based on this time with the requested hour, not null
+     *
      * @throws DateTimeException if the hour value is invalid
+     */
+    /*
+     * 将指定的"小时"整合到当前时间量中以构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：小时
      */
     public OffsetTime withHour(int hour) {
         return with(time.withHour(hour), offset);
     }
-
+    
     /**
      * Returns a copy of this {@code OffsetTime} with the minute-of-hour altered.
      * <p>
@@ -758,14 +1358,27 @@ public final class OffsetTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param minute  the minute-of-hour to set in the result, from 0 to 59
+     * @param minute the minute-of-hour to set in the result, from 0 to 59
+     *
      * @return an {@code OffsetTime} based on this time with the requested minute, not null
+     *
      * @throws DateTimeException if the minute value is invalid
+     */
+    /*
+     * 将指定的"分钟"整合到当前时间量中以构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：分钟
      */
     public OffsetTime withMinute(int minute) {
         return with(time.withMinute(minute), offset);
     }
-
+    
     /**
      * Returns a copy of this {@code OffsetTime} with the second-of-minute altered.
      * <p>
@@ -773,14 +1386,27 @@ public final class OffsetTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param second  the second-of-minute to set in the result, from 0 to 59
+     * @param second the second-of-minute to set in the result, from 0 to 59
+     *
      * @return an {@code OffsetTime} based on this time with the requested second, not null
+     *
      * @throws DateTimeException if the second value is invalid
+     */
+    /*
+     * 将指定的"秒"整合到当前时间量中以构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：秒
      */
     public OffsetTime withSecond(int second) {
         return with(time.withSecond(second), offset);
     }
-
+    
     /**
      * Returns a copy of this {@code OffsetTime} with the nano-of-second altered.
      * <p>
@@ -788,308 +1414,109 @@ public final class OffsetTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param nanoOfSecond  the nano-of-second to set in the result, from 0 to 999,999,999
+     * @param nanoOfSecond the nano-of-second to set in the result, from 0 to 999,999,999
+     *
      * @return an {@code OffsetTime} based on this time with the requested nanosecond, not null
+     *
      * @throws DateTimeException if the nanos value is invalid
+     */
+    /*
+     * 将指定的"纳秒"整合到当前时间量中以构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件：纳秒
      */
     public OffsetTime withNano(int nanoOfSecond) {
         return with(time.withNano(nanoOfSecond), offset);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
-     * Returns a copy of this {@code OffsetTime} with the time truncated.
+     * Returns a copy of this {@code OffsetTime} with the specified offset ensuring
+     * that the result has the same local time.
      * <p>
-     * Truncation returns a copy of the original time with fields
-     * smaller than the specified unit set to zero.
-     * For example, truncating with the {@link ChronoUnit#MINUTES minutes} unit
-     * will set the second-of-minute and nano-of-second field to zero.
+     * This method returns an object with the same {@code LocalTime} and the specified {@code ZoneOffset}.
+     * No calculation is needed or performed.
+     * For example, if this time represents {@code 10:30+02:00} and the offset specified is
+     * {@code +03:00}, then this method will return {@code 10:30+03:00}.
      * <p>
-     * The unit must have a {@linkplain TemporalUnit#getDuration() duration}
-     * that divides into the length of a standard day without remainder.
-     * This includes all supplied time units on {@link ChronoUnit} and
-     * {@link ChronoUnit#DAYS DAYS}. Other units throw an exception.
-     * <p>
-     * The offset does not affect the calculation and will be the same in the result.
+     * To take into account the difference between the offsets, and adjust the time fields,
+     * use {@link #withOffsetSameInstant}.
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param unit  the unit to truncate to, not null
-     * @return an {@code OffsetTime} based on this time with the time truncated, not null
-     * @throws DateTimeException if unable to truncate
-     * @throws UnsupportedTemporalTypeException if the unit is not supported
-     */
-    public OffsetTime truncatedTo(TemporalUnit unit) {
-        return with(time.truncatedTo(unit), offset);
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Returns a copy of this time with the specified amount added.
-     * <p>
-     * This returns an {@code OffsetTime}, based on this one, with the specified amount added.
-     * The amount is typically {@link Duration} but may be any other type implementing
-     * the {@link TemporalAmount} interface.
-     * <p>
-     * The calculation is delegated to the amount object by calling
-     * {@link TemporalAmount#addTo(Temporal)}. The amount implementation is free
-     * to implement the addition in any way it wishes, however it typically
-     * calls back to {@link #plus(long, TemporalUnit)}. Consult the documentation
-     * of the amount implementation to determine if it can be successfully added.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
+     * @param offset the zone offset to change to, not null
      *
-     * @param amountToAdd  the amount to add, not null
-     * @return an {@code OffsetTime} based on this time with the addition made, not null
-     * @throws DateTimeException if the addition cannot be made
-     * @throws ArithmeticException if numeric overflow occurs
+     * @return an {@code OffsetTime} based on this time with the requested offset, not null
      */
-    @Override
-    public OffsetTime plus(TemporalAmount amountToAdd) {
-        return (OffsetTime) amountToAdd.addTo(this);
-    }
-
-    /**
-     * Returns a copy of this time with the specified amount added.
-     * <p>
-     * This returns an {@code OffsetTime}, based on this one, with the amount
-     * in terms of the unit added. If it is not possible to add the amount, because the
-     * unit is not supported or for some other reason, an exception is thrown.
-     * <p>
-     * If the field is a {@link ChronoUnit} then the addition is implemented by
-     * {@link LocalTime#plus(long, TemporalUnit)}.
-     * The offset is not part of the calculation and will be unchanged in the result.
-     * <p>
-     * If the field is not a {@code ChronoUnit}, then the result of this method
-     * is obtained by invoking {@code TemporalUnit.addTo(Temporal, long)}
-     * passing {@code this} as the argument. In this case, the unit determines
-     * whether and how to perform the addition.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
+    /*
+     * 将指定的"时区偏移"整合到当前时间量中以构造时间量对象。
+     * 该操作只是简单地更新"时区偏移"部件。
      *
-     * @param amountToAdd  the amount of the unit to add to the result, may be negative
-     * @param unit  the unit of the amount to add, not null
-     * @return an {@code OffsetTime} based on this time with the specified amount added, not null
-     * @throws DateTimeException if the addition cannot be made
-     * @throws UnsupportedTemporalTypeException if the unit is not supported
-     * @throws ArithmeticException if numeric overflow occurs
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
+     *
+     * 影响部件："时区偏移"部件
      */
-    @Override
-    public OffsetTime plus(long amountToAdd, TemporalUnit unit) {
-        if (unit instanceof ChronoUnit) {
-            return with(time.plus(amountToAdd, unit), offset);
+    public OffsetTime withOffsetSameLocal(ZoneOffset offset) {
+        if(offset != null && offset.equals(this.offset)) {
+            return this;
         }
-        return unit.addTo(this, amountToAdd);
+        
+        return new OffsetTime(time, offset);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
-     * Returns a copy of this {@code OffsetTime} with the specified number of hours added.
+     * Returns a copy of this {@code OffsetTime} with the specified offset ensuring
+     * that the result is at the same instant on an implied day.
      * <p>
-     * This adds the specified number of hours to this time, returning a new time.
-     * The calculation wraps around midnight.
+     * This method returns an object with the specified {@code ZoneOffset} and a {@code LocalTime}
+     * adjusted by the difference between the two offsets.
+     * This will result in the old and new objects representing the same instant on an implied day.
+     * This is useful for finding the local time in a different offset.
+     * For example, if this time represents {@code 10:30+02:00} and the offset specified is
+     * {@code +03:00}, then this method will return {@code 11:30+03:00}.
+     * <p>
+     * To change the offset without adjusting the local time use {@link #withOffsetSameLocal}.
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param hours  the hours to add, may be negative
-     * @return an {@code OffsetTime} based on this time with the hours added, not null
-     */
-    public OffsetTime plusHours(long hours) {
-        return with(time.plusHours(hours), offset);
-    }
-
-    /**
-     * Returns a copy of this {@code OffsetTime} with the specified number of minutes added.
-     * <p>
-     * This adds the specified number of minutes to this time, returning a new time.
-     * The calculation wraps around midnight.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
+     * @param offset the zone offset to change to, not null
      *
-     * @param minutes  the minutes to add, may be negative
-     * @return an {@code OffsetTime} based on this time with the minutes added, not null
+     * @return an {@code OffsetTime} based on this time with the requested offset, not null
      */
-    public OffsetTime plusMinutes(long minutes) {
-        return with(time.plusMinutes(minutes), offset);
-    }
-
-    /**
-     * Returns a copy of this {@code OffsetTime} with the specified number of seconds added.
-     * <p>
-     * This adds the specified number of seconds to this time, returning a new time.
-     * The calculation wraps around midnight.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
+    /*
+     * 将指定的"时区偏移"整合到当前时间量中以构造时间量对象。
+     * 该操作会先将"本地时间"部件的值从原先的时区调整到offset时区，然后用offset更新"时区偏移"部件。
      *
-     * @param seconds  the seconds to add, may be negative
-     * @return an {@code OffsetTime} based on this time with the seconds added, not null
-     */
-    public OffsetTime plusSeconds(long seconds) {
-        return with(time.plusSeconds(seconds), offset);
-    }
-
-    /**
-     * Returns a copy of this {@code OffsetTime} with the specified number of nanoseconds added.
-     * <p>
-     * This adds the specified number of nanoseconds to this time, returning a new time.
-     * The calculation wraps around midnight.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
      *
-     * @param nanos  the nanos to add, may be negative
-     * @return an {@code OffsetTime} based on this time with the nanoseconds added, not null
-     */
-    public OffsetTime plusNanos(long nanos) {
-        return with(time.plusNanos(nanos), offset);
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Returns a copy of this time with the specified amount subtracted.
-     * <p>
-     * This returns an {@code OffsetTime}, based on this one, with the specified amount subtracted.
-     * The amount is typically {@link Duration} but may be any other type implementing
-     * the {@link TemporalAmount} interface.
-     * <p>
-     * The calculation is delegated to the amount object by calling
-     * {@link TemporalAmount#subtractFrom(Temporal)}. The amount implementation is free
-     * to implement the subtraction in any way it wishes, however it typically
-     * calls back to {@link #minus(long, TemporalUnit)}. Consult the documentation
-     * of the amount implementation to determine if it can be successfully subtracted.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
+     * 注：整合过程，通常是时间量部件的替换/覆盖过程。
+     * 　　至于是替换/覆盖一个部件还是多个部件，则需要根据参数的意义而定。
      *
-     * @param amountToSubtract  the amount to subtract, not null
-     * @return an {@code OffsetTime} based on this time with the subtraction made, not null
-     * @throws DateTimeException if the subtraction cannot be made
-     * @throws ArithmeticException if numeric overflow occurs
+     * 影响部件："本地时间"部件、"时区偏移"部件
      */
-    @Override
-    public OffsetTime minus(TemporalAmount amountToSubtract) {
-        return (OffsetTime) amountToSubtract.subtractFrom(this);
-    }
-
-    /**
-     * Returns a copy of this time with the specified amount subtracted.
-     * <p>
-     * This returns an {@code OffsetTime}, based on this one, with the amount
-     * in terms of the unit subtracted. If it is not possible to subtract the amount,
-     * because the unit is not supported or for some other reason, an exception is thrown.
-     * <p>
-     * This method is equivalent to {@link #plus(long, TemporalUnit)} with the amount negated.
-     * See that method for a full description of how addition, and thus subtraction, works.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param amountToSubtract  the amount of the unit to subtract from the result, may be negative
-     * @param unit  the unit of the amount to subtract, not null
-     * @return an {@code OffsetTime} based on this time with the specified amount subtracted, not null
-     * @throws DateTimeException if the subtraction cannot be made
-     * @throws UnsupportedTemporalTypeException if the unit is not supported
-     * @throws ArithmeticException if numeric overflow occurs
-     */
-    @Override
-    public OffsetTime minus(long amountToSubtract, TemporalUnit unit) {
-        return (amountToSubtract == Long.MIN_VALUE ? plus(Long.MAX_VALUE, unit).plus(1, unit) : plus(-amountToSubtract, unit));
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Returns a copy of this {@code OffsetTime} with the specified number of hours subtracted.
-     * <p>
-     * This subtracts the specified number of hours from this time, returning a new time.
-     * The calculation wraps around midnight.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param hours  the hours to subtract, may be negative
-     * @return an {@code OffsetTime} based on this time with the hours subtracted, not null
-     */
-    public OffsetTime minusHours(long hours) {
-        return with(time.minusHours(hours), offset);
-    }
-
-    /**
-     * Returns a copy of this {@code OffsetTime} with the specified number of minutes subtracted.
-     * <p>
-     * This subtracts the specified number of minutes from this time, returning a new time.
-     * The calculation wraps around midnight.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param minutes  the minutes to subtract, may be negative
-     * @return an {@code OffsetTime} based on this time with the minutes subtracted, not null
-     */
-    public OffsetTime minusMinutes(long minutes) {
-        return with(time.minusMinutes(minutes), offset);
-    }
-
-    /**
-     * Returns a copy of this {@code OffsetTime} with the specified number of seconds subtracted.
-     * <p>
-     * This subtracts the specified number of seconds from this time, returning a new time.
-     * The calculation wraps around midnight.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param seconds  the seconds to subtract, may be negative
-     * @return an {@code OffsetTime} based on this time with the seconds subtracted, not null
-     */
-    public OffsetTime minusSeconds(long seconds) {
-        return with(time.minusSeconds(seconds), offset);
-    }
-
-    /**
-     * Returns a copy of this {@code OffsetTime} with the specified number of nanoseconds subtracted.
-     * <p>
-     * This subtracts the specified number of nanoseconds from this time, returning a new time.
-     * The calculation wraps around midnight.
-     * <p>
-     * This instance is immutable and unaffected by this method call.
-     *
-     * @param nanos  the nanos to subtract, may be negative
-     * @return an {@code OffsetTime} based on this time with the nanoseconds subtracted, not null
-     */
-    public OffsetTime minusNanos(long nanos) {
-        return with(time.minusNanos(nanos), offset);
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Queries this time using the specified query.
-     * <p>
-     * This queries this time using the specified query strategy object.
-     * The {@code TemporalQuery} object defines the logic to be used to
-     * obtain the result. Read the documentation of the query to understand
-     * what the result of this method will be.
-     * <p>
-     * The result of this method is obtained by invoking the
-     * {@link TemporalQuery#queryFrom(TemporalAccessor)} method on the
-     * specified query passing {@code this} as the argument.
-     *
-     * @param <R> the type of the result
-     * @param query  the query to invoke, not null
-     * @return the query result, null may be returned (defined by the query)
-     * @throws DateTimeException if unable to query (defined by the query)
-     * @throws ArithmeticException if numeric overflow occurs (defined by the query)
-     */
-    @SuppressWarnings("unchecked")
-    @Override
-    public <R> R query(TemporalQuery<R> query) {
-        if (query == TemporalQueries.offset() || query == TemporalQueries.zone()) {
-            return (R) offset;
-        } else if (query == TemporalQueries.zoneId() | query == TemporalQueries.chronology() || query == TemporalQueries.localDate()) {
-            return null;
-        } else if (query == TemporalQueries.localTime()) {
-            return (R) time;
-        } else if (query == TemporalQueries.precision()) {
-            return (R) NANOS;
+    public OffsetTime withOffsetSameInstant(ZoneOffset offset) {
+        if(offset.equals(this.offset)) {
+            return this;
         }
-        // inline TemporalAccessor.super.query(query) as an optimization
-        // non-JDK classes are not permitted to make this optimization
-        return query.queryFrom(this);
+        
+        int difference = offset.getTotalSeconds() - this.offset.getTotalSeconds();
+        
+        // 将"本地时间"更新到offset时区
+        LocalTime adjusted = time.plusSeconds(difference);
+        
+        return new OffsetTime(adjusted, offset);
     }
-
+    
     /**
      * Adjusts the specified temporal object to have the same offset and time
      * as this object.
@@ -1111,18 +1538,48 @@ public final class OffsetTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param temporal  the target object to be adjusted, not null
+     * @param temporal the target object to be adjusted, not null
+     *
      * @return the adjusted object, not null
-     * @throws DateTimeException if unable to make the adjustment
+     *
+     * @throws DateTimeException   if unable to make the adjustment
      * @throws ArithmeticException if numeric overflow occurs
+     */
+    /*
+     * 拿当前时间量中的特定字段与时间量temporal中的其他字段进行整合。
+     *
+     * 如果整合后的值与temporal中原有的值相等，则可以直接使用temporal本身；否则，会返回新构造的时间量对象。
+     *
+     * 注：通常，这会用到当前时间量的所有部件信息
+     *
+     *
+     * 当前时间量参与整合字段包括：
+     * ChronoField.NANO_OF_DAY    - 当前时间量的时间部件中包含的纳秒数
+     * ChronoField.OFFSET_SECONDS - 当前时间量的时区偏移秒数
+     *
+     * 目标时间量temporal的取值可以是：
+     * OffsetTime
+     * OffsetDateTime
+     * ZonedDateTime
+     * ChronoZonedDateTimeImpl
      */
     @Override
     public Temporal adjustInto(Temporal temporal) {
-        return temporal
-                .with(NANO_OF_DAY, time.toNanoOfDay())
-                .with(OFFSET_SECONDS, offset.getTotalSeconds());
+        // 获取当前时间量的时间部件中包含的纳秒数
+        long nano = time.toNanoOfDay();
+        
+        // 当前时间量的时区偏移秒数
+        int seconds = offset.getTotalSeconds();
+        
+        return temporal.with(ChronoField.NANO_OF_DAY, nano).with(ChronoField.OFFSET_SECONDS, seconds);
     }
-
+    
+    /*▲ 整合 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Calculates the amount of time until another time in terms of the specified unit.
      * <p>
@@ -1165,96 +1622,183 @@ public final class OffsetTime
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param endExclusive  the end time, exclusive, which is converted to an {@code OffsetTime}, not null
-     * @param unit  the unit to measure the amount in, not null
+     * @param endExclusive the end time, exclusive, which is converted to an {@code OffsetTime}, not null
+     * @param unit         the unit to measure the amount in, not null
+     *
      * @return the amount of time between this time and the end time
-     * @throws DateTimeException if the amount cannot be calculated, or the end
-     *  temporal cannot be converted to an {@code OffsetTime}
+     *
+     * @throws DateTimeException                if the amount cannot be calculated, or the end
+     *                                          temporal cannot be converted to an {@code OffsetTime}
      * @throws UnsupportedTemporalTypeException if the unit is not supported
-     * @throws ArithmeticException if numeric overflow occurs
+     * @throws ArithmeticException              if numeric overflow occurs
      */
+    // 计算当前时间量到目标时间量endExclusive之间相差多少个unit单位的时间值
     @Override
     public long until(Temporal endExclusive, TemporalUnit unit) {
         OffsetTime end = OffsetTime.from(endExclusive);
-        if (unit instanceof ChronoUnit) {
-            long nanosUntil = end.toEpochNano() - toEpochNano();  // no overflow
-            switch ((ChronoUnit) unit) {
-                case NANOS: return nanosUntil;
-                case MICROS: return nanosUntil / 1000;
-                case MILLIS: return nanosUntil / 1000_000;
-                case SECONDS: return nanosUntil / NANOS_PER_SECOND;
-                case MINUTES: return nanosUntil / NANOS_PER_MINUTE;
-                case HOURS: return nanosUntil / NANOS_PER_HOUR;
-                case HALF_DAYS: return nanosUntil / (12 * NANOS_PER_HOUR);
+    
+        if(unit instanceof ChronoUnit) {
+            long nanosUntil = end.toEpochNano() - toEpochNano();
+        
+            switch((ChronoUnit) unit) {
+                case NANOS:
+                    return nanosUntil;
+                case MICROS:
+                    return nanosUntil / 1000;
+                case MILLIS:
+                    return nanosUntil / 1000_000;
+                case SECONDS:
+                    return nanosUntil / NANOS_PER_SECOND;
+                case MINUTES:
+                    return nanosUntil / NANOS_PER_MINUTE;
+                case HOURS:
+                    return nanosUntil / NANOS_PER_HOUR;
+                case HALF_DAYS:
+                    return nanosUntil / (12 * NANOS_PER_HOUR);
             }
+        
             throw new UnsupportedTemporalTypeException("Unsupported unit: " + unit);
         }
+    
         return unit.between(this, end);
     }
-
+    
+    /**
+     * Returns a copy of this {@code OffsetTime} with the time truncated.
+     * <p>
+     * Truncation returns a copy of the original time with fields
+     * smaller than the specified unit set to zero.
+     * For example, truncating with the {@link ChronoUnit#MINUTES minutes} unit
+     * will set the second-of-minute and nano-of-second field to zero.
+     * <p>
+     * The unit must have a {@linkplain TemporalUnit#getDuration() duration}
+     * that divides into the length of a standard day without remainder.
+     * This includes all supplied time units on {@link ChronoUnit} and
+     * {@link ChronoUnit#DAYS DAYS}. Other units throw an exception.
+     * <p>
+     * The offset does not affect the calculation and will be the same in the result.
+     * <p>
+     * This instance is immutable and unaffected by this method call.
+     *
+     * @param unit the unit to truncate to, not null
+     *
+     * @return an {@code OffsetTime} based on this time with the time truncated, not null
+     *
+     * @throws DateTimeException                if unable to truncate
+     * @throws UnsupportedTemporalTypeException if the unit is not supported
+     */
+    /*
+     * 截断(对齐)
+     *
+     * 将当前时间量按照unit单位进行截断(对齐)，返回截断(对齐)后的新对象。
+     *
+     * 注：要求unit为"时间"单位
+     */
+    public OffsetTime truncatedTo(TemporalUnit unit) {
+        return with(time.truncatedTo(unit), offset);
+    }
+    
+    /**
+     * Checks if the instant of this {@code OffsetTime} is after that of the
+     * specified time applying both times to a common date.
+     * <p>
+     * This method differs from the comparison in {@link #compareTo} in that it
+     * only compares the instant of the time. This is equivalent to converting both
+     * times to an instant using the same date and comparing the instants.
+     *
+     * @param other the other time to compare to, not null
+     *
+     * @return true if this is after the instant of the specified time
+     */
+    // 判断当前时间是否晚于参数中指定的时间；该操作会先将当前时间转换为UTC处的时间后再做比较
+    public boolean isAfter(OffsetTime other) {
+        return toEpochNano()>other.toEpochNano();
+    }
+    
+    /**
+     * Checks if the instant of this {@code OffsetTime} is before that of the
+     * specified time applying both times to a common date.
+     * <p>
+     * This method differs from the comparison in {@link #compareTo} in that it
+     * only compares the instant of the time. This is equivalent to converting both
+     * times to an instant using the same date and comparing the instants.
+     *
+     * @param other the other time to compare to, not null
+     *
+     * @return true if this is before the instant of the specified time
+     */
+    // 判断当前时间是否早于参数中指定的时间；该操作会先将当前时间转换为UTC处的时间后再做比较
+    public boolean isBefore(OffsetTime other) {
+        return toEpochNano()<other.toEpochNano();
+    }
+    
+    /**
+     * Checks if the instant of this {@code OffsetTime} is equal to that of the
+     * specified time applying both times to a common date.
+     * <p>
+     * This method differs from the comparison in {@link #compareTo} and {@link #equals}
+     * in that it only compares the instant of the time. This is equivalent to converting both
+     * times to an instant using the same date and comparing the instants.
+     *
+     * @param other the other time to compare to, not null
+     *
+     * @return true if this is equal to the instant of the specified time
+     */
+    // 判断当前时间与参数中指定的时间是否相等；该操作会先将当前时间转换为UTC处的时间后再做比较
+    public boolean isEqual(OffsetTime other) {
+        return toEpochNano() == other.toEpochNano();
+    }
+    
     /**
      * Formats this time using the specified formatter.
      * <p>
      * This time will be passed to the formatter to produce a string.
      *
-     * @param formatter  the formatter to use, not null
+     * @param formatter the formatter to use, not null
+     *
      * @return the formatted time string, not null
+     *
      * @throws DateTimeException if an error occurs during printing
      */
+    // 将当前时间转换为一个指定格式的字符串后返回
     public String format(DateTimeFormatter formatter) {
         Objects.requireNonNull(formatter, "formatter");
         return formatter.format(this);
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
     /**
-     * Combines this time with a date to create an {@code OffsetDateTime}.
-     * <p>
-     * This returns an {@code OffsetDateTime} formed from this time and the specified date.
-     * All possible combinations of date and time are valid.
+     * Returns a new time based on this one, returning {@code this} where possible.
      *
-     * @param date  the date to combine with, not null
-     * @return the offset date-time formed from this time and the specified date, not null
+     * @param time   the time to create with, not null
+     * @param offset the zone offset to create with, not null
      */
-    public OffsetDateTime atDate(LocalDate date) {
-        return OffsetDateTime.of(date, time, offset);
+    // 使用time构造属于offset的"本地时间"
+    private OffsetTime with(LocalTime time, ZoneOffset offset) {
+        if(this.time == time && this.offset.equals(offset)) {
+            return this;
+        }
+        
+        return new OffsetTime(time, offset);
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Converts this time to epoch nanos based on 1970-01-01Z.
      *
      * @return the epoch nanos value
      */
+    // 计算在当前时间点下，位于UTC时区的时间点包含的纳秒数
     private long toEpochNano() {
+        // 计算当前"本地时间"包含的纳秒数
         long nod = time.toNanoOfDay();
+        // 计算时区偏移纳秒
         long offsetNanos = offset.getTotalSeconds() * NANOS_PER_SECOND;
         return nod - offsetNanos;
     }
-
-    /**
-     * Converts this {@code OffsetTime} to the number of seconds since the epoch
-     * of 1970-01-01T00:00:00Z.
-     * <p>
-     * This combines this offset time with the specified date to calculate the
-     * epoch-second value, which is the number of elapsed seconds from
-     * 1970-01-01T00:00:00Z.
-     * Instants on the time-line after the epoch are positive, earlier
-     * are negative.
-     *
-     * @param date the localdate, not null
-     * @return the number of seconds since the epoch of 1970-01-01T00:00:00Z, may be negative
-     * @since 9
-     */
-    public long toEpochSecond(LocalDate date) {
-        Objects.requireNonNull(date, "date");
-        long epochDay = date.toEpochDay();
-        long secs = epochDay * 86400 + time.toSecondOfDay();
-        secs -= offset.getTotalSeconds();
-        return secs;
-    }
-
-    //-----------------------------------------------------------------------
+    
+    
     /**
      * Compares this {@code OffsetTime} to another time.
      * <p>
@@ -1278,104 +1822,22 @@ public final class OffsetTime
      * To compare the underlying local time of two {@code TemporalAccessor} instances,
      * use {@link ChronoField#NANO_OF_DAY} as a comparator.
      *
-     * @param other  the other time to compare to, not null
+     * @param other the other time to compare to, not null
+     *
      * @return the comparator value, negative if less, positive if greater
      */
     @Override
     public int compareTo(OffsetTime other) {
-        if (offset.equals(other.offset)) {
+        if(offset.equals(other.offset)) {
             return time.compareTo(other.time);
         }
         int compare = Long.compare(toEpochNano(), other.toEpochNano());
-        if (compare == 0) {
+        if(compare == 0) {
             compare = time.compareTo(other.time);
         }
         return compare;
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Checks if the instant of this {@code OffsetTime} is after that of the
-     * specified time applying both times to a common date.
-     * <p>
-     * This method differs from the comparison in {@link #compareTo} in that it
-     * only compares the instant of the time. This is equivalent to converting both
-     * times to an instant using the same date and comparing the instants.
-     *
-     * @param other  the other time to compare to, not null
-     * @return true if this is after the instant of the specified time
-     */
-    public boolean isAfter(OffsetTime other) {
-        return toEpochNano() > other.toEpochNano();
-    }
-
-    /**
-     * Checks if the instant of this {@code OffsetTime} is before that of the
-     * specified time applying both times to a common date.
-     * <p>
-     * This method differs from the comparison in {@link #compareTo} in that it
-     * only compares the instant of the time. This is equivalent to converting both
-     * times to an instant using the same date and comparing the instants.
-     *
-     * @param other  the other time to compare to, not null
-     * @return true if this is before the instant of the specified time
-     */
-    public boolean isBefore(OffsetTime other) {
-        return toEpochNano() < other.toEpochNano();
-    }
-
-    /**
-     * Checks if the instant of this {@code OffsetTime} is equal to that of the
-     * specified time applying both times to a common date.
-     * <p>
-     * This method differs from the comparison in {@link #compareTo} and {@link #equals}
-     * in that it only compares the instant of the time. This is equivalent to converting both
-     * times to an instant using the same date and comparing the instants.
-     *
-     * @param other  the other time to compare to, not null
-     * @return true if this is equal to the instant of the specified time
-     */
-    public boolean isEqual(OffsetTime other) {
-        return toEpochNano() == other.toEpochNano();
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Checks if this time is equal to another time.
-     * <p>
-     * The comparison is based on the local-time and the offset.
-     * To compare for the same instant on the time-line, use {@link #isEqual(OffsetTime)}.
-     * <p>
-     * Only objects of type {@code OffsetTime} are compared, other types return false.
-     * To compare the underlying local time of two {@code TemporalAccessor} instances,
-     * use {@link ChronoField#NANO_OF_DAY} as a comparator.
-     *
-     * @param obj  the object to check, null returns false
-     * @return true if this is equal to the other time
-     */
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj instanceof OffsetTime) {
-            OffsetTime other = (OffsetTime) obj;
-            return time.equals(other.time) && offset.equals(other.offset);
-        }
-        return false;
-    }
-
-    /**
-     * A hash code for this time.
-     *
-     * @return a suitable hash code
-     */
-    @Override
-    public int hashCode() {
-        return time.hashCode() ^ offset.hashCode();
-    }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Outputs this time as a {@code String}, such as {@code 10:15:30+01:00}.
      * <p>
@@ -1396,43 +1858,90 @@ public final class OffsetTime
     public String toString() {
         return time.toString() + offset.toString();
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
-     * Writes the object using a
-     * <a href="../../serialized-form.html#java.time.Ser">dedicated serialized form</a>.
-     * @serialData
-     * <pre>
-     *  out.writeByte(9);  // identifies an OffsetTime
-     *  // the <a href="../../serialized-form.html#java.time.LocalTime">time</a> excluding the one byte header
-     *  // the <a href="../../serialized-form.html#java.time.ZoneOffset">offset</a> excluding the one byte header
-     * </pre>
+     * Checks if this time is equal to another time.
+     * <p>
+     * The comparison is based on the local-time and the offset.
+     * To compare for the same instant on the time-line, use {@link #isEqual(OffsetTime)}.
+     * <p>
+     * Only objects of type {@code OffsetTime} are compared, other types return false.
+     * To compare the underlying local time of two {@code TemporalAccessor} instances,
+     * use {@link ChronoField#NANO_OF_DAY} as a comparator.
      *
-     * @return the instance of {@code Ser}, not null
+     * @param obj the object to check, null returns false
+     *
+     * @return true if this is equal to the other time
      */
-    private Object writeReplace() {
-        return new Ser(Ser.OFFSET_TIME_TYPE, this);
+    @Override
+    public boolean equals(Object obj) {
+        if(this == obj) {
+            return true;
+        }
+        if(obj instanceof OffsetTime) {
+            OffsetTime other = (OffsetTime) obj;
+            return time.equals(other.time) && offset.equals(other.offset);
+        }
+        return false;
     }
-
+    
+    /**
+     * A hash code for this time.
+     *
+     * @return a suitable hash code
+     */
+    @Override
+    public int hashCode() {
+        return time.hashCode() ^ offset.hashCode();
+    }
+    
+    
+    
+    /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Serialization version.
+     */
+    private static final long serialVersionUID = 7264499704384272492L;
+    
     /**
      * Defend against malicious streams.
      *
      * @param s the stream to read
+     *
      * @throws InvalidObjectException always
      */
     private void readObject(ObjectInputStream s) throws InvalidObjectException {
         throw new InvalidObjectException("Deserialization via serialization delegate");
     }
-
-    void writeExternal(ObjectOutput out) throws IOException {
-        time.writeExternal(out);
-        offset.writeExternal(out);
+    
+    /**
+     * Writes the object using a
+     * <a href="../../serialized-form.html#java.time.Ser">dedicated serialized form</a>.
+     *
+     * @return the instance of {@code Ser}, not null
+     *
+     * @serialData <pre>
+     *  out.writeByte(9);  // identifies an OffsetTime
+     *  // the <a href="../../serialized-form.html#java.time.LocalTime">time</a> excluding the one byte header
+     *  // the <a href="../../serialized-form.html#java.time.ZoneOffset">offset</a> excluding the one byte header
+     * </pre>
+     */
+    private Object writeReplace() {
+        return new Ser(Ser.OFFSET_TIME_TYPE, this);
     }
-
+    
     static OffsetTime readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         LocalTime time = LocalTime.readExternal(in);
         ZoneOffset offset = ZoneOffset.readExternal(in);
         return OffsetTime.of(time, offset);
     }
-
+    
+    void writeExternal(ObjectOutput out) throws IOException {
+        time.writeExternal(out);
+        offset.writeExternal(out);
+    }
+    
+    /*▲ 序列化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }

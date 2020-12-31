@@ -56,12 +56,6 @@
  */
 package java.time.chrono;
 
-import static java.time.temporal.ChronoField.DAY_OF_MONTH;
-import static java.time.temporal.ChronoField.ERA;
-import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
-import static java.time.temporal.ChronoField.PROLEPTIC_MONTH;
-import static java.time.temporal.ChronoField.YEAR_OF_ERA;
-
 import java.io.Serializable;
 import java.time.DateTimeException;
 import java.time.temporal.ChronoUnit;
@@ -73,6 +67,12 @@ import java.time.temporal.TemporalUnit;
 import java.time.temporal.UnsupportedTemporalTypeException;
 import java.time.temporal.ValueRange;
 import java.util.Objects;
+
+import static java.time.temporal.ChronoField.DAY_OF_MONTH;
+import static java.time.temporal.ChronoField.ERA;
+import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
+import static java.time.temporal.ChronoField.PROLEPTIC_MONTH;
+import static java.time.temporal.ChronoField.YEAR_OF_ERA;
 
 /**
  * A date expressed in terms of a standard year-month-day calendar system.
@@ -132,100 +132,76 @@ import java.util.Objects;
  * The subclass must function according to the {@code Chronology} class description and must provide its
  * {@link java.time.chrono.Chronology#getId() chronlogy ID} and {@link Chronology#getCalendarType() calendar type}. </p>
  *
- * @implSpec
- * This abstract class must be implemented with care to ensure other classes operate correctly.
+ * @param <D> the ChronoLocalDate of this date-time
+ *
+ * @implSpec This abstract class must be implemented with care to ensure other classes operate correctly.
  * All implementations that can be instantiated must be final, immutable and thread-safe.
  * Subclasses should be Serializable wherever possible.
- *
- * @param <D> the ChronoLocalDate of this date-time
  * @since 1.8
  */
-abstract class ChronoLocalDateImpl<D extends ChronoLocalDate>
-        implements ChronoLocalDate, Temporal, TemporalAdjuster, Serializable {
-
-    /**
-     * Serialization version.
-     */
-    private static final long serialVersionUID = 6282433883239719096L;
-
-    /**
-     * Casts the {@code Temporal} to {@code ChronoLocalDate} ensuring it bas the specified chronology.
-     *
-     * @param chrono  the chronology to check for, not null
-     * @param temporal  a date-time to cast, not null
-     * @return the date-time checked and cast to {@code ChronoLocalDate}, not null
-     * @throws ClassCastException if the date-time cannot be cast to ChronoLocalDate
-     *  or the chronology is not equal this Chronology
-     */
-    static <D extends ChronoLocalDate> D ensureValid(Chronology chrono, Temporal temporal) {
-        @SuppressWarnings("unchecked")
-        D other = (D) temporal;
-        if (chrono.equals(other.getChronology()) == false) {
-            throw new ClassCastException("Chronology mismatch, expected: " + chrono.getId() + ", actual: " + other.getChronology().getId());
-        }
-        return other;
-    }
-
-    //-----------------------------------------------------------------------
+// "本地日期"的抽象实现，"日期"基于[非ISO]历法系统
+abstract class ChronoLocalDateImpl<D extends ChronoLocalDate> implements ChronoLocalDate, Temporal, TemporalAdjuster, Serializable {
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Creates an instance.
      */
     ChronoLocalDateImpl() {
     }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public D with(TemporalAdjuster adjuster) {
-        return (D) ChronoLocalDate.super.with(adjuster);
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public D with(TemporalField field, long value) {
-        return (D) ChronoLocalDate.super.with(field, value);
-    }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 增加 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /*
+     * 对当前时间量的值与参数中的"时间段"求和
+     *
+     * 如果求和后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"求和"后的新对象再返回。
+     */
     @Override
     @SuppressWarnings("unchecked")
     public D plus(TemporalAmount amount) {
         return (D) ChronoLocalDate.super.plus(amount);
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*
+     * 对当前时间量的值累加amountToAdd个unit单位的时间量
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
     @Override
     @SuppressWarnings("unchecked")
     public D plus(long amountToAdd, TemporalUnit unit) {
-        if (unit instanceof ChronoUnit) {
+        if(unit instanceof ChronoUnit) {
             ChronoUnit f = (ChronoUnit) unit;
-            switch (f) {
-                case DAYS: return plusDays(amountToAdd);
-                case WEEKS: return plusDays(Math.multiplyExact(amountToAdd, 7));
-                case MONTHS: return plusMonths(amountToAdd);
-                case YEARS: return plusYears(amountToAdd);
-                case DECADES: return plusYears(Math.multiplyExact(amountToAdd, 10));
-                case CENTURIES: return plusYears(Math.multiplyExact(amountToAdd, 100));
-                case MILLENNIA: return plusYears(Math.multiplyExact(amountToAdd, 1000));
-                case ERAS: return with(ERA, Math.addExact(getLong(ERA), amountToAdd));
+            switch(f) {
+                case DAYS:
+                    return plusDays(amountToAdd);
+                case WEEKS:
+                    return plusDays(Math.multiplyExact(amountToAdd, 7));
+                case MONTHS:
+                    return plusMonths(amountToAdd);
+                case YEARS:
+                    return plusYears(amountToAdd);
+                case DECADES:
+                    return plusYears(Math.multiplyExact(amountToAdd, 10));
+                case CENTURIES:
+                    return plusYears(Math.multiplyExact(amountToAdd, 100));
+                case MILLENNIA:
+                    return plusYears(Math.multiplyExact(amountToAdd, 1000));
+                case ERAS:
+                    return with(ERA, Math.addExact(getLong(ERA), amountToAdd));
             }
             throw new UnsupportedTemporalTypeException("Unsupported unit: " + unit);
         }
         return (D) ChronoLocalDate.super.plus(amountToAdd, unit);
     }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public D minus(TemporalAmount amount) {
-        return (D) ChronoLocalDate.super.minus(amount);
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public D minus(long amountToSubtract, TemporalUnit unit) {
-        return (D) ChronoLocalDate.super.minus(amountToSubtract, unit);
-    }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Returns a copy of this date with the specified number of years added.
      * <p>
@@ -236,12 +212,15 @@ abstract class ChronoLocalDateImpl<D extends ChronoLocalDate>
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param yearsToAdd  the years to add, may be negative
+     * @param yearsToAdd the years to add, may be negative
+     *
      * @return a date based on this one with the years added, not null
+     *
      * @throws DateTimeException if the result exceeds the supported date range
      */
+    // 在当前时间量的值上累加yearsToAdd年
     abstract D plusYears(long yearsToAdd);
-
+    
     /**
      * Returns a copy of this date with the specified number of months added.
      * <p>
@@ -252,12 +231,15 @@ abstract class ChronoLocalDateImpl<D extends ChronoLocalDate>
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param monthsToAdd  the months to add, may be negative
+     * @param monthsToAdd the months to add, may be negative
+     *
      * @return a date based on this one with the months added, not null
+     *
      * @throws DateTimeException if the result exceeds the supported date range
      */
+    // 在当前时间量的值上累加monthsToAdd月
     abstract D plusMonths(long monthsToAdd);
-
+    
     /**
      * Returns a copy of this date with the specified number of weeks added.
      * <p>
@@ -269,14 +251,17 @@ abstract class ChronoLocalDateImpl<D extends ChronoLocalDate>
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param weeksToAdd  the weeks to add, may be negative
+     * @param weeksToAdd the weeks to add, may be negative
+     *
      * @return a date based on this one with the weeks added, not null
+     *
      * @throws DateTimeException if the result exceeds the supported date range
      */
+    // 在当前时间量的值上累加weeksToAdd周
     D plusWeeks(long weeksToAdd) {
         return plusDays(Math.multiplyExact(weeksToAdd, 7));
     }
-
+    
     /**
      * Returns a copy of this date with the specified number of days added.
      * <p>
@@ -284,13 +269,45 @@ abstract class ChronoLocalDateImpl<D extends ChronoLocalDate>
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param daysToAdd  the days to add, may be negative
+     * @param daysToAdd the days to add, may be negative
+     *
      * @return a date based on this one with the days added, not null
+     *
      * @throws DateTimeException if the result exceeds the supported date range
      */
+    // 在当前时间量的值上累加daysToAdd天
     abstract D plusDays(long daysToAdd);
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 增加 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 减少 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /*
+     * 对当前时间量的值与参数中的"时间段"求差
+     *
+     * 如果求差后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"求差"后的新对象再返回。
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    public D minus(TemporalAmount amount) {
+        return (D) ChronoLocalDate.super.minus(amount);
+    }
+    
+    /*
+     * 对当前时间量的值减去amountToSubtract个unit单位的时间量
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    public D minus(long amountToSubtract, TemporalUnit unit) {
+        return (D) ChronoLocalDate.super.minus(amountToSubtract, unit);
+    }
+    
     /**
      * Returns a copy of this date with the specified number of years subtracted.
      * <p>
@@ -303,15 +320,22 @@ abstract class ChronoLocalDateImpl<D extends ChronoLocalDate>
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param yearsToSubtract  the years to subtract, may be negative
+     * @param yearsToSubtract the years to subtract, may be negative
+     *
      * @return a date based on this one with the years subtracted, not null
+     *
      * @throws DateTimeException if the result exceeds the supported date range
      */
+    // 在当前时间量的值上减去yearsToSubtract年
     @SuppressWarnings("unchecked")
     D minusYears(long yearsToSubtract) {
-        return (yearsToSubtract == Long.MIN_VALUE ? ((ChronoLocalDateImpl<D>)plusYears(Long.MAX_VALUE)).plusYears(1) : plusYears(-yearsToSubtract));
+        if(yearsToSubtract == Long.MIN_VALUE) {
+            return ((ChronoLocalDateImpl<D>) plusYears(Long.MAX_VALUE)).plusYears(1);
+        }
+    
+        return plusYears(-yearsToSubtract);
     }
-
+    
     /**
      * Returns a copy of this date with the specified number of months subtracted.
      * <p>
@@ -324,15 +348,22 @@ abstract class ChronoLocalDateImpl<D extends ChronoLocalDate>
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param monthsToSubtract  the months to subtract, may be negative
+     * @param monthsToSubtract the months to subtract, may be negative
+     *
      * @return a date based on this one with the months subtracted, not null
+     *
      * @throws DateTimeException if the result exceeds the supported date range
      */
+    // 在当前时间量的值上减去monthsToSubtract月
     @SuppressWarnings("unchecked")
     D minusMonths(long monthsToSubtract) {
-        return (monthsToSubtract == Long.MIN_VALUE ? ((ChronoLocalDateImpl<D>)plusMonths(Long.MAX_VALUE)).plusMonths(1) : plusMonths(-monthsToSubtract));
+        if(monthsToSubtract == Long.MIN_VALUE) {
+            return ((ChronoLocalDateImpl<D>) plusMonths(Long.MAX_VALUE)).plusMonths(1);
+        }
+    
+        return plusMonths(-monthsToSubtract);
     }
-
+    
     /**
      * Returns a copy of this date with the specified number of weeks subtracted.
      * <p>
@@ -344,15 +375,22 @@ abstract class ChronoLocalDateImpl<D extends ChronoLocalDate>
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param weeksToSubtract  the weeks to subtract, may be negative
+     * @param weeksToSubtract the weeks to subtract, may be negative
+     *
      * @return a date based on this one with the weeks subtracted, not null
+     *
      * @throws DateTimeException if the result exceeds the supported date range
      */
+    // 在当前时间量的值上减去weeksToSubtract周
     @SuppressWarnings("unchecked")
     D minusWeeks(long weeksToSubtract) {
-        return (weeksToSubtract == Long.MIN_VALUE ? ((ChronoLocalDateImpl<D>)plusWeeks(Long.MAX_VALUE)).plusWeeks(1) : plusWeeks(-weeksToSubtract));
+        if(weeksToSubtract == Long.MIN_VALUE) {
+            return ((ChronoLocalDateImpl<D>) plusWeeks(Long.MAX_VALUE)).plusWeeks(1);
+        }
+    
+        return plusWeeks(-weeksToSubtract);
     }
-
+    
     /**
      * Returns a copy of this date with the specified number of days subtracted.
      * <p>
@@ -362,68 +400,142 @@ abstract class ChronoLocalDateImpl<D extends ChronoLocalDate>
      * <p>
      * This instance is immutable and unaffected by this method call.
      *
-     * @param daysToSubtract  the days to subtract, may be negative
+     * @param daysToSubtract the days to subtract, may be negative
+     *
      * @return a date based on this one with the days subtracted, not null
+     *
      * @throws DateTimeException if the result exceeds the supported date range
      */
+    // 在当前时间量的值上减去daysToSubtract天
     @SuppressWarnings("unchecked")
     D minusDays(long daysToSubtract) {
-        return (daysToSubtract == Long.MIN_VALUE ? ((ChronoLocalDateImpl<D>)plusDays(Long.MAX_VALUE)).plusDays(1) : plusDays(-daysToSubtract));
+        if(daysToSubtract == Long.MIN_VALUE) {
+            return ((ChronoLocalDateImpl<D>) plusDays(Long.MAX_VALUE)).plusDays(1);
+        }
+        
+        return plusDays(-daysToSubtract);
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 减少 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 整合 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /*
+     * 使用指定的时间量整合器adjuster来构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    public D with(TemporalAdjuster adjuster) {
+        return (D) ChronoLocalDate.super.with(adjuster);
+    }
+    
+    /*
+     * 通过整合指定类型的字段和当前时间量中的其他类型的字段来构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * field   : 待整合的字段(类型)
+     * newValue: field的原始值，需要根据filed的类型进行放缩
+     *
+     * 默认是不支持ChronoField类型的字段的，但是子类的实现中可以支持它
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    public D with(TemporalField field, long value) {
+        return (D) ChronoLocalDate.super.with(field, value);
+    }
+    
+    /*▲ 整合 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 杂项 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    // 计算当前时间量到目标时间量endExclusive之间相差多少个unit单位的时间值
     @Override
     public long until(Temporal endExclusive, TemporalUnit unit) {
         Objects.requireNonNull(endExclusive, "endExclusive");
+        Objects.requireNonNull(unit, "unit");
+        
         ChronoLocalDate end = getChronology().date(endExclusive);
-        if (unit instanceof ChronoUnit) {
-            switch ((ChronoUnit) unit) {
-                case DAYS: return daysUntil(end);
-                case WEEKS: return daysUntil(end) / 7;
-                case MONTHS: return monthsUntil(end);
-                case YEARS: return monthsUntil(end) / 12;
-                case DECADES: return monthsUntil(end) / 120;
-                case CENTURIES: return monthsUntil(end) / 1200;
-                case MILLENNIA: return monthsUntil(end) / 12000;
-                case ERAS: return end.getLong(ERA) - getLong(ERA);
+        
+        if(unit instanceof ChronoUnit) {
+            switch((ChronoUnit) unit) {
+                case DAYS:
+                    return daysUntil(end);
+                case WEEKS:
+                    return daysUntil(end) / 7;
+                case MONTHS:
+                    return monthsUntil(end);
+                case YEARS:
+                    return monthsUntil(end) / 12;
+                case DECADES:
+                    return monthsUntil(end) / 120;
+                case CENTURIES:
+                    return monthsUntil(end) / 1200;
+                case MILLENNIA:
+                    return monthsUntil(end) / 12000;
+                case ERAS:
+                    return end.getLong(ERA) - getLong(ERA);
             }
+            
             throw new UnsupportedTemporalTypeException("Unsupported unit: " + unit);
         }
-        Objects.requireNonNull(unit, "unit");
+        
         return unit.between(this, end);
     }
-
+    
+    /*▲ 杂项 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    // 计算当前日期到参数中日期相差的天数
     private long daysUntil(ChronoLocalDate end) {
         return end.toEpochDay() - toEpochDay();  // no overflow
     }
-
+    
+    // 计算当前日期到参数中日期相差的月数
     private long monthsUntil(ChronoLocalDate end) {
+        // 返回时间量字段MONTH_OF_YEAR的取值区间
         ValueRange range = getChronology().range(MONTH_OF_YEAR);
-        if (range.getMaximum() != 12) {
+        if(range.getMaximum() != 12) {
             throw new IllegalStateException("ChronoLocalDateImpl only supports Chronologies with 12 months per year");
         }
+        
         long packed1 = getLong(PROLEPTIC_MONTH) * 32L + get(DAY_OF_MONTH);  // no overflow
         long packed2 = end.getLong(PROLEPTIC_MONTH) * 32L + end.get(DAY_OF_MONTH);  // no overflow
         return (packed2 - packed1) / 32;
     }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
+    
+    /**
+     * Casts the {@code Temporal} to {@code ChronoLocalDate} ensuring it bas the specified chronology.
+     *
+     * @param chrono   the chronology to check for, not null
+     * @param temporal a date-time to cast, not null
+     *
+     * @return the date-time checked and cast to {@code ChronoLocalDate}, not null
+     *
+     * @throws ClassCastException if the date-time cannot be cast to ChronoLocalDate
+     *                            or the chronology is not equal this Chronology
+     */
+    // 判断指定的历法系统chrono是否与时间量temporal的历法系统相同
+    static <D extends ChronoLocalDate> D ensureValid(Chronology chrono, Temporal temporal) {
+        @SuppressWarnings("unchecked")
+        D other = (D) temporal;
+        
+        if(!chrono.equals(other.getChronology())) {
+            throw new ClassCastException("Chronology mismatch, expected: " + chrono.getId() + ", actual: " + other.getChronology().getId());
         }
-        if (obj instanceof ChronoLocalDate) {
-            return compareTo((ChronoLocalDate) obj) == 0;
-        }
-        return false;
+        
+        return other;
     }
-
-    @Override
-    public int hashCode() {
-        long epDay = toEpochDay();
-        return getChronology().hashCode() ^ ((int) (epDay ^ (epDay >>> 32)));
-    }
-
+    
+    
     @Override
     public String toString() {
         // getLong() reduces chances of exceptions in toString()
@@ -431,14 +543,36 @@ abstract class ChronoLocalDateImpl<D extends ChronoLocalDate>
         long moy = getLong(MONTH_OF_YEAR);
         long dom = getLong(DAY_OF_MONTH);
         StringBuilder buf = new StringBuilder(30);
-        buf.append(getChronology().toString())
-                .append(" ")
-                .append(getEra())
-                .append(" ")
-                .append(yoe)
-                .append(moy < 10 ? "-0" : "-").append(moy)
-                .append(dom < 10 ? "-0" : "-").append(dom);
+        buf.append(getChronology().toString()).append(" ").append(getEra()).append(" ").append(yoe).append(moy<10 ? "-0" : "-").append(moy).append(dom<10 ? "-0" : "-").append(dom);
         return buf.toString();
     }
-
+    
+    @Override
+    public boolean equals(Object obj) {
+        if(this == obj) {
+            return true;
+        }
+        if(obj instanceof ChronoLocalDate) {
+            return compareTo((ChronoLocalDate) obj) == 0;
+        }
+        return false;
+    }
+    
+    @Override
+    public int hashCode() {
+        long epDay = toEpochDay();
+        return getChronology().hashCode() ^ ((int) (epDay ^ (epDay >>> 32)));
+    }
+    
+    
+    
+    /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Serialization version.
+     */
+    private static final long serialVersionUID = 6282433883239719096L;
+    
+    /*▲ 序列化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
 }

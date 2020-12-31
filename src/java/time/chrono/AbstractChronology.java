@@ -61,6 +61,29 @@
  */
 package java.time.chrono;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.io.InvalidObjectException;
+import java.io.ObjectInputStream;
+import java.io.ObjectStreamException;
+import java.time.DateTimeException;
+import java.time.DayOfWeek;
+import java.time.format.ResolverStyle;
+import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalAdjusters;
+import java.time.temporal.TemporalField;
+import java.time.temporal.ValueRange;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.ServiceLoader;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import sun.util.logging.PlatformLogger;
+
 import static java.time.temporal.ChronoField.ALIGNED_DAY_OF_WEEK_IN_MONTH;
 import static java.time.temporal.ChronoField.ALIGNED_DAY_OF_WEEK_IN_YEAR;
 import static java.time.temporal.ChronoField.ALIGNED_WEEK_OF_MONTH;
@@ -79,32 +102,6 @@ import static java.time.temporal.ChronoUnit.MONTHS;
 import static java.time.temporal.ChronoUnit.WEEKS;
 import static java.time.temporal.TemporalAdjusters.nextOrSame;
 
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.io.InvalidObjectException;
-import java.io.ObjectInputStream;
-import java.io.ObjectStreamException;
-import java.io.Serializable;
-import java.time.DateTimeException;
-import java.time.DayOfWeek;
-import java.time.format.ResolverStyle;
-import java.time.temporal.ChronoField;
-import java.time.temporal.TemporalAdjusters;
-import java.time.temporal.TemporalField;
-import java.time.temporal.ValueRange;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.ServiceLoader;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-
-import sun.util.logging.PlatformLogger;
-
 /**
  * An abstract implementation of a calendar system, used to organize and identify dates.
  * <p>
@@ -113,220 +110,133 @@ import sun.util.logging.PlatformLogger;
  * <p>
  * See {@link Chronology} for more details.
  *
- * @implSpec
- * This class is separated from the {@code Chronology} interface so that the static methods
+ * @implSpec This class is separated from the {@code Chronology} interface so that the static methods
  * are not inherited. While {@code Chronology} can be implemented directly, it is strongly
  * recommended to extend this abstract class instead.
  * <p>
  * This class must be implemented with care to ensure other classes operate correctly.
  * All implementations that can be instantiated must be final, immutable and thread-safe.
  * Subclasses should be Serializable wherever possible.
- *
  * @since 1.8
  */
+// 历法系统的抽象实现，主要提供了对时间量字段的解析方法
 public abstract class AbstractChronology implements Chronology {
-
+    
     /**
      * Map of available calendars by ID.
      */
+    // 缓存注册的历法系统：key的历法的ID，value是历法实例
     private static final ConcurrentHashMap<String, Chronology> CHRONOS_BY_ID = new ConcurrentHashMap<>();
+    
     /**
      * Map of available calendars by calendar type.
      */
+    // 缓存注册的历法系统：key的历法的类型，value是历法实例
     private static final ConcurrentHashMap<String, Chronology> CHRONOS_BY_TYPE = new ConcurrentHashMap<>();
-
+    
+    
+    
+    /*▼ 构造器 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Register a Chronology by its ID and type for lookup by {@link #of(String)}.
-     * Chronologies must not be registered until they are completely constructed.
-     * Specifically, not in the constructor of Chronology.
-     *
-     * @param chrono the chronology to register; not null
-     * @return the already registered Chronology if any, may be null
+     * Creates an instance.
      */
-    static Chronology registerChrono(Chronology chrono) {
-        return registerChrono(chrono, chrono.getId());
+    protected AbstractChronology() {
     }
-
-    /**
-     * Register a Chronology by ID and type for lookup by {@link #of(String)}.
-     * Chronos must not be registered until they are completely constructed.
-     * Specifically, not in the constructor of Chronology.
-     *
-     * @param chrono the chronology to register; not null
-     * @param id the ID to register the chronology; not null
-     * @return the already registered Chronology if any, may be null
-     */
-    static Chronology registerChrono(Chronology chrono, String id) {
-        Chronology prev = CHRONOS_BY_ID.putIfAbsent(id, chrono);
-        if (prev == null) {
-            String type = chrono.getCalendarType();
-            if (type != null) {
-                CHRONOS_BY_TYPE.putIfAbsent(type, chrono);
-            }
-        }
-        return prev;
-    }
-
-    /**
-     * Initialization of the maps from id and type to Chronology.
-     * The ServiceLoader is used to find and register any implementations
-     * of {@link java.time.chrono.AbstractChronology} found in the bootclass loader.
-     * The built-in chronologies are registered explicitly.
-     * Calendars configured via the Thread's context classloader are local
-     * to that thread and are ignored.
-     * <p>
-     * The initialization is done only once using the registration
-     * of the IsoChronology as the test and the final step.
-     * Multiple threads may perform the initialization concurrently.
-     * Only the first registration of each Chronology is retained by the
-     * ConcurrentHashMap.
-     * @return true if the cache was initialized
-     */
-    private static boolean initCache() {
-        if (CHRONOS_BY_ID.get("ISO") == null) {
-            // Initialization is incomplete
-
-            // Register built-in Chronologies
-            registerChrono(HijrahChronology.INSTANCE);
-            registerChrono(JapaneseChronology.INSTANCE);
-            registerChrono(MinguoChronology.INSTANCE);
-            registerChrono(ThaiBuddhistChronology.INSTANCE);
-
-            // Register Chronologies from the ServiceLoader
-            @SuppressWarnings("rawtypes")
-            ServiceLoader<AbstractChronology> loader =  ServiceLoader.load(AbstractChronology.class, null);
-            for (AbstractChronology chrono : loader) {
-                String id = chrono.getId();
-                if (id.equals("ISO") || registerChrono(chrono) != null) {
-                    // Log the attempt to replace an existing Chronology
-                    PlatformLogger logger = PlatformLogger.getLogger("java.time.chrono");
-                    logger.warning("Ignoring duplicate Chronology, from ServiceLoader configuration "  + id);
-                }
-            }
-
-            // finally, register IsoChronology to mark initialization is complete
-            registerChrono(IsoChronology.INSTANCE);
-            return true;
-        }
-        return false;
-    }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Obtains an instance of {@code Chronology} from a locale.
-     * <p>
-     * See {@link Chronology#ofLocale(Locale)}.
-     *
-     * @param locale  the locale to use to obtain the calendar system, not null
-     * @return the calendar system associated with the locale, not null
-     * @throws java.time.DateTimeException if the locale-specified calendar cannot be found
-     */
-    static Chronology ofLocale(Locale locale) {
-        Objects.requireNonNull(locale, "locale");
-        String type = locale.getUnicodeLocaleType("ca");
-        if (type == null || "iso".equals(type) || "iso8601".equals(type)) {
-            return IsoChronology.INSTANCE;
-        }
-        // Not pre-defined; lookup by the type
-        do {
-            Chronology chrono = CHRONOS_BY_TYPE.get(type);
-            if (chrono != null) {
-                return chrono;
-            }
-            // If not found, do the initialization (once) and repeat the lookup
-        } while (initCache());
-
-        // Look for a Chronology using ServiceLoader of the Thread's ContextClassLoader
-        // Application provided Chronologies must not be cached
-        @SuppressWarnings("rawtypes")
-        ServiceLoader<Chronology> loader = ServiceLoader.load(Chronology.class);
-        for (Chronology chrono : loader) {
-            if (type.equals(chrono.getCalendarType())) {
-                return chrono;
-            }
-        }
-        throw new DateTimeException("Unknown calendar system: " + type);
-    }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 构造器 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Obtains an instance of {@code Chronology} from a chronology ID or
      * calendar system type.
      * <p>
      * See {@link Chronology#of(String)}.
      *
-     * @param id  the chronology ID or calendar system type, not null
+     * @param idOrType the chronology ID or calendar system type, not null
+     *
      * @return the chronology with the identifier requested, not null
+     *
      * @throws java.time.DateTimeException if the chronology cannot be found
      */
-    static Chronology of(String id) {
-        Objects.requireNonNull(id, "id");
+    // 根据指定的历法ID或历法类型，(构造并)返回对应的历法系统
+    static Chronology of(String idOrType) {
+        Objects.requireNonNull(idOrType, "idOrType");
+        
         do {
-            Chronology chrono = of0(id);
-            if (chrono != null) {
+            // 根据指定的历法ID或历法类型，从缓存中获取到注册的历法系统
+            Chronology chrono = of0(idOrType);
+            if(chrono != null) {
                 return chrono;
             }
             // If not found, do the initialization (once) and repeat the lookup
-        } while (initCache());
-
-        // Look for a Chronology using ServiceLoader of the Thread's ContextClassLoader
-        // Application provided Chronologies must not be cached
+        } while(initCache());
+        
+        // Look for a Chronology using ServiceLoader of the Thread's ContextClassLoader.
+        // Application provided Chronologies must not be cached.
         @SuppressWarnings("rawtypes")
         ServiceLoader<Chronology> loader = ServiceLoader.load(Chronology.class);
-        for (Chronology chrono : loader) {
-            if (id.equals(chrono.getId()) || id.equals(chrono.getCalendarType())) {
+        for(Chronology chrono : loader) {
+            if(idOrType.equals(chrono.getId()) || idOrType.equals(chrono.getCalendarType())) {
                 return chrono;
             }
         }
-        throw new DateTimeException("Unknown chronology: " + id);
+        throw new DateTimeException("Unknown chronology: " + idOrType);
     }
-
+    
     /**
-     * Obtains an instance of {@code Chronology} from a chronology ID or
-     * calendar system type.
-     *
-     * @param id  the chronology ID or calendar system type, not null
-     * @return the chronology with the identifier requested, or {@code null} if not found
-     */
-    private static Chronology of0(String id) {
-        Chronology chrono = CHRONOS_BY_ID.get(id);
-        if (chrono == null) {
-            chrono = CHRONOS_BY_TYPE.get(id);
-        }
-        return chrono;
-    }
-
-    /**
-     * Returns the available chronologies.
+     * Obtains an instance of {@code Chronology} from a locale.
      * <p>
-     * Each returned {@code Chronology} is available for use in the system.
-     * The set of chronologies includes the system chronologies and
-     * any chronologies provided by the application via ServiceLoader
-     * configuration.
+     * See {@link Chronology#ofLocale(Locale)}.
      *
-     * @return the independent, modifiable set of the available chronology IDs, not null
+     * @param locale the locale to use to obtain the calendar system, not null
+     *
+     * @return the calendar system associated with the locale, not null
+     *
+     * @throws java.time.DateTimeException if the locale-specified calendar cannot be found
      */
-    static Set<Chronology> getAvailableChronologies() {
-        initCache();       // force initialization
-        HashSet<Chronology> chronos = new HashSet<>(CHRONOS_BY_ID.values());
-
-        /// Add in Chronologies from the ServiceLoader configuration
+    // 返回指定区域可用的历法系统
+    static Chronology ofLocale(Locale locale) {
+        Objects.requireNonNull(locale, "locale");
+    
+        // 获取当前可用的历法类型
+        String type = locale.getUnicodeLocaleType("ca");
+        if(type == null || "iso".equals(type) || "iso8601".equals(type)) {
+            // 默认使用ISO历法
+            return IsoChronology.INSTANCE;
+        }
+    
+        // Not pre-defined; lookup by the type
+        do {
+            Chronology chrono = CHRONOS_BY_TYPE.get(type);
+            if(chrono != null) {
+                return chrono;
+            }
+            // If not found, do the initialization (once) and repeat the lookup
+        } while(initCache());
+    
+        // Look for a Chronology using ServiceLoader of the Thread's ContextClassLoader.
+        // Application provided Chronologies must not be cached.
         @SuppressWarnings("rawtypes")
         ServiceLoader<Chronology> loader = ServiceLoader.load(Chronology.class);
-        for (Chronology chrono : loader) {
-            chronos.add(chrono);
+        for(Chronology chrono : loader) {
+            if(type.equals(chrono.getCalendarType())) {
+                return chrono;
+            }
         }
-        return chronos;
+    
+        throw new DateTimeException("Unknown calendar system: " + type);
     }
-
-    //-----------------------------------------------------------------------
-    /**
-     * Creates an instance.
-     */
-    protected AbstractChronology() {
-    }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 工厂方法 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 解析时间量字段 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
      * Resolves parsed {@code ChronoField} values into a date during parsing.
      * <p>
@@ -413,221 +323,304 @@ public abstract class AbstractChronology implements Chronology {
      * has the value 1, that first day-of-year has the value 1, and that the
      * first of the month and year always exists.
      *
-     * @param fieldValues  the map of fields to values, which can be updated, not null
-     * @param resolverStyle  the requested type of resolve, not null
+     * @param fieldValues   the map of fields to values, which can be updated, not null
+     * @param resolverStyle the requested type of resolve, not null
+     *
      * @return the resolved date, null if insufficient information to create a date
+     *
      * @throws java.time.DateTimeException if the date cannot be resolved, typically
-     *  because of a conflict in the input data
+     *                                     because of a conflict in the input data
+     */
+    /*
+     * 从fieldValues中解析出时间量字段的值，然后用这些值来构造本地日期。
+     *
+     * resolverStyle: 指示解析时间量字段的策略
      */
     @Override
     public ChronoLocalDate resolveDate(Map<TemporalField, Long> fieldValues, ResolverStyle resolverStyle) {
-        // check epoch-day before inventing era
-        if (fieldValues.containsKey(EPOCH_DAY)) {
+        /* check epoch-day before inventing era */
+        if(fieldValues.containsKey(EPOCH_DAY)) {
             return dateEpochDay(fieldValues.remove(EPOCH_DAY));
         }
-
-        // fix proleptic month before inventing era
+        
+        /* fix proleptic month before inventing era */
+        // 从fieldValues中解析[Proleptic-月]信息
         resolveProlepticMonth(fieldValues, resolverStyle);
-
-        // invent era if necessary to resolve year-of-era
+        
+        /* invent era if necessary to resolve year-of-era */
+        // 尝试从中解析[iSO年份]信息，并将其转换为[Proleptic年]后存入fieldValues
         ChronoLocalDate resolved = resolveYearOfEra(fieldValues, resolverStyle);
-        if (resolved != null) {
+        if(resolved != null) {
             return resolved;
         }
-
-        // build date
-        if (fieldValues.containsKey(YEAR)) {
-            if (fieldValues.containsKey(MONTH_OF_YEAR)) {
-                if (fieldValues.containsKey(DAY_OF_MONTH)) {
-                    return resolveYMD(fieldValues, resolverStyle);
-                }
-                if (fieldValues.containsKey(ALIGNED_WEEK_OF_MONTH)) {
-                    if (fieldValues.containsKey(ALIGNED_DAY_OF_WEEK_IN_MONTH)) {
-                        return resolveYMAA(fieldValues, resolverStyle);
-                    }
-                    if (fieldValues.containsKey(DAY_OF_WEEK)) {
-                        return resolveYMAD(fieldValues, resolverStyle);
-                    }
-                }
+        
+        // 如果不包含[Proleptic年]信息，则直接返回
+        if(!fieldValues.containsKey(YEAR)) {
+            return null;
+        }
+        
+        // 解析位于年中的[月]
+        if(fieldValues.containsKey(MONTH_OF_YEAR)) {
+            // 解析位于月中的[天]
+            if(fieldValues.containsKey(DAY_OF_MONTH)) {
+                return resolveYMD(fieldValues, resolverStyle);
             }
-            if (fieldValues.containsKey(DAY_OF_YEAR)) {
-                return resolveYD(fieldValues, resolverStyle);
-            }
-            if (fieldValues.containsKey(ALIGNED_WEEK_OF_YEAR)) {
-                if (fieldValues.containsKey(ALIGNED_DAY_OF_WEEK_IN_YEAR)) {
-                    return resolveYAA(fieldValues, resolverStyle);
+            
+            // 可以假设当月第一天位于第1周
+            if(fieldValues.containsKey(ALIGNED_WEEK_OF_MONTH)) {
+                // 可以假设当月第一天是周一
+                if(fieldValues.containsKey(ALIGNED_DAY_OF_WEEK_IN_MONTH)) {
+                    return resolveYMAA(fieldValues, resolverStyle);
                 }
-                if (fieldValues.containsKey(DAY_OF_WEEK)) {
-                    return resolveYAD(fieldValues, resolverStyle);
+                
+                // 解析位于周中的[天]，即周几
+                if(fieldValues.containsKey(DAY_OF_WEEK)) {
+                    return resolveYMAD(fieldValues, resolverStyle);
                 }
             }
         }
+        
+        // 位于年中的[天]
+        if(fieldValues.containsKey(DAY_OF_YEAR)) {
+            //  从fieldValues中解析年份和位于年中的[天]
+            return resolveYD(fieldValues, resolverStyle);
+        }
+        
+        // 可以假设当年第一天位于第1周
+        if(fieldValues.containsKey(ALIGNED_WEEK_OF_YEAR)) {
+            // 可以假设当年第一天是周一
+            if(fieldValues.containsKey(ALIGNED_DAY_OF_WEEK_IN_YEAR)) {
+                return resolveYAA(fieldValues, resolverStyle);
+            }
+            
+            // 解析位于周中的[天]，即周几
+            if(fieldValues.containsKey(DAY_OF_WEEK)) {
+                return resolveYAD(fieldValues, resolverStyle);
+            }
+        }
+        
         return null;
     }
-
+    
+    
+    // 从fieldValues中解析[Proleptic-月]信息
     void resolveProlepticMonth(Map<TemporalField, Long> fieldValues, ResolverStyle resolverStyle) {
         Long pMonth = fieldValues.remove(PROLEPTIC_MONTH);
-        if (pMonth != null) {
-            if (resolverStyle != ResolverStyle.LENIENT) {
-                PROLEPTIC_MONTH.checkValidValue(pMonth);
-            }
-            // first day-of-month is likely to be safest for setting proleptic-month
-            // cannot add to year zero, as not all chronologies have a year zero
-            ChronoLocalDate chronoDate = dateNow()
-                    .with(DAY_OF_MONTH, 1).with(PROLEPTIC_MONTH, pMonth);
-            addFieldValue(fieldValues, MONTH_OF_YEAR, chronoDate.get(MONTH_OF_YEAR));
-            addFieldValue(fieldValues, YEAR, chronoDate.get(YEAR));
+        if(pMonth == null) {
+            return;
         }
+        
+        if(resolverStyle != ResolverStyle.LENIENT) {
+            PROLEPTIC_MONTH.checkValidValue(pMonth);
+        }
+        
+        // first day-of-month is likely to be safest for setting proleptic-month
+        // cannot add to year zero, as not all chronologies have a year zero
+        ChronoLocalDate chronoDate = dateNow().with(DAY_OF_MONTH, 1).with(PROLEPTIC_MONTH, pMonth);
+        addFieldValue(fieldValues, MONTH_OF_YEAR, chronoDate.get(MONTH_OF_YEAR));
+        addFieldValue(fieldValues, YEAR, chronoDate.get(YEAR));
     }
-
+    
+    // 尝试从中解析[iSO年份]信息，并将其转换为[Proleptic年]后存入fieldValues
     ChronoLocalDate resolveYearOfEra(Map<TemporalField, Long> fieldValues, ResolverStyle resolverStyle) {
+        // 从fieldValues中获取字段YEAR_OF_ERA的值(ISO年份)
         Long yoeLong = fieldValues.remove(YEAR_OF_ERA);
-        if (yoeLong != null) {
-            Long eraLong = fieldValues.remove(ERA);
+        
+        // 如果包含[iSO年份]字段
+        if(yoeLong != null) {
             int yoe;
-            if (resolverStyle != ResolverStyle.LENIENT) {
-                yoe = range(YEAR_OF_ERA).checkValidIntValue(yoeLong, YEAR_OF_ERA);
-            } else {
+            if(resolverStyle == ResolverStyle.LENIENT) {
                 yoe = Math.toIntExact(yoeLong);
-            }
-            if (eraLong != null) {
-                Era eraObj = eraOf(range(ERA).checkValidIntValue(eraLong, ERA));
-                addFieldValue(fieldValues, YEAR, prolepticYear(eraObj, yoe));
             } else {
-                if (fieldValues.containsKey(YEAR)) {
+                yoe = range(YEAR_OF_ERA).checkValidIntValue(yoeLong, YEAR_OF_ERA);
+            }
+            
+            // 从fieldValues中获取字段YEAR_OF_ERA的值(纪元)
+            Long eraLong = fieldValues.remove(ERA);
+            
+            // 如果包含[纪元]字段，直接使用该[纪元]与[ISO年份]构造为一个"Proleptic年"存入fieldValues
+            if(eraLong != null) {
+                Era eraObj = eraOf(range(ERA).checkValidIntValue(eraLong, ERA));
+                
+                // 将eraObj处的ISO年份(公历年)转换为"Proleptic年"
+                int prolepticYear = prolepticYear(eraObj, yoe);
+                
+                addFieldValue(fieldValues, YEAR, prolepticYear);
+                
+                // 如果不包含[纪元]字段
+            } else {
+                
+                // 如果包含[Proleptic年]字段，则尝试使用[Proleptic年]年所在的纪元与[iSO年份]构造为一个新的"Proleptic年"存入fieldValues
+                if(fieldValues.containsKey(YEAR)) {
                     int year = range(YEAR).checkValidIntValue(fieldValues.get(YEAR), YEAR);
+                    
+                    // 构造一个"本地日期"对象，代表该年份的第一天
                     ChronoLocalDate chronoDate = dateYearDay(year, 1);
-                    addFieldValue(fieldValues, YEAR, prolepticYear(chronoDate.getEra(), yoe));
-                } else if (resolverStyle == ResolverStyle.STRICT) {
-                    // do not invent era if strict
-                    // reinstate the field removed earlier, no cross-check issues
+                    
+                    // 返回当前日期所属的纪元
+                    Era era = chronoDate.getEra();
+                    
+                    // 将era处的ISO年份(公历年)转换为一个新的"Proleptic年"
+                    int prolepticYear = prolepticYear(era, yoe);
+                    
+                    addFieldValue(fieldValues, YEAR, prolepticYear);
+                    
+                    // 在严格模式下，再将该[iSO年份]还原到fieldValues中
+                } else if(resolverStyle == ResolverStyle.STRICT) {
+                    // do not invent era if strict.
+                    // reinstate the field removed earlier, no cross-check issues.
                     fieldValues.put(YEAR_OF_ERA, yoeLong);
                 } else {
+                    // 获取当前历法系统下可用的纪元
                     List<Era> eras = eras();
-                    if (eras.isEmpty()) {
+                    
+                    // 没有可用纪元，则将该[iSO年份]回退为[Proleptic年]
+                    if(eras.isEmpty()) {
                         addFieldValue(fieldValues, YEAR, yoe);
+                        
+                        // 如果存在可以纪元，则默认使用最后一个纪元与[iSO年份]构造一个"Proleptic年"存入fieldValues
                     } else {
                         Era eraObj = eras.get(eras.size() - 1);
                         addFieldValue(fieldValues, YEAR, prolepticYear(eraObj, yoe));
                     }
                 }
             }
-        } else if (fieldValues.containsKey(ERA)) {
+            
+            // 不存在[iSO年份]时，尝试解析[纪元]信息，检查其有效性
+        } else if(fieldValues.containsKey(ERA)) {
             range(ERA).checkValidValue(fieldValues.get(ERA), ERA);  // always validated
         }
+        
         return null;
     }
-
+    
+    // 从fieldValues中解析出年/月/日信息
     ChronoLocalDate resolveYMD(Map<TemporalField, Long> fieldValues, ResolverStyle resolverStyle) {
         int y = range(YEAR).checkValidIntValue(fieldValues.remove(YEAR), YEAR);
-        if (resolverStyle == ResolverStyle.LENIENT) {
+        if(resolverStyle == ResolverStyle.LENIENT) {
             long months = Math.subtractExact(fieldValues.remove(MONTH_OF_YEAR), 1);
             long days = Math.subtractExact(fieldValues.remove(DAY_OF_MONTH), 1);
             return date(y, 1, 1).plus(months, MONTHS).plus(days, DAYS);
         }
+        
         int moy = range(MONTH_OF_YEAR).checkValidIntValue(fieldValues.remove(MONTH_OF_YEAR), MONTH_OF_YEAR);
+        
         ValueRange domRange = range(DAY_OF_MONTH);
+        
         int dom = domRange.checkValidIntValue(fieldValues.remove(DAY_OF_MONTH), DAY_OF_MONTH);
-        if (resolverStyle == ResolverStyle.SMART) {  // previous valid
+        
+        if(resolverStyle == ResolverStyle.SMART) {  // previous valid
             try {
                 return date(y, moy, dom);
-            } catch (DateTimeException ex) {
+            } catch(DateTimeException ex) {
                 return date(y, moy, 1).with(TemporalAdjusters.lastDayOfMonth());
             }
         }
+        
         return date(y, moy, dom);
     }
-
+    
+    // 从fieldValues中解析年份和位于年中的[天]
     ChronoLocalDate resolveYD(Map<TemporalField, Long> fieldValues, ResolverStyle resolverStyle) {
         int y = range(YEAR).checkValidIntValue(fieldValues.remove(YEAR), YEAR);
-        if (resolverStyle == ResolverStyle.LENIENT) {
+        if(resolverStyle == ResolverStyle.LENIENT) {
             long days = Math.subtractExact(fieldValues.remove(DAY_OF_YEAR), 1);
             return dateYearDay(y, 1).plus(days, DAYS);
         }
         int doy = range(DAY_OF_YEAR).checkValidIntValue(fieldValues.remove(DAY_OF_YEAR), DAY_OF_YEAR);
         return dateYearDay(y, doy);  // smart is same as strict
     }
-
+    
     ChronoLocalDate resolveYMAA(Map<TemporalField, Long> fieldValues, ResolverStyle resolverStyle) {
         int y = range(YEAR).checkValidIntValue(fieldValues.remove(YEAR), YEAR);
-        if (resolverStyle == ResolverStyle.LENIENT) {
+        if(resolverStyle == ResolverStyle.LENIENT) {
             long months = Math.subtractExact(fieldValues.remove(MONTH_OF_YEAR), 1);
             long weeks = Math.subtractExact(fieldValues.remove(ALIGNED_WEEK_OF_MONTH), 1);
             long days = Math.subtractExact(fieldValues.remove(ALIGNED_DAY_OF_WEEK_IN_MONTH), 1);
             return date(y, 1, 1).plus(months, MONTHS).plus(weeks, WEEKS).plus(days, DAYS);
         }
+        
         int moy = range(MONTH_OF_YEAR).checkValidIntValue(fieldValues.remove(MONTH_OF_YEAR), MONTH_OF_YEAR);
         int aw = range(ALIGNED_WEEK_OF_MONTH).checkValidIntValue(fieldValues.remove(ALIGNED_WEEK_OF_MONTH), ALIGNED_WEEK_OF_MONTH);
         int ad = range(ALIGNED_DAY_OF_WEEK_IN_MONTH).checkValidIntValue(fieldValues.remove(ALIGNED_DAY_OF_WEEK_IN_MONTH), ALIGNED_DAY_OF_WEEK_IN_MONTH);
         ChronoLocalDate date = date(y, moy, 1).plus((aw - 1) * 7 + (ad - 1), DAYS);
-        if (resolverStyle == ResolverStyle.STRICT && date.get(MONTH_OF_YEAR) != moy) {
+        if(resolverStyle == ResolverStyle.STRICT && date.get(MONTH_OF_YEAR) != moy) {
             throw new DateTimeException("Strict mode rejected resolved date as it is in a different month");
         }
+        
         return date;
     }
-
+    
     ChronoLocalDate resolveYMAD(Map<TemporalField, Long> fieldValues, ResolverStyle resolverStyle) {
         int y = range(YEAR).checkValidIntValue(fieldValues.remove(YEAR), YEAR);
-        if (resolverStyle == ResolverStyle.LENIENT) {
+        if(resolverStyle == ResolverStyle.LENIENT) {
             long months = Math.subtractExact(fieldValues.remove(MONTH_OF_YEAR), 1);
             long weeks = Math.subtractExact(fieldValues.remove(ALIGNED_WEEK_OF_MONTH), 1);
             long dow = Math.subtractExact(fieldValues.remove(DAY_OF_WEEK), 1);
             return resolveAligned(date(y, 1, 1), months, weeks, dow);
         }
+        
         int moy = range(MONTH_OF_YEAR).checkValidIntValue(fieldValues.remove(MONTH_OF_YEAR), MONTH_OF_YEAR);
         int aw = range(ALIGNED_WEEK_OF_MONTH).checkValidIntValue(fieldValues.remove(ALIGNED_WEEK_OF_MONTH), ALIGNED_WEEK_OF_MONTH);
         int dow = range(DAY_OF_WEEK).checkValidIntValue(fieldValues.remove(DAY_OF_WEEK), DAY_OF_WEEK);
         ChronoLocalDate date = date(y, moy, 1).plus((aw - 1) * 7, DAYS).with(nextOrSame(DayOfWeek.of(dow)));
-        if (resolverStyle == ResolverStyle.STRICT && date.get(MONTH_OF_YEAR) != moy) {
+        if(resolverStyle == ResolverStyle.STRICT && date.get(MONTH_OF_YEAR) != moy) {
             throw new DateTimeException("Strict mode rejected resolved date as it is in a different month");
         }
+        
         return date;
     }
-
+    
     ChronoLocalDate resolveYAA(Map<TemporalField, Long> fieldValues, ResolverStyle resolverStyle) {
         int y = range(YEAR).checkValidIntValue(fieldValues.remove(YEAR), YEAR);
-        if (resolverStyle == ResolverStyle.LENIENT) {
+        if(resolverStyle == ResolverStyle.LENIENT) {
             long weeks = Math.subtractExact(fieldValues.remove(ALIGNED_WEEK_OF_YEAR), 1);
             long days = Math.subtractExact(fieldValues.remove(ALIGNED_DAY_OF_WEEK_IN_YEAR), 1);
             return dateYearDay(y, 1).plus(weeks, WEEKS).plus(days, DAYS);
         }
+        
         int aw = range(ALIGNED_WEEK_OF_YEAR).checkValidIntValue(fieldValues.remove(ALIGNED_WEEK_OF_YEAR), ALIGNED_WEEK_OF_YEAR);
         int ad = range(ALIGNED_DAY_OF_WEEK_IN_YEAR).checkValidIntValue(fieldValues.remove(ALIGNED_DAY_OF_WEEK_IN_YEAR), ALIGNED_DAY_OF_WEEK_IN_YEAR);
         ChronoLocalDate date = dateYearDay(y, 1).plus((aw - 1) * 7 + (ad - 1), DAYS);
-        if (resolverStyle == ResolverStyle.STRICT && date.get(YEAR) != y) {
+        if(resolverStyle == ResolverStyle.STRICT && date.get(YEAR) != y) {
             throw new DateTimeException("Strict mode rejected resolved date as it is in a different year");
         }
+        
         return date;
     }
-
+    
     ChronoLocalDate resolveYAD(Map<TemporalField, Long> fieldValues, ResolverStyle resolverStyle) {
         int y = range(YEAR).checkValidIntValue(fieldValues.remove(YEAR), YEAR);
-        if (resolverStyle == ResolverStyle.LENIENT) {
+        if(resolverStyle == ResolverStyle.LENIENT) {
             long weeks = Math.subtractExact(fieldValues.remove(ALIGNED_WEEK_OF_YEAR), 1);
             long dow = Math.subtractExact(fieldValues.remove(DAY_OF_WEEK), 1);
             return resolveAligned(dateYearDay(y, 1), 0, weeks, dow);
         }
+        
         int aw = range(ALIGNED_WEEK_OF_YEAR).checkValidIntValue(fieldValues.remove(ALIGNED_WEEK_OF_YEAR), ALIGNED_WEEK_OF_YEAR);
         int dow = range(DAY_OF_WEEK).checkValidIntValue(fieldValues.remove(DAY_OF_WEEK), DAY_OF_WEEK);
         ChronoLocalDate date = dateYearDay(y, 1).plus((aw - 1) * 7, DAYS).with(nextOrSame(DayOfWeek.of(dow)));
-        if (resolverStyle == ResolverStyle.STRICT && date.get(YEAR) != y) {
+        if(resolverStyle == ResolverStyle.STRICT && date.get(YEAR) != y) {
             throw new DateTimeException("Strict mode rejected resolved date as it is in a different year");
         }
+        
         return date;
     }
-
+    
     ChronoLocalDate resolveAligned(ChronoLocalDate base, long months, long weeks, long dow) {
         ChronoLocalDate date = base.plus(months, MONTHS).plus(weeks, WEEKS);
-        if (dow > 7) {
+        if(dow>7) {
             date = date.plus((dow - 1) / 7, WEEKS);
             dow = ((dow - 1) % 7) + 1;
-        } else if (dow < 1) {
-            date = date.plus(Math.subtractExact(dow,  7) / 7, WEEKS);
+        } else if(dow<1) {
+            date = date.plus(Math.subtractExact(dow, 7) / 7, WEEKS);
             dow = ((dow + 6) % 7) + 1;
         }
+        
         return date.with(nextOrSame(DayOfWeek.of((int) dow)));
     }
-
+    
+    
     /**
      * Adds a field-value pair to the map, checking for conflicts.
      * <p>
@@ -636,89 +629,175 @@ public abstract class AbstractChronology implements Chronology {
      * If the field is already present and it has a different value to that specified, then
      * an exception is thrown.
      *
-     * @param field  the field to add, not null
-     * @param value  the value to add, not null
+     * @param field the field to add, not null
+     * @param value the value to add, not null
+     *
      * @throws java.time.DateTimeException if the field is already present with a different value
      */
+    // 向fieldValues中存入键值对<field, value>
     void addFieldValue(Map<TemporalField, Long> fieldValues, ChronoField field, long value) {
         Long old = fieldValues.get(field);  // check first for better error message
-        if (old != null && old.longValue() != value) {
+        if(old != null && old != value) {
             throw new DateTimeException("Conflict found: " + field + " " + old + " differs from " + field + " " + value);
         }
+        
         fieldValues.put(field, value);
     }
-
-    //-----------------------------------------------------------------------
+    
+    /*▲ 解析时间量字段 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 注册/获取历法系统 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
     /**
-     * Compares this chronology to another chronology.
+     * Returns the available chronologies.
      * <p>
-     * The comparison order first by the chronology ID string, then by any
-     * additional information specific to the subclass.
-     * It is "consistent with equals", as defined by {@link Comparable}.
+     * Each returned {@code Chronology} is available for use in the system.
+     * The set of chronologies includes the system chronologies and
+     * any chronologies provided by the application via ServiceLoader
+     * configuration.
      *
-     * @implSpec
-     * This implementation compares the chronology ID.
-     * Subclasses must compare any additional state that they store.
-     *
-     * @param other  the other chronology to compare to, not null
-     * @return the comparator value, negative if less, positive if greater
+     * @return the independent, modifiable set of the available chronology IDs, not null
      */
-    @Override
-    public int compareTo(Chronology other) {
-        return getId().compareTo(other.getId());
-    }
-
-    /**
-     * Checks if this chronology is equal to another chronology.
-     * <p>
-     * The comparison is based on the entire state of the object.
-     *
-     * @implSpec
-     * This implementation checks the type and calls
-     * {@link #compareTo(java.time.chrono.Chronology)}.
-     *
-     * @param obj  the object to check, null returns false
-     * @return true if this is equal to the other chronology
-     */
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-           return true;
+    // 返回当前可用的历法系统，包括自定义的历法系统
+    static Set<Chronology> getAvailableChronologies() {
+        initCache();       // force initialization
+        HashSet<Chronology> chronos = new HashSet<>(CHRONOS_BY_ID.values());
+        
+        /// Add in Chronologies from the ServiceLoader configuration
+        @SuppressWarnings("rawtypes")
+        ServiceLoader<Chronology> loader = ServiceLoader.load(Chronology.class);
+        for(Chronology chrono : loader) {
+            chronos.add(chrono);
         }
-        if (obj instanceof AbstractChronology) {
-            return compareTo((AbstractChronology) obj) == 0;
-        }
-        return false;
+        
+        return chronos;
     }
-
+    
+    
     /**
-     * A hash code for this chronology.
+     * Initialization of the maps from id and type to Chronology.
+     * The ServiceLoader is used to find and register any implementations
+     * of {@link java.time.chrono.AbstractChronology} found in the bootclass loader.
+     * The built-in chronologies are registered explicitly.
+     * Calendars configured via the Thread's context classloader are local
+     * to that thread and are ignored.
      * <p>
-     * The hash code should be based on the entire state of the object.
+     * The initialization is done only once using the registration
+     * of the IsoChronology as the test and the final step.
+     * Multiple threads may perform the initialization concurrently.
+     * Only the first registration of each Chronology is retained by the
+     * ConcurrentHashMap.
      *
-     * @implSpec
-     * This implementation is based on the chronology ID and class.
-     * Subclasses should add any additional state that they store.
-     *
-     * @return a suitable hash code
+     * @return true if the cache was initialized
      */
-    @Override
-    public int hashCode() {
-        return getClass().hashCode() ^ getId().hashCode();
+    // 注册指定的历法系统
+    private static boolean initCache() {
+        if(CHRONOS_BY_ID.get("ISO") != null) {
+            return false;
+        }
+        
+        // Initialization is incomplete
+        
+        // Register built-in Chronologies
+        registerChrono(HijrahChronology.INSTANCE);
+        registerChrono(JapaneseChronology.INSTANCE);
+        registerChrono(MinguoChronology.INSTANCE);
+        registerChrono(ThaiBuddhistChronology.INSTANCE);
+        
+        // Register Chronologies from the ServiceLoader
+        @SuppressWarnings("rawtypes")
+        ServiceLoader<AbstractChronology> loader = ServiceLoader.load(AbstractChronology.class, null);
+        for(AbstractChronology chrono : loader) {
+            String id = chrono.getId();
+            if(id.equals("ISO") || registerChrono(chrono) != null) {
+                // Log the attempt to replace an existing Chronology
+                PlatformLogger logger = PlatformLogger.getLogger("java.time.chrono");
+                logger.warning("Ignoring duplicate Chronology, from ServiceLoader configuration " + id);
+            }
+        }
+        
+        // finally, register IsoChronology to mark initialization is complete
+        registerChrono(IsoChronology.INSTANCE);
+        
+        return true;
+        
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
-     * Outputs this chronology as a {@code String}, using the chronology ID.
+     * Register a Chronology by its ID and type for lookup by {@link #of(String)}.
+     * Chronologies must not be registered until they are completely constructed.
+     * Specifically, not in the constructor of Chronology.
      *
-     * @return a string representation of this chronology, not null
+     * @param chrono the chronology to register; not null
+     *
+     * @return the already registered Chronology if any, may be null
      */
-    @Override
-    public String toString() {
-        return getId();
+    // 注册指定的历法系统
+    static Chronology registerChrono(Chronology chrono) {
+        return registerChrono(chrono, chrono.getId());
     }
-
-    //-----------------------------------------------------------------------
+    
+    /**
+     * Register a Chronology by ID and type for lookup by {@link #of(String)}.
+     * Chronos must not be registered until they are completely constructed.
+     * Specifically, not in the constructor of Chronology.
+     *
+     * @param chrono the chronology to register; not null
+     * @param id     the ID to register the chronology; not null
+     *
+     * @return the already registered Chronology if any, may be null
+     */
+    // 注册指定的历法系统
+    static Chronology registerChrono(Chronology chrono, String id) {
+        Chronology prev = CHRONOS_BY_ID.putIfAbsent(id, chrono);
+        
+        if(prev == null) {
+            // 获取历法系统的类型
+            String type = chrono.getCalendarType();
+            if(type != null) {
+                CHRONOS_BY_TYPE.putIfAbsent(type, chrono);
+            }
+        }
+        
+        return prev;
+    }
+    
+    /**
+     * Obtains an instance of {@code Chronology} from a chronology ID or
+     * calendar system type.
+     *
+     * @param id the chronology ID or calendar system type, not null
+     *
+     * @return the chronology with the identifier requested, or {@code null} if not found
+     */
+    // 根据指定的历法ID或历法类型，从缓存中获取到注册的历法系统
+    private static Chronology of0(String idOrType) {
+        Chronology chrono = CHRONOS_BY_ID.get(idOrType);
+        if(chrono == null) {
+            chrono = CHRONOS_BY_TYPE.get(idOrType);
+        }
+        return chrono;
+    }
+    
+    /*▲ 注册/获取历法系统 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    
+    /*▼ 序列化 ████████████████████████████████████████████████████████████████████████████████┓ */
+    
+    /**
+     * Defend against malicious streams.
+     *
+     * @param s the stream to read
+     *
+     * @throws java.io.InvalidObjectException always
+     */
+    private void readObject(ObjectInputStream s) throws ObjectStreamException {
+        throw new InvalidObjectException("Deserialization via serialization delegate");
+    }
+    
     /**
      * Writes the Chronology using a
      * <a href="../../../serialized-form.html#java.time.chrono.Ser">dedicated serialized form</a>.
@@ -732,24 +811,84 @@ public abstract class AbstractChronology implements Chronology {
     Object writeReplace() {
         return new Ser(Ser.CHRONO_TYPE, this);
     }
-
-    /**
-     * Defend against malicious streams.
-     *
-     * @param s the stream to read
-     * @throws java.io.InvalidObjectException always
-     */
-    private void readObject(ObjectInputStream s) throws ObjectStreamException {
-        throw new InvalidObjectException("Deserialization via serialization delegate");
-    }
-
-    void writeExternal(DataOutput out) throws IOException {
-        out.writeUTF(getId());
-    }
-
+    
     static Chronology readExternal(DataInput in) throws IOException {
         String id = in.readUTF();
         return Chronology.of(id);
     }
-
+    
+    void writeExternal(DataOutput out) throws IOException {
+        out.writeUTF(getId());
+    }
+    
+    /*▲ 序列化 ████████████████████████████████████████████████████████████████████████████████┛ */
+    
+    
+    /**
+     * Compares this chronology to another chronology.
+     * <p>
+     * The comparison order first by the chronology ID string, then by any
+     * additional information specific to the subclass.
+     * It is "consistent with equals", as defined by {@link Comparable}.
+     *
+     * @param other the other chronology to compare to, not null
+     *
+     * @return the comparator value, negative if less, positive if greater
+     *
+     * @implSpec This implementation compares the chronology ID.
+     * Subclasses must compare any additional state that they store.
+     */
+    @Override
+    public int compareTo(Chronology other) {
+        return getId().compareTo(other.getId());
+    }
+    
+    /**
+     * Outputs this chronology as a {@code String}, using the chronology ID.
+     *
+     * @return a string representation of this chronology, not null
+     */
+    @Override
+    public String toString() {
+        return getId();
+    }
+    
+    /**
+     * Checks if this chronology is equal to another chronology.
+     * <p>
+     * The comparison is based on the entire state of the object.
+     *
+     * @param obj the object to check, null returns false
+     *
+     * @return true if this is equal to the other chronology
+     *
+     * @implSpec This implementation checks the type and calls
+     * {@link #compareTo(java.time.chrono.Chronology)}.
+     */
+    @Override
+    public boolean equals(Object obj) {
+        if(this == obj) {
+            return true;
+        }
+        if(obj instanceof AbstractChronology) {
+            return compareTo((AbstractChronology) obj) == 0;
+        }
+        return false;
+    }
+    
+    /**
+     * A hash code for this chronology.
+     * <p>
+     * The hash code should be based on the entire state of the object.
+     *
+     * @return a suitable hash code
+     *
+     * @implSpec This implementation is based on the chronology ID and class.
+     * Subclasses should add any additional state that they store.
+     */
+    @Override
+    public int hashCode() {
+        return getClass().hashCode() ^ getId().hashCode();
+    }
+    
 }

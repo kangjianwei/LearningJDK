@@ -95,16 +95,21 @@ import java.time.DateTimeException;
  * <li>finding the next or previous day-of-week, such as "next Thursday"
  * </ul>
  *
- * @implSpec
- * This interface places no restrictions on the mutability of implementations,
+ * @implSpec This interface places no restrictions on the mutability of implementations,
  * however immutability is strongly recommended.
- *
  * @see TemporalAdjusters
  * @since 1.8
  */
+/*
+ * 时间量整合器的接口，用来整合当前时间量与目标时间量，以构造新的时间量。
+ * 该接口同时也是一个函数表达式，具体查询行为由实现类指定。
+ *
+ * 注：有些时间量本身就具有整合其他时间量的功能，所以它们会实现这个借口。
+ * 　　除此之外，TemporalAdjusters类中还预设了多种实用的整合器。
+ */
 @FunctionalInterface
 public interface TemporalAdjuster {
-
+    
     /**
      * Adjusts the specified temporal object.
      * <p>
@@ -124,8 +129,13 @@ public interface TemporalAdjuster {
      * It is recommended to use the second approach, {@code with(TemporalAdjuster)},
      * as it is a lot clearer to read in code.
      *
-     * @implSpec
-     * The implementation must take the input object and adjust it.
+     * @param temporal the temporal object to adjust, not null
+     *
+     * @return an object of the same observable type with the adjustment made, not null
+     *
+     * @throws DateTimeException   if unable to make the adjustment
+     * @throws ArithmeticException if numeric overflow occurs
+     * @implSpec The implementation must take the input object and adjust it.
      * The implementation defines the logic of the adjustment and is responsible for
      * documenting that logic. It may use any method on {@code Temporal} to
      * query the temporal object and perform the adjustment.
@@ -141,12 +151,12 @@ public interface TemporalAdjuster {
      * <p>
      * This method may be called from multiple threads in parallel.
      * It must be thread-safe when invoked.
+     */
+    /*
+     * 拿当前时间量中的特定字段与时间量temporal中的其他字段进行整合。
      *
-     * @param temporal  the temporal object to adjust, not null
-     * @return an object of the same observable type with the adjustment made, not null
-     * @throws DateTimeException if unable to make the adjustment
-     * @throws ArithmeticException if numeric overflow occurs
+     * 如果整合后的值与temporal中原有的值相等，则可以直接使用temporal本身；否则，会返回新构造的时间量对象。
      */
     Temporal adjustInto(Temporal temporal);
-
+    
 }

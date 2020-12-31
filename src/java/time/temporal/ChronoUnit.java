@@ -74,44 +74,55 @@ import java.time.Duration;
  *
  * @since 1.8
  */
+// 常用的日期单位和时间单位
 public enum ChronoUnit implements TemporalUnit {
 
     /**
      * Unit that represents the concept of a nanosecond, the smallest supported unit of time.
      * For the ISO calendar system, it is equal to the 1,000,000,000th part of the second unit.
      */
+    // 纳秒
     NANOS("Nanos", Duration.ofNanos(1)),
     /**
      * Unit that represents the concept of a microsecond.
      * For the ISO calendar system, it is equal to the 1,000,000th part of the second unit.
      */
+    // 微秒
     MICROS("Micros", Duration.ofNanos(1000)),
     /**
      * Unit that represents the concept of a millisecond.
      * For the ISO calendar system, it is equal to the 1000th part of the second unit.
      */
+    // 毫秒
     MILLIS("Millis", Duration.ofNanos(1000_000)),
     /**
      * Unit that represents the concept of a second.
      * For the ISO calendar system, it is equal to the second in the SI system
      * of units, except around a leap-second.
      */
+    // 秒
     SECONDS("Seconds", Duration.ofSeconds(1)),
     /**
      * Unit that represents the concept of a minute.
      * For the ISO calendar system, it is equal to 60 seconds.
      */
+    // 分钟
     MINUTES("Minutes", Duration.ofSeconds(60)),
     /**
      * Unit that represents the concept of an hour.
      * For the ISO calendar system, it is equal to 60 minutes.
      */
+    // 小时
     HOURS("Hours", Duration.ofSeconds(3600)),
     /**
      * Unit that represents the concept of half a day, as used in AM/PM.
      * For the ISO calendar system, it is equal to 12 hours.
      */
+    // 半天
     HALF_DAYS("HalfDays", Duration.ofSeconds(43200)),
+    
+    /* ========================================================================================= */
+    
     /**
      * Unit that represents the concept of a day.
      * For the ISO calendar system, it is the standard day from midnight to midnight.
@@ -122,6 +133,7 @@ public enum ChronoUnit implements TemporalUnit {
      * at midnight - when converting between calendar systems, the date should be
      * equivalent at midday.
      */
+    // 天
     DAYS("Days", Duration.ofSeconds(86400)),
     /**
      * Unit that represents the concept of a week.
@@ -129,6 +141,7 @@ public enum ChronoUnit implements TemporalUnit {
      * <p>
      * When used with other calendar systems it must correspond to an integral number of days.
      */
+    // 周
     WEEKS("Weeks", Duration.ofSeconds(7 * 86400L)),
     /**
      * Unit that represents the concept of a month.
@@ -137,6 +150,7 @@ public enum ChronoUnit implements TemporalUnit {
      * <p>
      * When used with other calendar systems it must correspond to an integral number of days.
      */
+    // 月
     MONTHS("Months", Duration.ofSeconds(31556952L / 12)),
     /**
      * Unit that represents the concept of a year.
@@ -146,6 +160,7 @@ public enum ChronoUnit implements TemporalUnit {
      * When used with other calendar systems it must correspond to an integral number of days
      * or months roughly equal to a year defined by the passage of the Earth around the Sun.
      */
+    // 年
     YEARS("Years", Duration.ofSeconds(31556952L)),
     /**
      * Unit that represents the concept of a decade.
@@ -154,6 +169,7 @@ public enum ChronoUnit implements TemporalUnit {
      * When used with other calendar systems it must correspond to an integral number of days
      * and is normally an integral number of years.
      */
+    // 十年
     DECADES("Decades", Duration.ofSeconds(31556952L * 10L)),
     /**
      * Unit that represents the concept of a century.
@@ -162,6 +178,7 @@ public enum ChronoUnit implements TemporalUnit {
      * When used with other calendar systems it must correspond to an integral number of days
      * and is normally an integral number of years.
      */
+    // 百年
     CENTURIES("Centuries", Duration.ofSeconds(31556952L * 100L)),
     /**
      * Unit that represents the concept of a millennium.
@@ -170,6 +187,7 @@ public enum ChronoUnit implements TemporalUnit {
      * When used with other calendar systems it must correspond to an integral number of days
      * and is normally an integral number of years.
      */
+    // 千年
     MILLENNIA("Millennia", Duration.ofSeconds(31556952L * 1000L)),
     /**
      * Unit that represents the concept of an era.
@@ -179,6 +197,7 @@ public enum ChronoUnit implements TemporalUnit {
      * <p>
      * When used with other calendar systems there are no restrictions on the unit.
      */
+    // 十亿年
     ERAS("Eras", Duration.ofSeconds(31556952L * 1000_000_000L)),
     /**
      * Artificial unit that represents the concept of forever.
@@ -187,17 +206,17 @@ public enum ChronoUnit implements TemporalUnit {
      * The estimated duration of this unit is artificially defined as the largest duration
      * supported by {@link Duration}.
      */
+    // 永久
     FOREVER("Forever", Duration.ofSeconds(Long.MAX_VALUE, 999_999_999));
-
-    private final String name;
-    private final Duration duration;
-
+    
+    private final String name;          // 单位名称
+    private final Duration duration;    // 该单位与Duration的换算
+    
     private ChronoUnit(String name, Duration estimatedDuration) {
         this.name = name;
         this.duration = estimatedDuration;
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Gets the estimated duration of this unit in the ISO calendar system.
      * <p>
@@ -206,6 +225,7 @@ public enum ChronoUnit implements TemporalUnit {
      *
      * @return the estimated duration of this unit, not null
      */
+    // 将当前时间量单位转换为对应的"时间段"后返回
     @Override
     public Duration getDuration() {
         return duration;
@@ -222,12 +242,17 @@ public enum ChronoUnit implements TemporalUnit {
      *
      * @return true if the duration is estimated, false if accurate
      */
+    /*
+     * 判断当前时间量单位代表的"时间段"是否为估计值
+     *
+     * 对于"日期"单位单位来说，其代表的"时间段"都是估计值，因为忽略了闰秒。
+     */
     @Override
     public boolean isDurationEstimated() {
+        // 比较枚举实例的值，如果当前枚举实例声明在DAYS之后，则返回true
         return this.compareTo(DAYS) >= 0;
     }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Checks if this unit is a date unit.
      * <p>
@@ -236,6 +261,7 @@ public enum ChronoUnit implements TemporalUnit {
      *
      * @return true if a date unit, false if a time unit
      */
+    // 判断当前时间量单位是否为"日期"单位(>="天"的单位都是"日期"单位)
     @Override
     public boolean isDateBased() {
         return this.compareTo(DAYS) >= 0 && this != FOREVER;
@@ -249,30 +275,36 @@ public enum ChronoUnit implements TemporalUnit {
      *
      * @return true if a time unit, false if a date unit
      */
+    // 判断当前时间量单位是否为"时间"单位(<"天"的单位都是"时间"单位)
     @Override
     public boolean isTimeBased() {
-        return this.compareTo(DAYS) < 0;
+        return this.compareTo(DAYS)<0;
     }
-
-    //-----------------------------------------------------------------------
+    
+    // 判断当前时间量单位是否被指定的时间量支持
     @Override
     public boolean isSupportedBy(Temporal temporal) {
         return temporal.isSupported(this);
     }
-
+    
+    /*
+     * 对时间量temporal的值累加amount个当前单位下的时间量
+     *
+     * 如果累加后的值与temporal的值相等，则直接返回temporal对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
     @SuppressWarnings("unchecked")
     @Override
     public <R extends Temporal> R addTo(R temporal, long amount) {
         return (R) temporal.plus(amount, this);
     }
-
-    //-----------------------------------------------------------------------
+    
+    // 计算两个时间量temporal1Inclusive到temporal2Exclusive之间相差多少时间值(使用当前时间量单位)
     @Override
     public long between(Temporal temporal1Inclusive, Temporal temporal2Exclusive) {
         return temporal1Inclusive.until(temporal2Exclusive, this);
     }
-
-    //-----------------------------------------------------------------------
+    
     @Override
     public String toString() {
         return name;

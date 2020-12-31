@@ -100,6 +100,11 @@ import java.util.Objects;
  *
  * @since 1.8
  */
+/*
+ * 时间量访问器的接口，用来访问时间量中的字段信息。
+ *
+ * 注：所有时间量均实现了该接口。
+ */
 public interface TemporalAccessor {
 
     /**
@@ -123,6 +128,7 @@ public interface TemporalAccessor {
      * @param field  the field to check, null returns false
      * @return true if this date-time can be queried for the field, false if not
      */
+    // 判断当前时间量是否支持指定的时间量字段
     boolean isSupported(TemporalField field);
 
     /**
@@ -166,14 +172,19 @@ public interface TemporalAccessor {
      * @throws DateTimeException if the range for the field cannot be obtained
      * @throws UnsupportedTemporalTypeException if the field is not supported
      */
+    // 返回时间量字段field的取值区间，通常要求当前时间量支持该时间量字段
     default ValueRange range(TemporalField field) {
-        if (field instanceof ChronoField) {
-            if (isSupported(field)) {
+        Objects.requireNonNull(field, "field");
+    
+        if(field instanceof ChronoField) {
+            // 确保当前时间量支持指定的时间量字段
+            if(isSupported(field)) {
                 return field.range();
             }
+        
             throw new UnsupportedTemporalTypeException("Unsupported field: " + field);
         }
-        Objects.requireNonNull(field, "field");
+    
         return field.rangeRefinedBy(this);
     }
 
@@ -214,15 +225,24 @@ public interface TemporalAccessor {
      *         the range of values exceeds an {@code int}
      * @throws ArithmeticException if numeric overflow occurs
      */
+    // 以int形式返回时间量字段field的值
     default int get(TemporalField field) {
+        // 返回时间量字段field的取值区间，通常要求当前时间量支持该时间量字段
         ValueRange range = range(field);
-        if (range.isIntValue() == false) {
+    
+        // 确保field的取值区间是否在int的范围内
+        if(!range.isIntValue()) {
             throw new UnsupportedTemporalTypeException("Invalid field " + field + " for get() method, use getLong() instead");
         }
+    
+        // 以long形式返回时间量字段field的值
         long value = getLong(field);
-        if (range.isValidValue(value) == false) {
+        // 确保给定的值落在字段的取值区间中
+        if(!range.isValidValue(value)) {
             throw new DateTimeException("Invalid value for " + field + " (valid values " + range + "): " + value);
         }
+    
+        // 将long截断为int
         return (int) value;
     }
 
@@ -252,6 +272,7 @@ public interface TemporalAccessor {
      * @throws UnsupportedTemporalTypeException if the field is not supported
      * @throws ArithmeticException if numeric overflow occurs
      */
+    // 以long形式返回时间量字段field的值
     long getLong(TemporalField field);
 
     /**
@@ -305,12 +326,16 @@ public interface TemporalAccessor {
      * @throws DateTimeException if unable to query
      * @throws ArithmeticException if numeric overflow occurs
      */
+    /*
+     * 使用指定的时间量查询器，从当前时间量中查询目标信息
+     *
+     * 注：这里查询的目标信息，往往就是某个时间量字段的值
+     */
     default <R> R query(TemporalQuery<R> query) {
-        if (query == TemporalQueries.zoneId()
-                || query == TemporalQueries.chronology()
-                || query == TemporalQueries.precision()) {
+        if(query == TemporalQueries.zoneId() || query == TemporalQueries.chronology() || query == TemporalQueries.precision()) {
             return null;
         }
+    
         return query.queryFrom(this);
     }
 

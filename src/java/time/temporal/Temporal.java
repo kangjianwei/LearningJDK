@@ -119,15 +119,18 @@ import java.time.DateTimeException;
  *  days to months.
  * </ul>
  *
- * @implSpec
- * This interface places no restrictions on the mutability of implementations,
+ * @implSpec This interface places no restrictions on the mutability of implementations,
  * however immutability is strongly recommended.
  * All implementations must be {@link Comparable}.
- *
  * @since 1.8
  */
+/*
+ * 时间量基础操作接口
+ *
+ * 注：有些时间量不会实现这个接口
+ */
 public interface Temporal extends TemporalAccessor {
-
+    
     /**
      * Checks if the specified unit is supported.
      * <p>
@@ -135,8 +138,11 @@ public interface Temporal extends TemporalAccessor {
      * If false, then calling the {@link #plus(long, TemporalUnit)} and
      * {@link #minus(long, TemporalUnit) minus} methods will throw an exception.
      *
-     * @implSpec
-     * Implementations must check and handle all units defined in {@link ChronoUnit}.
+     * @param unit the unit to check, null returns false
+     *
+     * @return true if the unit can be added/subtracted, false if not
+     *
+     * @implSpec Implementations must check and handle all units defined in {@link ChronoUnit}.
      * If the unit is supported, then true must be returned, otherwise false must be returned.
      * <p>
      * If the field is not a {@code ChronoUnit}, then the result of this method
@@ -145,232 +151,10 @@ public interface Temporal extends TemporalAccessor {
      * <p>
      * Implementations must ensure that no observable state is altered when this
      * read-only method is invoked.
-     *
-     * @param unit  the unit to check, null returns false
-     * @return true if the unit can be added/subtracted, false if not
      */
+    // 判断当前时间量是否支持指定的时间量单位
     boolean isSupported(TemporalUnit unit);
-
-    /**
-     * Returns an adjusted object of the same type as this object with the adjustment made.
-     * <p>
-     * This adjusts this date-time according to the rules of the specified adjuster.
-     * A simple adjuster might simply set the one of the fields, such as the year field.
-     * A more complex adjuster might set the date to the last day of the month.
-     * A selection of common adjustments is provided in
-     * {@link java.time.temporal.TemporalAdjusters TemporalAdjusters}.
-     * These include finding the "last day of the month" and "next Wednesday".
-     * The adjuster is responsible for handling special cases, such as the varying
-     * lengths of month and leap years.
-     * <p>
-     * Some example code indicating how and why this method is used:
-     * <pre>
-     *  date = date.with(Month.JULY);        // most key classes implement TemporalAdjuster
-     *  date = date.with(lastDayOfMonth());  // static import from Adjusters
-     *  date = date.with(next(WEDNESDAY));   // static import from Adjusters and DayOfWeek
-     * </pre>
-     *
-     * @implSpec
-     * <p>
-     * Implementations must not alter either this object or the specified temporal object.
-     * Instead, an adjusted copy of the original must be returned.
-     * This provides equivalent, safe behavior for immutable and mutable implementations.
-     * <p>
-     * The default implementation must behave equivalent to this code:
-     * <pre>
-     *  return adjuster.adjustInto(this);
-     * </pre>
-     *
-     * @param adjuster  the adjuster to use, not null
-     * @return an object of the same type with the specified adjustment made, not null
-     * @throws DateTimeException if unable to make the adjustment
-     * @throws ArithmeticException if numeric overflow occurs
-     */
-    default Temporal with(TemporalAdjuster adjuster) {
-        return adjuster.adjustInto(this);
-    }
-
-    /**
-     * Returns an object of the same type as this object with the specified field altered.
-     * <p>
-     * This returns a new object based on this one with the value for the specified field changed.
-     * For example, on a {@code LocalDate}, this could be used to set the year, month or day-of-month.
-     * The returned object will have the same observable type as this object.
-     * <p>
-     * In some cases, changing a field is not fully defined. For example, if the target object is
-     * a date representing the 31st January, then changing the month to February would be unclear.
-     * In cases like this, the field is responsible for resolving the result. Typically it will choose
-     * the previous valid date, which would be the last valid day of February in this example.
-     *
-     * @implSpec
-     * Implementations must check and handle all fields defined in {@link ChronoField}.
-     * If the field is supported, then the adjustment must be performed.
-     * If unsupported, then an {@code UnsupportedTemporalTypeException} must be thrown.
-     * <p>
-     * If the field is not a {@code ChronoField}, then the result of this method
-     * is obtained by invoking {@code TemporalField.adjustInto(Temporal, long)}
-     * passing {@code this} as the first argument.
-     * <p>
-     * Implementations must not alter this object.
-     * Instead, an adjusted copy of the original must be returned.
-     * This provides equivalent, safe behavior for immutable and mutable implementations.
-     *
-     * @param field  the field to set in the result, not null
-     * @param newValue  the new value of the field in the result
-     * @return an object of the same type with the specified field set, not null
-     * @throws DateTimeException if the field cannot be set
-     * @throws UnsupportedTemporalTypeException if the field is not supported
-     * @throws ArithmeticException if numeric overflow occurs
-     */
-    Temporal with(TemporalField field, long newValue);
-
-    //-----------------------------------------------------------------------
-    /**
-     * Returns an object of the same type as this object with an amount added.
-     * <p>
-     * This adjusts this temporal, adding according to the rules of the specified amount.
-     * The amount is typically a {@link java.time.Period} but may be any other type implementing
-     * the {@link TemporalAmount} interface, such as {@link java.time.Duration}.
-     * <p>
-     * Some example code indicating how and why this method is used:
-     * <pre>
-     *  date = date.plus(period);                // add a Period instance
-     *  date = date.plus(duration);              // add a Duration instance
-     *  date = date.plus(workingDays(6));        // example user-written workingDays method
-     * </pre>
-     * <p>
-     * Note that calling {@code plus} followed by {@code minus} is not guaranteed to
-     * return the same date-time.
-     *
-     * @implSpec
-     * <p>
-     * Implementations must not alter either this object or the specified temporal object.
-     * Instead, an adjusted copy of the original must be returned.
-     * This provides equivalent, safe behavior for immutable and mutable implementations.
-     * <p>
-     * The default implementation must behave equivalent to this code:
-     * <pre>
-     *  return amount.addTo(this);
-     * </pre>
-     *
-     * @param amount  the amount to add, not null
-     * @return an object of the same type with the specified adjustment made, not null
-     * @throws DateTimeException if the addition cannot be made
-     * @throws ArithmeticException if numeric overflow occurs
-     */
-    default Temporal plus(TemporalAmount amount) {
-        return amount.addTo(this);
-    }
-
-    /**
-     * Returns an object of the same type as this object with the specified period added.
-     * <p>
-     * This method returns a new object based on this one with the specified period added.
-     * For example, on a {@code LocalDate}, this could be used to add a number of years, months or days.
-     * The returned object will have the same observable type as this object.
-     * <p>
-     * In some cases, changing a field is not fully defined. For example, if the target object is
-     * a date representing the 31st January, then adding one month would be unclear.
-     * In cases like this, the field is responsible for resolving the result. Typically it will choose
-     * the previous valid date, which would be the last valid day of February in this example.
-     *
-     * @implSpec
-     * Implementations must check and handle all units defined in {@link ChronoUnit}.
-     * If the unit is supported, then the addition must be performed.
-     * If unsupported, then an {@code UnsupportedTemporalTypeException} must be thrown.
-     * <p>
-     * If the unit is not a {@code ChronoUnit}, then the result of this method
-     * is obtained by invoking {@code TemporalUnit.addTo(Temporal, long)}
-     * passing {@code this} as the first argument.
-     * <p>
-     * Implementations must not alter this object.
-     * Instead, an adjusted copy of the original must be returned.
-     * This provides equivalent, safe behavior for immutable and mutable implementations.
-     *
-     * @param amountToAdd  the amount of the specified unit to add, may be negative
-     * @param unit  the unit of the amount to add, not null
-     * @return an object of the same type with the specified period added, not null
-     * @throws DateTimeException if the unit cannot be added
-     * @throws UnsupportedTemporalTypeException if the unit is not supported
-     * @throws ArithmeticException if numeric overflow occurs
-     */
-    Temporal plus(long amountToAdd, TemporalUnit unit);
-
-    //-----------------------------------------------------------------------
-    /**
-     * Returns an object of the same type as this object with an amount subtracted.
-     * <p>
-     * This adjusts this temporal, subtracting according to the rules of the specified amount.
-     * The amount is typically a {@link java.time.Period} but may be any other type implementing
-     * the {@link TemporalAmount} interface, such as {@link java.time.Duration}.
-     * <p>
-     * Some example code indicating how and why this method is used:
-     * <pre>
-     *  date = date.minus(period);               // subtract a Period instance
-     *  date = date.minus(duration);             // subtract a Duration instance
-     *  date = date.minus(workingDays(6));       // example user-written workingDays method
-     * </pre>
-     * <p>
-     * Note that calling {@code plus} followed by {@code minus} is not guaranteed to
-     * return the same date-time.
-     *
-     * @implSpec
-     * <p>
-     * Implementations must not alter either this object or the specified temporal object.
-     * Instead, an adjusted copy of the original must be returned.
-     * This provides equivalent, safe behavior for immutable and mutable implementations.
-     * <p>
-     * The default implementation must behave equivalent to this code:
-     * <pre>
-     *  return amount.subtractFrom(this);
-     * </pre>
-     *
-     * @param amount  the amount to subtract, not null
-     * @return an object of the same type with the specified adjustment made, not null
-     * @throws DateTimeException if the subtraction cannot be made
-     * @throws ArithmeticException if numeric overflow occurs
-     */
-    default Temporal minus(TemporalAmount amount) {
-        return amount.subtractFrom(this);
-    }
-
-    /**
-     * Returns an object of the same type as this object with the specified period subtracted.
-     * <p>
-     * This method returns a new object based on this one with the specified period subtracted.
-     * For example, on a {@code LocalDate}, this could be used to subtract a number of years, months or days.
-     * The returned object will have the same observable type as this object.
-     * <p>
-     * In some cases, changing a field is not fully defined. For example, if the target object is
-     * a date representing the 31st March, then subtracting one month would be unclear.
-     * In cases like this, the field is responsible for resolving the result. Typically it will choose
-     * the previous valid date, which would be the last valid day of February in this example.
-     *
-     * @implSpec
-     * Implementations must behave in a manor equivalent to the default method behavior.
-     * <p>
-     * Implementations must not alter this object.
-     * Instead, an adjusted copy of the original must be returned.
-     * This provides equivalent, safe behavior for immutable and mutable implementations.
-     * <p>
-     * The default implementation must behave equivalent to this code:
-     * <pre>
-     *  return (amountToSubtract == Long.MIN_VALUE ?
-     *      plus(Long.MAX_VALUE, unit).plus(1, unit) : plus(-amountToSubtract, unit));
-     * </pre>
-     *
-     * @param amountToSubtract  the amount of the specified unit to subtract, may be negative
-     * @param unit  the unit of the amount to subtract, not null
-     * @return an object of the same type with the specified period subtracted, not null
-     * @throws DateTimeException if the unit cannot be subtracted
-     * @throws UnsupportedTemporalTypeException if the unit is not supported
-     * @throws ArithmeticException if numeric overflow occurs
-     */
-    default Temporal minus(long amountToSubtract, TemporalUnit unit) {
-        return (amountToSubtract == Long.MIN_VALUE ? plus(Long.MAX_VALUE, unit).plus(1, unit) : plus(-amountToSubtract, unit));
-    }
-
-    //-----------------------------------------------------------------------
+    
     /**
      * Calculates the amount of time until another temporal in terms of the specified unit.
      * <p>
@@ -405,8 +189,19 @@ public interface Temporal extends TemporalAccessor {
      *  long daysBetween = DAYS.between(start, end);
      * </pre>
      *
-     * @implSpec
-     * Implementations must begin by checking to ensure that the input temporal
+     * @param endExclusive the end temporal, exclusive, converted to be of the
+     *                     same type as this object, not null
+     * @param unit         the unit to measure the amount in, not null
+     *
+     * @return the amount of time between this temporal object and the specified one
+     * in terms of the unit; positive if the specified object is later than this one,
+     * negative if it is earlier than this one
+     *
+     * @throws DateTimeException                if the amount cannot be calculated, or the end
+     *                                          temporal cannot be converted to the same type as this temporal
+     * @throws UnsupportedTemporalTypeException if the unit is not supported
+     * @throws ArithmeticException              if numeric overflow occurs
+     * @implSpec Implementations must begin by checking to ensure that the input temporal
      * object is of the same observable type as the implementation.
      * They must then perform the calculation for all instances of {@link ChronoUnit}.
      * An {@code UnsupportedTemporalTypeException} must be thrown for {@code ChronoUnit}
@@ -432,18 +227,268 @@ public interface Temporal extends TemporalAccessor {
      * <p>
      * Implementations must ensure that no observable state is altered when this
      * read-only method is invoked.
-     *
-     * @param endExclusive  the end temporal, exclusive, converted to be of the
-     *  same type as this object, not null
-     * @param unit  the unit to measure the amount in, not null
-     * @return the amount of time between this temporal object and the specified one
-     *  in terms of the unit; positive if the specified object is later than this one,
-     *  negative if it is earlier than this one
-     * @throws DateTimeException if the amount cannot be calculated, or the end
-     *  temporal cannot be converted to the same type as this temporal
-     * @throws UnsupportedTemporalTypeException if the unit is not supported
-     * @throws ArithmeticException if numeric overflow occurs
      */
+    // 计算当前时间量到目标时间量endExclusive之间相差多少个unit单位的时间值
     long until(Temporal endExclusive, TemporalUnit unit);
-
+    
+    /**
+     * Returns an adjusted object of the same type as this object with the adjustment made.
+     * <p>
+     * This adjusts this date-time according to the rules of the specified adjuster.
+     * A simple adjuster might simply set the one of the fields, such as the year field.
+     * A more complex adjuster might set the date to the last day of the month.
+     * A selection of common adjustments is provided in
+     * {@link java.time.temporal.TemporalAdjusters TemporalAdjusters}.
+     * These include finding the "last day of the month" and "next Wednesday".
+     * The adjuster is responsible for handling special cases, such as the varying
+     * lengths of month and leap years.
+     * <p>
+     * Some example code indicating how and why this method is used:
+     * <pre>
+     *  date = date.with(Month.JULY);        // most key classes implement TemporalAdjuster
+     *  date = date.with(lastDayOfMonth());  // static import from Adjusters
+     *  date = date.with(next(WEDNESDAY));   // static import from Adjusters and DayOfWeek
+     * </pre>
+     *
+     * @param adjuster the adjuster to use, not null
+     *
+     * @return an object of the same type with the specified adjustment made, not null
+     *
+     * @throws DateTimeException   if unable to make the adjustment
+     * @throws ArithmeticException if numeric overflow occurs
+     * @implSpec <p>
+     * Implementations must not alter either this object or the specified temporal object.
+     * Instead, an adjusted copy of the original must be returned.
+     * This provides equivalent, safe behavior for immutable and mutable implementations.
+     * <p>
+     * The default implementation must behave equivalent to this code:
+     * <pre>
+     *  return adjuster.adjustInto(this);
+     * </pre>
+     */
+    /*
+     * 使用指定的时间量整合器adjuster来构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     */
+    default Temporal with(TemporalAdjuster adjuster) {
+        return adjuster.adjustInto(this);
+    }
+    
+    /**
+     * Returns an object of the same type as this object with the specified field altered.
+     * <p>
+     * This returns a new object based on this one with the value for the specified field changed.
+     * For example, on a {@code LocalDate}, this could be used to set the year, month or day-of-month.
+     * The returned object will have the same observable type as this object.
+     * <p>
+     * In some cases, changing a field is not fully defined. For example, if the target object is
+     * a date representing the 31st January, then changing the month to February would be unclear.
+     * In cases like this, the field is responsible for resolving the result. Typically it will choose
+     * the previous valid date, which would be the last valid day of February in this example.
+     *
+     * @param field    the field to set in the result, not null
+     * @param newValue the new value of the field in the result
+     *
+     * @return an object of the same type with the specified field set, not null
+     *
+     * @throws DateTimeException                if the field cannot be set
+     * @throws UnsupportedTemporalTypeException if the field is not supported
+     * @throws ArithmeticException              if numeric overflow occurs
+     * @implSpec Implementations must check and handle all fields defined in {@link ChronoField}.
+     * If the field is supported, then the adjustment must be performed.
+     * If unsupported, then an {@code UnsupportedTemporalTypeException} must be thrown.
+     * <p>
+     * If the field is not a {@code ChronoField}, then the result of this method
+     * is obtained by invoking {@code TemporalField.adjustInto(Temporal, long)}
+     * passing {@code this} as the first argument.
+     * <p>
+     * Implementations must not alter this object.
+     * Instead, an adjusted copy of the original must be returned.
+     * This provides equivalent, safe behavior for immutable and mutable implementations.
+     */
+    /*
+     * 通过整合指定类型的字段和当前时间量中的其他类型的字段来构造时间量对象。
+     *
+     * 如果整合后的值与当前时间量中的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"整合"后的新对象再返回。
+     *
+     * field   : 待整合的字段(类型)
+     * newValue: field的原始值，需要根据filed的类型进行放缩
+     */
+    Temporal with(TemporalField field, long newValue);
+    
+    /**
+     * Returns an object of the same type as this object with an amount added.
+     * <p>
+     * This adjusts this temporal, adding according to the rules of the specified amount.
+     * The amount is typically a {@link java.time.Period} but may be any other type implementing
+     * the {@link TemporalAmount} interface, such as {@link java.time.Duration}.
+     * <p>
+     * Some example code indicating how and why this method is used:
+     * <pre>
+     *  date = date.plus(period);                // add a Period instance
+     *  date = date.plus(duration);              // add a Duration instance
+     *  date = date.plus(workingDays(6));        // example user-written workingDays method
+     * </pre>
+     * <p>
+     * Note that calling {@code plus} followed by {@code minus} is not guaranteed to
+     * return the same date-time.
+     *
+     * @param amount the amount to add, not null
+     *
+     * @return an object of the same type with the specified adjustment made, not null
+     *
+     * @throws DateTimeException   if the addition cannot be made
+     * @throws ArithmeticException if numeric overflow occurs
+     * @implSpec <p>
+     * Implementations must not alter either this object or the specified temporal object.
+     * Instead, an adjusted copy of the original must be returned.
+     * This provides equivalent, safe behavior for immutable and mutable implementations.
+     * <p>
+     * The default implementation must behave equivalent to this code:
+     * <pre>
+     *  return amount.addTo(this);
+     * </pre>
+     */
+    /*
+     * 对当前时间量的值与参数中的"时间段"求和
+     *
+     * 如果求和后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"求和"后的新对象再返回。
+     */
+    default Temporal plus(TemporalAmount amount) {
+        return amount.addTo(this);
+    }
+    
+    /**
+     * Returns an object of the same type as this object with the specified period added.
+     * <p>
+     * This method returns a new object based on this one with the specified period added.
+     * For example, on a {@code LocalDate}, this could be used to add a number of years, months or days.
+     * The returned object will have the same observable type as this object.
+     * <p>
+     * In some cases, changing a field is not fully defined. For example, if the target object is
+     * a date representing the 31st January, then adding one month would be unclear.
+     * In cases like this, the field is responsible for resolving the result. Typically it will choose
+     * the previous valid date, which would be the last valid day of February in this example.
+     *
+     * @param amountToAdd the amount of the specified unit to add, may be negative
+     * @param unit        the unit of the amount to add, not null
+     *
+     * @return an object of the same type with the specified period added, not null
+     *
+     * @throws DateTimeException                if the unit cannot be added
+     * @throws UnsupportedTemporalTypeException if the unit is not supported
+     * @throws ArithmeticException              if numeric overflow occurs
+     * @implSpec Implementations must check and handle all units defined in {@link ChronoUnit}.
+     * If the unit is supported, then the addition must be performed.
+     * If unsupported, then an {@code UnsupportedTemporalTypeException} must be thrown.
+     * <p>
+     * If the unit is not a {@code ChronoUnit}, then the result of this method
+     * is obtained by invoking {@code TemporalUnit.addTo(Temporal, long)}
+     * passing {@code this} as the first argument.
+     * <p>
+     * Implementations must not alter this object.
+     * Instead, an adjusted copy of the original must be returned.
+     * This provides equivalent, safe behavior for immutable and mutable implementations.
+     */
+    /*
+     * 对当前时间量的值累加amountToAdd个unit单位的时间量
+     *
+     * 如果累加后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"累加"操作后的新对象再返回。
+     */
+    Temporal plus(long amountToAdd, TemporalUnit unit);
+    
+    /**
+     * Returns an object of the same type as this object with an amount subtracted.
+     * <p>
+     * This adjusts this temporal, subtracting according to the rules of the specified amount.
+     * The amount is typically a {@link java.time.Period} but may be any other type implementing
+     * the {@link TemporalAmount} interface, such as {@link java.time.Duration}.
+     * <p>
+     * Some example code indicating how and why this method is used:
+     * <pre>
+     *  date = date.minus(period);               // subtract a Period instance
+     *  date = date.minus(duration);             // subtract a Duration instance
+     *  date = date.minus(workingDays(6));       // example user-written workingDays method
+     * </pre>
+     * <p>
+     * Note that calling {@code plus} followed by {@code minus} is not guaranteed to
+     * return the same date-time.
+     *
+     * @param amount the amount to subtract, not null
+     *
+     * @return an object of the same type with the specified adjustment made, not null
+     *
+     * @throws DateTimeException   if the subtraction cannot be made
+     * @throws ArithmeticException if numeric overflow occurs
+     * @implSpec <p>
+     * Implementations must not alter either this object or the specified temporal object.
+     * Instead, an adjusted copy of the original must be returned.
+     * This provides equivalent, safe behavior for immutable and mutable implementations.
+     * <p>
+     * The default implementation must behave equivalent to this code:
+     * <pre>
+     *  return amount.subtractFrom(this);
+     * </pre>
+     */
+    /*
+     * 对当前时间量的值与参数中的"时间段"求差
+     *
+     * 如果求差后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"求差"后的新对象再返回。
+     */
+    default Temporal minus(TemporalAmount amount) {
+        return amount.subtractFrom(this);
+    }
+    
+    /**
+     * Returns an object of the same type as this object with the specified period subtracted.
+     * <p>
+     * This method returns a new object based on this one with the specified period subtracted.
+     * For example, on a {@code LocalDate}, this could be used to subtract a number of years, months or days.
+     * The returned object will have the same observable type as this object.
+     * <p>
+     * In some cases, changing a field is not fully defined. For example, if the target object is
+     * a date representing the 31st March, then subtracting one month would be unclear.
+     * In cases like this, the field is responsible for resolving the result. Typically it will choose
+     * the previous valid date, which would be the last valid day of February in this example.
+     *
+     * @param amountToSubtract the amount of the specified unit to subtract, may be negative
+     * @param unit             the unit of the amount to subtract, not null
+     *
+     * @return an object of the same type with the specified period subtracted, not null
+     *
+     * @throws DateTimeException                if the unit cannot be subtracted
+     * @throws UnsupportedTemporalTypeException if the unit is not supported
+     * @throws ArithmeticException              if numeric overflow occurs
+     * @implSpec Implementations must behave in a manor equivalent to the default method behavior.
+     * <p>
+     * Implementations must not alter this object.
+     * Instead, an adjusted copy of the original must be returned.
+     * This provides equivalent, safe behavior for immutable and mutable implementations.
+     * <p>
+     * The default implementation must behave equivalent to this code:
+     * <pre>
+     *  return (amountToSubtract == Long.MIN_VALUE ?
+     *      plus(Long.MAX_VALUE, unit).plus(1, unit) : plus(-amountToSubtract, unit));
+     * </pre>
+     */
+    /*
+     * 对当前时间量的值减去amountToSubtract个unit单位的时间量
+     *
+     * 如果减去后的值与当前时间量的值相等，则直接返回当前时间量对象。
+     * 否则，需要构造"减去"操作后的新对象再返回。
+     */
+    default Temporal minus(long amountToSubtract, TemporalUnit unit) {
+        if(amountToSubtract == Long.MIN_VALUE) {
+            return plus(Long.MAX_VALUE, unit).plus(1, unit);
+        }
+        
+        return plus(-amountToSubtract, unit);
+    }
+    
 }
